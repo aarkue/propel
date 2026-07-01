@@ -1,0 +1,11 @@
+/* The WebKitGTK (Linux Tauri webview) "blurry flow" has TWO independent causes, both fixed at the
+   source rather than with a `.react-flow` layer/transform hack (a `translateZ(0)` re-raster hack
+   used to live here and did NOT help -- nested flows blurred with or without it):
+
+   1. `backdrop-filter` (radix translucent panels, viewer overlays): WebKitGTK renders the region
+      behind it blurry. Fixed via Theme `panelBackground="solid"` + removing backdrop-filter from
+      viewer CSS.
+   2. Accelerated compositing of scrollable / nested-flow content: once a node contains an active
+      scroll layer (overflow with a scrollbar) or a nested ReactFlow, WebKitGTK downsamples the whole
+      composited flow. This is a WebKit compositing limitation; the reliable fix is to disable
+      accelerated compositing (WEBKIT_DISABLE_COMPOSITING_MODE=1). */

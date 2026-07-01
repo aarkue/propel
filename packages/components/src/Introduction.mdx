@@ -1,0 +1,66 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as PetriNet from "./petri-net.stories";
+import * as OCPN from "./object-centric-petri-net.stories";
+import * as Freq from "./inputs/FrequencyPicker.stories";
+
+<Meta title="Getting Started/Introduction" tags={["dev"]} />
+
+# @r4pm/components
+
+React components for process mining: Petri nets, object-centric Petri nets,
+directly-follows graphs, dotted charts, alignments, etc.
+
+## Install
+
+```sh
+pnpm add @r4pm/components
+# peer dependencies:
+pnpm add react react-dom @tanstack/react-query
+```
+
+## Use
+
+Wrap your app (or any single viewer) in a Radix `Theme`, import the stylesheet once, then
+feed a viewer the typed binding result.
+
+```tsx
+import "@r4pm/components/styles.css";
+import { Theme, PetriNetViewer } from "@r4pm/components";
+
+export function App({ net }) {
+  return (
+    <Theme>
+      <PetriNetViewer data={net} />
+    </Theme>
+  );
+}
+```
+
+Coloring, value formatting, and interactivity are shared across viewers and configured once.
+See [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs). For the exact
+shape of each viewer's `data` prop (the binding return types, with field descriptions), see
+[Data Types](?path=/docs/getting-started-data-types--docs).
+
+## Showcase
+
+### Petri net
+
+<Canvas of={PetriNet.Default} />
+
+### Object-centric Petri net
+
+<Canvas of={OCPN.Default} />
+
+### Frequency selector
+
+<Canvas of={Freq.Default} />
+
+## Explore
+
+- [Getting Started > Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config types every viewer accepts.
+- [Getting Started > Data Types](?path=/docs/getting-started-data-types--docs): every binding return type a viewer takes as `data`, with field descriptions (generated from the Rust types).
+- [Getting Started > Composing Primitives](?path=/docs/getting-started-composing-primitives--docs): build rows from the low-level primitives.
+- **Viewers**: Petri net, object-centric Petri net, directly-follows graph, dotted chart, alignments, fitness, OC-DECLARE, activity / case-duration / events-per-time charts, OCEL counts, log summary, log variants.
+- **Inputs & Primitives**: frequency picker, dataset selector, choosers, selection actions, stat cards, ranked bar list, coverage bar, activity sequence, log-metadata card, JSON viewer.
+
+Each component page lists its props (auto-generated from the TypeScript types) and a runnable example.

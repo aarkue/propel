@@ -1,0 +1,82 @@
+{
+  "name": "@r4pm/components",
+  "version": "0.0.1",
+  "description": "Reusable viewers (DFG, Petri net, dotted chart, OCEL, alignments) and inputs for process mining",
+  "repository": "https://github.com/aarkue/propel",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.js"
+    },
+    "./ui/styles.css": "./dist/ui/styles.css",
+    "./petri": {
+      "types": "./dist/petri/index.d.ts",
+      "import": "./dist/petri/index.js"
+    },
+    "./petri/editor.css": "./dist/petri/index.css",
+    "./charts": {
+      "types": "./dist/charts/index.d.ts",
+      "import": "./dist/charts/index.js"
+    }
+  },
+  "dependencies": {
+    "@radix-ui/themes": "^3.2.1",
+    "@xyflow/react": "^12.10.0",
+    "elkjs": "^0.10.0",
+    "react-icons": "^5.5.0",
+    "react-plotly.js": "^2.6.0",
+    "html-to-image": "^1.11.11"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@storybook/react-vite": "^10",
+    "@storybook/addon-docs": "^10",
+    "storybook": "^10",
+    "@tailwindcss/cli": "^4.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "@tanstack/react-query": "^5.67.3",
+    "remark-gfm": "^4.0.1",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/react-plotly.js": "^2.6.3",
+    "react-dom": "^18.3.0",
+    "plotly.js": "^2.35.0",
+    "react": "^18.3.0",
+    "tailwindcss": "^4.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
+  },
+  "license": "MIT OR Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "docs:types": "node scripts/gen-data-types-doc.mjs",
+    "dev": "storybook dev -p 6006 --no-open",
+    "showcase": "storybook build",
+    "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && tailwindcss -i src/ui/styles.css -o dist/ui/styles.css --minify"
+  }
+}

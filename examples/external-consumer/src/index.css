@@ -1,0 +1,9 @@
+/* Page sizing only. The viewer styles come from `@r4pm/components/styles.css` (imported in
+   main.tsx), which is a precompiled stylesheet when installed from npm; this workspace example
+   compiles the Tailwind source itself via @tailwindcss/vite. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}

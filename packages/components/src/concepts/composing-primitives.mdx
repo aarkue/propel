@@ -1,0 +1,45 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as ActSeq from "../shared/ActivitySequence.stories";
+import * as Coverage from "../shared/CoverageBar.stories";
+
+<Meta title="Getting Started/Composing Primitives" tags={["dev"]} />
+
+# Composing primitives
+
+The viewers are built from small, exported **primitives** you can reuse directly. The same
+pieces that render a row inside `LogVariants` or `AlignmentList` are available on their own, so
+you can assemble custom layouts from them.
+
+## Activity sequence
+
+`ActivitySequence` renders a trace / variant as a horizontal run of chevron activity chips.
+`colorOf` resolves each chip's color, so it stays consistent with the graph viewers.
+
+<Canvas of={ActSeq.Default} />
+
+## Coverage bar
+
+`CoverageBar` is the compact "% of cases" indicator used per variant / trace row.
+
+<Canvas of={Coverage.Default} />
+
+## Building a row
+
+A variant row is these primitives side by side:
+
+```tsx
+import { ActivitySequence, CoverageBar } from "@r4pm/components";
+
+function VariantRow({ activities, share, colorOf }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <ActivitySequence activities={activities} colorOf={colorOf} />
+      <CoverageBar value={share} />
+    </div>
+  );
+}
+```
+
+Other primitives: `StatCards`, `RankedBarList`, `LogMetadataCard`, `JSONViewer`, and the
+inputs (`FrequencyPicker`, `DatasetSelector`, choosers, `SelectionActions`). Each has its own
+page under **Inputs & Primitives**.

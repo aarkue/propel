@@ -1,0 +1,252 @@
+
+/* Standalone light/dark defaults so this CSS works without @r4pm/ui.
+   When @r4pm/ui/styles.css is also loaded its .radix-themes block takes over automatically. */
+:root {
+  --r4pm-node-bg: #ffffff;
+  --r4pm-node-border: #1f2937;
+  --r4pm-node-text: #111827;
+  --r4pm-control-bg: #ffffff;
+  --r4pm-control-hover-bg: #f3f4f6;
+  --r4pm-control-text: #374151;
+  --r4pm-border-subtle: rgba(15, 23, 42, 0.08);
+  --r4pm-border-muted: rgba(15, 23, 42, 0.06);
+  --r4pm-shadow: rgba(15, 23, 42, 0.12);
+  --r4pm-shadow-sm: rgba(15, 23, 42, 0.10);
+}
+
+.dark,
+[data-theme="dark"] {
+  --r4pm-node-bg: #19191b;
+  --r4pm-node-border: #5e5e6e;
+  --r4pm-node-text: #ededef;
+  --r4pm-control-bg: #19191b;
+  --r4pm-control-hover-bg: #232325;
+  --r4pm-control-text: #b0b0b8;
+  --r4pm-border-subtle: rgba(255, 255, 255, 0.08);
+  --r4pm-border-muted: rgba(255, 255, 255, 0.05);
+  --r4pm-shadow: rgba(0, 0, 0, 0.40);
+  --r4pm-shadow-sm: rgba(0, 0, 0, 0.25);
+}
+
+/* Override ReactFlow CSS vars so the canvas and edge labels follow the active theme. */
+.petri-net-editor {
+  background-color: var(--r4pm-export-bg);
+  --xy-edge-label-background-color: var(--r4pm-node-bg);
+}
+
+.petri-net-editor .transition-node > input {
+    border: none;
+  }
+  .petri-net-editor .transition-node {
+    position: relative;
+    border: 1.75px solid var(--r4pm-node-border);
+    border-radius: 4px;
+    background-color: var(--r4pm-node-bg);
+    color: var(--r4pm-node-text);
+    box-shadow: 0 1px 2px var(--r4pm-shadow);
+  }
+
+  .petri-net-editor .dragHandle {
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    border: 1px dashed transparent;
+    transform: translateX(-50%) translateY(-50%) scale(0.8);
+    left: 50%;
+    top: 50%;
+    position: absolute;
+  }
+  .petri-net-editor .transition-node:hover > .dragHandle,
+  .petri-net-editor .place-node:hover > .dragHandle {
+    border: 1px dashed #b0b0b0;
+  }
+
+ .petri-net-editor .transition-node,
+ .petri-net-editor .place-node {
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .petri-net-editor .place-node > .dragHandle {
+    border-radius: 9000px;
+  }
+
+  .petri-net-editor  .place-node {
+    position: relative;
+    border: 1.75px solid var(--r4pm-node-border);
+    border-radius: 100%;
+    background-color: var(--r4pm-node-bg);
+    box-shadow: 0 1px 2px var(--r4pm-shadow);
+    display: flex;
+  }
+  .petri-net-editor  .react-flow__handle {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: transparent;
+    top: 50%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-50%);
+    border-radius: 0;
+    opacity: 0;
+  }
+  .petri-net-editor  .place-node > .react-flow__handle.target {
+    border-radius: 100%;
+  }
+  .petri-net-editor.readonly .delete-button {
+    display: none !important;
+  }
+ .petri-net-editor .place-node > .delete-button,
+ .petri-net-editor .transition-node > .delete-button,
+ .petri-net-editor .edge > .delete-button {
+    display: none;
+    position: absolute;
+    top: -0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    stroke: red;
+    border: none;
+    border-radius: 90000px;
+    background-color: transparent;
+    width: 0.75rem;
+    height: 0.75rem;
+    font-family: Consolas, "Andale Mono WT", "Andale Mono", "Lucida Console",
+      "Lucida Sans Typewriter", "DejaVu Sans Mono", "Bitstream Vera Sans Mono",
+      "Liberation Mono", "Nimbus Mono L", Monaco, "Courier New", Courier,
+      monospace;
+    padding: 0;
+    background-color: #f038383a;
+  }
+ .petri-net-editor .node:hover > .delete-button,
+ .petri-net-editor .node.selected > .delete-button,
+ .petri-net-editor .edge.selected > .delete-button,
+ .petri-net-editor .delete-button:hover {
+    z-index: 20;
+    cursor: pointer;
+    display: block;
+  }
+ .petri-net-editor .place-node > .delete-button:hover,
+ .petri-net-editor .transition-node > .delete-button:hover,
+ .petri-net-editor .edge > .delete-button:hover {
+    background-color: #f0383893;
+    stroke: rgb(130, 0, 0);
+  }
+
+  /* Clean, compact zoom/fit controls. */
+  .petri-net-editor .react-flow__controls {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px var(--r4pm-shadow);
+    border: 1px solid var(--r4pm-border-subtle);
+  }
+  .petri-net-editor .react-flow__controls-button {
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-bottom: 1px solid var(--r4pm-border-muted);
+    background: var(--r4pm-control-bg);
+    color: var(--r4pm-control-text);
+  }
+  .petri-net-editor .react-flow__controls-button:hover {
+    background: var(--r4pm-control-hover-bg);
+  }
+  .petri-net-editor .react-flow__controls-button svg {
+    max-width: 11px;
+    max-height: 11px;
+  }
+  /* In read-only viewers the controls + top-right tools are a quiet helper:
+     fade in on hover. */
+  .petri-net-editor.readonly .react-flow__controls,
+  .petri-net-editor.readonly .react-flow__panel {
+    opacity: 0.3;
+    transition: opacity 0.15s ease;
+  }
+  .petri-net-editor.readonly:hover .react-flow__controls,
+  .petri-net-editor.readonly:hover .react-flow__panel {
+    opacity: 1;
+  }
+
+  /* Marking stepper: a quiet helper that only appears on hover/selection so the
+     place stays uncluttered, showing just its tokens at rest. */
+  .petri-net-editor .pn-marking-stepper {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: -2px;
+    flex-direction: column;
+    gap: 2px;
+    align-items: stretch;
+    z-index: 15;
+    padding: 3px;
+    border-radius: 7px;
+    background: var(--r4pm-control-bg);
+    border: 1px solid var(--r4pm-border-subtle);
+    box-shadow: 0 1px 4px var(--r4pm-shadow-sm);
+  }
+  .petri-net-editor .place-node:hover > .pn-marking-stepper,
+  .petri-net-editor .place-node.selected > .pn-marking-stepper,
+  .petri-net-editor .pn-marking-stepper:hover {
+    display: flex;
+  }
+  .petri-net-editor .pn-step-row {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .petri-net-editor .pn-step-label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--r4pm-control-text);
+    width: 1.9rem;
+    flex-shrink: 0;
+  }
+  .petri-net-editor .pn-step-btn {
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: var(--r4pm-control-hover-bg);
+    color: var(--r4pm-control-text);
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+  }
+  .petri-net-editor .pn-step-btn:hover {
+    background: var(--r4pm-node-border);
+    color: var(--r4pm-node-bg);
+  }
+  .petri-net-editor .pn-step-count {
+    font-size: 10px;
+    font-family: monospace;
+    min-width: 1.5rem;
+    text-align: center;
+    color: var(--r4pm-control-text);
+  }
+
+  /* PNG/SVG export buttons. */
+  .petri-net-editor .pn-export {
+    display: flex;
+    gap: 4px;
+  }
+  .petri-net-editor .pn-export-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--r4pm-border-subtle);
+    background: var(--r4pm-control-bg);
+    color: var(--r4pm-control-text);
+    cursor: pointer;
+    box-shadow: 0 1px 3px var(--r4pm-shadow-sm);
+  }
+  .petri-net-editor .pn-export-btn:hover {
+    background: var(--r4pm-control-hover-bg);
+  }

@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Scan the @r4pm/components source for utility classes, since it ships source (not built CSS) and
+   lives outside this app's root. The former pipeline/transforms/app-kit packages are now in
+   apps/studio/src and covered by Tailwind's auto content detection. */
+@source "../../../packages/components/src";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Fix blurry reactflow in WebKit (Tauri WKWebView / WebKitGTK). */
+.react-flow {
+  will-change: contents;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0) scale(1, 1);
+  -webkit-transform: translateZ(0) scale(1, 1);
+}

@@ -1,0 +1,55 @@
+/* The seam's base styling, so consumers import a single `@r4pm/components/styles.css` and never
+   reach for the `./ui` seam / radix directly.
+   Radix MUST load AFTER tailwindcss: Tailwind's Preflight reset would otherwise clobber Radix's
+   button/slider/etc. component styling. */
+@import "tailwindcss";
+@import "./ui/styles.css";
+
+@import "./petri/editor/editor.css";
+
+/* Scan this package's components so the precompiled stylesheet (prod) and the Storybook dev server
+   (via @tailwindcss/vite) include every utility class the viewers use. Consumers import the
+   built result as `@r4pm/components/styles.css`, no Tailwind setup needed on their side. */
+@source "./";
+
+/* Indeterminate top bar for the shared loading state (Radix Progress is determinate-only). */
+.r4pm-indet-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  background: var(--accent-a3);
+}
+
+.r4pm-indet-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 40%;
+  border-radius: 2px;
+  background: var(--accent-9);
+  animation: r4pm-indet 1.15s ease-in-out infinite;
+}
+
+@keyframes r4pm-indet {
+  0% {
+    left: -40%;
+  }
+
+  100% {
+    left: 100%;
+  }
+}
+
+/* Fix blurry reactflow (DFG/OC-DFG) in WebKit (Tauri WKWebView / WebKitGTK). From OCPQ:
+   a translateZ(0) scale(1,1) layer on the `.react-flow` root makes WebKit re-rasterize the
+   zoom-scaled contents instead of upscaling a cached 1x bitmap. */
+.react-flow {
+  will-change: contents;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0) scale(1, 1);
+  -webkit-transform: translateZ(0) scale(1, 1);
+}

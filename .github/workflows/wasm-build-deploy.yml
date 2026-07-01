@@ -1,0 +1,82 @@
+name: Build and Deploy WASM demo + Storybook
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-wasm-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'engine -> target'
+      - run: pnpm install --frozen-lockfile
+      - name: Install wasm-pack
+        run: npm install -g wasm-pack
+      - name: Build engine wasm package
+        run: cd engine/wasm && wasm-pack build --target web --release
+      - name: Build studio frontend
+        run: pnpm --filter @r4pm/studio build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-dist
+          path: apps/studio/dist
+
+  build-storybook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build storybook
+        run: pnpm --filter @r4pm/components showcase
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storybook-static
+          path: packages/components/storybook-static
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-wasm-app, build-storybook]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: studio-dist, path: site }
+      - uses: actions/download-artifact@v4
+        with: { name: storybook-static, path: site/storybook }
+      - name: Add custom domain
+        run: echo "propel.aarkue.eu" > site/CNAME
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

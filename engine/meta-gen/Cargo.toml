@@ -1,0 +1,23 @@
+[package]
+name = "meta-gen"
+version = "0.0.0"
+edition = "2021"
+# Disambiguate `cargo run -p meta-gen` now that the crate ships a second bin (file-assoc).
+default-run = "meta-gen"
+
+[[bin]]
+name = "meta-gen"
+path = "src/main.rs"
+
+[[bin]]
+name = "file-assoc"
+path = "src/bin/file-assoc.rs"
+
+[dependencies]
+process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "feat/register-binding-downstream", features = ["bindings"]}
+app-bindings = { path = "../app-bindings" }
+backend-shared = { path = "../backend-shared", features = ["ocel-sqlite"] }
+# preserve_order so rewriting tauri.conf.json (file-assoc bin) keeps its key order instead of
+# alphabetizing. meta-gen is excluded from workspace default-members so this feature does not
+# unify into the runtime crates (webserver/wasm) on a bare `cargo build`.
+serde_json = { version = "1", features = ["preserve_order"] }

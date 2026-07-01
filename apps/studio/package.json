@@ -1,0 +1,46 @@
+{
+  "name": "@r4pm/studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:web": "vite --mode webserver",
+    "dev:tauri": "vite --mode tauri",
+    "build": "vite build",
+    "build:web": "vite build --mode webserver",
+    "build:tauri": "vite build --mode tauri",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@r4pm/client": "workspace:*",
+    "@r4pm/components": "workspace:*",
+    "@radix-ui/themes": "^3.2.1",
+    "@tanstack/react-query": "^5.0.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-process": "^2.3.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
+    "dockview": "^4.3.2",
+    "plotly.js": "^2.35.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-hot-toast": "^2.5.2",
+    "react-icons": "^5.0.0",
+    "react-plotly.js": "^2.6.0",
+    "zustand": "^5.0.0",
+    "@xyflow/react": "^12.10.0",
+    "clsx": "^2.1.1",
+    "elkjs": "^0.10.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/react-plotly.js": "^2.6.3",
+    "@vitejs/plugin-react": "^4.3.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
+  }
+}

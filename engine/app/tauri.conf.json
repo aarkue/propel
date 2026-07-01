@@ -1,0 +1,82 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "propel",
+  "version": "0.1.0",
+  "identifier": "eu.aarkue.propel",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @r4pm/studio dev:tauri",
+    "beforeBuildCommand": "pnpm --filter @r4pm/studio build:tauri",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../../apps/studio/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "propel",
+        "width": 1200,
+        "height": 800,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "json",
+          "json.gz",
+          "xml",
+          "xml.gz",
+          "ocel.csv",
+          "ocel.csv.gz",
+          "sqlite"
+        ],
+        "name": "OCEL file",
+        "description": "OCEL file",
+        "mimeType": "application/json",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "xes",
+          "xes.gz"
+        ],
+        "name": "EventLog file",
+        "description": "EventLog file",
+        "mimeType": "application/xml",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "pnml"
+        ],
+        "name": "PetriNet file",
+        "description": "PetriNet file",
+        "mimeType": "text/plain",
+        "role": "Editor"
+      }
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhFQkE4OEE2REFDRkYxNUMKUldSYzhjL2Fwb2k2am5JR2hpaUxqWVc1MVRVd1Q0VDhOdUNwbU5WVG1rOHBjdDhGeVUvQWQrZ2QK",
+      "endpoints": [
+        "https://github.com/aarkue/propel/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "packages/*/src/**",
+      "apps/*/src/**",
+      "examples/*/src/**",
+      "packages/client/gen/**",
+      "!packages/client/src/bindings.generated.ts",
+      "!**/*.css"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 110
+  },
+  "javascript": {
+    "formatter": { "quoteStyle": "double", "semicolons": "always" }
+  },
+  "css": {
+    "linter": { "enabled": false }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        "noStaticElementInteractions": "off",
+        "noLabelWithoutControl": "warn",
+        "useKeyWithClickEvents": "off",
+        "useSemanticElements": "warn"
+      },
+      "suspicious": { "noExplicitAny": "off", "noArrayIndexKey": "off" },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useImportType": "warn",
+        "useTemplate": "warn",
+        "noParameterAssign": "off",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@radix-ui/themes": "Import UI primitives from @r4pm/components/ui (the one seam), not @radix-ui/themes directly."
+            }
+          }
+        }
+      },
+      "complexity": { "noForEach": "off", "useOptionalChain": "warn" },
+      "correctness": { "useExhaustiveDependencies": "warn", "useParseIntRadix": "warn" }
+    }
+  },
+  "assist": { "enabled": false },
+  "overrides": [
+    {
+      "includes": ["packages/components/src/ui/**"],
+      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    }
+  ]
+}

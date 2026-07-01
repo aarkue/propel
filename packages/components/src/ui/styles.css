@@ -1,0 +1,62 @@
+/* The UI seam's stylesheet. Consumers import `@r4pm/ui/styles.css` instead of reaching past the
+   seam to `@radix-ui/themes/styles.css`. */
+@import "@radix-ui/themes/styles.css";
+
+/* Shared semantic tokens used by @r4pm/* components.
+   Three layers of specificity, so components work correctly in every context:
+     1. :root       - light defaults (no framework required)
+     2. .dark / [data-theme="dark"] - explicit dark overrides (non-Radix consumers)
+     3. .radix-themes - Radix-aware values that follow the <Theme appearance> prop automatically */
+
+:root {
+  --r4pm-node-bg: #ffffff;
+  --r4pm-node-border: #1f2937;
+  --r4pm-node-text: #111827;
+  --r4pm-control-bg: #ffffff;
+  --r4pm-control-hover-bg: #f3f4f6;
+  --r4pm-control-text: #374151;
+  --r4pm-border-subtle: rgba(15, 23, 42, 0.08);
+  --r4pm-border-muted: rgba(15, 23, 42, 0.06);
+  --r4pm-shadow: rgba(15, 23, 42, 0.12);
+  --r4pm-shadow-sm: rgba(15, 23, 42, 0.10);
+  --r4pm-arc-label-bg: rgba(255, 255, 255, 0.80);
+  --r4pm-export-bg: #ffffff;
+}
+
+.dark,
+[data-theme="dark"] {
+  --r4pm-node-bg: #19191b;
+  --r4pm-node-border: #5e5e6e;
+  --r4pm-node-text: #ededef;
+  --r4pm-control-bg: #19191b;
+  --r4pm-control-hover-bg: #232325;
+  --r4pm-control-text: #b0b0b8;
+  --r4pm-border-subtle: rgba(255, 255, 255, 0.08);
+  --r4pm-border-muted: rgba(255, 255, 255, 0.05);
+  --r4pm-shadow: rgba(0, 0, 0, 0.40);
+  --r4pm-shadow-sm: rgba(0, 0, 0, 0.25);
+  --r4pm-arc-label-bg: rgba(25, 25, 27, 0.85);
+  --r4pm-export-bg: #111113;
+}
+
+/* Inside a Radix <Theme>, pull from Radix tokens so colors follow appearance="light|dark" exactly. */
+.radix-themes {
+  --r4pm-node-bg: var(--color-panel-solid);
+  --r4pm-node-border: var(--gray-8);
+  --r4pm-node-text: var(--gray-12);
+  --r4pm-control-bg: var(--color-panel-solid);
+  --r4pm-control-hover-bg: var(--gray-3);
+  --r4pm-control-text: var(--gray-11);
+  --r4pm-border-subtle: var(--gray-a4);
+  --r4pm-border-muted: var(--gray-a3);
+  --r4pm-shadow: rgba(15, 23, 42, 0.12);
+  --r4pm-shadow-sm: rgba(15, 23, 42, 0.08);
+  --r4pm-arc-label-bg: var(--color-panel-solid);
+  --r4pm-export-bg: var(--color-background);
+}
+
+.radix-themes.dark {
+  --r4pm-shadow: rgba(0, 0, 0, 0.40);
+  --r4pm-shadow-sm: rgba(0, 0, 0, 0.25);
+  --r4pm-arc-label-bg: var(--gray-2);
+}

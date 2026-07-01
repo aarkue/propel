@@ -1,0 +1,112 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Getting Started/Viewer Configuration" tags={["dev"]} />
+
+# Viewer configuration
+
+Every viewer in `@r4pm/components` takes a typed `data` prop plus an optional, shared
+configuration for coloring, formatting, and interactivity. A host sets the config once
+(via `ViewerConfigProvider`); individual viewers may override any field. All config is
+optional, so `<PetriNetViewer data={net} />` works on its own.
+
+## `ViewerProps<T>`
+
+What every registry viewer receives.
+
+```ts
+interface ViewerProps<T> extends ViewerConfig {
+  /** The typed binding result this viewer renders. */
+  data: T;
+  /** Source object handle, for drill-down. */
+  handle?: string;
+}
+```
+
+## `ViewerConfig`
+
+Cross-cutting config and interactivity, shared by all viewers.
+
+```ts
+interface ViewerConfig {
+  colorOf?: ColorResolver;
+  format?: ViewerFormat;
+  actions?: ViewerAction[];
+  alignmentStyle?: AlignmentStyle; // "trace" | "deviation"
+  onSelect?: (target: ViewerTarget) => void;
+  onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
+}
+```
+
+### `colorOf` (`ColorResolver`)
+
+Resolves a CSS color for a domain key, so the same activity or object type is colored
+consistently across every viewer. Return `undefined` to fall back to the viewer's own palette.
+
+```ts
+type ColorResolver = (scope: string, key: string) => string | undefined;
+
+const colorOf: ColorResolver = (scope, key) =>
+  scope === "activity" ? activityPalette[key] : undefined;
+```
+
+### `format` (`ViewerFormat`)
+
+Shared value formatters so numbers, dates, and durations render consistently.
+
+```ts
+interface ViewerFormat {
+  number?: (n: number) => string;
+  date?: (ms: number) => string;
+  duration?: (ms: number) => string;
+}
+```
+
+### `actions` (`ViewerAction[]`)
+
+Right-click menu entries the viewer renders on its elements.
+
+```ts
+interface ViewerAction {
+  id: string;
+  label: string;
+  icon?: ComponentType<{ size?: number }>;
+  scope?: string; // limit to one target kind; undefined = any element
+  run: (target: ViewerTarget) => void;
+}
+```
+
+### `onSelect` and `onElementContextMenu`
+
+`onSelect` reports a plain left-click. `onElementContextMenu` is the escape hatch to build a
+fully custom menu. Both receive a [`ViewerTarget`](#viewertarget).
+
+## `ViewerTarget`
+
+A domain element a host can act on.
+
+```ts
+interface ViewerTarget {
+  scope: string; // element kind: "activity" | "objectType" | "case" | "timeRange" | ...
+  key: string; // identifies the element
+  data?: unknown; // optional raw payload for richer host handlers
+}
+```
+
+## Setting config once with `ViewerConfigProvider`
+
+```tsx
+import { ViewerConfigProvider } from "@r4pm/components";
+
+<ViewerConfigProvider value={{ colorOf, format, onSelect }}>
+  <PetriNetViewer data={net} />
+  <DFGViewer data={dfg} />
+</ViewerConfigProvider>;
+```
+
+Per-viewer props override the provider; unset fields fall back to the viewer's defaults.
+
+## See also
+
+- [Petri Net](?path=/docs/viewers-petri-net--docs)
+- [Directly-Follows Graph](?path=/docs/viewers-directly-follows-graph--docs)
+- [Alignment Net](?path=/docs/viewers-alignment-net--docs)

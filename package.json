@@ -1,0 +1,33 @@
+{
+  "name": "propel",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build": "turbo run build",
+    "wasm:dev": "pnpm --filter @r4pm/studio dev",
+    "wasm:build": "cd engine/wasm && wasm-pack build --target web --release",
+    "web:server": "cargo run --manifest-path engine/Cargo.toml -p propel-webserver",
+    "web:ui": "pnpm --filter @r4pm/studio dev:web",
+    "web:build": "pnpm --filter @r4pm/studio build:web",
+    "app:dev": "cd engine/app && tauri dev",
+    "app:build": "cd engine/app && tauri build",
+    "app:version": "node scripts/app-version.mjs",
+    "components:version": "node scripts/components-version.mjs",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "lint": "biome lint packages apps examples",
+    "format": "biome format --write packages apps examples",
+    "check": "biome check packages apps examples",
+    "codegen": "pnpm --filter @r4pm/client codegen && pnpm gen:file-assoc",
+    "gen:file-assoc": "cargo run --quiet --manifest-path engine/Cargo.toml -p meta-gen --bin file-assoc"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.1",
+    "@tauri-apps/cli": "^2.0.0",
+    "tsup": "^8.5.1",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.9"
+  }
+}

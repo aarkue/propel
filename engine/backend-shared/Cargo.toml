@@ -1,0 +1,14 @@
+[package]
+name = "backend-shared"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "feat/register-binding-downstream", features = ["bindings"]}
+schemars = "1.1.0"
+
+[features]
+ocel-sqlite = ["process_mining/ocel-sqlite"]

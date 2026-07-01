@@ -1,0 +1,56 @@
+name: Publish components
+
+on:
+  push:
+    tags: ['components-v*']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: components-publish
+    permissions:
+      contents: write # create the GitHub release
+      id-token: write # npm OIDC trusted publishing
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      # OIDC trusted publishing needs npm >= 11.5.1 (newer than what setup-node bundles).
+      - run: npm install -g npm@latest
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          pkg_version="$(node -p "require('./packages/components/package.json').version")"
+          tag="${GITHUB_REF_NAME#components-v}"
+          if [ "$pkg_version" != "$tag" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME ($tag) != @r4pm/components version ($pkg_version). Bump with pnpm components:version and re-tag."
+            exit 1
+          fi
+          echo "Version OK: $pkg_version"
+
+      # pnpm pack builds (prepack) AND rewrites main/types/exports to dist via publishConfig.
+      # `npm publish` alone would ship the src-pointing package.json.
+      - name: Pack with pnpm
+        working-directory: packages/components
+        run: pnpm pack --pack-destination "$RUNNER_TEMP"
+
+      # Publish the packed tarball via OIDC trusted publishing.
+      - name: Publish to npm
+        run: npm publish "$RUNNER_TEMP"/r4pm-components-*.tgz --access public
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" --title "@r4pm/components ${GITHUB_REF_NAME#components-v}" --generate-notes

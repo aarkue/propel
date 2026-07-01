@@ -1,0 +1,27 @@
+{
+  "name": "@r4pm/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed binding client, BackendContext interface, and Handle types for process-mining tools (internal: consumed by apps/studio, not published)",
+  "repository": "https://github.com/aarkue/propel",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "codegen": "cargo run --quiet --manifest-path ../../engine/Cargo.toml -p meta-gen -- gen/bindings-meta.json && node gen/gen.mjs",
+    "codegen:from-meta": "node gen/gen.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "tsup"
+  },
+  "devDependencies": {
+    "@types/json-schema": "^7.0.15",
+    "json-schema-to-typescript": "^15.0.0",
+    "typescript": "^5.5.0",
+    "tsup": "^8.5.1"
+  },
+  "license": "MIT OR Apache-2.0",
+  "sideEffects": false
+}

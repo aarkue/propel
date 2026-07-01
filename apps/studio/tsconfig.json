@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@propel-engine/*": ["../../engine/wasm/pkg/*"],
+      "@backend-wasm": ["./src/backends/wasm.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

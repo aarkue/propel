@@ -3,6 +3,7 @@ import { colorToHex } from "../dfg/util/colors";
 import { ActivityChip, SVG_PILL_H } from "./ActivitySequence";
 import { svgEl, serializeSvg, SVG_NS } from "../dfg/util/svg-export";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
+import { useColorOf } from "../viewer/viewer-config";
 import {
   MOVE_COLOR,
   MoveGlyphIcon,
@@ -559,13 +560,16 @@ export function DeviationAlignmentStrip({
   singleLine,
 }: {
   moves: ResolvedMove[];
+  /** Per-activity chip color; defaults to the ambient `ViewerConfig` colorOf (scope "activity"). */
   colorOf?: (activity: string) => string;
   exportKey?: string;
   singleLine?: boolean;
 }) {
+  const ambient = useColorOf("activity");
+  const resolve = colorOf ?? ambient;
   const source = useMemo<VectorExportSource | null>(
-    () => (exportKey ? { toSvg: () => buildDeviationAlignmentSvg(moves, { colorOf }) } : null),
-    [exportKey, moves, colorOf],
+    () => (exportKey ? { toSvg: () => buildDeviationAlignmentSvg(moves, { colorOf: resolve }) } : null),
+    [exportKey, moves, resolve],
   );
   useRegisterExport(exportKey ?? "deviation-alignment-strip", source);
 
@@ -578,7 +582,7 @@ export function DeviationAlignmentStrip({
     >
       <LaneLabels />
       {columns.map((col, i) => (
-        <DeviationColumn key={i} col={col} colorOf={colorOf} rails={railsFor(columns, i)} />
+        <DeviationColumn key={i} col={col} colorOf={resolve} rails={railsFor(columns, i)} />
       ))}
     </div>
   );

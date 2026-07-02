@@ -1,4 +1,4 @@
-import type { LogAlignments } from "@r4pm/client";
+import type { LogAlignments } from "@r4pm/components";
 import { FitnessView, LoadingState, type ViewerProps } from "@r4pm/components";
 import { PiCheckCircle } from "react-icons/pi";
 import { AlignmentModelBar, alignmentResolve, type ModelSource } from "./_alignment";

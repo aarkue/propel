@@ -33,7 +33,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "docs:types": "node scripts/gen-data-types-doc.mjs",
+    "docs:types": "node scripts/gen-data-types-doc.mjs && node scripts/gen-component-types-doc.mjs",
     "dev": "storybook dev -p 6006 --no-open",
     "showcase": "storybook build",
     "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && tailwindcss -i src/ui/styles.css -o dist/ui/styles.css --minify",

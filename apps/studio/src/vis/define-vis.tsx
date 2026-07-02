@@ -3,13 +3,13 @@ import { Suspense, useState } from "react";
 import type { IDockviewPanelProps } from "dockview";
 import type { IconType } from "react-icons";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { BackendContext, BindingId, Bindings, ReturnTypeTitle } from "@r4pm/client";
+import type { BackendContext, BindingId, Bindings, ReturnTypeShape, ReturnTypeTitle } from "@r4pm/client";
 import { BINDING_RETURN_TYPE } from "@r4pm/client";
 import { EmptyState, ErrorState, LoadingState, type ViewerProps } from "@r4pm/components";
 import { Button, Flex, Text } from "@r4pm/components/ui";
 import { PiArrowsClockwise } from "react-icons/pi";
 import type { PanelCategory, PanelDefinition } from "../panels/types";
-import type { ViewerDef } from "../viewers";
+import type { ViewerDef, ViewerRenderProps } from "../viewers";
 import { backend } from "../backends";
 import { useDatasetSelection } from "../panels/active-datasets";
 
@@ -23,8 +23,11 @@ import { useDatasetSelection } from "../panels/active-datasets";
  * Type-safety chains off the binding id `B`: `source.args` is pinned to `Bindings[B]["args"]`, any
  * `transform` input to `Bindings[B]["ret"]`, and (no transform) the `component` data prop to
  * `Bindings[B]["ret"]` - a mismatch is a compile error, not a runtime miss. The viewer `accepts` is
- * derived from `BINDING_RETURN_TYPE[B]`; the title is only a runtime selector, never load-bearing
- * for types.
+ * derived from `BINDING_RETURN_TYPE[B]`.
+ *
+ * `defineResolvedVis` has no binding to chain off, so its viewer is registered only via a `viewer`
+ * map: title -> adapter from that title's raw payload (`ReturnTypeShape[title]`) to the component
+ * data type. Claiming a title whose payload the component can't render is a compile error.
  */
 
 export interface VisCtx {
@@ -65,15 +68,18 @@ interface BindingSourceC<B extends BindingId, C> {
 }
 interface ResolveSource0<R> {
   needs: string;
-  /** Return-type title for viewer matching; omit to register no viewer (panel-only). */
-  returnType?: ReturnTypeTitle;
   resolve: (ctx: VisCtx) => Promise<R>;
 }
 interface ResolveSourceC<R, C> {
   needs: string;
-  returnType?: ReturnTypeTitle;
   resolve: (ctx: VisCtx, controls: C) => Promise<R>;
 }
+
+/** Viewer adapters: accepted return-type title -> function from that title's raw payload to the
+ *  component's data prop `P`. The keys drive `accepts`. */
+export type ViewerSources<P> = {
+  [RT in ReturnTypeTitle]?: (data: ReturnTypeShape[RT]) => P;
+};
 
 interface VisMeta {
   type: string;
@@ -93,8 +99,6 @@ interface VisMeta {
   deferred?: boolean;
   /** Register the dockview panel. Default true. */
   panel?: boolean;
-  /** Register the viewer (pipeline + standalone). Default true; ignored when no return-type known. */
-  viewer?: boolean;
 }
 
 export interface VisDefinition {
@@ -105,6 +109,8 @@ export interface VisDefinition {
 type AnySource = BindingSourceC<BindingId, unknown> | ResolveSourceC<unknown, unknown> | undefined;
 interface AnyVis extends VisMeta {
   source?: AnySource;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  viewer?: boolean | Record<string, (data: any) => unknown>;
   transform?: (data: unknown) => unknown;
   controls?: { initial: unknown; liveRefetch?: boolean };
   panelControlsBar?: (controls: unknown, set: (c: unknown) => void, datasetId: string) => ReactNode;
@@ -134,19 +140,37 @@ function Frame({ bars, body, testid }: { bars: ReactNode; body: ReactNode; testi
 
 function returnTypeOf(source: AnySource): ReturnTypeTitle | null {
   if (!source) return null;
-  if ("binding" in source) return BINDING_RETURN_TYPE[source.binding];
-  return source.returnType ?? null;
+  return "binding" in source ? BINDING_RETURN_TYPE[source.binding] : null;
 }
 
-function makeViewerComponent(spec: AnyVis): ViewerDef["component"] {
+function makeViewerComponent(
+  spec: AnyVis,
+  sources: Record<string, (data: unknown) => unknown> | null,
+): ViewerDef["component"] {
   const Inner = spec.component;
   const { transform, controls } = spec;
   const editable = controls ? controls.liveRefetch === false : false;
-  return function VisViewer(props: ViewerProps<unknown>) {
+  return function VisViewer({ returnType, ...props }: ViewerProps<unknown> & ViewerRenderProps) {
     const [c, setC] = useState(controls?.initial);
-    const data = transform ? transform(props.data) : props.data;
+    // A single-entry map needs no title to disambiguate (hosts may not pass one).
+    const entries = sources ? Object.values(sources) : null;
+    const adapt = sources
+      ? returnType
+        ? sources[returnType]
+        : entries?.length === 1
+          ? entries[0]
+          : undefined
+      : transform;
     // Controls that drive a refetch can't recompute in the viewer (no backend) -> render read-only.
     const ctrl = controls ? { controls: c, onControlsChange: editable ? setC : undefined } : {};
+    if (sources && !adapt) {
+      return (
+        <ErrorState
+          error={new Error(`${spec.type}: no adapter for return type "${returnType ?? "unknown"}"`)}
+        />
+      );
+    }
+    const data = adapt ? adapt(props.data) : props.data;
     return (
       <Suspense fallback={<LoadingState label="loading" />}>
         <Inner {...props} data={data} {...ctrl} />
@@ -273,7 +297,7 @@ function makeDataPanelComponent(
             This analysis is expensive, so it runs on demand. Configure inputs above, then run.
           </Text>
           <Button size="2" disabled={!live || running} onClick={() => setRan(live)}>
-            {running ? "Running..." : "Run analysis"}
+            {running ? "Running..." : "Execute"}
           </Button>
         </Flex>
       );
@@ -332,13 +356,21 @@ function build(spec: AnyVis): VisDefinition {
   const out: VisDefinition = {};
 
   if (spec.viewer !== false && source) {
+    const sources = typeof spec.viewer === "object" ? spec.viewer : null;
     const rt = returnTypeOf(source);
-    if (rt) {
+    if (sources) {
+      out.viewer = {
+        id: spec.type,
+        title: spec.name,
+        accepts: (m) => m.returnType in sources,
+        component: makeViewerComponent(spec, sources),
+      };
+    } else if (rt) {
       out.viewer = {
         id: spec.type,
         title: spec.name,
         accepts: (m) => m.returnType === rt,
-        component: makeViewerComponent(spec),
+        component: makeViewerComponent(spec, null),
       };
     } else if (spec.viewer === true) {
       console.warn(`defineVis("${spec.type}"): viewer requested but no return-type title; skipped.`);
@@ -377,6 +409,7 @@ export function defineVis<B extends BindingId, C, P>(
     source: BindingSourceC<B, C>;
     controls: ControlsSpec<C>;
     transform: (data: Bindings[B]["ret"]) => P;
+    viewer?: boolean;
     panelControlsBar?: Bar<C>;
     component: ComponentType<ViewerProps<P> & Ctrl<C>>;
   },
@@ -387,6 +420,7 @@ export function defineVis<B extends BindingId, C>(
     source: BindingSourceC<B, C>;
     controls: ControlsSpec<C>;
     transform?: undefined;
+    viewer?: boolean;
     panelControlsBar?: Bar<C>;
     component: ComponentType<ViewerProps<Bindings[B]["ret"]> & Ctrl<C>>;
   },
@@ -396,6 +430,7 @@ export function defineVis<B extends BindingId, P>(
   spec: VisMeta & {
     source: BindingSource0<B>;
     transform: (data: Bindings[B]["ret"]) => P;
+    viewer?: boolean;
     extraProps?: ExtraProps;
     component: ComponentType<ViewerProps<P>>;
   },
@@ -406,6 +441,7 @@ export function defineVis<B extends BindingId>(
   spec: VisMeta & {
     source: BindingSource0<B>;
     transform?: undefined;
+    viewer?: boolean;
     extraProps?: ExtraProps;
     panelActions?: (data: Bindings[B]["ret"], ctx: VisCtx) => ReactNode;
     component: ComponentType<ViewerProps<Bindings[B]["ret"]>>;
@@ -417,25 +453,26 @@ export function defineVis(spec: AnyVis): VisDefinition {
 
 /**
  * Define a visualization whose data comes from a custom async `resolve` (e.g. several chained
- * bindings, like alignment = discover + align). Author declares the result type `R` and the
- * `returnType` title used for viewer matching. One call emits both panel and viewer.
+ * bindings, like alignment = discover + align). The panel calls `resolve` for its data `R`. The
+ * viewer (pipeline + standalone) gets raw binding payloads instead, so it is registered only via
+ * the `viewer` map: one adapter per accepted return-type title (omit or `false` for panel-only).
  */
 // resolve + controls
-export function defineResolvedVis<R, C, P = R>(
+export function defineResolvedVis<R, C>(
   spec: VisMeta & {
     source: ResolveSourceC<R, C>;
     controls: ControlsSpec<C>;
-    transform?: (data: R) => P;
+    viewer?: false | ViewerSources<R>;
     panelControlsBar?: Bar<C>;
-    component: ComponentType<ViewerProps<P> & Ctrl<C>>;
+    component: ComponentType<ViewerProps<R> & Ctrl<C>>;
   },
 ): VisDefinition;
 // resolve only
-export function defineResolvedVis<R, P = R>(
+export function defineResolvedVis<R>(
   spec: VisMeta & {
     source: ResolveSource0<R>;
-    transform?: (data: R) => P;
-    component: ComponentType<ViewerProps<P>>;
+    viewer?: false | ViewerSources<R>;
+    component: ComponentType<ViewerProps<R>>;
   },
 ): VisDefinition;
 export function defineResolvedVis(spec: AnyVis): VisDefinition {

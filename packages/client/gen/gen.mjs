@@ -80,6 +80,7 @@ function tsType(schema, defs) {
 const bindingEntries = [];
 const retTitleById = {}; // binding id -> return-type schemars title (null when unnamed)
 const titleSet = new Set();
+const titleToTs = new Map(); // return-type title -> ts expression (same title = same schema)
 for (const m of metas) {
   const required = new Set(m.required_args || []);
   const argParts = m.args.map(([name, schema]) => {
@@ -91,7 +92,10 @@ for (const m of metas) {
   bindingEntries.push(`  ${JSON.stringify(m.id)}: { args: ${argsBlock}; ret: ${retTy} };`);
   const title = m.return_type?.title ?? null;
   retTitleById[m.id] = title;
-  if (title) titleSet.add(title);
+  if (title) {
+    titleSet.add(title);
+    if (!titleToTs.has(title)) titleToTs.set(title, retTy);
+  }
 }
 
 const declByName = new Map();
@@ -147,6 +151,7 @@ const retTitles = [...titleSet].sort();
 const retTypesEntries = retTitles
   .map((t) => `  ${JSON.stringify(sanitize(t))}: ${JSON.stringify(t)},`)
   .join("\n");
+const retShapeEntries = retTitles.map((t) => `  ${JSON.stringify(t)}: ${titleToTs.get(t)};`).join("\n");
 const bindingRetEntries = metas
   .map(
     (m) => `  ${JSON.stringify(m.id)}: ${retTitleById[m.id] ? JSON.stringify(retTitleById[m.id]) : "null"},`,
@@ -179,6 +184,12 @@ ${retTypesEntries}
 
 /** Every value a binding's return type can be matched on by the viewer registry. */
 export type ReturnTypeTitle = (typeof RETURN_TYPES)[keyof typeof RETURN_TYPES];
+
+/** Return-type title -> decoded payload type, so a viewer registration can pin its per-title
+ *  transform/component to the actual binding payload shape instead of trusting the title string. */
+export interface ReturnTypeShape {
+${applyRename(retShapeEntries)}
+}
 
 /** Each binding's return-type title (null when the return type is unnamed, e.g. a tuple/primitive). */
 export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {

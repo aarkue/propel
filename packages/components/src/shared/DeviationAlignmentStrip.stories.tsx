@@ -2,13 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import "@r4pm/components/styles.css";
 import { DeviationAlignmentStrip, ViewerExportFrame, type ResolvedMove } from "@r4pm/components";
 
-const PALETTE = ["#4f46e5", "#0891b2", "#16a34a", "#d97706", "#dc2626", "#9333ea"];
-const colorOf = (a: string) => {
-  let h = 0;
-  for (let i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
-};
-
 // Covers every column shape: sync on the axis, an adjacent log+model substitution,
 // a lone model move (skip placeholder above), a lone log move (skip below), and a
 // hidden (tau) model move.
@@ -54,17 +47,17 @@ export default meta;
 
 export const Default: StoryObj = {
   name: "Deviation Alignment Strip",
-  render: () => <DeviationAlignmentStrip moves={MOVES} colorOf={colorOf} />,
+  render: () => <DeviationAlignmentStrip moves={MOVES} />,
 };
 
 export const MultipleModelMoves: StoryObj = {
   name: "Multiple model moves at one position",
-  render: () => <DeviationAlignmentStrip moves={MULTI} colorOf={colorOf} />,
+  render: () => <DeviationAlignmentStrip moves={MULTI} />,
 };
 
 export const PerfectlyFitting: StoryObj = {
   name: "Perfectly fitting (all sync)",
-  render: () => <DeviationAlignmentStrip moves={ALL_SYNC} colorOf={colorOf} />,
+  render: () => <DeviationAlignmentStrip moves={ALL_SYNC} />,
 };
 
 export const VectorSvgExport: StoryObj = {
@@ -76,7 +69,7 @@ export const VectorSvgExport: StoryObj = {
       style={{ border: "1px solid var(--gray-a5)", borderRadius: 8 }}
     >
       <div style={{ padding: "40px 16px 24px" }}>
-        <DeviationAlignmentStrip moves={MOVES} colorOf={colorOf} exportKey="story-deviation-strip" />
+        <DeviationAlignmentStrip moves={MOVES} exportKey="story-deviation-strip" />
       </div>
     </ViewerExportFrame>
   ),

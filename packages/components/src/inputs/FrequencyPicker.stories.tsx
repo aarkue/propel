@@ -1,15 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card } from "@r4pm/components/ui";
-import { ViewerConfigProvider } from "@r4pm/components";
 import { useState } from "react";
 import { FrequencyPicker } from "@r4pm/components";
-
-const PALETTE = ["#4f46e5", "#0891b2", "#16a34a", "#d97706", "#dc2626", "#9333ea", "#0d9488", "#db2777"];
-const demoColorOf = (_scope: string, key: string) => {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
-};
 
 const COUNTS = {
   "Create Purchase Order": 1842,
@@ -36,13 +28,11 @@ export const Default: StoryObj = {
   render: () => {
     const [value, setValue] = useState<Set<string>>(new Set(["Create Purchase Order", "Receive Goods"]));
     return (
-      <ViewerConfigProvider value={{ colorOf: demoColorOf }}>
-        <div style={{ width: 380, padding: 24 }}>
-          <Card>
-            <FrequencyPicker items={COUNTS} value={value} onChange={setValue} autoFocus />
-          </Card>
-        </div>
-      </ViewerConfigProvider>
+      <div style={{ width: 380, padding: 24 }}>
+        <Card>
+          <FrequencyPicker items={COUNTS} value={value} onChange={setValue} autoFocus />
+        </Card>
+      </div>
     );
   },
 };

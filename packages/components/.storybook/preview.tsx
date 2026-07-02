@@ -1,6 +1,8 @@
+import { Controls, Description, Primary, Stories, Subtitle, Title } from "@storybook/addon-docs/blocks";
 import type { Preview } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { Theme, ViewerExportFrame } from "@r4pm/components";
+import { FullSource, ReferencedTypes } from "./doc-blocks";
 // Global styles so every story + autodocs canvas renders with the viewers' real styling.
 import "../src/styles.css";
 
@@ -80,7 +82,24 @@ const preview: Preview = {
     // canvas frame's height === its declared pixel height exactly (no iframe, no gap, no scrollbar).
     layout: "fullscreen",
     controls: { expanded: true },
-    docs: { toc: true },
+    docs: {
+      toc: true,
+      // Default autodocs template + two generated sections: inline declarations of the types the
+      // props table references, and the full copy-paste-runnable story source (see doc-blocks.tsx).
+      page: () => (
+        <>
+          <Title />
+          <Subtitle />
+          <Description />
+          <Primary />
+          <Controls />
+          <ReferencedTypes />
+          {/* Without includePrimary={false} the primary story renders twice on single-story pages. */}
+          <Stories includePrimary={false} />
+          <FullSource />
+        </>
+      ),
+    },
     options: {
       storySort: { order: ["Getting Started", "Viewers", "Inputs & Primitives", "*"] },
     },

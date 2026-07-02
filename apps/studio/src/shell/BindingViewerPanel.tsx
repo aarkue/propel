@@ -59,7 +59,7 @@ export function BindingViewerPanel({
   const Viewer = viewer.component;
   return (
     <div style={{ height: "100%", width: "100%" }}>
-      <Viewer data={data} />
+      <Viewer data={data} returnType={returnType} />
     </div>
   );
 }

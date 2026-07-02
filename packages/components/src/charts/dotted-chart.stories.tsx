@@ -16,7 +16,7 @@ const sample: DottedChartData = {
 const meta = {
   title: "Viewers/Dotted Chart",
   component: DottedChart,
-  parameters: { frame: { mode: "canvas", height: 460 }, docs: { story: { inline: true } } },
+  parameters: { frame: { mode: "canvas", height: 650 }, docs: { story: { inline: true } } },
 } satisfies Meta<typeof DottedChart>;
 export default meta;
 

@@ -14,6 +14,12 @@ export interface ViewerMatch {
   sourceBindingId?: string;
 }
 
+/** Render context a host passes alongside the data, so a viewer registered for several
+ *  return-type titles can pick the per-title adapter for the payload that actually arrived. */
+export interface ViewerRenderProps {
+  returnType?: ReturnTypeTitle | (string & {});
+}
+
 /** A self-describing visualization. One def, mounted anywhere (panel, pipeline node, standalone). */
 export interface ViewerDef<T = unknown> {
   id: string;
@@ -23,7 +29,7 @@ export interface ViewerDef<T = unknown> {
   /** Tie-break when several viewers accept the same match: higher wins (default 0). The JSON
    *  fallback uses a large negative value so any specific viewer beats it. */
   priority?: number;
-  component: ComponentType<ViewerProps<T>>;
+  component: ComponentType<ViewerProps<T> & ViewerRenderProps>;
 }
 
 /** Identity helper that preserves the generic param for typed authoring. */

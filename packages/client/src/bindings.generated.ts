@@ -1851,6 +1851,76 @@ export const RETURN_TYPES = {
 /** Every value a binding's return type can be matched on by the viewer registry. */
 export type ReturnTypeTitle = (typeof RETURN_TYPES)[keyof typeof RETURN_TYPES];
 
+/** Return-type title -> decoded payload type, so a viewer registration can pin its per-title
+ *  transform/component to the actual binding payload shape instead of trusting the title string. */
+export interface ReturnTypeShape {
+  "AggregatedEventTimestamps": AggregatedEventTimestamps;
+  "AlignmentResult": AlignmentResult;
+  "Array_of_AttributeCatalogEntry": AttributeCatalogEntry[];
+  "Array_of_AttributeInfo": AttributeInfo[];
+  "Array_of_EventIndex": number[];
+  "Array_of_OCDeclareArc": OCDeclareArc[];
+  "Array_of_ObjectIndex": number[];
+  "Array_of_OcelAttributeInfo": OcelAttributeInfo[];
+  "Array_of_ProcessVariant": ProcessVariant[];
+  "Array_of_Tuple_of_Array_of_string_and_uint": [string[], number][];
+  "Array_of_Tuple_of_DateTime_and_OCELAttributeValue": [string, OCELAttributeValue][];
+  "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint": [[string, string], number][];
+  "Array_of_Tuple_of_string_and_EventIndex": [string, number][];
+  "Array_of_Tuple_of_string_and_ObjectIndex": [string, number][];
+  "Array_of_Tuple_of_string_and_int64": [string, number][];
+  "Array_of_Tuple_of_string_and_int64_and_string": [string, number, string][];
+  "Array_of_Tuple_of_string_and_string_and_int64": [string, string, number][];
+  "Array_of_VariantAlignmentResult": VariantAlignmentResult[];
+  "Array_of_string": string[];
+  "AttributeSummary": AttributeSummary;
+  "CaseDurations": CaseDurations;
+  "DateTime": string;
+  "DfPerformance": DfPerformance;
+  "DirectlyFollowsGraph": DirectlyFollowsGraph;
+  "DottedChartData": DottedChartData;
+  "EventLog": EventLogHandle;
+  "EventLogActivityProjection": EventLogActivityProjectionHandle;
+  "EventLogInput": EventLogInput;
+  "FitnessResult": FitnessResult;
+  "IndexLinkedOCEL": IndexLinkedOCELHandle;
+  "LogAlignments": LogAlignments;
+  "LogGlobals": LogGlobals;
+  "Map_of_Map_of_ObjectInvolvementCounts": Map_of_Map_of_ObjectInvolvementCounts;
+  "Map_of_uint": Map_of_uint;
+  "Nullable_Array_of_string": Nullable_Array_of_string;
+  "Nullable_EventIndex": Nullable_EventIndex;
+  "Nullable_OCELAttributeValue": Nullable_OCELAttributeValue;
+  "Nullable_OCELType": Nullable_OCELType;
+  "Nullable_ObjectIndex": Nullable_ObjectIndex;
+  "Nullable_string": Nullable_string;
+  "NumberOfTracesAndEvents": NumberOfTracesAndEvents;
+  "OCDirectlyFollowsGraph": OCDirectlyFollowsGraph;
+  "OCEL": OCELHandle;
+  "OCELEvent": OCELEvent;
+  "OCELInfo": OCELInfo;
+  "OCELObject": OCELObject;
+  "OCELObjectAttributeChanges": OCELObjectAttributeChanges;
+  "OCELTypeStats": OCELTypeStats;
+  "ObjectAttributeChanges": ObjectAttributeChanges;
+  "ObjectBrowserPage": ObjectBrowserPage;
+  "ObjectDetail": ObjectDetail;
+  "OcelAttributeSummary": OcelAttributeSummary;
+  "OcelDfPerformance": OcelDfPerformance;
+  "OcelInput": OcelInput;
+  "PetriNet": PetriNet;
+  "SlimLinkedOCEL": SlimLinkedOCELHandle;
+  "TraceBrowserPage": TraceBrowserPage;
+  "TraceDetail": TraceDetail;
+  "TraceVariants": TraceVariants;
+  "boolean": boolean;
+  "double": number;
+  "null": null;
+  "string": string;
+  "uint": number;
+  "uint64": number;
+}
+
 /** Each binding's return-type title (null when the return type is unnamed, e.g. a tuple/primitive). */
 export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::activity_projection_stub": "Array_of_string",

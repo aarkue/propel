@@ -16,7 +16,7 @@ function ViewerPanel(props: IDockviewPanelProps) {
   return (
     <ViewerExportFrame style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
       <div data-testid="chart" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <V data={data} />
+        <V data={data} returnType={returnTypeTitle} />
       </div>
     </ViewerExportFrame>
   );

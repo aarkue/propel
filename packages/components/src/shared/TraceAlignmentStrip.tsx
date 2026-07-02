@@ -13,6 +13,7 @@ import {
 } from "./ActivitySequence";
 import { svgEl, serializeSvg, SVG_NS } from "../dfg/util/svg-export";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
+import { useColorOf } from "../viewer/viewer-config";
 
 export type MoveKind = "sync" | "log" | "model";
 
@@ -306,13 +307,16 @@ export function TraceAlignmentStrip({
   singleLine,
 }: {
   moves: ResolvedMove[];
+  /** Per-activity chip color; defaults to the ambient `ViewerConfig` colorOf (scope "activity"). */
   colorOf?: (activity: string) => string;
   exportKey?: string;
   singleLine?: boolean;
 }) {
+  const ambient = useColorOf("activity");
+  const resolve = colorOf ?? ambient;
   const source = useMemo<VectorExportSource | null>(
-    () => (exportKey ? { toSvg: () => buildTraceAlignmentSvg(moves, { colorOf }) } : null),
-    [exportKey, moves, colorOf],
+    () => (exportKey ? { toSvg: () => buildTraceAlignmentSvg(moves, { colorOf: resolve }) } : null),
+    [exportKey, moves, resolve],
   );
   useRegisterExport(exportKey ?? "trace-alignment-strip", source);
 
@@ -321,7 +325,7 @@ export function TraceAlignmentStrip({
     <div className={`flex items-start gap-1 ${singleLine ? "flex-nowrap w-max" : "flex-wrap"}`}>
       {moves.map((move, i) => {
         const borderColor = colorToHex(MOVE_COLOR[move.kind]);
-        const color = cellColor(move.kind, move.label, move.hidden, colorOf);
+        const color = cellColor(move.kind, move.label, move.hidden, resolve);
         const modelActivity = move.kind !== "log";
         const logActivity = move.kind !== "model";
         return (

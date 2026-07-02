@@ -1,15 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card } from "@r4pm/components/ui";
-import { ViewerConfigProvider } from "@r4pm/components";
 import { useState } from "react";
 import { ActivityChooser, DatasetSelector } from "@r4pm/components";
-
-const PALETTE = ["#4f46e5", "#0891b2", "#16a34a", "#d97706", "#dc2626", "#9333ea"];
-const demoColorOf = (_scope: string, key: string) => {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
-};
 
 const meta = {
   title: "Inputs & Primitives/Choosers",
@@ -23,17 +15,15 @@ export const Activities: StoryObj = {
   render: () => {
     const [value, setValue] = useState<Set<string>>(new Set());
     return (
-      <ViewerConfigProvider value={{ colorOf: demoColorOf }}>
-        <div style={{ width: 360, padding: 24 }}>
-          <Card>
-            <ActivityChooser
-              counts={{ review: 312, decide: 740, register: 96, approve: 540, reject: 180 }}
-              value={value}
-              onChange={setValue}
-            />
-          </Card>
-        </div>
-      </ViewerConfigProvider>
+      <div style={{ width: 360, padding: 24 }}>
+        <Card>
+          <ActivityChooser
+            counts={{ review: 312, decide: 740, register: 96, approve: 540, reject: 180 }}
+            value={value}
+            onChange={setValue}
+          />
+        </Card>
+      </div>
     );
   },
 };

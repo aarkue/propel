@@ -59,7 +59,7 @@ export function ViewerOutputNode({ data, id, selected }: NodeProps<ViewerOutputN
             style={{ width: "100%", height: "100%", flex: 1, display: "flex", flexDirection: "column" }}
             showMenu={true}
           >
-            <Viewer data={value} />
+            <Viewer data={value} returnType={returnType} />
           </ViewerExportFrame>
         </div>
       );
@@ -75,7 +75,7 @@ export function ViewerOutputNode({ data, id, selected }: NodeProps<ViewerOutputN
         </pre>
       </ScrollArea>
     );
-  }, [value, hasRun, Viewer, viewer?.title, backend]);
+  }, [value, hasRun, Viewer, viewer?.title, returnType, backend]);
 
   return (
     <NodeWrapper

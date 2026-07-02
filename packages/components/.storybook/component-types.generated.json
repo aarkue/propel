@@ -1,0 +1,814 @@
+[
+  {
+    "name": "ActivityChartProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/activity-chart.tsx",
+    "code": "export interface ActivityChartProps {\n  /** Raw per-activity event counts (activity name -> count). */\n  counts: Record<string, number>;\n  /** Total number of events in the log; drives the \"Group Other\" (<1%) fold and the % labels. */\n  numEvents: number;\n}"
+  },
+  {
+    "name": "AggregatedEventTimestamps",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/events-per-time.tsx",
+    "code": "export interface AggregatedEventTimestamps {\n  events_per_timestamp: Record<string, Record<string, number>>;\n  activities: string[];\n}"
+  },
+  {
+    "name": "AlignmentAggregate",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export interface AlignmentAggregate {\n  transition_stats: Record<string, TransitionFireStats>;\n  log_move_counts: Record<string, number>;\n  total_traces: number;\n}"
+  },
+  {
+    "name": "AlignmentError",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export type AlignmentError =\n  | { SearchError: SearchError }\n  | { SyncProdNetConstructionFailed: SyncProdNetConstructionError };"
+  },
+  {
+    "name": "AlignmentMove",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export type AlignmentMove =\n  | { SyncMove: { transition: string; trace_event_index: number } }\n  | { ModelMove: { transition: string } }\n  | { LogMove: { trace_event_index: number } };"
+  },
+  {
+    "name": "AlignmentResult",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export interface AlignmentResult {\n  moves: AlignmentMove[];\n  cost: number;\n  states_visited: number;\n}"
+  },
+  {
+    "name": "AlignmentStyle",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/viewer-config.tsx",
+    "code": "export type AlignmentStyle = \"trace\" | \"deviation\";"
+  },
+  {
+    "name": "ArcContext",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "/** Endpoint kinds + ids for an arc, passed to {@link EditorProps.arcOverlay}. */\nexport type ArcContext = {\n  id: string;\n  from: string;\n  to: string;\n  fromType: \"place\" | \"transition\";\n  toType: \"place\" | \"transition\";\n};"
+  },
+  {
+    "name": "ArcData",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "export type ArcData = ElementHandlers & {\n  weight?: number;\n  routing?: ArcRouting;\n  /** Label drawn at the arc midpoint (defaults to the weight when > 1). */\n  label?: string;\n  /** Extra class on the arc path, for CSS targeting. */\n  className?: string;\n  /** Consumer attribute: whether this arc is \"variable\" (OCPN), stored on the edge. */\n  variable?: boolean;\n};"
+  },
+  {
+    "name": "ArcInfo",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "export interface ArcInfo {\n  id: string;\n  from: string;\n  to: string;\n  weight: number;\n}"
+  },
+  {
+    "name": "ArcPresentation",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "/** What an `arcOverlay` returns: edge stroke style plus arc-data cosmetics/handlers. */\nexport type ArcPresentation = {\n  style?: React.CSSProperties;\n  className?: string;\n  label?: string;\n  /** Adornment rendered at the arc midpoint (e.g. a toggle chip) inside the HTML overlay. */\n  badge?: React.ReactNode;\n  onClick?: (e: React.MouseEvent) => void;\n  onContextMenu?: (e: React.MouseEvent) => void;\n};"
+  },
+  {
+    "name": "ArcRouting",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/helpers/layout-graph.ts",
+    "code": "/** ELK orthogonal bend-point routing captured for an arc, mirroring the DFG\n *  edge routing. Points are in flow coordinates (graph top-left origin, which\n *  equals flow space because node centers are written as `elkTopLeft + size/2`).\n *  `srcPos`/`tgtPos` are the source/target node *center* positions at layout\n *  time, used to detect a later drag and fall back to a live straight path. */\nexport type ArcRouting = {\n  kind: \"polyline\";\n  points: { x: number; y: number }[];\n  srcPos: { x: number; y: number };\n  tgtPos: { x: number; y: number };\n};"
+  },
+  {
+    "name": "AsyncBoundaryProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/AsyncBoundary.tsx",
+    "code": "export interface AsyncBoundaryProps<T> {\n  status: AsyncStatusLike<T>;\n  /** Render the resolved, non-empty data. */\n  children: (data: T) => ReactNode;\n  /** Treat present-but-empty data (e.g. `[]`) as the empty state. */\n  isEmpty?: (data: T) => boolean;\n\n  loadingLabel?: string;\n  /** Replace the default spinner with a shape-aware skeleton, etc. */\n  loading?: ReactNode;\n  /** Show a calm hint after N ms of loading. Default 8000. Pass `null` to disable. */\n  slowAfterMs?: number | null;\n\n  /** Empty-state config, or a fully custom node. */\n  emptyState?: EmptyStateProps | ReactNode;\n\n  errorTitle?: string;\n  /** Show a Retry button on error/timeout; also resets the timeout clock. */\n  onRetry?: () => void;\n  /** Hard-fail to an error state if still loading after this many ms. */\n  timeoutMs?: number;\n\n  /** Overlay a thin top bar during background refetches over existing data. Default true. */\n  showFetchingBar?: boolean;\n}"
+  },
+  {
+    "name": "AsyncStateKind",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/AsyncBoundary.tsx",
+    "code": "export type AsyncStateKind = \"loading\" | \"error\" | \"empty\" | \"data\";"
+  },
+  {
+    "name": "AsyncStatusLike",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/AsyncBoundary.tsx",
+    "code": "/** Minimal status shape. A TanStack Query result satisfies it structurally, so callers\n *  pass their query directly without this package importing react-query. */\nexport interface AsyncStatusLike<T> {\n  isPending: boolean;\n  isError: boolean;\n  error?: unknown;\n  data?: T | undefined;\n  /** True during a background refetch while existing `data` is still shown. */\n  isFetching?: boolean;\n}"
+  },
+  {
+    "name": "AttrColumn",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/model.ts",
+    "code": "export interface AttrColumn {\n  name: string;\n  type: AttrType;\n}"
+  },
+  {
+    "name": "AttributeChange",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/object-attribute-changes-data.ts",
+    "code": "/** A single attribute value change at a point in time. */\nexport interface AttributeChange {\n  time: string;\n  value: number | boolean | string | null;\n}"
+  },
+  {
+    "name": "AttrType",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/model.ts",
+    "code": "export type AttrType = \"string\" | \"int\" | \"float\" | \"boolean\" | \"date\";"
+  },
+  {
+    "name": "CaseDurations",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/case-duration.tsx",
+    "code": "export interface CaseDurations {\n  num_cases: number;\n  num_empty_cases: number;\n  min_ms: number;\n  max_ms: number;\n  mean_ms: number;\n  median_ms: number;\n  p90_ms: number;\n  p95_ms: number;\n  p99_ms: number;\n  hist_bin_edges_ms: number[];\n  hist_counts: number[];\n  ecdf_x_ms: number[];\n  ecdf_y: number[];\n}"
+  },
+  {
+    "name": "ColorResolver",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/viewer-config.tsx",
+    "code": "export type ColorResolver = (scope: string, key: string) => string | undefined;"
+  },
+  {
+    "name": "ComboboxProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/Combobox.tsx",
+    "code": "export interface ComboboxProps {\n  /** Currently selected value (controlled). */\n  value?: string;\n  /** Selectable options. */\n  options: readonly string[];\n  /** Called with the chosen value - an existing option, or the typed text when created. */\n  onValueChange: (value: string) => void;\n  /** Offer a \"Create ...\" row for a typed value that matches no option. */\n  allowCreate?: boolean;\n  /** Trigger text when nothing is selected. */\n  placeholder?: string;\n  /** Search-field placeholder. */\n  searchPlaceholder?: string;\n  /** Label for the create row; defaults to `Create \"<query>\"`. */\n  createLabel?: (query: string) => string;\n  /** Shown when no option matches and creation is unavailable. */\n  emptyLabel?: ReactNode;\n  /** Color swatch shown next to an option (and the selected value), e.g. an object type's color. */\n  optionColor?: (value: string) => string | undefined;\n  /** Keep the popover open after a choice, clearing the query and holding focus - so several values\n   *  can be added in a row (type, Enter, type, Enter). Best paired with a controlled `value=\"\"`. */\n  keepOpenOnSelect?: boolean;\n  /** Open the popover on mount (and focus its search) - e.g. to continue a keyboard flow into the\n   *  next field. Only the initial mount opens; it does not force-open on later renders. */\n  autoOpen?: boolean;\n  size?: \"1\" | \"2\" | \"3\";\n  disabled?: boolean;\n  /** Accessible name for the control and its listbox. */\n  \"aria-label\"?: string;\n  /** Style applied to the trigger. */\n  style?: CSSProperties;\n}"
+  },
+  {
+    "name": "ConfirmButtonProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/ConfirmButton.tsx",
+    "code": "export interface ConfirmButtonProps {\n  /** Run only after the user confirms in the popover. */\n  onConfirm: () => void;\n  /** Trigger button content. */\n  children: ReactNode;\n  /** Prompt shown in the popover. Defaults to \"Are you sure?\". */\n  message?: ReactNode;\n  confirmLabel?: string;\n  cancelLabel?: string;\n  color?: ButtonProps[\"color\"];\n  variant?: ButtonProps[\"variant\"];\n  size?: ButtonProps[\"size\"];\n  disabled?: boolean;\n  title?: string;\n}"
+  },
+  {
+    "name": "DFGViewerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/index.tsx",
+    "code": "/** Extra props for the case-centric DFG viewer. `performance` enables the frequency/performance toggle and duration heatmap; omit to show frequency only. */\nexport interface DFGViewerProps extends ViewerProps<DirectlyFollowsGraph> {\n  performance?: DfPerformance;\n}"
+  },
+  {
+    "name": "DirectlyFollowsGraph",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/index.tsx",
+    "code": "/** Local view-model. Kept explicit so the viewer has no `@r4pm/client` dependency. */\nexport interface DirectlyFollowsGraph {\n  activities: Record<string, number>;\n  directly_follows_relations: Array<[[string, string], number]>;\n  start_activities: string[];\n  end_activities: string[];\n}"
+  },
+  {
+    "name": "DottedChartAxisConfig",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/dotted-chart.tsx",
+    "code": "/** The three axis selections that drive what the backend computes. Lifted to the\n *  host (which owns the fetch) so changing an axis can trigger a refetch. */\nexport interface DottedChartAxisConfig {\n  x: DottedChartXAxis;\n  y: DottedChartYAxis;\n  color: DottedChartColorAxis;\n}"
+  },
+  {
+    "name": "DottedChartData",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/dotted-chart.tsx",
+    "code": "export interface DottedChartData {\n  dots_per_color: Record<string, DottedChartPoints>;\n  y_values: string[];\n}"
+  },
+  {
+    "name": "DottedChartOptions",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/dotted-chart.tsx",
+    "code": "export interface DottedChartOptions {\n  x_axis: \"Time\" | \"TimeSinceCaseStart\" | \"TimeRelativeToCaseDuration\" | \"StepNumberSinceCaseStart\";\n  y_axis: \"Case\" | \"Resource\" | { EventAttribute: string } | { CaseAttribute: string };\n  color_axis: \"Activity\" | \"Resource\" | \"Case\" | { EventAttribute: string } | { CaseAttribute: string };\n  timestamp_key: string;\n}"
+  },
+  {
+    "name": "DottedChartPoints",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/dotted-chart.tsx",
+    "code": "export interface DottedChartPoints {\n  x: number[];\n  y: number[];\n}"
+  },
+  {
+    "name": "DottedChartProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/dotted-chart.tsx",
+    "code": "export interface DottedChartProps {\n  /** Computed dots (`dots_per_color` + `y_values`). Undefined while loading. */\n  data?: DottedChartData;\n  loading?: boolean;\n  error?: unknown;\n  onRetry?: () => void;\n  /** Controlled axis selection (the viz `controls`). Defaults to Time/Case/Activity when omitted. */\n  controls?: DottedChartAxisConfig;\n  /** When provided, the axis \"Configure\" popover is shown and changes are reported here (the host\n   *  refetches). When omitted (e.g. a pipeline viewer with no backend), the axis controls are\n   *  hidden and only presentation controls remain. */\n  onControlsChange?: (next: DottedChartAxisConfig) => void;\n  /** Optional bridge for downstream filtering (time-range selection). */\n  onSelect?: (s: { scope: string; key: string }) => void;\n  title?: string;\n}"
+  },
+  {
+    "name": "EditorEdgePatch",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "/** Cosmetic patch for one arc, matched to a live edge by its (source, target). */\nexport type EditorEdgePatch = {\n  from: string;\n  to: string;\n  style?: React.CSSProperties;\n  className?: string;\n  label?: string;\n  onClick?: (e: React.MouseEvent) => void;\n  onContextMenu?: (e: React.MouseEvent) => void;\n};"
+  },
+  {
+    "name": "EditorProps",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "export type EditorProps = {\n  readOnly?: boolean;\n  initialNodes?: PetriNetNode[];\n  initialEdges?: Edge<ArcData>[];\n  layoutOptions?: LayoutOptions;\n  editorProps?: ReactFlowProps<PetriNetNode, Edge<ArcData>>;\n  /** Show the built-in PNG/SVG export buttons. Off when a host (e.g. a viewer frame) owns export. */\n  showExportControls?: boolean;\n  /** In-canvas controllers rendered inside the ReactFlow provider (e.g. an OCPN\n   *  inference effect). They can use `useReactFlow` to read/patch live nodes/edges. */\n  children?: React.ReactNode;\n  /** Turn on editing (drag-to-create, rename, delete, markings). Convenience for\n   *  `readOnly={false}`; `readOnly` still wins if both are set. */\n  editable?: boolean;\n  /** Fired (rAF-coalesced) on any node/edge change while editing. */\n  onChange?: (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => void;\n  /** Controlled node set: when provided, the editor mirrors it into internal state\n   *  on change (no remount, positions preserved). Used by viewers/simulators that\n   *  push live data updates. Editable mode uses `initialNodes` instead. */\n  nodes?: PetriNetNode[];\n  edges?: Edge<ArcData>[];\n  /** Editable mode only: cosmetic data merged into the editor's live nodes by id,\n   *  so an overlay change never clobbers structure/positions/edits. Excludes\n   *  tokens/finalTokens (the user owns those via the marking stepper). */\n  overlayNodeData?: Map<string, Partial<TransitionData & PlaceData>>;\n  /** Editable mode only: cosmetic arc patches matched to live edges by endpoints. */\n  overlayEdgeData?: EditorEdgePatch[];\n  /** Live per-place presentation resolver, evaluated at render by every place node -\n   *  including ones added in-canvas - with the place's current data. Returns fields\n   *  to merge over that data (never tokens/finalTokens; the stepper owns those). */\n  placeOverlay?: (placeId: string, data: PlaceData) => Partial<PlaceData> | undefined;\n  /** Live per-arc presentation resolver, evaluated at render by every edge with its\n   *  current data and resolved endpoint kinds (so a consumer can tell place from\n   *  transition without re-deriving topology). */\n  arcOverlay?: (arc: ArcContext, data: ArcData) => ArcPresentation | undefined;\n};"
+  },
+  {
+    "name": "ElementInteractions",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "/** Pointer interactions an element resolver can attach. */\nexport interface ElementInteractions {\n  onClick?: (e: MouseEvent) => void;\n  onContextMenu?: (e: MouseEvent) => void;\n}"
+  },
+  {
+    "name": "ElementPresentation",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "/** What a transition/arc resolver returns; all fields optional. */\nexport interface ElementPresentation extends ElementInteractions {\n  style?: CSSProperties;\n  className?: string;\n  label?: string;\n  /** Replace the element's inner content entirely (e.g. an icon). */\n  renderContent?: () => ReactNode;\n}"
+  },
+  {
+    "name": "EmptyStateProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/EmptyState.tsx",
+    "code": "export interface EmptyStateProps {\n  title: string;\n  description?: string;\n  /** Defaults to a tray glyph. Pass a sized react-icon for a domain-specific look. */\n  icon?: ReactNode;\n  /** Optional CTA, e.g. a \"Load OCEL\" button. */\n  action?: ReactNode;\n  className?: string;\n}"
+  },
+  {
+    "name": "ErrorStateProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/ErrorState.tsx",
+    "code": "export interface ErrorStateProps {\n  /** The thrown value; its message is shown and its stack is offered under \"Details\". */\n  error?: unknown;\n  title?: string;\n  /** Override the derived message (defaults to `error.message`). */\n  message?: string;\n  onRetry?: () => void;\n  retryLabel?: string;\n  className?: string;\n}"
+  },
+  {
+    "name": "EventLogEditorProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/EventLogEditor.tsx",
+    "code": "export interface EventLogEditorProps {\n  model: EventLogModel;\n  onChange: (model: EventLogModel) => void;\n  /** Optional action bar rendered at the top-right (e.g. studio Save / Import). */\n  actions?: ReactNode;\n}"
+  },
+  {
+    "name": "EventLogModel",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/model.ts",
+    "code": "export interface EventLogModel {\n  rows: EventRow[];\n  /** Shared event-level attribute columns. */\n  attrColumns: AttrColumn[];\n  /** Shared case-level (trace) attribute columns; values live per case in `caseMeta`. */\n  caseAttrColumns: AttrColumn[];\n  time: TimeConfig;\n  /** Per-case metadata (count + case attribute values), keyed by case id. Missing entries default. */\n  caseMeta: Record<string, CaseMeta>;\n}"
+  },
+  {
+    "name": "EventRow",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/model.ts",
+    "code": "export interface EventRow {\n  rowId: string;\n  caseId: string;\n  activity: string;\n  /** RFC3339, or \"\" when unset (reflow fills non-manual rows). */\n  time: string;\n  /** True once the user edits the timestamp directly; reflow then leaves it alone. */\n  timeManual: boolean;\n  /** Raw string cell per attribute column name. */\n  attrs: Record<string, string>;\n}"
+  },
+  {
+    "name": "FitnessResult",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/fitness.tsx",
+    "code": "/** Conformance fitness summary. Local view-model; structurally assignable to/from the generated\n *  `@r4pm/client` `FitnessResult` (the studio adapter pins that mapping). */\nexport interface FitnessResult {\n  log_fitness: number;\n  average_fitness: number;\n  perfectly_fitting_frac: number;\n  total_costs: number;\n}"
+  },
+  {
+    "name": "FrequencyPickerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/inputs/FrequencyPicker.tsx",
+    "code": "export interface FrequencyPickerProps {\n  items: FreqItem[] | Record<string, number>;\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  mode?: \"multi\" | \"single\";\n  searchable?: boolean;\n  showBars?: boolean;\n  /** Show the draggable top-N cutoff rail. Turn off when items have no meaningful frequency. */\n  showCutoff?: boolean;\n  /** Scope passed to the shared colorOf resolver (e.g. \"activity\", \"objectType\"). */\n  scope?: string;\n  /** Override the color resolver; defaults to the shared ViewerConfig colorOf. */\n  colorOf?: ColorResolver;\n  emptyText?: string;\n  /** Focus the search box on mount (only when searchable). Off by default so embedded pickers\n   *  (e.g. inside a settings card) do not steal focus. */\n  autoFocus?: boolean;\n}"
+  },
+  {
+    "name": "GridColumn",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/EditableGrid.tsx",
+    "code": "export interface GridColumn {\n  key: string;\n  header: ReactNode;\n  width?: string;\n  /** Hint for the text input; ignored for custom/boolean cells. */\n  inputMode?: \"text\" | \"numeric\" | \"decimal\";\n  kind?: \"text\" | \"boolean\" | \"custom\";\n  align?: \"left\" | \"right\";\n  /** Custom cell renderer (e.g. a relationships editor). */\n  render?: (ctx: { rowId: string; value: string; setValue: (v: string) => void }) => ReactNode;\n  /** Extra control rendered in the header, right-aligned (e.g. remove-column). */\n  headerExtra?: ReactNode;\n}"
+  },
+  {
+    "name": "GridRowModel",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/EditableGrid.tsx",
+    "code": "export interface GridRowModel {\n  rowId: string;\n}"
+  },
+  {
+    "name": "LoadingStateProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/LoadingState.tsx",
+    "code": "export interface LoadingStateProps {\n  /** Short status line under the spinner, e.g. \"discovering DFG\". */\n  label?: string;\n  /** Thin indeterminate bar pinned to the top edge. On by default. */\n  topBar?: boolean;\n  /** After this many ms still loading, reveal `slowHint`. Omit to never show it. */\n  slowAfterMs?: number;\n  /** Calm reassurance shown once `slowAfterMs` elapses. */\n  slowHint?: string;\n  className?: string;\n}"
+  },
+  {
+    "name": "LogAlignments",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export interface LogAlignments {\n  net: PetriNet;\n  variant_alignments: VariantAlignmentResult[];\n  fitness?: FitnessResult | null;\n  aggregated: AlignmentAggregate;\n}"
+  },
+  {
+    "name": "LogGlobals",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/LogMetadataCard.tsx",
+    "code": "export interface LogGlobals {\n  attributes: Record<string, string>;\n  extensions: LogExtensionInfo[];\n  classifiers: LogClassifierInfo[];\n  global_trace_attrs: Record<string, string>;\n  global_event_attrs: Record<string, string>;\n}"
+  },
+  {
+    "name": "LogJson",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/model.ts",
+    "code": "/** Shape handed to the backend; structurally identical to `@r4pm/client` `EventLogInput`. */\nexport interface LogJson {\n  traces: Array<{\n    caseId: string;\n    events: Array<{\n      activity: string;\n      time: string;\n      attributes: Array<{ name: string; type: string; value: string }>;\n    }>;\n    /** Case-level (trace) attributes. */\n    attributes: Array<{ name: string; type: string; value: string }>;\n  }>;\n}"
+  },
+  {
+    "name": "LogJsonIn",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/model.ts",
+    "code": "/** Loose form of the backend log, matching the generated `EventLogInput` (optional arrays). */\nexport interface LogJsonIn {\n  traces?: Array<{\n    caseId: string;\n    events?: Array<{\n      activity: string;\n      time: string;\n      attributes?: Array<{ name: string; type: string; value: string }>;\n    }>;\n    attributes?: Array<{ name: string; type: string; value: string }>;\n  }>;\n}"
+  },
+  {
+    "name": "LogVariantsProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-variants.tsx",
+    "code": "export interface LogVariantsProps {\n  /** Distinct trace variants of the log (from `get_log_trace_variants`). */\n  variants: TraceVariants;\n  /** Total number of traces in the log (drives \"% of cases\"). */\n  numTraces: number;\n  /** Total number of events in the log (drives selection aggregates). */\n  numEvents: number;\n  /** Optional callback when a single activity badge is clicked (drill into one\n   *  activity, e.g. send-to-transforms). For the multi-variant checkbox\n   *  selection, use {@link onSelectionChange} instead. */\n  onSelect?: (activity: string) => void;\n  /**\n   * Optional callback emitting a variant-filter intent. The host turns this\n   * into a `FilterVariants` transform ({@link KeepOrRemove} + `variants`); the\n   * viewer only emits the selected variant indices and the requested mode.\n   */\n  onFilterVariants?: (sel: { variantIndices: number[]; mode: \"keep\" | \"exclude\" }) => void;\n  /**\n   * Optional callback fired whenever the checkbox selection changes, reporting\n   * the current selection (independent of any keep/exclude action). Lets the\n   * host react to \"which variants/traces are selected\": cross-highlight,\n   * send-to-transforms, inspect, etc. `traceCount`/`eventCount` are the\n   * aggregates across the selected variants.\n   */\n  onSelectionChange?: (sel: { variantIndices: number[]; traceCount: number; eventCount: number }) => void;\n  /**\n   * Optional initial checkbox selection (variant indices). Seeds the selection\n   * on mount only; the component owns selection state afterwards. Hosts that\n   * persist a selection (e.g. a FilterVariants transform editor) pass it here\n   * and remount via `key` when the underlying log changes.\n   */\n  initialSelectedVariantIndices?: number[];\n}"
+  },
+  {
+    "name": "Marking",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/sim.ts",
+    "code": "export type Marking = Record<string, number>;"
+  },
+  {
+    "name": "MoveKind",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/TraceAlignmentStrip.tsx",
+    "code": "export type MoveKind = \"sync\" | \"log\" | \"model\";"
+  },
+  {
+    "name": "NumberOfTracesAndEvents",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-summary.tsx",
+    "code": "/** Event-log summary counts. Local view-model; structurally assignable to/from the generated\n *  `@r4pm/client` `NumberOfTracesAndEvents`. */\nexport interface NumberOfTracesAndEvents {\n  num_traces: number;\n  num_events: number;\n}"
+  },
+  {
+    "name": "ObjectAttributeChanges",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/object-attribute-changes-data.ts",
+    "code": "export interface ObjectAttributeChanges {\n  traces: {\n    [k: string]: AttributeChange[];\n  };\n}"
+  },
+  {
+    "name": "ObjectAttributeChangesChartProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/object-attribute-changes.tsx",
+    "code": "export interface ObjectAttributeChangesChartProps {\n  /** One object's attribute changes over time (from `get_object_attribute_changes`). */\n  data: ObjectAttributeChanges;\n  /** The object id being plotted (shown in the title). */\n  objectID: string;\n}"
+  },
+  {
+    "name": "ObjectCentricPetriNet",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/object-centric-petri-net.tsx",
+    "code": "/**\n * Object-centric Petri net (OCPN): a plain {@link PetriNet} plus the object\n * type each place belongs to, and (optionally) which place<->transition arcs are\n * \"variable\" (consume/produce a variable number of tokens).\n */\nexport interface ObjectCentricPetriNet {\n  petri_net: PetriNet;\n  /** place id -> object type id. */\n  place_object_type: Record<string, string>;\n  /**\n   * Per place id: `[incoming, outgoing]` variable-arc maps, each keyed by the\n   * connected transition id. A `true` marks that arc as variable (drawn bold +\n   * dashed). Optional; omit for a uniform look.\n   */\n  place_in_out_mult?: Record<string, [Record<string, boolean>, Record<string, boolean>]>;\n}"
+  },
+  {
+    "name": "ObjectCentricPetriNetSimulatorProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/object-centric-petri-net-simulator.tsx",
+    "code": "export interface ObjectCentricPetriNetSimulatorProps extends ViewerProps<ObjectCentricPetriNet> {\n  /** Decide which tokens fire together; defaults to consume-all on variable arcs. */\n  fire?: OcpnFireGuard;\n  /** Explicit, meaningful initial token ids per place (overrides generated ids). */\n  initialTokens?: Record<string, string[]>;\n  /** Render a single token; defaults to a colored dot with a short id + tooltip. */\n  renderToken?: (id: string, objectType: string) => ReactNode;\n  /** When provided, a \"Save as OCEL\" button appears; called with the current trace so a host\n   *  can turn it into an object-centric event log. Kept out of the pure component. */\n  onSaveAsLog?: (trace: OcSequenceStep[]) => void;\n}"
+  },
+  {
+    "name": "ObjectCentricPetriNetViewerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/object-centric-petri-net.tsx",
+    "code": "/**\n * Object-centric Petri net viewer. Read-only: a thin overlay over {@link PetriNetViewer}\n * coloring places/arcs by object type. Editable: a dedicated editor that keeps the OCPN\n * attributes on the editor's nodes/edges and serializes them back on every change.\n */\nexport interface ObjectCentricPetriNetViewerProps extends ViewerProps<ObjectCentricPetriNet> {\n  editable?: boolean;\n  onChange?: (ocpn: ObjectCentricPetriNet) => void;\n}"
+  },
+  {
+    "name": "ObjectCentricPetriNetWorkbenchProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/object-centric-petri-net-workbench.tsx",
+    "code": "export interface ObjectCentricPetriNetWorkbenchProps extends ViewerProps<ObjectCentricPetriNet> {\n  /** Mode shown on mount. Defaults to \"view\". */\n  initialMode?: OcpnMode;\n  /** Fired whenever the current (possibly edited) net changes. */\n  onNetChange?: (net: ObjectCentricPetriNet) => void;\n  /** Host-supplied buttons (e.g. backend PNML export); receive the current net. */\n  toolbar?: (net: ObjectCentricPetriNet) => ReactNode;\n  /** Host handler to turn a simulation trace into an OCEL. When set, the simulator shows a\n   *  \"Save as OCEL\" button. */\n  onSaveTraceAsLog?: (trace: OcSequenceStep[]) => void;\n}"
+  },
+  {
+    "name": "ObjectCentricSequenceProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/ObjectCentricSequence.tsx",
+    "code": "export interface ObjectCentricSequenceProps {\n  steps: OcSequenceStep[];\n  /** Object type -> color (hex). Defaults to the ambient `ViewerConfig` colorOf\n   *  (scope \"objectType\"), falling back to a stable hashed palette. */\n  colorOf?: (objectType: string) => string;\n  /** Activity name -> chevron-chip color. Defaults to the ambient `ViewerConfig` colorOf\n   *  (scope \"activity\"), falling back to a stable hashed palette. */\n  activityColorOf?: (activity: string) => string;\n  /** Render a single object chip instead of the default colored pill. */\n  renderObject?: (obj: OcSequenceObject, color: string) => ReactNode;\n  /** Show the object-type legend above the sequence. Default true. */\n  showLegend?: boolean;\n  /** Shown when there are no steps yet. */\n  emptyLabel?: ReactNode;\n}"
+  },
+  {
+    "name": "ObjectTypeAssociation",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/index.tsx",
+    "code": "export type ObjectTypeAssociation =\n  | {\n      object_type: string;\n      type: \"Simple\";\n    }\n  | {\n      first: string;\n      second: string;\n      reversed: boolean;\n      type: \"O2O\";\n    };"
+  },
+  {
+    "name": "OCDeclareArc",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/index.tsx",
+    "code": "export interface OCDeclareArc {\n  from: string;\n  to: string;\n  arc_type: \"AS\" | \"EF\" | \"EP\" | \"DF\" | \"DP\";\n  label: OCDeclareArcLabel;\n  counts: [number | null, number | null];\n}"
+  },
+  {
+    "name": "OCDeclareArcLabel",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/index.tsx",
+    "code": "export interface OCDeclareArcLabel {\n  each: ObjectTypeAssociation[];\n  any: ObjectTypeAssociation[];\n  all: ObjectTypeAssociation[];\n}"
+  },
+  {
+    "name": "OCDFGViewerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/index.tsx",
+    "code": "/** Extra props for the OC-DFG viewer. `performance` enables the frequency/performance toggle; omit to show frequency only. */\nexport interface OCDFGViewerProps extends ViewerProps<OCDirectlyFollowsGraph> {\n  performance?: OcelDfPerformance;\n  /** Real per-object-type instance counts (e.g. from ocel_type_stats). Falls back to\n   *  per-type event totals when not provided. */\n  objectCounts?: Record<string, number>;\n}"
+  },
+  {
+    "name": "OCDirectlyFollowsGraph",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/index.tsx",
+    "code": "/** Object-centric DFG: one `DirectlyFollowsGraph` per object type. Mirrors the\n *  generated `@r4pm/client` `OCDirectlyFollowsGraph` shape. */\nexport interface OCDirectlyFollowsGraph {\n  object_type_to_dfg: Record<string, DirectlyFollowsGraph>;\n}"
+  },
+  {
+    "name": "OcelEditorProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/OcelEditor.tsx",
+    "code": "export interface OcelEditorProps {\n  model: OcelModel;\n  onChange: (model: OcelModel) => void;\n  actions?: ReactNode;\n}"
+  },
+  {
+    "name": "OcelEventRow",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/ocel-model.ts",
+    "code": "export interface OcelEventRow {\n  rowId: string;\n  id: string;\n  type: string;\n  time: string;\n  timeManual: boolean;\n  attrs: Record<string, string>;\n  /** Event-to-object relationships. */\n  e2o: OcelRel[];\n}"
+  },
+  {
+    "name": "OcelJson",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/ocel-model.ts",
+    "code": "/** Shape handed to the backend; structurally identical to `@r4pm/client` `OcelInput`. */\nexport interface OcelJson {\n  eventTypes: Array<{ name: string; attributes: Array<{ name: string; type: string }> }>;\n  objectTypes: Array<{ name: string; attributes: Array<{ name: string; type: string }> }>;\n  events: Array<{\n    id: string;\n    type: string;\n    time: string;\n    attributes: Array<{ name: string; type: string; value: string }>;\n    relationships: Array<{ objectId: string; qualifier: string }>;\n  }>;\n  objects: Array<{\n    id: string;\n    type: string;\n    attributes: Array<{ name: string; type: string; value: string; time: string }>;\n    relationships: Array<{ objectId: string; qualifier: string }>;\n  }>;\n}"
+  },
+  {
+    "name": "OcelJsonIn",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/ocel-model.ts",
+    "code": "/** Loose form of the backend OCEL, matching the generated `OcelInput` (optional arrays). */\nexport interface OcelJsonIn {\n  eventTypes?: Array<{ name: string; attributes?: Array<{ name: string; type: string }> }>;\n  objectTypes?: Array<{ name: string; attributes?: Array<{ name: string; type: string }> }>;\n  events?: Array<{\n    id: string;\n    type: string;\n    time: string;\n    attributes?: Array<{ name: string; type: string; value: string }>;\n    relationships?: Array<{ objectId: string; qualifier: string }>;\n  }>;\n  objects?: Array<{\n    id: string;\n    type: string;\n    attributes?: Array<{ name: string; type: string; value: string }>;\n    relationships?: Array<{ objectId: string; qualifier: string }>;\n  }>;\n}"
+  },
+  {
+    "name": "OcelModel",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/ocel-model.ts",
+    "code": "export interface OcelModel {\n  eventTypes: OcelTypeDef[];\n  objectTypes: OcelTypeDef[];\n  events: OcelEventRow[];\n  objects: OcelObjectRow[];\n  time: TimeConfig;\n}"
+  },
+  {
+    "name": "OcelObjectRow",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/ocel-model.ts",
+    "code": "export interface OcelObjectRow {\n  rowId: string;\n  id: string;\n  type: string;\n  /** Single snapshot value per attribute; timestamped at the log start on export (v1). */\n  attrs: Record<string, string>;\n  /** Object-to-object relationships. */\n  o2o: OcelRel[];\n}"
+  },
+  {
+    "name": "OcelRel",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/ocel-model.ts",
+    "code": "export interface OcelRel {\n  objectId: string;\n  qualifier: string;\n}"
+  },
+  {
+    "name": "OcelTypeDef",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/ocel-model.ts",
+    "code": "export interface OcelTypeDef {\n  name: string;\n  attributes: AttrColumn[];\n}"
+  },
+  {
+    "name": "OCELTypeStats",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-count-info.tsx",
+    "code": "/** OCEL per-type event/object counts. Local view-model; structurally assignable to/from the\n *  generated `@r4pm/client` `OCELTypeStats`. */\nexport interface OCELTypeStats {\n  event_type_counts: Record<string, number>;\n  object_type_counts: Record<string, number>;\n}"
+  },
+  {
+    "name": "OcpnArc",
+    "kind": "interface",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/sim-ocpn.ts",
+    "code": "export interface OcpnArc {\n  place: string;\n  objectType: string;\n  weight: number;\n  variable: boolean;\n  tokens: string[];\n}"
+  },
+  {
+    "name": "OcpnFireGuard",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/sim-ocpn.ts",
+    "code": "/** Return the firing (consume + produce token ids per place), or false when the\n *  transition cannot fire. */\nexport type OcpnFireGuard = (args: OcpnFireGuardArgs) => OcpnFiring | false;"
+  },
+  {
+    "name": "OcpnFireGuardArgs",
+    "kind": "interface",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/sim-ocpn.ts",
+    "code": "export interface OcpnFireGuardArgs {\n  transitionId: string;\n  marking: TokenMarking;\n  inputs: OcpnArc[];\n  outputs: Omit<OcpnArc, \"tokens\">[];\n}"
+  },
+  {
+    "name": "OcpnFiring",
+    "kind": "interface",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/sim-ocpn.ts",
+    "code": "export interface OcpnFiring {\n  consume: Record<string, string[]>;\n  produce: Record<string, string[]>;\n}"
+  },
+  {
+    "name": "OcpnMode",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/object-centric-petri-net-workbench.tsx",
+    "code": "export type OcpnMode = WorkbenchMode;"
+  },
+  {
+    "name": "OcSequenceObject",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/ObjectCentricSequence.tsx",
+    "code": "/** One object instance involved in a firing, e.g. a token id paired with its object type. */\nexport interface OcSequenceObject {\n  id: string;\n  objectType: string;\n}"
+  },
+  {
+    "name": "OcSequenceStep",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/ObjectCentricSequence.tsx",
+    "code": "/** One step of an object-centric simulation trace: a fired transition plus the object\n *  instances it touched. Objects are clustered and colored by type when rendered. */\nexport interface OcSequenceStep {\n  transitionId: string;\n  /** Activity label; null or empty for a silent (tau) transition. */\n  label: string | null;\n  /** Objects associated with this step (any number of types). */\n  objects: OcSequenceObject[];\n}"
+  },
+  {
+    "name": "PetriNet",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "/** Petri net data shape. `label` is optional (serializes as missing/null); assignable to/from the generated `@r4pm/client` `PetriNet` type. */\nexport interface PetriNet {\n  places: Array<{ id: string }>;\n  transitions: Array<{ id: string; label?: string | null }>;\n  arcs: Array<{\n    nodes: [string, string];\n    weight?: number;\n  }>;\n  initial_marking?: Record<string, number> | null;\n  final_marking?: Record<string, number> | null;\n}"
+  },
+  {
+    "name": "PetriNetMode",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net-workbench.tsx",
+    "code": "export type PetriNetMode = WorkbenchMode;"
+  },
+  {
+    "name": "PetriNetNode",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "export type PetriNetNode =\n  | (Node<TransitionData> & { type: \"transition\" })\n  | (Node<PlaceData> & { type: \"place\" });"
+  },
+  {
+    "name": "PetriNetOverlay",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "/**\n * Presentation overlay for {@link PetriNetViewer}. Each resolver is optional and\n * called once per element; return a partial presentation (or nothing) to recolor,\n * relabel, restyle, or fully re-render that element. Identity:\n *  - transitions / places by `id`\n *  - arcs by `(from, to)` (a synthetic stable `id` is also passed)\n *\n * Decide styling from your own data (closure over a map keyed by id) and/or from\n * the `raw` element passed as the second arg (if your net carries extra fields).\n *\n * @example Color places + arcs by object type (the OCPN pattern):\n * ```tsx\n * const colorOf = (placeId: string) => typeColor[objectType[placeId]];\n * const overlay: PetriNetOverlay = {\n *   place: (p) => ({ style: { borderColor: colorOf(p.id) }, tokenColor: colorOf(p.id) }),\n *   arc:   (a) => ({ style: { stroke: colorOf(a.type === \"PlaceTransition\" ? a.from : a.to) } }),\n * };\n * <PetriNetViewer data={net} overlay={overlay} />\n * ```\n *\n * @example Render a custom marking (any JSX), not the default token dots:\n * ```tsx\n * const overlay: PetriNetOverlay = {\n *   place: (p) => ({ renderMarking: () => <MyTokens count={p.tokens} place={p.id} /> }),\n * };\n * ```\n *\n * See `object-centric-petri-net.tsx` for a full extension built on this.\n */\nexport interface PetriNetOverlay {\n  transition?: (\n    info: TransitionInfo,\n    raw: PetriNet[\"transitions\"][number],\n  ) => ElementPresentation | undefined;\n  place?: (info: PlaceInfo, raw: PetriNet[\"places\"][number]) => PlacePresentation | undefined;\n  arc?: (info: ArcInfo, raw: PetriNet[\"arcs\"][number]) => ElementPresentation | undefined;\n}"
+  },
+  {
+    "name": "PetriNetSimulatorProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net-simulator.tsx",
+    "code": "/**\n * Readonly Petri net where clicking an enabled transition fires it: consume input\n * tokens, produce output tokens. Tokens are indistinguishable counts.\n */\nexport interface PetriNetSimulatorProps extends ViewerProps<PetriNet> {\n  /** When provided, a \"Save as log\" button appears; called with every recorded trace\n   *  (the current one finalized) so a host can turn them into an event-log dataset with\n   *  one case per trace. Kept out of the pure component. */\n  onSaveAsLog?: (traces: SimTrace[]) => void;\n  /** When true, clicking a not-enabled transition force-fires it (token-replay style): the\n   *  missing input tokens are counted into the trace and firing proceeds anyway. Default false. */\n  allowForcedFiring?: boolean;\n}"
+  },
+  {
+    "name": "PetriNetViewerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "/** Props of {@link PetriNetViewer}: the standard viewer props plus an optional\n *  presentation overlay used by alignment-style views. Backward compatible: the\n *  overlay defaults to undefined. */\nexport interface PetriNetViewerProps extends ViewerProps<PetriNet> {\n  overlay?: PetriNetOverlay;\n  /** Allow structural + marking editing. The editable viewer is uncontrolled:\n   *  it lays out `data` on mount and reports edits via `onChange`; do not feed\n   *  `onChange` output straight back as `data` (use a `key` to force a reset). */\n  editable?: boolean;\n  /** Called with the serialized net after each edit. */\n  onChange?: (net: PetriNet) => void;\n}"
+  },
+  {
+    "name": "PetriNetWorkbenchProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net-workbench.tsx",
+    "code": "export interface PetriNetWorkbenchProps extends ViewerProps<PetriNet> {\n  /** Mode shown on mount. Defaults to \"view\". */\n  initialMode?: PetriNetMode;\n  /** Fired whenever the current (possibly edited) net changes. */\n  onNetChange?: (net: PetriNet) => void;\n  /** Host-supplied buttons (e.g. backend PNML export); receive the current net. */\n  toolbar?: (net: PetriNet) => ReactNode;\n  /** Host handler to turn the recorded replay traces into an event-log dataset. When\n   *  set, the replay view shows a \"Save as log\" button. */\n  onSaveTraceAsLog?: (traces: SimTrace[]) => void;\n  /** Initial state of the replay view's \"Force fire\" toggle (force-fire not-enabled\n   *  transitions, token-replay style). Defaults to off; the user can flip it in the toolbar. */\n  allowForcedFiring?: boolean;\n}"
+  },
+  {
+    "name": "PlaceData",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "export type PlaceData = ElementHandlers & {\n  label?: string | undefined;\n  tokens?: number;\n  finalTokens?: number;\n  /** Color of the default token dots (defaults to black). */\n  tokenColor?: string;\n  /** Explicit per-token marks; render-safe in both DOM and SVG export. Takes\n   *  precedence over tokens/finalTokens; superseded by `renderMarking` on screen. */\n  tokenMarks?: TokenMark[];\n  className?: string;\n  style?: React.CSSProperties;\n  /** Replace the marking rendering entirely (e.g. per-object-type tokens). */\n  renderMarking?: () => React.ReactNode;\n  /** Extra editable control rendered inside the place (e.g. object-type select). */\n  renderControls?: () => React.ReactNode;\n  /** Consumer attribute: the object type this place belongs to (OCPN). Stored on the\n   *  node so the editor is the single source of truth; serialized back out. */\n  objectType?: string;\n};"
+  },
+  {
+    "name": "PlaceID",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export type PlaceID = string;"
+  },
+  {
+    "name": "PlaceInfo",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "export interface PlaceInfo {\n  id: string;\n  /** Token count from the net's initial marking (before any override). */\n  tokens: number;\n  /** Token count from the net's final marking (before any override). */\n  finalTokens: number;\n}"
+  },
+  {
+    "name": "PlacePresentation",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "/** What a place resolver returns; adds marking controls. */\nexport interface PlacePresentation extends ElementInteractions {\n  style?: CSSProperties;\n  className?: string;\n  label?: string;\n  /** Token count to draw (overrides the initial marking). */\n  tokens?: number;\n  /** Color of the default token dots. */\n  tokenColor?: string;\n  /** Explicit per-token marks (dots/squares, colored/faded); rendered in both the\n   *  DOM node and the SVG export. Takes precedence over `tokens`. */\n  tokenMarks?: TokenMark[];\n  /** Render the marking yourself (e.g. per-object-type tokens). */\n  renderMarking?: () => ReactNode;\n  /** Extra editable control rendered inside the place (e.g. an object-type select). */\n  renderControls?: () => ReactNode;\n}"
+  },
+  {
+    "name": "RankedBarListProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/RankedBarList.tsx",
+    "code": "export interface RankedBarListProps {\n  items: FreqItem[] | Record<string, number>;\n  /** Scope passed to the shared colorOf resolver (e.g. \"activity\", \"objectType\"). */\n  scope?: string;\n  /** Override the color resolver; defaults to the shared ViewerConfig colorOf. */\n  colorOf?: ColorResolver;\n  /** Show at most this many rows (highest counts first). */\n  max?: number;\n  /** Format the value shown on the right (default: localized integer). */\n  valueFormat?: (n: number) => string;\n  onItemClick?: (key: string) => void;\n  emptyText?: string;\n}"
+  },
+  {
+    "name": "ResolvedMove",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/TraceAlignmentStrip.tsx",
+    "code": "export interface ResolvedMove {\n  kind: MoveKind;\n  /** Human-readable label: activity name for sync/log moves, transition label for model moves. */\n  label: string;\n  /** Transition has no label (invisible/tau). */\n  hidden: boolean;\n}"
+  },
+  {
+    "name": "SaveBytesFn",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/export.tsx",
+    "code": "export type SaveBytesFn = (data: Uint8Array, filename: string, mime: string) => void | Promise<void>;"
+  },
+  {
+    "name": "SearchError",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export type SearchError = \"LimitReached\" | \"Unreachable\" | \"MaxEdgeCostTooLarge\";"
+  },
+  {
+    "name": "SelectionActionsProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/inputs/SelectionActions.tsx",
+    "code": "export interface SelectionActionsProps {\n  /** Full set of selectable keys (for All / Invert). */\n  allKeys: string[];\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  size?: \"1\" | \"2\";\n}"
+  },
+  {
+    "name": "SimTrace",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net-simulator.tsx",
+    "code": "/** A replay trace plus token-replay bookkeeping (produced/consumed/missing/remaining). */\nexport interface SimTrace {\n  steps: SimTraceStep[];\n  /** Whether the marking was accepting (final marking reached) when the trace ended. */\n  accepting: boolean;\n  /** Tokens produced: initial marking plus every fired transition's output weights. */\n  produced: number;\n  /** Tokens consumed: every fired transition's input weights plus the final marking. */\n  consumed: number;\n  /** Tokens that had to be created to fire (input shortfall on a forced fire, plus any\n   *  final-marking shortfall at trace end). */\n  missing: number;\n  /** Tokens left in the marking after consuming the final marking, at trace end. */\n  remaining: number;\n}"
+  },
+  {
+    "name": "SimTraceStep",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net-simulator.tsx",
+    "code": "/** One fired step of a simulation trace. */\nexport interface SimTraceStep {\n  transitionId: string;\n  /** Transition label; null for a silent (tau) transition. */\n  label: string | null;\n}"
+  },
+  {
+    "name": "StatCardsProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/StatCards.tsx",
+    "code": "export interface StatCardsProps {\n  items: StatItem[];\n  /** \"start\" = label over value, left aligned (metrics); \"center\" = centered big number. */\n  align?: \"start\" | \"center\";\n  /** Progress visualization for items with a `progress` value. Default \"ring\". */\n  indicator?: StatIndicator;\n}"
+  },
+  {
+    "name": "StatIndicator",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/StatCards.tsx",
+    "code": "export type StatIndicator = \"ring\" | \"bar\";"
+  },
+  {
+    "name": "StatItem",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/StatCards.tsx",
+    "code": "export interface StatItem {\n  label: string;\n  value: string | number;\n  hint?: string;\n  /** Semantic direction; colors the value / indicator (e.g. high fitness = good). */\n  tone?: StatTone;\n  /** 0..1 fraction. When set, the value renders with the chosen progress indicator. */\n  progress?: number;\n}"
+  },
+  {
+    "name": "StatTone",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/StatCards.tsx",
+    "code": "export type StatTone = \"good\" | \"bad\" | \"warn\" | \"neutral\";"
+  },
+  {
+    "name": "SyncProdNetConstructionError",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export type SyncProdNetConstructionError =\n  | { InvalidPlaceInMarking: PlaceID }\n  | \"NoFinalMarking\"\n  | \"NoInitialMarking\";"
+  },
+  {
+    "name": "TimeConfig",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-editor/model.ts",
+    "code": "export interface TimeConfig {\n  /** RFC3339 start applied to the first (non-manual) event of every case. */\n  start: string;\n  stepSeconds: number;\n}"
+  },
+  {
+    "name": "TokenMark",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "/** One drawn token: a dot or square, optionally colored/faded. Both the DOM node\n *  and the SVG export render from this, so overlay/simulator markings (e.g. a green\n *  \"final reached\" square) appear in exports too - unlike JSX `renderMarking`, which\n *  the standalone SVG builder cannot run. Omitted `color` falls back to the node text. */\nexport type TokenMark = { shape: \"dot\" | \"square\"; color?: string; opacity?: number; title?: string };"
+  },
+  {
+    "name": "TokenMarking",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/sim-ocpn.ts",
+    "code": "export type TokenMarking = Record<string, string[]>;"
+  },
+  {
+    "name": "TraceVariants",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/log-variants.tsx",
+    "code": "export interface TraceVariants {\n  activities: string[];\n  act_to_index: Record<string, number>;\n  traces: [number[], number][];\n}"
+  },
+  {
+    "name": "TransitionData",
+    "kind": "type",
+    "entry": "@r4pm/components/petri",
+    "file": "src/petri/editor/Editor.tsx",
+    "code": "export type TransitionData = ElementHandlers & {\n  label?: string | undefined;\n  className?: string;\n  style?: React.CSSProperties;\n  /** Replace the transition's inner content entirely (e.g. an icon). */\n  renderContent?: () => React.ReactNode;\n};"
+  },
+  {
+    "name": "TransitionFireStats",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export interface TransitionFireStats {\n  sync_fires: number;\n  model_fires: number;\n}"
+  },
+  {
+    "name": "TransitionInfo",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "export interface TransitionInfo {\n  id: string;\n  label: string | null;\n}"
+  },
+  {
+    "name": "VariantAlignmentResult",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export interface VariantAlignmentResult {\n  activities: string[];\n  frequency: number;\n  result: { Ok: AlignmentResult } | { Err: AlignmentError };\n}"
+  },
+  {
+    "name": "VectorExportSource",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/export.tsx",
+    "code": "/**\n * One export control for every viewer.\n *\n * A viewer wrapped in `<ViewerExportFrame>` advertises a vector rendering of itself via\n * `useRegisterExport` (real `<svg>`, not a DOM snapshot); the frame turns that one source into the\n * SVG / PNG / JPEG menu entries (PNG/JPEG are the SVG rasterized client-side, honoring a scale\n * factor). A viewer that registers nothing still exports: the frame falls back to an html-to-image\n * snapshot of its content. Saving goes through the optional `onSave` (so a host can route it to a\n * native save dialog); the default is a browser download (no host wiring needed).\n */\n\n/** A viewer's self-contained vector rendering of its current state. */\nexport interface VectorExportSource {\n  /** Build the current view as a standalone SVG string, or null when not ready. */\n  toSvg: () => string | null;\n  /** Optional extra menu content (e.g. a per-viewer row-limit picker). */\n  menuExtras?: ReactNode;\n}"
+  },
+  {
+    "name": "ViewerAction",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/viewer-config.tsx",
+    "code": "export interface ViewerAction {\n  id: string;\n  label: string;\n  icon?: ComponentType<{ size?: number }>;\n  /** Limit to a target scope (e.g. only \"activity\"); undefined = any element. */\n  scope?: string;\n  run: (target: ViewerTarget) => void;\n}"
+  },
+  {
+    "name": "ViewerConfig",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/viewer-config.tsx",
+    "code": "/**\n * Cross-cutting viewer configuration + interactivity. A host sets it via `ViewerConfigProvider`;\n * `ViewerProps` may override any field; unset fields fall back to viewer defaults.\n */\nexport interface ViewerConfig {\n  colorOf?: ColorResolver;\n  format?: ViewerFormat;\n  alignmentStyle?: AlignmentStyle;\n  actions?: ViewerAction[];\n  onSelect?: (target: ViewerTarget) => void;\n  onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;\n}"
+  },
+  {
+    "name": "ViewerFormat",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/viewer-config.tsx",
+    "code": "export interface ViewerFormat {\n  number?: (n: number) => string;\n  date?: (ms: number) => string;\n  duration?: (ms: number) => string;\n}"
+  },
+  {
+    "name": "ViewerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/viewer-config.tsx",
+    "code": "export interface ViewerProps<T> extends ViewerConfig {\n  data: T;\n  /** Source object handle id, for drill-down. */\n  handle?: string;\n}"
+  },
+  {
+    "name": "ViewerTarget",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/viewer-config.tsx",
+    "code": "/** A domain element a host can act on. `scope` is the kind (\"activity\", \"objectType\", ...). */\nexport interface ViewerTarget {\n  scope: string;\n  key: string;\n  data?: unknown;\n}"
+  }
+]

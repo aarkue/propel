@@ -24,7 +24,7 @@ const sample: PetriNet = {
 const meta = {
   title: "Viewers/Petri Net Simulator",
   component: PetriNetSimulator,
-  parameters: { frame: { mode: "canvas", height: 300 }, docs: { story: { iframeHeight: 340 } } },
+  parameters: { frame: { mode: "canvas", height: 600 }, docs: { story: { iframeHeight: 340 } } },
 } satisfies Meta<typeof PetriNetSimulator>;
 export default meta;
 

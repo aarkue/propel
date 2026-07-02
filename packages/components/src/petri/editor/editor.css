@@ -90,6 +90,10 @@
     border-radius: 0;
     opacity: 0;
   }
+
+  .petri-net-editor.readonly .react-flow__handle {
+  cursor: inherit;
+  }
   .petri-net-editor  .place-node > .react-flow__handle.target {
     border-radius: 100%;
   }

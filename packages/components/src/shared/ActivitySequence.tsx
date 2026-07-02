@@ -2,6 +2,7 @@ import { Badge } from "@r4pm/components/ui";
 import type { CSSProperties } from "react";
 import { softBadgeStyle } from "../dfg/util/colors";
 import { darken, svgEl } from "../dfg/util/svg-export";
+import { useColorOf } from "../viewer/viewer-config";
 
 // Chevron pill geometry, shared by both the CSS clip-path
 // on ActivityChip and the SVG export renderer. `CHEV_PX` matches `--chev` on
@@ -170,21 +171,24 @@ export function ActivityChip({
   );
 }
 
-/** A horizontal run of chevron activity chips representing one trace / variant. `colorOf` resolves
- *  each activity's chip color (e.g. from a viewer color resolver). */
+/** A horizontal run of chevron activity chips representing one trace / variant. `colorOf` overrides
+ *  the chip color per activity; defaults to the ambient `ViewerConfig` colorOf (scope "activity"),
+ *  falling back to the stable hashed palette. */
 export function ActivitySequence({
   activities,
   colorOf,
   widthClass,
 }: {
   activities: string[];
-  colorOf: (activity: string) => string;
+  colorOf?: (activity: string) => string;
   widthClass?: string;
 }) {
+  const ambient = useColorOf("activity");
+  const resolve = colorOf ?? ambient;
   return (
     <div className="flex items-center flex-wrap gap-0.5">
       {activities.map((a, i) => (
-        <ActivityChip key={`${i}-${a}`} activity={a} color={colorOf(a)} widthClass={widthClass} />
+        <ActivityChip key={`${i}-${a}`} activity={a} color={resolve(a)} widthClass={widthClass} />
       ))}
     </div>
   );

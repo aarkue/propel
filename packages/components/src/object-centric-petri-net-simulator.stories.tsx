@@ -53,7 +53,7 @@ const sample: ObjectCentricPetriNet = {
 const meta = {
   title: "Viewers/Object-Centric Petri Net Simulator",
   component: ObjectCentricPetriNetSimulator,
-  parameters: { frame: { mode: "canvas", height: 360 }, docs: { story: { iframeHeight: 400 } } },
+  parameters: { frame: { mode: "canvas", height: 600 }, docs: { story: { iframeHeight: 400 } } },
 } satisfies Meta<typeof ObjectCentricPetriNetSimulator>;
 export default meta;
 

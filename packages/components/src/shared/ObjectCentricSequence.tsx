@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useMemo } from "react";
 import { softBadgeStyle } from "../dfg/util/colors";
-import { colorForSeed } from "../viewer/viewer-config";
+import { useColorOf } from "../viewer/viewer-config";
 const SILENT = "τ";
 const SILENT_COLOR = "#9ca3af";
 
@@ -32,9 +32,11 @@ export interface OcSequenceStep {
 
 export interface ObjectCentricSequenceProps {
   steps: OcSequenceStep[];
-  /** Object type -> color (hex). Defaults to a stable hashed palette. */
+  /** Object type -> color (hex). Defaults to the ambient `ViewerConfig` colorOf
+   *  (scope "objectType"), falling back to a stable hashed palette. */
   colorOf?: (objectType: string) => string;
-  /** Activity name -> chevron-chip color. Defaults to a stable hashed palette. */
+  /** Activity name -> chevron-chip color. Defaults to the ambient `ViewerConfig` colorOf
+   *  (scope "activity"), falling back to a stable hashed palette. */
   activityColorOf?: (activity: string) => string;
   /** Render a single object chip instead of the default colored pill. */
   renderObject?: (obj: OcSequenceObject, color: string) => ReactNode;
@@ -43,9 +45,6 @@ export interface ObjectCentricSequenceProps {
   /** Shown when there are no steps yet. */
   emptyLabel?: ReactNode;
 }
-
-const defaultObjectColor = (ot: string) => colorForSeed(`objectType:${ot}`);
-const defaultActivityColor = (a: string) => colorForSeed(`activity:${a}`);
 
 /** Trailing segment after the last `#`, else a short prefix; keeps long token ids legible. */
 function shortId(id: string): string {
@@ -103,12 +102,16 @@ function ObjectChip({ obj, color }: { obj: OcSequenceObject; color: string }) {
  */
 export function ObjectCentricSequence({
   steps,
-  colorOf = defaultObjectColor,
-  activityColorOf = defaultActivityColor,
+  colorOf,
+  activityColorOf,
   renderObject,
   showLegend = true,
   emptyLabel = "No steps yet",
 }: ObjectCentricSequenceProps) {
+  const ambientObject = useColorOf("objectType");
+  const ambientActivity = useColorOf("activity");
+  const objectColor = colorOf ?? ambientObject;
+  const activityColor = activityColorOf ?? ambientActivity;
   const types = useMemo(() => distinctTypes(steps), [steps]);
   const typeRank = useMemo(() => new Map(types.map((t, i) => [t, i])), [types]);
 
@@ -123,7 +126,7 @@ export function ObjectCentricSequence({
           {types.map((t) => (
             <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11 }}>
               <span
-                style={{ width: 10, height: 10, borderRadius: 3, background: colorOf(t), flexShrink: 0 }}
+                style={{ width: 10, height: 10, borderRadius: 3, background: objectColor(t), flexShrink: 0 }}
               />
               <span style={{ color: "var(--gray-11)" }}>{t}</span>
             </span>
@@ -137,7 +140,7 @@ export function ObjectCentricSequence({
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 4 }}>
         {steps.map((step, i) => {
           const silent = !step.label?.trim();
-          const color = silent ? SILENT_COLOR : activityColorOf(step.label!);
+          const color = silent ? SILENT_COLOR : activityColor(step.label!);
           const headerBg = `color-mix(in srgb, ${color} 26%, Canvas)`;
           const bodyBg = `color-mix(in srgb, ${color} 9%, Canvas)`;
           const objects = [...step.objects].sort(
@@ -203,9 +206,9 @@ export function ObjectCentricSequence({
                 >
                   {objects.map((o) =>
                     renderObject ? (
-                      <span key={o.id}>{renderObject(o, colorOf(o.objectType))}</span>
+                      <span key={o.id}>{renderObject(o, objectColor(o.objectType))}</span>
                     ) : (
-                      <ObjectChip key={o.id} obj={o} color={colorOf(o.objectType)} />
+                      <ObjectChip key={o.id} obj={o} color={objectColor(o.objectType)} />
                     ),
                   )}
                 </div>

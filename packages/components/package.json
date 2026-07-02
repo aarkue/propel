@@ -1,6 +1,6 @@
 {
   "name": "@r4pm/components",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reusable viewers (DFG, Petri net, dotted chart, OCEL, alignments) and inputs for process mining",
   "keywords": [
     "process-mining",

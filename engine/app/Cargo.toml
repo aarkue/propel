@@ -1,6 +1,6 @@
 [package]
 name = "propel-tauri"
-version = "0.1.0"
+version = "0.1.1"
 description = "propel desktop app"
 authors = ["aarkue"]
 edition = "2021"

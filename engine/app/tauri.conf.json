@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "propel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "eu.aarkue.propel",
   "build": {
     "beforeDevCommand": "pnpm --filter @r4pm/studio dev:tauri",

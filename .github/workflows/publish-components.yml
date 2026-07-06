@@ -53,4 +53,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --title "@r4pm/components ${GITHUB_REF_NAME#components-v}" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" --title "@r4pm/components ${GITHUB_REF_NAME#components-v}" --generate-notes --latest false

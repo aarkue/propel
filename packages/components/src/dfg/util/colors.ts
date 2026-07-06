@@ -131,6 +131,70 @@ export function shadeHex(hex: string, mode: "normal" | "foreground" | "light" = 
   return toHex(r + (255 - r) * 0.8, g + (255 - g) * 0.8, b + (255 - b) * 0.8);
 }
 
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+const HEX8 = /^#[0-9a-fA-F]{8}$/;
+
+let probeEl: HTMLElement | null = null;
+
+/** Resolve any CSS color string to sRGB `[r, g, b, a]` via a themed DOM probe.
+ *  `getComputedStyle().color` always serializes to `rgb()/rgba()`, so this flattens
+ *  rgba/hsl/oklch/`color(display-p3 …)`/color-mix/system colors (`CanvasText`) uniformly and
+ *  theme-correctly. Returns `null` outside the DOM or for an unparseable input. */
+function resolveViaDom(color: string): [number, number, number, number] | null {
+  if (typeof document === "undefined") return null;
+  if (!probeEl) {
+    probeEl = document.createElement("span");
+    probeEl.style.cssText = "position:absolute;width:0;height:0;visibility:hidden;pointer-events:none";
+    (document.querySelector(".radix-themes") ?? document.body).appendChild(probeEl);
+  }
+  probeEl.style.color = "";
+  probeEl.style.color = color;
+  if (!probeEl.style.color) return null;
+  const m = getComputedStyle(probeEl).color.match(/rgba?\(([^)]+)\)/);
+  if (!m) return null;
+  const [r, g, b, a = 1] = m[1]
+    .split(/[,\s/]+/)
+    .filter(Boolean)
+    .map(Number);
+  if ([r, g, b].some(Number.isNaN)) return null;
+  return [r, g, b, a];
+}
+
+/** The current viewer background as a solid `#rrggbb`, for compositing translucent export
+ *  colors. Reads `--color-background`; falls back to theme-appropriate white/near-black. */
+export function exportBackgroundHex(): string {
+  const bg = resolveViaDom("var(--color-background)");
+  if (bg) return toHex(bg[0], bg[1], bg[2]);
+  const dark =
+    typeof document !== "undefined" &&
+    (document.documentElement.classList.contains("dark") ||
+      document.documentElement.getAttribute("data-theme") === "dark" ||
+      document.querySelector(".radix-themes")?.classList.contains("dark") === true);
+  return dark ? "#111113" : "#ffffff";
+}
+
+/** Flatten any CSS color to a solid, export-safe `#rrggbb`, compositing translucency over `bgHex`.
+ *  Some programs render 8-digit hex / `rgba()` / `color-mix()` / `oklch()` as black.
+ *  SVG export routes every color through this so only plain 6-digit hex is emitted. */
+export function flattenColor(color: string, bgHex = "#ffffff"): string {
+  if (!color) return color;
+  if (HEX6.test(color)) return color.toLowerCase();
+
+  let rgba: [number, number, number, number] | null = null;
+  if (HEX8.test(color)) {
+    const n = parseInt(color.slice(1), 16);
+    rgba = [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, (n & 255) / 255];
+  } else {
+    rgba = resolveViaDom(color);
+  }
+  if (!rgba) return HEX8.test(color) ? `#${color.slice(1, 7).toLowerCase()}` : bgHex;
+
+  const [r, g, b, a] = rgba;
+  if (a >= 1) return toHex(r, g, b);
+  const [br, bg, bb] = hexTriple(HEX6.test(bgHex) ? bgHex : "#ffffff");
+  return toHex(r * a + br * (1 - a), g * a + bg * (1 - a), b * a + bb * (1 - a));
+}
+
 /** Soft-badge styling from a hex. Uses color-mix with CSS system colors so the tint and text
  *  automatically adapt to light and dark mode without class detection. */
 export function softBadgeStyle(hex: string): CSSProperties {

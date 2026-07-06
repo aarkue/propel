@@ -8,6 +8,7 @@
 use std::collections::{HashMap, HashSet};
 
 use process_mining::bindings::register_binding;
+use rayon::prelude::*;
 use process_mining::core::chrono::DateTime;
 use process_mining::core::event_data::object_centric::linked_ocel::slim_linked_ocel::ObjectIndex;
 use process_mining::core::event_data::object_centric::linked_ocel::{
@@ -24,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::{
     AttributeCatalogEntry, AttributeKind, AttributeScope, DfArcDuration, NumericStats, OCELInfo,
     OCELObjectAttributeChanges, ObjectBrowserPage, ObjectBrowserRow, ObjectDetail, ObjectEventRow,
-    ObjectInvolvementCounts, ObjectSortField, OcelAttributeInfo, OcelAttributeLevel,
+    ObjectInvolvementCounts, ObjectSortField, OcDfgCounts, OcelAttributeInfo, OcelAttributeLevel,
     OcelAttributeSummary, OcelDfPerformance,
 };
 
@@ -344,7 +345,6 @@ fn ocel_value_type_str(v: &OCELAttributeValue) -> &'static str {
 /// attributes, O2O), with qualifiers preserved.
 #[register_binding]
 pub fn ocel_to_json(ocel: &SlimLinkedOCEL) -> OcelInput {
-    let locel = (*ocel).clone();
 
     let map_type = |t: &process_mining::core::event_data::object_centric::OCELType| OcelTypeInput {
         name: t.name.clone(),
@@ -358,43 +358,43 @@ pub fn ocel_to_json(ocel: &SlimLinkedOCEL) -> OcelInput {
             .collect(),
     };
 
-    let events = locel
+    let events = ocel
         .get_all_evs()
         .map(|ev| {
-            let attributes = locel
+            let attributes = ocel
                 .get_ev_attrs(&ev)
                 .filter_map(|name| {
-                    locel.get_ev_attr_val(&ev, name).map(|v| OcelAttrInput {
+                    ocel.get_ev_attr_val(&ev, name).map(|v| OcelAttrInput {
                         name: name.to_string(),
                         attr_type: ocel_value_type_str(v).to_string(),
                         value: v.to_string(),
                     })
                 })
                 .collect();
-            let relationships = locel
+            let relationships = ocel
                 .get_e2o(&ev)
                 .map(|(qual, ob)| OcelRelInput {
-                    object_id: locel.get_ob_id(ob).to_string(),
+                    object_id: ocel.get_ob_id(ob).to_string(),
                     qualifier: qual.to_string(),
                 })
                 .collect();
             OcelEventInput {
-                id: locel.get_ev_id(&ev).to_string(),
-                type_name: locel.get_ev_type_of(&ev).to_string(),
-                time: locel.get_ev_time(&ev).to_rfc3339(),
+                id: ocel.get_ev_id(&ev).to_string(),
+                type_name: ocel.get_ev_type_of(&ev).to_string(),
+                time: ocel.get_ev_time(&ev).to_rfc3339(),
                 attributes,
                 relationships,
             }
         })
         .collect();
 
-    let objects = locel
+    let objects = ocel
         .get_all_obs()
         .map(|ob| {
-            let attributes = locel
+            let attributes = ocel
                 .get_ob_attrs(&ob)
                 .flat_map(|name| {
-                    locel
+                    ocel
                         .get_ob_attr_vals(&ob, name)
                         .map(move |(time, v)| OcelTimedAttrInput {
                             name: name.to_string(),
@@ -405,16 +405,16 @@ pub fn ocel_to_json(ocel: &SlimLinkedOCEL) -> OcelInput {
                         .collect::<Vec<_>>()
                 })
                 .collect();
-            let relationships = locel
+            let relationships = ocel
                 .get_o2o(&ob)
                 .map(|(qual, other)| OcelRelInput {
-                    object_id: locel.get_ob_id(other).to_string(),
+                    object_id: ocel.get_ob_id(other).to_string(),
                     qualifier: qual.to_string(),
                 })
                 .collect();
             OcelObjectInput {
-                id: locel.get_ob_id(&ob).to_string(),
-                type_name: locel.get_ob_type_of(&ob).to_string(),
+                id: ocel.get_ob_id(&ob).to_string(),
+                type_name: ocel.get_ob_type_of(&ob).to_string(),
                 attributes,
                 relationships,
             }
@@ -422,8 +422,8 @@ pub fn ocel_to_json(ocel: &SlimLinkedOCEL) -> OcelInput {
         .collect();
 
     OcelInput {
-        event_types: locel.event_types().iter().map(map_type).collect(),
-        object_types: locel.object_types().iter().map(map_type).collect(),
+        event_types: ocel.event_types().iter().map(map_type).collect(),
+        object_types: ocel.object_types().iter().map(map_type).collect(),
         events,
         objects,
     }
@@ -441,23 +441,21 @@ fn classify(v: &OCELAttributeValue) -> AttributeKind {
 /// Object/event type and count summary.
 #[register_binding]
 pub fn get_ocel_info(ocel: &SlimLinkedOCEL) -> OCELInfo {
-    let locel = (*ocel).clone();
     OCELInfo {
-        num_objects: locel.get_num_obs(),
-        num_events: locel.get_num_evs(),
-        event_types: locel.get_ev_types().map(|s| s.to_string()).collect(),
-        object_types: locel.get_ob_types().map(|s| s.to_string()).collect(),
+        num_objects: ocel.get_num_obs(),
+        num_events: ocel.get_num_evs(),
+        event_types: ocel.get_ev_types().map(|s| s.to_string()).collect(),
+        object_types: ocel.get_ob_types().map(|s| s.to_string()).collect(),
     }
 }
 
 /// First 100 object IDs.
 #[register_binding]
 pub fn get_ocel_object_ids(ocel: &SlimLinkedOCEL) -> Vec<String> {
-    let locel = (*ocel).clone();
-    locel
+    ocel
         .get_all_obs()
         .take(100)
-        .map(|o| locel.get_ob_id(&o).to_string())
+        .map(|o| ocel.get_ob_id(&o).to_string())
         .collect()
 }
 
@@ -467,10 +465,9 @@ pub fn get_ocel_object_changes_plot(
     ocel: &SlimLinkedOCEL,
     object_id: String,
 ) -> OCELObjectAttributeChanges {
-    let locel = (*ocel).clone();
     let Ok(lib_result) =
         process_mining::analysis::object_centric::object_attribute_changes::get_object_attribute_changes(
-            &locel, &object_id,
+            ocel, &object_id,
         )
     else {
         return OCELObjectAttributeChanges {
@@ -502,22 +499,21 @@ pub fn get_ocel_objects_page(
     filter: String,
     type_filter: Option<String>,
 ) -> ObjectBrowserPage {
-    let locel = (*ocel).clone();
-    let object_types: Vec<String> = locel.get_ob_types().map(|s| s.to_string()).collect();
+    let object_types: Vec<String> = ocel.get_ob_types().map(|s| s.to_string()).collect();
 
-    let mut rows: Vec<ObjectBrowserRow> = locel
+    let mut rows: Vec<ObjectBrowserRow> = ocel
         .get_all_obs()
         .map(|ob| {
-            let ob_id = locel.get_ob_id(&ob).to_string();
-            let ob_type = locel.get_ob_type_of(&ob).to_string();
+            let ob_id = ocel.get_ob_id(&ob).to_string();
+            let ob_type = ocel.get_ob_type_of(&ob).to_string();
 
-            let related_evs: Vec<_> = locel.get_e2o_rev(&ob).collect();
+            let related_evs: Vec<_> = ocel.get_e2o_rev(&ob).collect();
             let num_events = related_evs.len();
 
             let mut first_ts: Option<i64> = None;
             let mut last_ts: Option<i64> = None;
             for (_qualifier, ev) in &related_evs {
-                let ts = locel.get_ev_time(*ev).timestamp_millis();
+                let ts = ocel.get_ev_time(*ev).timestamp_millis();
                 first_ts = Some(first_ts.map_or(ts, |f: i64| f.min(ts)));
                 last_ts = Some(last_ts.map_or(ts, |l: i64| l.max(ts)));
             }
@@ -576,8 +572,7 @@ fn ms_to_rfc3339(ms: i64) -> String {
 /// On unknown `object_id` returns an empty `ObjectDetail`; the registry binding is infallible.
 #[register_binding]
 pub fn get_object_detail(ocel: &SlimLinkedOCEL, object_id: String) -> ObjectDetail {
-    let locel = (*ocel).clone();
-    let Some(ob) = locel.get_ob_by_id(&object_id) else {
+    let Some(ob) = ocel.get_ob_by_id(&object_id) else {
         return ObjectDetail {
             object_id,
             object_type: String::new(),
@@ -586,22 +581,22 @@ pub fn get_object_detail(ocel: &SlimLinkedOCEL, object_id: String) -> ObjectDeta
             attributes: HashMap::new(),
         };
     };
-    let ob_type = locel.get_ob_type_of(&ob).to_string();
+    let ob_type = ocel.get_ob_type_of(&ob).to_string();
 
-    let mut event_rows: Vec<ObjectEventRow> = locel
+    let mut event_rows: Vec<ObjectEventRow> = ocel
         .get_e2o_rev(&ob)
         .map(|(_qual, ev)| {
-            let ev_id = locel.get_ev_id(ev).to_string();
-            let ev_type = locel.get_ev_type_of(ev).to_string();
-            let timestamp = locel.get_ev_time(ev).to_rfc3339();
+            let ev_id = ocel.get_ev_id(ev).to_string();
+            let ev_type = ocel.get_ev_type_of(ev).to_string();
+            let timestamp = ocel.get_ev_time(ev).to_rfc3339();
 
-            let other_objects: Vec<(String, String)> = locel
+            let other_objects: Vec<(String, String)> = ocel
                 .get_e2o(ev)
-                .filter(|(_q, other_ob)| locel.get_ob_id(*other_ob) != object_id.as_str())
+                .filter(|(_q, other_ob)| ocel.get_ob_id(*other_ob) != object_id.as_str())
                 .map(|(_q, other_ob)| {
                     (
-                        locel.get_ob_id(other_ob).to_string(),
-                        locel.get_ob_type_of(other_ob).to_string(),
+                        ocel.get_ob_id(other_ob).to_string(),
+                        ocel.get_ob_type_of(other_ob).to_string(),
                     )
                 })
                 .collect();
@@ -617,20 +612,20 @@ pub fn get_object_detail(ocel: &SlimLinkedOCEL, object_id: String) -> ObjectDeta
 
     event_rows.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
-    let related_objects: Vec<(String, String)> = locel
+    let related_objects: Vec<(String, String)> = ocel
         .get_o2o(&ob)
         .map(|(_qual, other_ob)| {
             (
-                locel.get_ob_id(other_ob).to_string(),
-                locel.get_ob_type_of(other_ob).to_string(),
+                ocel.get_ob_id(other_ob).to_string(),
+                ocel.get_ob_type_of(other_ob).to_string(),
             )
         })
         .collect();
 
-    let attributes: HashMap<String, String> = locel
+    let attributes: HashMap<String, String> = ocel
         .get_ob_attrs(&ob)
         .filter_map(|attr_name| {
-            let vals: Vec<_> = locel.get_ob_attr_vals(&ob, attr_name).collect();
+            let vals: Vec<_> = ocel.get_ob_attr_vals(&ob, attr_name).collect();
             vals.last()
                 .map(|(_time, val)| (attr_name.to_string(), val.to_string()))
         })
@@ -648,15 +643,14 @@ pub fn get_object_detail(ocel: &SlimLinkedOCEL, object_id: String) -> ObjectDeta
 /// List event- and object-level attributes with type/cardinality info.
 #[register_binding]
 pub fn get_ocel_attribute_names(ocel: &SlimLinkedOCEL) -> Vec<OcelAttributeInfo> {
-    let locel = (*ocel).clone();
     let mut result: Vec<OcelAttributeInfo> = Vec::new();
 
     let mut ev_attrs: HashMap<String, (HashSet<String>, usize, AttributeKind)> = HashMap::new();
-    let total_events = locel.get_num_evs();
-    for ev in locel.get_all_evs() {
-        let attr_names: Vec<String> = locel.get_ev_attrs(&ev).map(|s| s.to_string()).collect();
+    let total_events = ocel.get_num_evs();
+    for ev in ocel.get_all_evs() {
+        let attr_names: Vec<String> = ocel.get_ev_attrs(&ev).map(|s| s.to_string()).collect();
         for attr_name in &attr_names {
-            if let Some(val) = locel.get_ev_attr_val(&ev, attr_name.as_str()) {
+            if let Some(val) = ocel.get_ev_attr_val(&ev, attr_name.as_str()) {
                 let entry = ev_attrs
                     .entry(attr_name.clone())
                     .or_insert_with(|| (HashSet::new(), 0, AttributeKind::Other));
@@ -679,15 +673,15 @@ pub fn get_ocel_attribute_names(ocel: &SlimLinkedOCEL) -> Vec<OcelAttributeInfo>
         });
     }
 
-    let ob_types: Vec<String> = locel.get_ob_types().map(|s| s.to_string()).collect();
+    let ob_types: Vec<String> = ocel.get_ob_types().map(|s| s.to_string()).collect();
     for ob_type in &ob_types {
         let mut ob_attrs: HashMap<String, (HashSet<String>, usize, AttributeKind)> = HashMap::new();
         let mut type_count = 0usize;
-        for ob in locel.get_obs_of_type(ob_type.as_str()) {
+        for ob in ocel.get_obs_of_type(ob_type.as_str()) {
             type_count += 1;
-            let attr_names: Vec<String> = locel.get_ob_attrs(ob).map(|s| s.to_string()).collect();
+            let attr_names: Vec<String> = ocel.get_ob_attrs(ob).map(|s| s.to_string()).collect();
             for attr_name in &attr_names {
-                let vals: Vec<_> = locel.get_ob_attr_vals(ob, attr_name.as_str()).collect();
+                let vals: Vec<_> = ocel.get_ob_attr_vals(ob, attr_name.as_str()).collect();
                 if let Some(&(_time, val)) = vals.last() {
                     let entry = ob_attrs
                         .entry(attr_name.clone())
@@ -725,16 +719,15 @@ pub fn get_ocel_attribute_summary(
     attr_name: String,
     level: OcelAttributeLevel,
 ) -> OcelAttributeSummary {
-    let locel = (*ocel).clone();
     let mut values_str: Vec<String> = Vec::new();
     let mut values_f64: Vec<f64> = Vec::new();
     let mut total: usize = 0;
 
     match &level {
         OcelAttributeLevel::Event => {
-            total = locel.get_num_evs();
-            for ev in locel.get_all_evs() {
-                if let Some(val) = locel.get_ev_attr_val(&ev, attr_name.as_str()) {
+            total = ocel.get_num_evs();
+            for ev in ocel.get_all_evs() {
+                if let Some(val) = ocel.get_ev_attr_val(&ev, attr_name.as_str()) {
                     match val {
                         OCELAttributeValue::Float(f) => values_f64.push(*f),
                         OCELAttributeValue::Integer(i) => values_f64.push(*i as f64),
@@ -744,9 +737,9 @@ pub fn get_ocel_attribute_summary(
             }
         }
         OcelAttributeLevel::Object { object_type } => {
-            for ob in locel.get_obs_of_type(object_type.as_str()) {
+            for ob in ocel.get_obs_of_type(object_type.as_str()) {
                 total += 1;
-                let vals: Vec<_> = locel.get_ob_attr_vals(ob, attr_name.as_str()).collect();
+                let vals: Vec<_> = ocel.get_ob_attr_vals(ob, attr_name.as_str()).collect();
                 if let Some(&(_time, val)) = vals.last() {
                     match val {
                         OCELAttributeValue::Float(f) => values_f64.push(*f),
@@ -893,10 +886,9 @@ pub fn get_removable_attributes_ocel(ocel: &SlimLinkedOCEL) -> Vec<AttributeCata
 pub fn get_ocel_activity_object_involvements(
     ocel: &SlimLinkedOCEL,
 ) -> HashMap<String, HashMap<String, ObjectInvolvementCounts>> {
-    let locel = (*ocel).clone();
     let raw =
         process_mining::core::process_models::object_centric::oc_declare::get_activity_object_involvements(
-            &locel,
+            ocel,
         );
     raw.into_iter()
         .map(|(act, per_type)| {
@@ -917,29 +909,103 @@ pub fn get_ocel_activity_object_involvements(
         .collect()
 }
 
+/// Object-centric DFG counts. Replaces the crate's flatten-based `discover_dfg_from_ocel`:
+/// per type, objects are reduced in parallel over interned event-type indices.
+/// Start/end carry event-based frequencies.
+#[register_binding]
+pub fn get_ocel_df(ocel: &SlimLinkedOCEL) -> OcDfgCounts {
+    let ev_type_names: Vec<&str> = ocel.get_ev_types().collect();
+    let mut result = OcDfgCounts::default();
+
+    type TypeAcc = (
+        HashMap<usize, u32>,
+        HashMap<usize, u32>,
+        HashMap<usize, u32>,
+        HashMap<(usize, usize), u32>,
+    );
+    let new_acc = || (HashMap::new(), HashMap::new(), HashMap::new(), HashMap::new());
+
+    let ob_types: Vec<String> = ocel.get_ob_types().map(|s| s.to_string()).collect();
+    for ob_type in ob_types {
+        let obs: Vec<ObjectIndex> = ocel.get_obs_of_type(&ob_type).copied().collect();
+        result.object_counts.insert(ob_type.clone(), obs.len() as u32);
+
+        let (activities, starts, ends, dfs): TypeAcc = obs
+            .into_par_iter()
+            .fold(new_acc, |mut acc, ob| {
+                let trace: Vec<usize> = ob.get_obj_activity_trace_evtype_indices(ocel).collect();
+                if let (Some(&first), Some(&last)) = (trace.first(), trace.last()) {
+                    for &a in &trace {
+                        *acc.0.entry(a).or_default() += 1;
+                    }
+                    *acc.1.entry(first).or_default() += 1;
+                    *acc.2.entry(last).or_default() += 1;
+                    for w in trace.windows(2) {
+                        *acc.3.entry((w[0], w[1])).or_default() += 1;
+                    }
+                }
+                acc
+            })
+            .reduce(new_acc, |mut a, b| {
+                for (k, v) in b.0 {
+                    *a.0.entry(k).or_default() += v;
+                }
+                for (k, v) in b.1 {
+                    *a.1.entry(k).or_default() += v;
+                }
+                for (k, v) in b.2 {
+                    *a.2.entry(k).or_default() += v;
+                }
+                for (k, v) in b.3 {
+                    *a.3.entry(k).or_default() += v;
+                }
+                a
+            });
+
+        if activities.is_empty() {
+            continue;
+        }
+        let dfg = result.object_type_to_dfg.entry(ob_type).or_default();
+        for (a, c) in activities {
+            dfg.activities.insert(ev_type_names[a].to_string(), c);
+        }
+        for (s, c) in starts {
+            dfg.start_activities.insert(ev_type_names[s].to_string(), c);
+        }
+        for (e, c) in ends {
+            dfg.end_activities.insert(ev_type_names[e].to_string(), c);
+        }
+        dfg.directly_follows_relations = dfs
+            .into_iter()
+            .map(|((f, t), c)| ((ev_type_names[f].to_string(), ev_type_names[t].to_string()), c))
+            .collect();
+    }
+
+    result
+}
+
 /// Per-object-type directly-follows arc duration statistics (performance overlay).
 #[register_binding]
 pub fn get_ocel_df_performance(ocel: &SlimLinkedOCEL) -> OcelDfPerformance {
-    let locel = (*ocel).clone();
 
     // Durations keyed by object_type -> (source_activity, target_activity) -> [ms].
     let mut arc_durations: HashMap<String, HashMap<(String, String), Vec<f64>>> = HashMap::new();
 
-    for ob in locel.get_all_obs() {
-        let ob_type = locel.get_ob_type_of(&ob).to_string();
-        let unique_events: HashSet<_> = locel.get_e2o_rev(&ob).map(|(_q, e)| *e).collect();
+    for ob in ocel.get_all_obs() {
+        let ob_type = ocel.get_ob_type_of(&ob).to_string();
+        let unique_events: HashSet<_> = ocel.get_e2o_rev(&ob).map(|(_q, e)| *e).collect();
         if unique_events.is_empty() {
             continue;
         }
         let mut events: Vec<_> = unique_events.into_iter().collect();
-        events.sort_by_key(|e| locel.get_ev_time(e));
+        events.sort_by_key(|e| ocel.get_ev_time(e));
 
         let type_durations = arc_durations.entry(ob_type).or_default();
         for pair in events.windows(2) {
-            let src_type = locel.get_ev_type_of(&pair[0]).to_string();
-            let tgt_type = locel.get_ev_type_of(&pair[1]).to_string();
-            let src_ts = locel.get_ev_time(&pair[0]).timestamp_millis();
-            let tgt_ts = locel.get_ev_time(&pair[1]).timestamp_millis();
+            let src_type = ocel.get_ev_type_of(&pair[0]).to_string();
+            let tgt_type = ocel.get_ev_type_of(&pair[1]).to_string();
+            let src_ts = ocel.get_ev_time(&pair[0]).timestamp_millis();
+            let tgt_ts = ocel.get_ev_time(&pair[1]).timestamp_millis();
             let duration_ms = (tgt_ts - src_ts) as f64;
             type_durations
                 .entry((src_type, tgt_type))

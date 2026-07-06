@@ -16,7 +16,7 @@ export const vis = defineVis({
   keywords: ["dfg", "directly follows", "graph", "flow"],
   order: 2,
   source: {
-    binding: "process_mining::discovery::case_centric::dfg::discover_dfg",
+    binding: "app_bindings::event_log::get_df",
     needs: "EventLog",
     args: (ctx) => ({ event_log: ctx.datasetId as EventLogHandle }),
   },

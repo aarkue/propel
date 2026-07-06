@@ -8,6 +8,7 @@ process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "feat/
 serde = { version = "1.0.188", features = ["derive"] }
 schemars = { version = "1.1.0", features = ["chrono04", "uuid1"] }
 rand = { version = "0.9", features = ["small_rng"] }
+rayon = "1.7"
 
 [features]
 default = ["bindings"]

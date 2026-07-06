@@ -18,6 +18,7 @@ import {
   isPerformanceMetric,
 } from "./dfg-model";
 import { durationColor } from "./duration";
+import { exportBackgroundHex, flattenColor } from "./colors";
 
 export const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -442,6 +443,10 @@ export function buildDfgSvg(opts: DfgSvgExportOptions): string | null {
   const { nodes, edges, legend = [] } = opts;
   if (nodes.length === 0) return null;
 
+  // Composite every translucent fill over the export background so the .svg carries only solid
+  // 6-digit hex (8-digit hex / rgba render as black in some programs).
+  const bgHex = exportBackgroundHex();
+
   const selfLoopMaxW = new Map<string, number>();
   for (const e of edges) {
     if (e.source === e.target) {
@@ -622,7 +627,7 @@ export function buildDfgSvg(opts: DfgSvgExportOptions): string | null {
           height: LABEL_H,
           rx: 3,
           ry: 3,
-          fill: "#ffffffcc",
+          fill: flattenColor("#ffffffcc", bgHex),
         }),
       );
       const t = svgEl("text", {
@@ -670,7 +675,10 @@ export function buildDfgSvg(opts: DfgSvgExportOptions): string | null {
         );
       }
     } else {
-      const bg = n.color.length === 7 && n.color.startsWith("#") ? `${n.color}26` : n.color;
+      const bg = flattenColor(
+        n.color.length === 7 && n.color.startsWith("#") ? `${n.color}26` : n.color,
+        bgHex,
+      );
       g.appendChild(
         svgEl("rect", {
           x: 0,

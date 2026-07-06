@@ -45,6 +45,7 @@ for how the `Backend` trait and the `BackendContext` interface make that work.
 ## Conventions (the non-obvious ones)
 
 - **Codegen runs `meta-gen`.** `pnpm codegen` runs `cargo run -p meta-gen` then `gen.mjs`. **New bindings go in `app-bindings`.**
+- **Storybook type docs are snapshotted.** The prop/data-type definitions shown in the docs come from generated files; `dev` does not rebuild them. Run `pnpm --filter @r4pm/components docs:types` after changing a documented viewer prop or data-type shape.
 - **`verbatimModuleSyntax: true`**: use `import type` for type-only imports.
 - **Tailwind v4 is the standard** for UI, shipped to consumers via `@r4pm/components/styles.css`
   (which every host -- Storybook, studio, external apps -- imports). A viewer's **root** sizes

@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{
     AttributeCatalogEntry, AttributeInfo, AttributeKind, AttributeLevel, AttributeScope,
-    AttributeSummary, CaseDurations, DfArcDuration, DfPerformance, LogClassifierInfo,
+    AttributeSummary, CaseDurations, DfArcDuration, DfPerformance, DfgCounts, LogClassifierInfo,
     LogExtensionInfo, LogGlobals, NumberOfTracesAndEvents, NumericStats, TraceBrowserPage,
     TraceBrowserRow, TraceDetail, TraceEventRow, TraceSortField, TraceVariants,
 };
@@ -289,6 +289,64 @@ fn get_event_time_ms(event: &Event) -> Option<i64> {
             AttributeValue::Date(d) => Some(d.timestamp_millis()),
             _ => None,
         })
+}
+
+/// Case-centric DFG counts. Activities interned via `&str` to avoid per-event `String` alloc;
+/// start/end carry real per-activity trace frequencies.
+#[register_binding]
+pub fn get_df(event_log: &EventLog) -> DfgCounts {
+    let mut idx_of: HashMap<&str, usize> = HashMap::new();
+    let mut names: Vec<&str> = Vec::new();
+    let mut activity_counts: Vec<u32> = Vec::new();
+    let mut start_counts: Vec<u32> = Vec::new();
+    let mut end_counts: Vec<u32> = Vec::new();
+    let mut dfs: HashMap<(usize, usize), u32> = HashMap::new();
+
+    for trace in &event_log.traces {
+        let mut prev: Option<usize> = None;
+        for event in &trace.events {
+            let Some(act) = get_event_activity(event) else {
+                continue;
+            };
+            let idx = match idx_of.get(act) {
+                Some(&i) => i,
+                None => {
+                    let i = names.len();
+                    idx_of.insert(act, i);
+                    names.push(act);
+                    activity_counts.push(0);
+                    start_counts.push(0);
+                    end_counts.push(0);
+                    i
+                }
+            };
+            activity_counts[idx] += 1;
+            match prev {
+                Some(p) => *dfs.entry((p, idx)).or_default() += 1,
+                None => start_counts[idx] += 1,
+            }
+            prev = Some(idx);
+        }
+        if let Some(p) = prev {
+            end_counts[p] += 1;
+        }
+    }
+
+    let mut result = DfgCounts::default();
+    for (i, &name) in names.iter().enumerate() {
+        result.activities.insert(name.to_string(), activity_counts[i]);
+        if start_counts[i] > 0 {
+            result.start_activities.insert(name.to_string(), start_counts[i]);
+        }
+        if end_counts[i] > 0 {
+            result.end_activities.insert(name.to_string(), end_counts[i]);
+        }
+    }
+    result.directly_follows_relations = dfs
+        .into_iter()
+        .map(|((a, b), c)| ((names[a].to_string(), names[b].to_string()), c))
+        .collect();
+    result
 }
 
 /// Per-arc directly-follows duration statistics (case-centric performance overlay);

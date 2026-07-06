@@ -21,8 +21,8 @@ const dfg: DirectlyFollowsGraph = {
     [["decide", "pay"], 5],
     [["pay", "pay"], 1],
   ],
-  start_activities: ["register request"],
-  end_activities: ["pay"],
+  start_activities: { "register request": 6 },
+  end_activities: { pay: 5 },
 };
 
 function App() {

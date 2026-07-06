@@ -10,14 +10,16 @@ import { FrequencyPicker } from "../inputs/FrequencyPicker";
 export interface DirectlyFollowsGraph {
   activities: Record<string, number>;
   directly_follows_relations: Array<[[string, string], number]>;
-  start_activities: string[];
-  end_activities: string[];
+  start_activities: Record<string, number>;
+  end_activities: Record<string, number>;
 }
 
 /** Object-centric DFG: one `DirectlyFollowsGraph` per object type. Mirrors the
  *  generated `@r4pm/client` `OCDirectlyFollowsGraph` shape. */
 export interface OCDirectlyFollowsGraph {
   object_type_to_dfg: Record<string, DirectlyFollowsGraph>;
+  /** Object-instance count per type */
+  object_counts: Record<string, number>;
 }
 
 function buildCaseDfg(
@@ -58,8 +60,7 @@ function buildCaseDfg(
   }
 
   let startTotal = 0;
-  for (const act of dfg.start_activities) {
-    const count = dfg.activities[act] ?? 0;
+  for (const [act, count] of Object.entries(dfg.start_activities)) {
     startTotal += count;
     arcs.push({
       key: `${DFG_START_ID}\u0000${act}`,
@@ -71,8 +72,7 @@ function buildCaseDfg(
     });
   }
   let endTotal = 0;
-  for (const act of dfg.end_activities) {
-    const count = dfg.activities[act] ?? 0;
+  for (const [act, count] of Object.entries(dfg.end_activities)) {
     endTotal += count;
     arcs.push({
       key: `${act}\u0000${DFG_END_ID}`,
@@ -126,13 +126,10 @@ export function DFGViewer(props: DFGViewerProps) {
 /** Extra props for the OC-DFG viewer. `performance` enables the frequency/performance toggle; omit to show frequency only. */
 export interface OCDFGViewerProps extends ViewerProps<OCDirectlyFollowsGraph> {
   performance?: OcelDfPerformance;
-  /** Real per-object-type instance counts (e.g. from ocel_type_stats). Falls back to
-   *  per-type event totals when not provided. */
-  objectCounts?: Record<string, number>;
 }
 
 export function OCDFGViewer(props: OCDFGViewerProps) {
-  const { data, performance, objectCounts: objectCountsProp } = props;
+  const { data, performance } = props;
   const cfg = useViewerConfig(props);
   const [metric, setMetric] = useState<DfgMetric>("count");
   const actHex = useCallback((act: string) => cfg.colorOf?.("activity", act) ?? "#888888", [cfg.colorOf]);
@@ -141,16 +138,8 @@ export function OCDFGViewer(props: OCDFGViewerProps) {
 
   const objectTypes = useMemo(() => Object.keys(data.object_type_to_dfg).sort(), [data]);
 
-  const eventCountsByType = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const ot of objectTypes) {
-      const dfg = data.object_type_to_dfg[ot];
-      counts[ot] = Object.values(dfg?.activities ?? {}).reduce((s, v) => s + (v ?? 0), 0);
-    }
-    return counts;
-  }, [objectTypes, data]);
-  // Prefer real object-instance counts (from the panel); fall back to per-type event totals.
-  const objectCounts = objectCountsProp ?? eventCountsByType;
+  // Object instance counts
+  const objectCounts = data.object_counts;
 
   // Default: pre-select the 3 most frequent object types.
   const [userSelectedTypes, setUserSelectedTypes] = useState<Set<string> | null>(null);
@@ -212,8 +201,7 @@ export function OCDFGViewer(props: OCDFGViewerProps) {
             : undefined,
         });
       }
-      for (const act of dfg.start_activities) {
-        const count = dfg.activities[act] ?? 0;
+      for (const [act, count] of Object.entries(dfg.start_activities)) {
         startTotal += count;
         arcs.push({
           key: `${ot}\u0000${DFG_START_ID}\u0000${act}`,
@@ -225,8 +213,7 @@ export function OCDFGViewer(props: OCDFGViewerProps) {
           title: `${ot}: start → ${act} (${count.toLocaleString("en")})`,
         });
       }
-      for (const act of dfg.end_activities) {
-        const count = dfg.activities[act] ?? 0;
+      for (const [act, count] of Object.entries(dfg.end_activities)) {
         endTotal += count;
         arcs.push({
           key: `${ot}\u0000${act}\u0000${DFG_END_ID}`,

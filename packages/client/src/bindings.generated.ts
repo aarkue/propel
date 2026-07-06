@@ -351,6 +351,19 @@ object_type: string
 }
 })
 
+export interface DfgCounts {
+activities: {
+[k: string]: number
+}
+directly_follows_relations: [[string, string], number][]
+start_activities: {
+[k: string]: number
+}
+end_activities: {
+[k: string]: number
+}
+}
+
 export interface ObjectBrowserRow {
 object_id: string
 object_type: string
@@ -464,7 +477,7 @@ type: "Not"
 
 export type RequiredOrForbidden = ("Required" | "Forbidden")
 /**
- * Where an attribute lives in a dataset. Ported from propel's `transforms` module.
+ * Where an attribute lives in a dataset.
  */
 
 export interface RelabelRule {
@@ -787,7 +800,7 @@ export interface DfPerformance {
 arcs: DfArcDuration[]
 }
 /**
- * Per-arc duration statistics. Ported from propel `event_log::DfArcDuration`.
+ * Per-arc duration statistics.
  */
 
 export interface LogGlobals {
@@ -876,7 +889,6 @@ export interface Map_of_Map_of_ObjectInvolvementCounts {
 }
 /**
  * Min/max number of objects of a type involved with an activity.
- * Ported from propel `ObjectInvolvementCounts`.
  */
 
 export interface OcelAttributeInfo {
@@ -900,13 +912,26 @@ hist_counts: number[]
 numeric_stats?: (NumericStats | null)
 }
 
+export interface OcDfgCounts {
+object_type_to_dfg: {
+[k: string]: DfgCounts
+}
+object_counts: {
+[k: string]: number
+}
+}
+/**
+ * Case-centric DFG counts. Start/end carry real per-activity frequencies (unlike the crate's
+ * set-based `DirectlyFollowsGraph`).
+ */
+
 export interface OcelDfPerformance {
 arcs_per_object_type: {
 [k: string]: DfArcDuration[]
 }
 }
 /**
- * Per-arc duration statistics. Ported from propel `event_log::DfArcDuration`.
+ * Per-arc duration statistics.
  */
 
 export interface OCELInfo {
@@ -1391,6 +1416,9 @@ export interface Bindings {
   "app_bindings::event_log::get_case_durations": { args: {
     "event_log": EventLogHandle;
     }; ret: CaseDurations };
+  "app_bindings::event_log::get_df": { args: {
+    "event_log": EventLogHandle;
+    }; ret: DfgCounts };
   "app_bindings::event_log::get_df_performance": { args: {
     "event_log": EventLogHandle;
     }; ret: DfPerformance };
@@ -1433,6 +1461,9 @@ export interface Bindings {
     "attr_name": string;
     "level": OcelAttributeLevel;
     }; ret: OcelAttributeSummary };
+  "app_bindings::ocel::get_ocel_df": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: OcDfgCounts };
   "app_bindings::ocel::get_ocel_df_performance": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OcelDfPerformance };
@@ -1804,6 +1835,7 @@ export const RETURN_TYPES = {
   "CaseDurations": "CaseDurations",
   "DateTime": "DateTime",
   "DfPerformance": "DfPerformance",
+  "DfgCounts": "DfgCounts",
   "DirectlyFollowsGraph": "DirectlyFollowsGraph",
   "DottedChartData": "DottedChartData",
   "EventLog": "EventLog",
@@ -1832,6 +1864,7 @@ export const RETURN_TYPES = {
   "ObjectAttributeChanges": "ObjectAttributeChanges",
   "ObjectBrowserPage": "ObjectBrowserPage",
   "ObjectDetail": "ObjectDetail",
+  "OcDfgCounts": "OcDfgCounts",
   "OcelAttributeSummary": "OcelAttributeSummary",
   "OcelDfPerformance": "OcelDfPerformance",
   "OcelInput": "OcelInput",
@@ -1877,6 +1910,7 @@ export interface ReturnTypeShape {
   "CaseDurations": CaseDurations;
   "DateTime": string;
   "DfPerformance": DfPerformance;
+  "DfgCounts": DfgCounts;
   "DirectlyFollowsGraph": DirectlyFollowsGraph;
   "DottedChartData": DottedChartData;
   "EventLog": EventLogHandle;
@@ -1905,6 +1939,7 @@ export interface ReturnTypeShape {
   "ObjectAttributeChanges": ObjectAttributeChanges;
   "ObjectBrowserPage": ObjectBrowserPage;
   "ObjectDetail": ObjectDetail;
+  "OcDfgCounts": OcDfgCounts;
   "OcelAttributeSummary": OcelAttributeSummary;
   "OcelDfPerformance": OcelDfPerformance;
   "OcelInput": OcelInput;
@@ -1935,6 +1970,7 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::event_log::get_attribute_names": "Array_of_AttributeInfo",
   "app_bindings::event_log::get_attribute_summary": "AttributeSummary",
   "app_bindings::event_log::get_case_durations": "CaseDurations",
+  "app_bindings::event_log::get_df": "DfgCounts",
   "app_bindings::event_log::get_df_performance": "DfPerformance",
   "app_bindings::event_log::get_log_globals": "LogGlobals",
   "app_bindings::event_log::get_log_info": "NumberOfTracesAndEvents",
@@ -1946,6 +1982,7 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::ocel::get_ocel_activity_object_involvements": "Map_of_Map_of_ObjectInvolvementCounts",
   "app_bindings::ocel::get_ocel_attribute_names": "Array_of_OcelAttributeInfo",
   "app_bindings::ocel::get_ocel_attribute_summary": "OcelAttributeSummary",
+  "app_bindings::ocel::get_ocel_df": "OcDfgCounts",
   "app_bindings::ocel::get_ocel_df_performance": "OcelDfPerformance",
   "app_bindings::ocel::get_ocel_info": "OCELInfo",
   "app_bindings::ocel::get_ocel_object_changes_plot": "OCELObjectAttributeChanges",

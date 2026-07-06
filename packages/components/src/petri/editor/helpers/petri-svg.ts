@@ -2,6 +2,10 @@ import type { Edge } from "@xyflow/react";
 import type { ArcData, PetriNetNode } from "../Editor";
 import { ARROW, arcGeometry, markerSizeFor } from "./edge-geometry";
 import { PLACE_SIZE, TRANSITION_SIZE } from "./layout-graph";
+import { flattenColor } from "../../../dfg/util/colors";
+
+/** Background the current export composites translucent colors over; set per build. */
+let currentExportBg = "#ffffff";
 
 /** Read colors from the live DOM at export time so exports match the active theme. */
 function resolveThemeColors() {
@@ -21,21 +25,32 @@ function resolveThemeColors() {
     document.documentElement.classList.contains("dark") ||
     document.documentElement.getAttribute("data-theme") === "dark" ||
     (probe !== document.documentElement && probe.classList.contains("dark"));
+  // Radix vars can be oklch/display-p3; flatten every returned color to solid export-safe hex.
+  const exportBg = flattenColor(read("--color-background") || (dark ? "#111113" : "#ffffff"));
   return {
-    nodeBg: read("--color-panel-solid") || (dark ? "#19191b" : "#ffffff"),
-    nodeBorder: read("--gray-8") || (dark ? "#5e5e6e" : "#1f2937"),
-    nodeText: read("--gray-12") || (dark ? "#ededef" : "#111827"),
-    arcDefaultColor: read("--gray-11") || (dark ? "#b0b0b8" : "#374151"),
-    arcLabelBg: dark ? "rgba(25, 25, 27, 0.85)" : "rgba(255, 255, 255, 0.80)",
-    exportBg: read("--color-background") || (dark ? "#111113" : "#ffffff"),
+    nodeBg: flattenColor(read("--color-panel-solid") || (dark ? "#19191b" : "#ffffff"), exportBg),
+    nodeBorder: flattenColor(read("--gray-8") || (dark ? "#5e5e6e" : "#1f2937"), exportBg),
+    nodeText: flattenColor(read("--gray-12") || (dark ? "#ededef" : "#111827"), exportBg),
+    arcDefaultColor: flattenColor(read("--gray-11") || (dark ? "#b0b0b8" : "#374151"), exportBg),
+    arcLabelBg: flattenColor(dark ? "rgba(25, 25, 27, 0.85)" : "rgba(255, 255, 255, 0.80)", exportBg),
+    exportBg,
   };
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const COLOR_ATTRS = new Set(["fill", "stroke", "stop-color"]);
 
 function el(tag: string, attrs: Record<string, string | number> = {}): SVGElement {
   const e = document.createElementNS(SVG_NS, tag);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  for (const [k, v] of Object.entries(attrs)) {
+    // Flatten any translucent/exotic color (rgba, 8-digit hex, color-mix, oklch, system colors)
+    // to solid hex so the exported SVG stays readable across programs
+    const val =
+      COLOR_ATTRS.has(k) && typeof v === "string" && v !== "none" && !v.startsWith("url(")
+        ? flattenColor(v, currentExportBg)
+        : v;
+    e.setAttribute(k, String(val));
+  }
   return e;
 }
 function text(content: string, attrs: Record<string, string | number>): SVGElement {
@@ -93,6 +108,7 @@ const center = (n: PetriNetNode) => n.position;
 export function buildPetriNetSvg(nodes: PetriNetNode[], edges: Edge<ArcData>[]): string | null {
   if (nodes.length === 0) return null;
   const theme = resolveThemeColors();
+  currentExportBg = theme.exportBg;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const sizeOf = (n: PetriNetNode) => (n.type === "place" ? PLACE_SIZE : TRANSITION_SIZE);
 

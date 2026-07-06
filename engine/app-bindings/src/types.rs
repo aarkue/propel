@@ -268,6 +268,22 @@ pub struct OcelAttributeSummary {
     pub numeric_stats: Option<NumericStats>,
 }
 
+/// Case-centric DFG counts. Start/end carry real per-activity frequencies.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct DfgCounts {
+    pub activities: HashMap<String, u32>,
+    pub directly_follows_relations: Vec<((String, String), u32)>,
+    pub start_activities: HashMap<String, u32>,
+    pub end_activities: HashMap<String, u32>,
+}
+
+/// One [`DfgCounts`] per object type, plus the object-instance count per type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct OcDfgCounts {
+    pub object_type_to_dfg: HashMap<String, DfgCounts>,
+    pub object_counts: HashMap<String, u32>,
+}
+
 /// Per-arc duration statistics.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DfArcDuration {

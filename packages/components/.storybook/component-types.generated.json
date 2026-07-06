@@ -165,7 +165,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/dfg/index.tsx",
-    "code": "/** Local view-model. Kept explicit so the viewer has no `@r4pm/client` dependency. */\nexport interface DirectlyFollowsGraph {\n  activities: Record<string, number>;\n  directly_follows_relations: Array<[[string, string], number]>;\n  start_activities: string[];\n  end_activities: string[];\n}"
+    "code": "/** Local view-model. Kept explicit so the viewer has no `@r4pm/client` dependency. */\nexport interface DirectlyFollowsGraph {\n  activities: Record<string, number>;\n  directly_follows_relations: Array<[[string, string], number]>;\n  start_activities: Record<string, number>;\n  end_activities: Record<string, number>;\n}"
   },
   {
     "name": "DottedChartAxisConfig",
@@ -431,14 +431,14 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/dfg/index.tsx",
-    "code": "/** Extra props for the OC-DFG viewer. `performance` enables the frequency/performance toggle; omit to show frequency only. */\nexport interface OCDFGViewerProps extends ViewerProps<OCDirectlyFollowsGraph> {\n  performance?: OcelDfPerformance;\n  /** Real per-object-type instance counts (e.g. from ocel_type_stats). Falls back to\n   *  per-type event totals when not provided. */\n  objectCounts?: Record<string, number>;\n}"
+    "code": "/** Extra props for the OC-DFG viewer. `performance` enables the frequency/performance toggle; omit to show frequency only. */\nexport interface OCDFGViewerProps extends ViewerProps<OCDirectlyFollowsGraph> {\n  performance?: OcelDfPerformance;\n}"
   },
   {
     "name": "OCDirectlyFollowsGraph",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/dfg/index.tsx",
-    "code": "/** Object-centric DFG: one `DirectlyFollowsGraph` per object type. Mirrors the\n *  generated `@r4pm/client` `OCDirectlyFollowsGraph` shape. */\nexport interface OCDirectlyFollowsGraph {\n  object_type_to_dfg: Record<string, DirectlyFollowsGraph>;\n}"
+    "code": "/** Object-centric DFG: one `DirectlyFollowsGraph` per object type. Mirrors the\n *  generated `@r4pm/client` `OCDirectlyFollowsGraph` shape. */\nexport interface OCDirectlyFollowsGraph {\n  object_type_to_dfg: Record<string, DirectlyFollowsGraph>;\n  /** Object-instance count per type */\n  object_counts: Record<string, number>;\n}"
   },
   {
     "name": "OcelEditorProps",

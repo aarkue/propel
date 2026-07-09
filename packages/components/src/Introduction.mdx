@@ -2,6 +2,7 @@ import { Meta, Canvas } from "@storybook/addon-docs/blocks";
 import * as PetriNet from "./petri-net.stories";
 import * as OCPN from "./object-centric-petri-net.stories";
 import * as Freq from "./inputs/FrequencyPicker.stories";
+import * as DeviationAlignmentStrip from "./shared/DeviationAlignmentStrip.stories";
 
 <Meta title="Getting Started/Introduction" tags={["dev"]} />
 
@@ -43,15 +44,20 @@ shape of each viewer's `data` prop (the binding return types, with field descrip
 
 ## Showcase
 
-### Petri net
+
+### [Deviation Alignment Strip](?path=/docs/inputs-primitives-deviation-alignment-strip--docs)
+
+<Canvas of={DeviationAlignmentStrip.Default} />
+
+### [Petri net](?path=/docs/viewers-petri-net--docs)
 
 <Canvas of={PetriNet.Default} />
 
-### Object-centric Petri net
+### [Object-centric Petri net](?path=/docs/viewers-object-centric-petri-net--docs)
 
 <Canvas of={OCPN.Default} />
 
-### Frequency selector
+### [Frequency selector](?path=/docs/inputs-primitives-frequency-picker--docs)
 
 <Canvas of={Freq.Default} />
 

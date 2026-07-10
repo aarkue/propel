@@ -114,6 +114,8 @@ export interface DfgSvgBuilderInputs {
   /** Recolor edges with the duration heatmap (case-centric, performance metric). */
   heatmap?: boolean;
   legend?: { title: string; items: { label: string; color: string; hideDot?: boolean }[] }[];
+  /** Layout flow direction; positions self-loops on the free cross-axis. Defaults to "TB". */
+  direction?: "TB" | "LR";
 }
 
 /** Convert a live DFG panel's state into the intermediate `DfgSvgNode`/`DfgSvgEdge` model shared

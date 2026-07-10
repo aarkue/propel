@@ -60,7 +60,10 @@ pub struct LayoutResult {
 
 pub fn layout_petri_net(net: &PetriNet) -> LayoutResult {
     if net.places.is_empty() && net.transitions.is_empty() {
-        return LayoutResult { nodes: vec![], edges: vec![] };
+        return LayoutResult {
+            nodes: vec![],
+            edges: vec![],
+        };
     }
 
     // Fixed node order: places then transitions. Track uuid + kind per input index.
@@ -140,14 +143,22 @@ pub fn layout_petri_net(net: &PetriNet) -> LayoutResult {
             kind: kinds[i],
             cx: out.centers[i].0,
             cy: out.centers[i].1,
-            width: if kinds[i] == NodeKind::Place { PLACE_W } else { TRANS_W },
+            width: if kinds[i] == NodeKind::Place {
+                PLACE_W
+            } else {
+                TRANS_W
+            },
             height: PLACE_H,
         })
         .collect();
 
     let edges: Vec<LayoutEdge> = (0..net.arcs.len())
         .map(|i| LayoutEdge {
-            points: if arc_present[i] { out.routes[i].clone() } else { vec![] },
+            points: if arc_present[i] {
+                out.routes[i].clone()
+            } else {
+                vec![]
+            },
         })
         .collect();
 

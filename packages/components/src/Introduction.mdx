@@ -16,29 +16,35 @@ directly-follows graphs, dotted charts, alignments, etc.
 ```sh
 pnpm add @r4pm/components
 # peer dependencies:
-pnpm add react react-dom @tanstack/react-query
+pnpm add react react-dom
 ```
 
 ## Use
 
 Wrap your app (or any single viewer) in a Radix `Theme`, import the stylesheet once, then
-feed a viewer the typed binding result.
+feed a viewer the typed binding result. Graph viewers also need a layout engine, since the core ships
+none: pick one and supply it via `ViewerConfigProvider` (see
+[Layout Engines](?path=/docs/getting-started-layout-engines--docs)).
 
 ```tsx
 import "@r4pm/components/styles.css";
-import { Theme, PetriNetViewer } from "@r4pm/components";
+import { Theme, PetriNetViewer, ViewerConfigProvider } from "@r4pm/components";
+import { elkLayout } from "@r4pm/components/elk-layout";
 
 export function App({ net }) {
   return (
     <Theme>
-      <PetriNetViewer data={net} />
+      <ViewerConfigProvider value={{ layout: elkLayout }}>
+        <PetriNetViewer data={net} />
+      </ViewerConfigProvider>
     </Theme>
   );
 }
 ```
 
-Coloring, value formatting, and interactivity are shared across viewers and configured once.
-See [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs). For the exact
+Coloring, value formatting, interactivity, and the layout engine are shared across viewers and
+configured once. See [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs)
+and [Layout Engines](?path=/docs/getting-started-layout-engines--docs). For the exact
 shape of each viewer's `data` prop (the binding return types, with field descriptions), see
 [Data Types](?path=/docs/getting-started-data-types--docs).
 
@@ -64,6 +70,7 @@ shape of each viewer's `data` prop (the binding return types, with field descrip
 ## Explore
 
 - [Getting Started > Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config types every viewer accepts.
+- [Getting Started > Layout Engines](?path=/docs/getting-started-layout-engines--docs): pick + wire a layout engine (ELK or Rust/wasm) for graph viewers.
 - [Getting Started > Data Types](?path=/docs/getting-started-data-types--docs): every binding return type a viewer takes as `data`, with field descriptions (generated from the Rust types).
 - [Getting Started > Composing Primitives](?path=/docs/getting-started-composing-primitives--docs): build rows from the low-level primitives.
 - **Viewers**: Petri net, object-centric Petri net, directly-follows graph, dotted chart, alignments, fitness, OC-DECLARE, activity / case-duration / events-per-time charts, OCEL counts, log summary, log variants.

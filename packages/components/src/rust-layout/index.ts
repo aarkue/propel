@@ -126,7 +126,7 @@ export async function layoutGraph<N, E>(
  *  ordering keeps START/END edges short (clean, few crossings). Each OC-DFG edge carries its object
  *  type in `data.group`; parallel object-type arcs stay distinct. Self-loops fall back to the host's
  *  default edge. */
-export function createRustOcdfgLayout(transport: LayoutTransport, flowDiagonal = false): DfgLayoutFn {
+export function createRustOcdfgLayout(transport: LayoutTransport, flowDiagonal = true): DfgLayoutFn {
   const START = "__START__";
   const END = "__END__";
   const geoId = (id: string) => (id === DFG_START_ID ? START : id === DFG_END_ID ? END : id);

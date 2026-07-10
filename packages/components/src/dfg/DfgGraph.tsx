@@ -329,6 +329,11 @@ export function useDfgPanel({
   direction?: "TB" | "LR";
 }): UseDfgPanelReturn {
   const flowRef = useRef<ReactFlowInstance<DfgNode, DfgEdgeType>>();
+  // A layout that resolves before ReactFlow's `onInit` fires (warm in-browser wasm is faster than
+  // init) is buffered here, then flushed by `attachRef` once the instance exists - otherwise the
+  // imperative `setNodes` no-ops against a null ref and the graph lands empty (only on navigation, not
+  // a cold reload where wasm load loses the race).
+  const pendingApply = useRef<((inst: NonNullable<typeof flowRef.current>) => void) | null>(null);
   // Ids of nodes the user has manually placed. They stay pinned across subsequent drag-relayouts so
   // earlier placements don't revert; a fresh layout (data/selection change) clears them.
   const pinnedIds = useRef<Set<string>>(new Set());
@@ -349,25 +354,16 @@ export function useDfgPanel({
 
     let effectiveSlider: number;
     if (userEdgeSlider === null) {
-      // Seed the slider so the *combined* arcs across all groups cover ~80% of total arc
-      // mass: the same coverage % the UI displays. The slider is one global top-N applied
-      // per group, so grow N until the union of per-group top-N reaches the target. This
-      // tracks the shown metric directly (rather than overshooting via a per-group max).
-      const groupCounts = [...arcsByGroup.values()].map((list) => list.map((a) => a.count));
-      const totalMass = groupCounts.reduce((s, cs) => s + cs.reduce((t, c) => t + c, 0), 0);
-      const target = totalMass * 0.8;
-      const unionAt = (n: number) => groupCounts.reduce((s, cs) => s + Math.min(n, cs.length), 0);
+      // Seed the initial view to the busiest arcs, filling up to MAX_INITIAL_EDGES total across
+      // all groups (or every arc if fewer). The slider is one global top-N applied per group, so
+      // grow N until the union of per-group top-N would exceed the cap, then keep the last N that
+      // fit. Always at least N=1 so every group shows an arc. The user can widen via the slider.
+      const groupSizes = [...arcsByGroup.values()].map((list) => list.length);
+      const unionAt = (n: number) => groupSizes.reduce((s, len) => s + Math.min(n, len), 0);
       let seed = 1;
-      let covered = 0;
       for (let n = 1; n <= maxGroupSize; n++) {
-        // Cap the total edges shown in the initial view so dense graphs stay legible. Stop
-        // before growing N past the cap, but always keep at least N=1 so every group shows one.
         if (n > 1 && unionAt(n) > MAX_INITIAL_EDGES) break;
-        for (const cs of groupCounts) {
-          if (n - 1 < cs.length) covered += cs[n - 1];
-        }
         seed = n;
-        if (covered >= target) break;
       }
       effectiveSlider = Math.min(Math.max(seed, 1), maxGroupSize);
     } else {
@@ -509,6 +505,7 @@ export function useDfgPanel({
           group: a.group,
           parallelIndex: parallelIndexByKey.get(a.key) ?? 0,
           parallelCount: parallelCountByPair.get(pair) ?? 1,
+          direction,
         },
         style: {
           stroke: color,
@@ -531,17 +528,19 @@ export function useDfgPanel({
             : { w: OCEL_NODE_WIDTH, h: OCEL_NODE_HEIGHT },
         );
 
-        flowRef.current
-          ?.deleteElements({
-            nodes: flowRef.current.getNodes(),
-            edges: flowRef.current.getEdges(),
-          })
-          .finally(() => {
-            if (cancelled) return;
-            flowRef.current?.setNodes(nodes);
-            flowRef.current?.setEdges(edges);
-            flowRef.current?.fitView();
-          });
+        const apply = (inst: NonNullable<typeof flowRef.current>) => {
+          inst
+            .deleteElements({ nodes: inst.getNodes(), edges: inst.getEdges() })
+            .finally(() => {
+              if (cancelled) return;
+              inst.setNodes(nodes);
+              inst.setEdges(edges);
+              inst.fitView();
+            });
+        };
+        // Apply now if the instance is ready, else buffer for `attachRef` to flush.
+        if (flowRef.current) apply(flowRef.current);
+        else pendingApply.current = apply;
       })
       .catch((e: unknown) => console.error("[useDfgPanel] layout failed:", e));
 
@@ -597,7 +596,12 @@ export function useDfgPanel({
   return {
     onNodeDragStop,
     attachRef: (instance) => {
-      flowRef.current = instance as ReactFlowInstance<DfgNode, DfgEdgeType>;
+      const inst = instance as ReactFlowInstance<DfgNode, DfgEdgeType>;
+      flowRef.current = inst;
+      // Flush a layout that resolved before init.
+      const pending = pendingApply.current;
+      pendingApply.current = null;
+      pending?.(inst);
     },
     edgeSlider: selection.effectiveSlider,
     setEdgeSlider: (v) => {
@@ -794,6 +798,7 @@ export function DfgGraph({
       formatDuration,
       metric,
       heatmap,
+      direction,
       legend: [
         ...legend,
         { title: "Metric", items: [{ label: metricDisplayName(metric), color: "#6b7280", hideDot: true }] },

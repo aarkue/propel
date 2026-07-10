@@ -8,6 +8,7 @@
 import type { StyledGraph, StyledNode } from "../../graph-svg/styled-graph";
 import { buildStyledGraph } from "../../graph-svg/build-styled-graph";
 import { exportBackgroundHex, flattenColor } from "./colors";
+import { type FlowDirection, selfLoopBezier } from "./self-loop";
 import {
   buildDfgSvgModel,
   darken,
@@ -31,28 +32,26 @@ function sampleCubicBezier(p0: Pt, c1: Pt, c2: Pt, p3: Pt, n: number): Pt[] {
   return pts;
 }
 
-/** Same self-loop geometry as `DfgEdge.tsx`'s on-screen renderer, sampled to a polyline. */
-function selfLoopPoints(src: DfgSvgNode, parallelIndex: number, strokeWidth: number): [number, number][] {
-  const loopW = 36 + parallelIndex * 24;
-  const mSize = Math.max(14, strokeWidth * 4);
-  const arrowInset = mSize * 0.35;
-  const startX = src.x + src.width;
-  const startY = src.y + src.height * 0.3;
-  const endX = src.x + src.width + arrowInset;
-  const endY = src.y + src.height * 0.7;
-  const pts = sampleCubicBezier(
-    { x: startX, y: startY },
-    { x: startX + loopW, y: startY - 4 },
-    { x: endX + loopW, y: endY + 4 },
-    { x: endX, y: endY },
-    32,
-  );
-  return pts.map((p) => [p.x, p.y]);
+/** Same self-loop geometry as `DfgEdge.tsx`'s on-screen renderer (via `selfLoopBezier`), sampled to a
+ *  polyline. */
+function selfLoopPoints(
+  src: DfgSvgNode,
+  parallelIndex: number,
+  strokeWidth: number,
+  direction: FlowDirection,
+): [number, number][] {
+  const { p0, c1, c2, p3 } = selfLoopBezier(src, parallelIndex, strokeWidth, direction);
+  return sampleCubicBezier(p0, c1, c2, p3, 32).map((p) => [p.x, p.y]);
 }
 
-function edgePoints(src: DfgSvgNode, tgt: DfgSvgNode, edge: DfgSvgEdge): [number, number][] | null {
+function edgePoints(
+  src: DfgSvgNode,
+  tgt: DfgSvgNode,
+  edge: DfgSvgEdge,
+  direction: FlowDirection,
+): [number, number][] | null {
   const strokeWidth = edge.strokeWidth ?? 2;
-  if (src.id === tgt.id) return selfLoopPoints(src, edge.parallelIndex ?? 0, strokeWidth);
+  if (src.id === tgt.id) return selfLoopPoints(src, edge.parallelIndex ?? 0, strokeWidth, direction);
 
   if (edge.routing && edge.routing.points.length >= 2) {
     const pts: Pt[] = edge.routing.points.map((p) => ({ x: p.x, y: p.y }));
@@ -117,6 +116,7 @@ export function dfgModelToStyledGraph(
   nodes: DfgSvgNode[],
   edges: DfgSvgEdge[],
   legend: { title: string; items: { label: string; color: string; hideDot?: boolean }[] }[] = [],
+  direction: FlowDirection = "TB",
 ): StyledGraph {
   const bgHex = exportBackgroundHex();
   return buildStyledGraph(nodes, edges, {
@@ -125,7 +125,7 @@ export function dfgModelToStyledGraph(
     target: (e) => e.target,
     nodeToStyled: (n) => nodeToStyled(n, bgHex),
     edgeToStyled: (edge, src, tgt) => {
-      const points = edgePoints(src, tgt, edge);
+      const points = edgePoints(src, tgt, edge, direction);
       if (!points) return null;
       // Self-loops are already a sampled curve (rounding would fight the sampling); regular
       // polylines get the same corner radius the on-screen edge uses.
@@ -163,5 +163,7 @@ export function dfgModelToStyledGraph(
  *  computation with `buildDfgSvgFromPanel` via `buildDfgSvgModel`). */
 export function buildDfgStyledGraph(inputs: DfgSvgBuilderInputs): StyledGraph | null {
   const model = buildDfgSvgModel(inputs);
-  return model ? dfgModelToStyledGraph(model.nodes, model.edges, model.legend) : null;
+  return model
+    ? dfgModelToStyledGraph(model.nodes, model.edges, model.legend, inputs.direction ?? "TB")
+    : null;
 }

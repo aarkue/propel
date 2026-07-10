@@ -16,9 +16,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{
     AttributeCatalogEntry, AttributeInfo, AttributeKind, AttributeLevel, AttributeScope,
-    AttributeSummary, CaseDurations, DfArcDuration, DfPerformance, DfgCounts, LogClassifierInfo,
-    LogExtensionInfo, LogGlobals, NumberOfTracesAndEvents, NumericStats, TraceBrowserPage,
-    TraceBrowserRow, TraceDetail, TraceEventRow, TraceSortField, TraceVariants,
+    AttributeSummary, AttributeValues, CaseDurations, DfArcDuration, DfPerformance, DfgCounts,
+    LogClassifierInfo, LogExtensionInfo, LogGlobals, NumberOfTracesAndEvents, NumericStats,
+    TraceBrowserPage, TraceBrowserRow, TraceDetail, TraceEventRow, TraceSortField, TraceVariants,
+    ATTR_VALUES_CAP,
 };
 
 /// Build an event log from one or more simulated traces: one case per trace, one event per
@@ -334,12 +335,18 @@ pub fn get_df(event_log: &EventLog) -> DfgCounts {
 
     let mut result = DfgCounts::default();
     for (i, &name) in names.iter().enumerate() {
-        result.activities.insert(name.to_string(), activity_counts[i]);
+        result
+            .activities
+            .insert(name.to_string(), activity_counts[i]);
         if start_counts[i] > 0 {
-            result.start_activities.insert(name.to_string(), start_counts[i]);
+            result
+                .start_activities
+                .insert(name.to_string(), start_counts[i]);
         }
         if end_counts[i] > 0 {
-            result.end_activities.insert(name.to_string(), end_counts[i]);
+            result
+                .end_activities
+                .insert(name.to_string(), end_counts[i]);
         }
     }
     result.directly_follows_relations = dfs
@@ -804,6 +811,51 @@ pub fn get_attribute_summary(
             hist_counts: Vec::new(),
             numeric_stats: None,
         }
+    }
+}
+
+/// All distinct categorical values (with counts, most-frequent first) for one attribute -
+/// the full list the attribute filter's value picker searches. Numeric values are ignored.
+/// Capped at `ATTR_VALUES_CAP`; `total_distinct` reports the true count before truncation.
+#[register_binding]
+pub fn get_attribute_values(
+    event_log: &EventLog,
+    attr_name: String,
+    level: AttributeLevel,
+) -> AttributeValues {
+    let mut freq: HashMap<String, usize> = HashMap::new();
+    let mut tally = |v: &AttributeValue| {
+        if !matches!(v, AttributeValue::Float(_) | AttributeValue::Int(_)) {
+            *freq.entry(v.to_string()).or_default() += 1;
+        }
+    };
+
+    match level {
+        AttributeLevel::Event => {
+            for trace in &event_log.traces {
+                for event in &trace.events {
+                    if let Some(attr) = event.attributes.get_by_key(&attr_name) {
+                        tally(&attr.value);
+                    }
+                }
+            }
+        }
+        AttributeLevel::Case => {
+            for trace in &event_log.traces {
+                if let Some(attr) = trace.attributes.iter().find(|a| a.key == attr_name) {
+                    tally(&attr.value);
+                }
+            }
+        }
+    }
+
+    let total_distinct = freq.len();
+    let mut values: Vec<(String, usize)> = freq.into_iter().collect();
+    values.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    values.truncate(ATTR_VALUES_CAP);
+    AttributeValues {
+        values,
+        total_distinct,
     }
 }
 

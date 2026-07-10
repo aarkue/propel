@@ -64,3 +64,4 @@ export {
   type LaidOutGraph,
   type LayoutTransport,
 } from "./rust-layout";
+export { createRustLayout } from "./rust-layout/bundle";

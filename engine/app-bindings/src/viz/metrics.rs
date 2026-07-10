@@ -128,7 +128,11 @@ fn segment_enters_rect(p: Pt, q: Pt, r: Rect, margin: f64) -> bool {
 fn point_seg_dist(pt: Pt, a: Pt, b: Pt) -> f64 {
     let (dx, dy) = (b.0 - a.0, b.1 - a.1);
     let l2 = dx * dx + dy * dy;
-    let t = if l2 < 1e-9 { 0.0 } else { (((pt.0 - a.0) * dx + (pt.1 - a.1) * dy) / l2).clamp(0.0, 1.0) };
+    let t = if l2 < 1e-9 {
+        0.0
+    } else {
+        (((pt.0 - a.0) * dx + (pt.1 - a.1) * dy) / l2).clamp(0.0, 1.0)
+    };
     let (px, py) = (a.0 + t * dx, a.1 + t * dy);
     ((pt.0 - px).powi(2) + (pt.1 - py).powi(2)).sqrt()
 }
@@ -181,7 +185,10 @@ fn point_border_dist(p: Pt, r: Rect, ellipse: bool) -> f64 {
 fn compact(poly: &[Pt]) -> Vec<Pt> {
     let mut out: Vec<Pt> = vec![];
     for &p in poly {
-        if out.last().is_none_or(|q: &Pt| (p.0 - q.0).abs() > 0.6 || (p.1 - q.1).abs() > 0.6) {
+        if out
+            .last()
+            .is_none_or(|q: &Pt| (p.0 - q.0).abs() > 0.6 || (p.1 - q.1).abs() > 0.6)
+        {
             out.push(p);
         }
     }
@@ -264,7 +271,10 @@ pub fn compute(
     let mut node_hits = 0;
     let mut min_clearance = f64::INFINITY;
     for (orig, poly) in polys.iter() {
-        let (sa, sb) = edge_endpoints.get(*orig).copied().unwrap_or((usize::MAX, usize::MAX));
+        let (sa, sb) = edge_endpoints
+            .get(*orig)
+            .copied()
+            .unwrap_or((usize::MAX, usize::MAX));
         for (ni, &r) in node_boxes.iter().enumerate() {
             if ni == sa || ni == sb {
                 continue;
@@ -293,7 +303,10 @@ pub fn compute(
     let mut connection_gap = 0.0f64;
     let is_ell = |i: usize| node_ellipse.get(i).copied().unwrap_or(false);
     for (orig, poly) in polys.iter() {
-        let (sa, sb) = edge_endpoints.get(*orig).copied().unwrap_or((usize::MAX, usize::MAX));
+        let (sa, sb) = edge_endpoints
+            .get(*orig)
+            .copied()
+            .unwrap_or((usize::MAX, usize::MAX));
         if sa < node_boxes.len() {
             let g = point_border_dist(poly[0], node_boxes[sa], is_ell(sa));
             connection_gap = connection_gap.max(g);
@@ -315,13 +328,19 @@ pub fn compute(
         let horiz = (b.0 - a.0).abs() >= (b.1 - a.1).abs();
         let val = |pt: &Pt| if horiz { pt.1 } else { pt.0 };
         let (lo, hi) = (val(&a).min(val(&b)), val(&a).max(val(&b)));
-        let (sa, sb) = edge_endpoints.get(*orig).copied().unwrap_or((usize::MAX, usize::MAX));
+        let (sa, sb) = edge_endpoints
+            .get(*orig)
+            .copied()
+            .unwrap_or((usize::MAX, usize::MAX));
         let near_node = |pt: Pt| -> bool {
-            node_boxes.iter().enumerate().any(|(ni, &r)| {
-                ni != sa && ni != sb && point_border_dist(pt, r, is_ell(ni)) < 24.0
-            })
+            node_boxes
+                .iter()
+                .enumerate()
+                .any(|(ni, &r)| ni != sa && ni != sb && point_border_dist(pt, r, is_ell(ni)) < 24.0)
         };
-        if p.iter().any(|pt| (val(pt) < lo - 3.0 || val(pt) > hi + 3.0) && !near_node(*pt)) {
+        if p.iter()
+            .any(|pt| (val(pt) < lo - 3.0 || val(pt) > hi + 3.0) && !near_node(*pt))
+        {
             detours += 1;
         }
     }
@@ -333,7 +352,10 @@ pub fn compute(
     // Port crowding: per node, the closest pair of incident edge touch-points.
     let mut touch: Vec<Vec<Pt>> = vec![vec![]; node_boxes.len()];
     for (orig, poly) in &polys {
-        let (sa, sb) = edge_endpoints.get(*orig).copied().unwrap_or((usize::MAX, usize::MAX));
+        let (sa, sb) = edge_endpoints
+            .get(*orig)
+            .copied()
+            .unwrap_or((usize::MAX, usize::MAX));
         if sa < node_boxes.len() {
             touch[sa].push(poly[0]);
         }

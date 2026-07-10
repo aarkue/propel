@@ -1220,7 +1220,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 29,
+    "source_line": 30,
     "args": [
       [
         "traces",
@@ -1257,7 +1257,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 136,
+    "source_line": 137,
     "args": [
       [
         "log",
@@ -1368,7 +1368,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 174,
+    "source_line": 175,
     "args": [
       [
         "event_log",
@@ -1478,7 +1478,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 257,
+    "source_line": 258,
     "args": [
       [
         "event_log",
@@ -1512,7 +1512,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 600,
+    "source_line": 601,
     "args": [
       [
         "event_log",
@@ -1599,7 +1599,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 679,
+    "source_line": 680,
     "args": [
       [
         "event_log",
@@ -1771,6 +1771,91 @@
     }
   },
   {
+    "id": "app_bindings::event_log::get_attribute_values",
+    "name": "get_attribute_values",
+    "docs": [
+      "All distinct categorical values (with counts, most-frequent first) for one attribute -",
+      "the full list the attribute filter's value picker searches. Numeric values are ignored.",
+      "Capped at `ATTR_VALUES_CAP`; `total_distinct` reports the true count before truncation."
+    ],
+    "module": "app_bindings::event_log",
+    "source_path": "app-bindings/src/event_log.rs",
+    "source_line": 814,
+    "args": [
+      [
+        "event_log",
+        {
+          "type": "string",
+          "title": "EventLog",
+          "x-registry-ref": "EventLog",
+          "x-widget": "entity-selector"
+        }
+      ],
+      [
+        "attr_name",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      [
+        "level",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "AttributeLevel",
+          "type": "string",
+          "enum": [
+            "Event",
+            "Case"
+          ]
+        }
+      ]
+    ],
+    "required_args": [
+      "event_log",
+      "attr_name",
+      "level"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "AttributeValues",
+      "description": "Full distinct categorical values (with counts) for the attribute-filter value picker.",
+      "type": "object",
+      "properties": {
+        "values": {
+          "description": "Distinct values with their occurrence counts, sorted by count desc then value asc.\nTruncated to `ATTR_VALUES_CAP` entries; `total_distinct` gives the untruncated count.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "total_distinct": {
+          "description": "True number of distinct values before truncation.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "values",
+        "total_distinct"
+      ]
+    }
+  },
+  {
     "id": "app_bindings::event_log::get_case_durations",
     "name": "get_case_durations",
     "docs": [
@@ -1778,7 +1863,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 416,
+    "source_line": 417,
     "args": [
       [
         "event_log",
@@ -1892,7 +1977,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 296,
+    "source_line": 297,
     "args": [
       [
         "event_log",
@@ -1983,7 +2068,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 354,
+    "source_line": 355,
     "args": [
       [
         "event_log",
@@ -2073,7 +2158,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 545,
+    "source_line": 546,
     "args": [
       [
         "event_log",
@@ -2183,7 +2268,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 275,
+    "source_line": 276,
     "args": [
       [
         "event_log",
@@ -2228,7 +2313,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 240,
+    "source_line": 241,
     "args": [
       [
         "event_log",
@@ -2302,7 +2387,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 901,
+    "source_line": 947,
     "args": [
       [
         "event_log",
@@ -2447,7 +2532,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 811,
+    "source_line": 857,
     "args": [
       [
         "event_log",
@@ -2569,7 +2654,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 993,
+    "source_line": 1039,
     "args": [
       [
         "event_log",
@@ -2655,7 +2740,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 573,
+    "source_line": 574,
     "args": [
       [
         "ocel",
@@ -2776,7 +2861,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 885,
+    "source_line": 931,
     "args": [
       [
         "ocel",
@@ -2833,7 +2918,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 644,
+    "source_line": 645,
     "args": [
       [
         "ocel",
@@ -2943,7 +3028,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 716,
+    "source_line": 717,
     "args": [
       [
         "ocel",
@@ -3157,6 +3242,115 @@
     }
   },
   {
+    "id": "app_bindings::ocel::get_ocel_attribute_values",
+    "name": "get_ocel_attribute_values",
+    "docs": [
+      "All distinct categorical values (with counts, most-frequent first) for one OCEL attribute -",
+      "the full list the attribute filter's value picker searches. Numeric values are ignored.",
+      "For objects the latest value per object is counted. Capped at `ATTR_VALUES_CAP`;",
+      "`total_distinct` reports the true count before truncation."
+    ],
+    "module": "app_bindings::ocel",
+    "source_path": "app-bindings/src/ocel.rs",
+    "source_line": 834,
+    "args": [
+      [
+        "ocel",
+        {
+          "type": "string",
+          "title": "SlimLinkedOCEL",
+          "x-registry-ref": "SlimLinkedOCEL",
+          "x-widget": "entity-selector"
+        }
+      ],
+      [
+        "attr_name",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      [
+        "level",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "OcelAttributeLevel",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "Event"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "Object": {
+                  "type": "object",
+                  "properties": {
+                    "object_type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "object_type"
+                  ]
+                }
+              },
+              "required": [
+                "Object"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      ]
+    ],
+    "required_args": [
+      "ocel",
+      "attr_name",
+      "level"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "AttributeValues",
+      "description": "Full distinct categorical values (with counts) for the attribute-filter value picker.",
+      "type": "object",
+      "properties": {
+        "values": {
+          "description": "Distinct values with their occurrence counts, sorted by count desc then value asc.\nTruncated to `ATTR_VALUES_CAP` entries; `total_distinct` gives the untruncated count.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "total_distinct": {
+          "description": "True number of distinct values before truncation.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "values",
+        "total_distinct"
+      ]
+    }
+  },
+  {
     "id": "app_bindings::ocel::get_ocel_df",
     "name": "get_ocel_df",
     "docs": [
@@ -3166,7 +3360,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 915,
+    "source_line": 961,
     "args": [
       [
         "ocel",
@@ -3282,7 +3476,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 988,
+    "source_line": 1034,
     "args": [
       [
         "ocel",
@@ -3375,7 +3569,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 442,
+    "source_line": 443,
     "args": [
       [
         "ocel",
@@ -3434,7 +3628,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 463,
+    "source_line": 464,
     "args": [
       [
         "ocel",
@@ -3496,7 +3690,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 453,
+    "source_line": 454,
     "args": [
       [
         "ocel",
@@ -3528,7 +3722,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 492,
+    "source_line": 493,
     "args": [
       [
         "ocel",
@@ -3684,7 +3878,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 831,
+    "source_line": 877,
     "args": [
       [
         "ocel",
@@ -3807,7 +4001,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 268,
+    "source_line": 269,
     "args": [
       [
         "input",
@@ -4033,7 +4227,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 53,
+    "source_line": 54,
     "args": [
       [
         "trace",
@@ -4104,7 +4298,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 346,
+    "source_line": 347,
     "args": [
       [
         "ocel",

@@ -11,7 +11,7 @@ plus inputs (frequency picker, choosers).
 ```sh
 pnpm add @r4pm/components
 # peer dependencies:
-pnpm add react react-dom @tanstack/react-query
+pnpm add react react-dom
 ```
 
 ## Use

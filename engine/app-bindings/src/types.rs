@@ -123,6 +123,20 @@ pub struct AttributeSummary {
     pub numeric_stats: Option<NumericStats>,
 }
 
+/// Safety ceiling on the number of distinct values returned by the attribute value listing
+/// bindings, so a pathological high-cardinality field cannot produce a multi-MB payload.
+pub const ATTR_VALUES_CAP: usize = 10_000;
+
+/// Full distinct categorical values (with counts) for the attribute-filter value picker.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AttributeValues {
+    /// Distinct values with their occurrence counts, sorted by count desc then value asc.
+    /// Truncated to `ATTR_VALUES_CAP` entries; `total_distinct` gives the untruncated count.
+    pub values: Vec<(String, usize)>,
+    /// True number of distinct values before truncation.
+    pub total_distinct: usize,
+}
+
 /// Where an attribute lives in a dataset.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type")]

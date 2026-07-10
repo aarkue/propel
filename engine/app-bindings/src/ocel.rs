@@ -8,7 +8,6 @@
 use std::collections::{HashMap, HashSet};
 
 use process_mining::bindings::register_binding;
-use rayon::prelude::*;
 use process_mining::core::chrono::DateTime;
 use process_mining::core::event_data::object_centric::linked_ocel::slim_linked_ocel::ObjectIndex;
 use process_mining::core::event_data::object_centric::linked_ocel::{
@@ -19,14 +18,16 @@ use process_mining::core::event_data::object_centric::{
     OCELRelationship, OCELType, OCELTypeAttribute, OCEL,
 };
 use process_mining::ReadableOCEL;
+use rayon::prelude::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{
-    AttributeCatalogEntry, AttributeKind, AttributeScope, DfArcDuration, NumericStats, OCELInfo,
-    OCELObjectAttributeChanges, ObjectBrowserPage, ObjectBrowserRow, ObjectDetail, ObjectEventRow,
-    ObjectInvolvementCounts, ObjectSortField, OcDfgCounts, OcelAttributeInfo, OcelAttributeLevel,
-    OcelAttributeSummary, OcelDfPerformance,
+    AttributeCatalogEntry, AttributeKind, AttributeScope, AttributeValues, DfArcDuration,
+    NumericStats, OCELInfo, OCELObjectAttributeChanges, ObjectBrowserPage, ObjectBrowserRow,
+    ObjectDetail, ObjectEventRow, ObjectInvolvementCounts, ObjectSortField, OcDfgCounts,
+    OcelAttributeInfo, OcelAttributeLevel, OcelAttributeSummary, OcelDfPerformance,
+    ATTR_VALUES_CAP,
 };
 
 /// One object instance taking part in a simulated firing.
@@ -345,7 +346,6 @@ fn ocel_value_type_str(v: &OCELAttributeValue) -> &'static str {
 /// attributes, O2O), with qualifiers preserved.
 #[register_binding]
 pub fn ocel_to_json(ocel: &SlimLinkedOCEL) -> OcelInput {
-
     let map_type = |t: &process_mining::core::event_data::object_centric::OCELType| OcelTypeInput {
         name: t.name.clone(),
         attributes: t
@@ -394,8 +394,7 @@ pub fn ocel_to_json(ocel: &SlimLinkedOCEL) -> OcelInput {
             let attributes = ocel
                 .get_ob_attrs(&ob)
                 .flat_map(|name| {
-                    ocel
-                        .get_ob_attr_vals(&ob, name)
+                    ocel.get_ob_attr_vals(&ob, name)
                         .map(move |(time, v)| OcelTimedAttrInput {
                             name: name.to_string(),
                             attr_type: ocel_value_type_str(v).to_string(),
@@ -452,8 +451,7 @@ pub fn get_ocel_info(ocel: &SlimLinkedOCEL) -> OCELInfo {
 /// First 100 object IDs.
 #[register_binding]
 pub fn get_ocel_object_ids(ocel: &SlimLinkedOCEL) -> Vec<String> {
-    ocel
-        .get_all_obs()
+    ocel.get_all_obs()
         .take(100)
         .map(|o| ocel.get_ob_id(&o).to_string())
         .collect()
@@ -826,6 +824,54 @@ pub fn get_ocel_attribute_summary(
     }
 }
 
+/// All distinct categorical values (with counts, most-frequent first) for one OCEL attribute -
+/// the full list the attribute filter's value picker searches. Numeric values are ignored.
+/// For objects the latest value per object is counted. Capped at `ATTR_VALUES_CAP`;
+/// `total_distinct` reports the true count before truncation.
+#[register_binding]
+pub fn get_ocel_attribute_values(
+    ocel: &SlimLinkedOCEL,
+    attr_name: String,
+    level: OcelAttributeLevel,
+) -> AttributeValues {
+    let mut freq: HashMap<String, usize> = HashMap::new();
+    let mut tally = |v: &OCELAttributeValue| {
+        if !matches!(
+            v,
+            OCELAttributeValue::Float(_) | OCELAttributeValue::Integer(_)
+        ) {
+            *freq.entry(v.to_string()).or_default() += 1;
+        }
+    };
+
+    match &level {
+        OcelAttributeLevel::Event => {
+            for ev in ocel.get_all_evs() {
+                if let Some(val) = ocel.get_ev_attr_val(&ev, attr_name.as_str()) {
+                    tally(val);
+                }
+            }
+        }
+        OcelAttributeLevel::Object { object_type } => {
+            for ob in ocel.get_obs_of_type(object_type.as_str()) {
+                let vals: Vec<_> = ocel.get_ob_attr_vals(ob, attr_name.as_str()).collect();
+                if let Some(&(_time, val)) = vals.last() {
+                    tally(val);
+                }
+            }
+        }
+    }
+
+    let total_distinct = freq.len();
+    let mut values: Vec<(String, usize)> = freq.into_iter().collect();
+    values.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    values.truncate(ATTR_VALUES_CAP);
+    AttributeValues {
+        values,
+        total_distinct,
+    }
+}
+
 /// Catalog of removable attribute keys (declared on event/object types) for the
 /// RemoveAttributes transform.
 #[register_binding]
@@ -923,12 +969,21 @@ pub fn get_ocel_df(ocel: &SlimLinkedOCEL) -> OcDfgCounts {
         HashMap<usize, u32>,
         HashMap<(usize, usize), u32>,
     );
-    let new_acc = || (HashMap::new(), HashMap::new(), HashMap::new(), HashMap::new());
+    let new_acc = || {
+        (
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        )
+    };
 
     let ob_types: Vec<String> = ocel.get_ob_types().map(|s| s.to_string()).collect();
     for ob_type in ob_types {
         let obs: Vec<ObjectIndex> = ocel.get_obs_of_type(&ob_type).copied().collect();
-        result.object_counts.insert(ob_type.clone(), obs.len() as u32);
+        result
+            .object_counts
+            .insert(ob_type.clone(), obs.len() as u32);
 
         let (activities, starts, ends, dfs): TypeAcc = obs
             .into_par_iter()
@@ -977,7 +1032,12 @@ pub fn get_ocel_df(ocel: &SlimLinkedOCEL) -> OcDfgCounts {
         }
         dfg.directly_follows_relations = dfs
             .into_iter()
-            .map(|((f, t), c)| ((ev_type_names[f].to_string(), ev_type_names[t].to_string()), c))
+            .map(|((f, t), c)| {
+                (
+                    (ev_type_names[f].to_string(), ev_type_names[t].to_string()),
+                    c,
+                )
+            })
             .collect();
     }
 
@@ -987,7 +1047,6 @@ pub fn get_ocel_df(ocel: &SlimLinkedOCEL) -> OcDfgCounts {
 /// Per-object-type directly-follows arc duration statistics (performance overlay).
 #[register_binding]
 pub fn get_ocel_df_performance(ocel: &SlimLinkedOCEL) -> OcelDfPerformance {
-
     // Durations keyed by object_type -> (source_activity, target_activity) -> [ms].
     let mut arc_durations: HashMap<String, HashMap<(String, String), Vec<f64>>> = HashMap::new();
 

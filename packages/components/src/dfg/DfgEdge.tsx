@@ -7,6 +7,7 @@ import {
   useInternalNode,
 } from "@xyflow/react";
 import { useId } from "react";
+import { type FlowDirection, selfLoopBezier } from "./util/self-loop";
 
 // ---- Geometry helpers ----
 
@@ -79,6 +80,8 @@ export interface DfgEdgeData extends Record<string, unknown> {
   parallelCount?: number;
   /** Post-layout label displacement to avoid overlaps. */
   labelOffset?: { dx: number; dy: number };
+  /** Layout flow direction, so self-loops sit on the free cross-axis (right in TB, bottom in LR). */
+  direction?: FlowDirection;
 }
 
 export type DfgEdgeType = Edge<DfgEdgeData, "default">;
@@ -119,16 +122,15 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
     const nh = sourceNode.measured?.height ?? 52;
     const nx = sourceNode.internals.positionAbsolute.x;
     const ny = sourceNode.internals.positionAbsolute.y;
-    const pIdx = data.parallelIndex ?? 0;
-    const loopW = 36 + pIdx * 24;
-    const arrowInset = markerSize * 0.35;
-    const startX = nx + nw;
-    const startY = ny + nh * 0.3;
-    const endX = nx + nw + arrowInset;
-    const endY = ny + nh * 0.7;
-    edgePath = `M ${startX},${startY} C ${startX + loopW},${startY - 4} ${endX + loopW},${endY + 4} ${endX},${endY}`;
-    labelX = startX + loopW * 0.75;
-    labelY = (startY + endY) / 2;
+    const { p0, c1, c2, p3, labelX: lx, labelY: ly } = selfLoopBezier(
+      { x: nx, y: ny, width: nw, height: nh },
+      data.parallelIndex ?? 0,
+      sw,
+      data.direction ?? "TB",
+    );
+    edgePath = `M ${p0.x},${p0.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`;
+    labelX = lx;
+    labelY = ly;
   } else if (data.routing?.kind === "polyline" && data.routing.points.length >= 2) {
     let pts = data.routing.points.map((p) => ({ x: p.x, y: p.y }));
 

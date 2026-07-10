@@ -975,6 +975,18 @@ hist_counts: number[]
 numeric_stats?: (NumericStats | null)
 }
 
+export interface AttributeValues {
+/**
+ * Distinct values with their occurrence counts, sorted by count desc then value asc.
+ * Truncated to `ATTR_VALUES_CAP` entries; `total_distinct` gives the untruncated count.
+ */
+values: [string, number][]
+/**
+ * True number of distinct values before truncation.
+ */
+total_distinct: number
+}
+
 export interface CaseDurations {
 num_cases: number
 num_empty_cases: number
@@ -1670,6 +1682,11 @@ export interface Bindings {
     "attr_name": string;
     "level": AttributeLevel;
     }; ret: AttributeSummary };
+  "app_bindings::event_log::get_attribute_values": { args: {
+    "event_log": EventLogHandle;
+    "attr_name": string;
+    "level": AttributeLevel;
+    }; ret: AttributeValues };
   "app_bindings::event_log::get_case_durations": { args: {
     "event_log": EventLogHandle;
     }; ret: CaseDurations };
@@ -1718,6 +1735,11 @@ export interface Bindings {
     "attr_name": string;
     "level": OcelAttributeLevel;
     }; ret: OcelAttributeSummary };
+  "app_bindings::ocel::get_ocel_attribute_values": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "attr_name": string;
+    "level": OcelAttributeLevel;
+    }; ret: AttributeValues };
   "app_bindings::ocel::get_ocel_df": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OcDfgCounts };
@@ -2099,6 +2121,7 @@ export const RETURN_TYPES = {
   "Array_of_VariantAlignmentResult": "Array_of_VariantAlignmentResult",
   "Array_of_string": "Array_of_string",
   "AttributeSummary": "AttributeSummary",
+  "AttributeValues": "AttributeValues",
   "CaseDurations": "CaseDurations",
   "DateTime": "DateTime",
   "DfPerformance": "DfPerformance",
@@ -2175,6 +2198,7 @@ export interface ReturnTypeShape {
   "Array_of_VariantAlignmentResult": VariantAlignmentResult[];
   "Array_of_string": string[];
   "AttributeSummary": AttributeSummary;
+  "AttributeValues": AttributeValues;
   "CaseDurations": CaseDurations;
   "DateTime": string;
   "DfPerformance": DfPerformance;
@@ -2238,6 +2262,7 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::event_log::get_activity_counts": "Map_of_uint",
   "app_bindings::event_log::get_attribute_names": "Array_of_AttributeInfo",
   "app_bindings::event_log::get_attribute_summary": "AttributeSummary",
+  "app_bindings::event_log::get_attribute_values": "AttributeValues",
   "app_bindings::event_log::get_case_durations": "CaseDurations",
   "app_bindings::event_log::get_df": "DfgCounts",
   "app_bindings::event_log::get_df_performance": "DfPerformance",
@@ -2251,6 +2276,7 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::ocel::get_ocel_activity_object_involvements": "Map_of_Map_of_ObjectInvolvementCounts",
   "app_bindings::ocel::get_ocel_attribute_names": "Array_of_OcelAttributeInfo",
   "app_bindings::ocel::get_ocel_attribute_summary": "OcelAttributeSummary",
+  "app_bindings::ocel::get_ocel_attribute_values": "AttributeValues",
   "app_bindings::ocel::get_ocel_df": "OcDfgCounts",
   "app_bindings::ocel::get_ocel_df_performance": "OcelDfPerformance",
   "app_bindings::ocel::get_ocel_info": "OCELInfo",

@@ -5,12 +5,13 @@ import type { DeclareLayoutFn } from "../oc-declare/layout-util";
 import type { PetriLayoutFn } from "../petri/editor/helpers/layout-graph";
 
 /**
- * Default layout engine for graph viewers in a subtree, used when a viewer gets no explicit
- * `layoutOverride` (and, for SVG export, no explicit `renderSvg`). The core ships no engine; import a
- * bundle - `@r4pm/components/elk-layout` or `@r4pm/components/rust-layout/wasm` - or supply your own,
- * and provide it via `ViewerConfigProvider`. Omit any field for the engine-agnostic no-op default.
+ * A layout engine for graph viewers: one layout fn per surface, plus `renderSvg` for image export.
+ * The core ships no engine, so import a prebuilt bundle (`elkLayout` from `@r4pm/components/elk-layout`
+ * or `wasmLayout` from `@r4pm/components/rust-layout/wasm`) and pass the whole object through
+ * `ViewerConfigProvider`; a viewer's `layoutOverride`/`renderSvg` props still win. Any omitted surface
+ * falls back to the engine-agnostic no-op. Advanced hosts can build one with `createRustLayout(transport)`.
  */
-export interface LayoutDefaults {
+export interface LayoutEngine {
   dfg?: DfgLayoutFn;
   ocdfg?: DfgLayoutFn;
   declare?: DeclareLayoutFn;
@@ -101,8 +102,8 @@ export interface ViewerConfig {
   actions?: ViewerAction[];
   onSelect?: (target: ViewerTarget) => void;
   onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
-  /** Default layout engine for graph viewers; explicit `layoutOverride`/`renderSvg` props still win. */
-  layout?: LayoutDefaults;
+  /** Layout engine for graph viewers; explicit `layoutOverride`/`renderSvg` props still win. */
+  layout?: LayoutEngine;
 }
 
 export interface ViewerProps<T> extends ViewerConfig {

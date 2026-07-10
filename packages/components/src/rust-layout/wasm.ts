@@ -4,6 +4,7 @@
 import { createRustDeclareLayout } from "../oc-declare/rust-declare-layout";
 import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 import { createRustPetriLayout } from "../petri/editor/helpers/layout-graph";
+import type { LayoutEngine } from "../viewer/viewer-config";
 import { createRustDfgLayout, createRustOcdfgLayout, type LayoutTransport } from "./index";
 
 // Lazy wasm loader: the ~460KB layout engine is only instantiated when a Rust layout is actually
@@ -100,3 +101,13 @@ export const wasmDfgLayout = createRustDfgLayout(wasmTransport);
 export const wasmOcdfgLayout = createRustOcdfgLayout(wasmTransport);
 export const wasmDeclareLayout = createRustDeclareLayout(wasmTransport);
 export const wasmPetriLayout = createRustPetriLayout(wasmTransport);
+
+/** Ready wasm `LayoutEngine` covering every graph surface plus the SVG renderer. Pass through
+ *  `ViewerConfigProvider value={{ layout: wasmLayout }}`. The wasm loads lazily on first layout. */
+export const wasmLayout: LayoutEngine = {
+  dfg: wasmDfgLayout,
+  ocdfg: wasmOcdfgLayout,
+  declare: wasmDeclareLayout,
+  petri: wasmPetriLayout,
+  renderSvg: wasmRenderStyledGraph,
+};

@@ -1,25 +1,11 @@
 import { Controls, Description, Primary, Stories, Subtitle, Title } from "@storybook/addon-docs/blocks";
 import type { Preview } from "@storybook/react-vite";
 import type { ReactNode } from "react";
-import { Theme, ViewerConfigProvider, ViewerExportFrame, type LayoutDefaults } from "@r4pm/components";
-import {
-  createElkDfgLayout,
-  createElkGraphLayout,
-  elkDeclareLayout,
-  elkLayoutPetriNet,
-} from "@r4pm/components/elk-layout";
+import { Theme, ViewerConfigProvider, ViewerExportFrame } from "@r4pm/components";
+import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
 import { FullSource, ReferencedTypes } from "./doc-blocks";
 // Global styles so every story + autodocs canvas renders with the viewers' real styling.
 import "../src/styles.css";
-
-/** Stories run standalone (no backend), so default every graph viewer to the ELK engine - the core
- *  ships none. Real layouts render; SVG export (backend-only) is not wired in Storybook. */
-const ELK_LAYOUT: LayoutDefaults = {
-  dfg: createElkDfgLayout(),
-  ocdfg: createElkGraphLayout("TB"),
-  declare: elkDeclareLayout,
-  petri: elkLayoutPetriNet,
-};
 
 /**
  * Per-story framing. `canvas` gives graph/plot viewers a fixed-height bordered box (height tuned
@@ -125,7 +111,7 @@ const preview: Preview = {
       const appearance = ((ctx.globals.colorScheme as string) ?? "light") as "light" | "dark";
       return (
         <Framed frame={frame} appearance={appearance}>
-          <ViewerConfigProvider value={{ layout: ELK_LAYOUT }}>
+          <ViewerConfigProvider value={{ layout: wasmLayout }}>
             <Story />
           </ViewerConfigProvider>
         </Framed>

@@ -62,8 +62,26 @@ pub struct GraphNode {
 
 impl GraphNode {
     fn into_engine(self) -> viz_layout::GraphNode {
-        let GraphNode { width, height, ellipse, pin, category, seed, pinned, clear_after } = self;
-        viz_layout::GraphNode { width, height, ellipse, pin, category, seed, pinned, clear_after }
+        let GraphNode {
+            width,
+            height,
+            ellipse,
+            pin,
+            category,
+            seed,
+            pinned,
+            clear_after,
+        } = self;
+        viz_layout::GraphNode {
+            width,
+            height,
+            ellipse,
+            pin,
+            category,
+            seed,
+            pinned,
+            clear_after,
+        }
     }
 }
 
@@ -102,7 +120,14 @@ pub struct GraphSpec {
 impl GraphSpec {
     fn into_engine(self) -> viz_layout::GraphSpec {
         let GraphSpec {
-            nodes, edges, weights, direction, flow_edges, flow_diagonal, edge_label_sizes, thickness,
+            nodes,
+            edges,
+            weights,
+            direction,
+            flow_edges,
+            flow_diagonal,
+            edge_label_sizes,
+            thickness,
         } = self;
         viz_layout::GraphSpec {
             nodes: nodes.into_iter().map(GraphNode::into_engine).collect(),
@@ -127,7 +152,10 @@ pub struct GraphLayout {
 
 impl From<viz_layout::GraphLayout> for GraphLayout {
     fn from(out: viz_layout::GraphLayout) -> Self {
-        GraphLayout { centers: out.centers, routes: out.routes }
+        GraphLayout {
+            centers: out.centers,
+            routes: out.routes,
+        }
     }
 }
 
@@ -155,12 +183,19 @@ mod tests {
 
     /// Geometry quality of a laid-out net, derived purely from node boxes and edge routes.
     fn petri_metrics(lr: &LayoutResult, net: &PetriNet) -> LayoutMetrics {
-        let boxes: Vec<(f64, f64, f64, f64)> =
-            lr.nodes.iter().map(|n| (n.cx, n.cy, n.width, n.height)).collect();
+        let boxes: Vec<(f64, f64, f64, f64)> = lr
+            .nodes
+            .iter()
+            .map(|n| (n.cx, n.cy, n.width, n.height))
+            .collect();
         let ellipse: Vec<bool> = lr.nodes.iter().map(|n| n.kind == NodeKind::Place).collect();
         let routes: Vec<Vec<(f64, f64)>> = lr.edges.iter().map(|e| e.points.clone()).collect();
-        let idx: std::collections::HashMap<_, _> =
-            lr.nodes.iter().enumerate().map(|(i, n)| (n.uuid, i)).collect();
+        let idx: std::collections::HashMap<_, _> = lr
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.uuid, i))
+            .collect();
         let endpoints: Vec<(usize, usize)> = net
             .arcs
             .iter()
@@ -169,7 +204,10 @@ mod tests {
                     ArcType::PlaceTransition(p, t) => (p, t),
                     ArcType::TransitionPlace(t, p) => (t, p),
                 };
-                (idx.get(&a).copied().unwrap_or(usize::MAX), idx.get(&b).copied().unwrap_or(usize::MAX))
+                (
+                    idx.get(&a).copied().unwrap_or(usize::MAX),
+                    idx.get(&b).copied().unwrap_or(usize::MAX),
+                )
             })
             .collect();
         compute(&boxes, &routes, &endpoints, &ellipse)
@@ -250,7 +288,10 @@ mod tests {
 
         let lr = layout_petri_net(&net);
         let m = petri_metrics(&lr, &net);
-        assert_eq!(m.crossings, 0, "no arcs may cross on the transition borders");
+        assert_eq!(
+            m.crossings, 0,
+            "no arcs may cross on the transition borders"
+        );
         assert_eq!(m.node_hits, 0, "no arc may be routed through a node box");
         assert_eq!(m.overlaps, 0, "no two arcs may be coincident");
     }
@@ -284,7 +325,11 @@ mod tests {
         let routes = |lr: &LayoutResult| -> Vec<Vec<(f64, f64)>> {
             lr.edges.iter().map(|e| e.points.clone()).collect()
         };
-        assert_eq!(centers(&a), centers(&b), "node centres must be deterministic");
+        assert_eq!(
+            centers(&a),
+            centers(&b),
+            "node centres must be deterministic"
+        );
         assert_eq!(routes(&a), routes(&b), "edge routes must be deterministic");
     }
 
@@ -384,8 +429,11 @@ mod tests {
         // Edge routes must match too (both keyed by net.arcs order).
         let export_routes: Vec<Vec<(f64, f64)>> =
             export.edges.iter().map(|e| e.points.clone()).collect();
-        let display_routes: Vec<Vec<(f64, f64)>> =
-            display.routes.iter().map(|r| r.iter().map(|&[x, y]| (x, y)).collect()).collect();
+        let display_routes: Vec<Vec<(f64, f64)>> = display
+            .routes
+            .iter()
+            .map(|r| r.iter().map(|&[x, y]| (x, y)).collect())
+            .collect();
         assert_eq!(
             export_routes, display_routes,
             "export and display edge routes must match"

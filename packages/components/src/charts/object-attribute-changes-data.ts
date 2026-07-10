@@ -54,6 +54,9 @@ export function buildPlotData(val: ObjectAttributeChanges, objectID: string): Pl
   const shapes: Partial<Plotly.Shape>[] = [];
   let categoricalCount = 0;
   let numericCount = 0;
+  const lastTime = Object.values(val.traces)
+    .flatMap((changes) => changes.map(({ time }) => time))
+    .reduce((a, b) => (a > b ? a : b), "1970-01-01T00:00:00Z");
 
   for (const t in val.traces) {
     const changes = val.traces[t]!;
@@ -90,8 +93,8 @@ export function buildPlotData(val: ObjectAttributeChanges, objectID: string): Pl
           yref: "paper",
           x0: entry.time,
           y0: 1.02 + categoricalCount * 0.04,
-          y1: 1.06 + categoricalCount * 0.04,
-          x1: nextEntry ? nextEntry.time : new Date().toISOString(),
+          y1: 1.1 + categoricalCount * 0.04,
+          x1: nextEntry ? nextEntry.time : lastTime,
           fillcolor: COLORS[shapes.length % COLORS.length],
           layer: "below",
           opacity: 0.6,
@@ -101,7 +104,7 @@ export function buildPlotData(val: ObjectAttributeChanges, objectID: string): Pl
           xref: "x",
           yref: "paper",
           x: entry.time,
-          y: 1.04 + categoricalCount * 0.04,
+          y: 1.06 + categoricalCount * 0.04,
           yanchor: "middle",
           text: valueToString(entry.value),
           showarrow: false,
@@ -116,7 +119,7 @@ export function buildPlotData(val: ObjectAttributeChanges, objectID: string): Pl
       const y = changes.map(({ value }) => Number(valueToString(value)));
       const opacities = changes.map(() => 1.0);
       if (changes.length > 0) {
-        x.push(new Date().toISOString());
+        x.push(lastTime);
         y.push(Number(valueToString(changes[changes.length - 1]!.value)));
         opacities.push(0.0);
       }

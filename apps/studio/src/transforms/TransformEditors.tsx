@@ -18,6 +18,7 @@ import type {
   AttributeKind,
   AttributeLevel,
   AttributeScope,
+  AttributeValues,
   BackendContext,
   Condition,
   EventLogHandle,
@@ -1367,17 +1368,106 @@ type AttrSummaryData = {
   numeric_stats: { min: number; max: number; mean: number; median: number; stddev: number } | null;
 };
 
+/** Distinct-value count at or below which the categorical filter uses the clickable bar
+ *  chart; above it the chart squishes/overflows, so a searchable checklist is used instead. */
+const CATEGORICAL_CHART_MAX = 10;
+
+/** Searchable, virtualized value picker for categorical attributes with many distinct values.
+ *  Uses the full distinct list from the server (`fullValues`); falls back to the summary's
+ *  top values while that is loading or if it errors. */
+function CategoricalValuePicker({
+  summary,
+  attrName,
+  selectedValues,
+  onChange,
+  fullValues,
+  valuesLoading,
+  valuesError,
+}: {
+  summary: AttrSummaryData;
+  attrName: string;
+  selectedValues: Set<string>;
+  onChange: (c: Condition) => void;
+  fullValues: AttributeValues | null;
+  valuesLoading: boolean;
+  valuesError: boolean;
+}) {
+  const items = fullValues?.values ?? summary.top_values;
+  const counts: Record<string, number> = {};
+  for (const [v, c] of items) counts[v] = c;
+  const allValues = items.map(([v]) => v);
+
+  const capped = fullValues != null && fullValues.total_distinct > fullValues.values.length;
+  const usingFallback = fullValues == null;
+
+  return (
+    <div
+      className="rounded-lg p-3"
+      style={{ background: "var(--gray-2)", border: "1px solid var(--gray-5)" }}
+    >
+      <Flex align="center" gap="2" mb="1">
+        <Text size="2" weight="bold" className="font-mono">
+          {summary.name ?? attrName}
+        </Text>
+        <Badge size="1" color="orange" variant="soft">
+          {summary.kind}
+        </Badge>
+        {selectedValues.size > 0 && (
+          <Badge size="1" color="iris" variant="soft">
+            {selectedValues.size} selected
+          </Badge>
+        )}
+      </Flex>
+      <Text size="1" color="gray" as="div" mb="1">
+        {summary.total - summary.missing} present, {summary.missing} missing (search and check values)
+      </Text>
+
+      {valuesLoading && usingFallback ? (
+        <Text size="1" color="gray">
+          Loading values…
+        </Text>
+      ) : (
+        <ItemCheckboxList
+          allItems={allValues}
+          selectedItems={allValues.filter((v) => selectedValues.has(v))}
+          onSelectionChange={(vals) => onChange(buildCategoricalCondition(attrName, vals))}
+          useActivityColors={false}
+          counts={counts}
+        />
+      )}
+
+      {capped && (
+        <Text size="1" color="gray" as="div" mt="1">
+          Showing top {fullValues.values.length.toLocaleString()} of{" "}
+          {fullValues.total_distinct.toLocaleString()} values.
+        </Text>
+      )}
+      {(valuesError || (usingFallback && !valuesLoading)) && (
+        <Text size="1" color="gray" as="div" mt="1">
+          Showing top {items.length.toLocaleString()} values.
+        </Text>
+      )}
+    </div>
+  );
+}
+
 /** Interactive distribution panel using Plotly for selection */
 function FilterDistributionPanel({
   summary,
   attrName,
   condition,
   onChange,
+  fullValues,
+  valuesLoading,
+  valuesError,
 }: {
   summary: AttrSummaryData;
   attrName: string;
   condition: Condition;
   onChange: (c: Condition) => void;
+  fullValues: AttributeValues | null;
+  valuesLoading: boolean;
+  valuesError: boolean;
 }) {
   const bounds = parseNumericBounds(condition, attrName);
   const selectedValues = useMemo(
@@ -1568,6 +1658,20 @@ function FilterDistributionPanel({
     (summary.kind === "Categorical" || summary.kind === "Other" || summary.kind === "Date") &&
     summary.top_values.length > 0
   ) {
+    // Many distinct values squish the bar chart; use a searchable checklist instead.
+    if (summary.top_values.length > CATEGORICAL_CHART_MAX) {
+      return (
+        <CategoricalValuePicker
+          summary={summary}
+          attrName={attrName}
+          selectedValues={selectedValues}
+          onChange={onChange}
+          fullValues={fullValues}
+          valuesLoading={valuesLoading}
+          valuesError={valuesError}
+        />
+      );
+    }
     const labels = summary.top_values.map(([v]) => v);
     const counts = summary.top_values.map(([, c]) => c);
     const barColors = labels.map((v) => (selectedValues.has(v) ? "#6e56cf" : "#888"));
@@ -1767,6 +1871,39 @@ function FilterAttributesEditor({
 
   const summary = summaryQuery.data ?? null;
 
+  // Full distinct value list (no 100-cap) for the searchable picker; only fetched when the
+  // attribute is categorical with more values than the bar chart can show.
+  const needsValues =
+    !!summary &&
+    (summary.kind === "Categorical" || summary.kind === "Other" || summary.kind === "Date") &&
+    summary.top_values.length > CATEGORICAL_CHART_MAX;
+
+  const valuesQuery = useQuery<AttributeValues>({
+    queryKey: [objectType, datasetName, "attr-values", selectedAttr, JSON.stringify(currentScope)],
+    queryFn: async () => {
+      if (objectType === "EventLog") {
+        const level: AttributeLevel = currentScope.type === "Event" ? "Event" : "Case";
+        return backend.callBinding("app_bindings::event_log::get_attribute_values", {
+          event_log: datasetName as EventLogHandle,
+          attr_name: selectedAttr!,
+          level,
+        }) as Promise<AttributeValues>;
+      }
+      const level: OcelAttributeLevel =
+        currentScope.type === "Event"
+          ? "Event"
+          : {
+              Object: { object_type: currentScope.type === "Object" ? (currentScope.object_type ?? "") : "" },
+            };
+      return backend.callBinding("app_bindings::ocel::get_ocel_attribute_values", {
+        ocel: datasetName as SlimLinkedOCELHandle,
+        attr_name: selectedAttr!,
+        level,
+      }) as Promise<AttributeValues>;
+    },
+    enabled: !!datasetName && !!selectedAttr && needsValues,
+  });
+
   // OCEL: need object types for scope selector
   const ocelInfoQuery = useQuery({
     queryKey: [datasetName, "ocel-info-for-filter"],
@@ -1902,6 +2039,9 @@ function FilterAttributesEditor({
           attrName={selectedAttr}
           condition={transform.condition}
           onChange={(c) => onChange({ ...transform, condition: c })}
+          fullValues={valuesQuery.data ?? null}
+          valuesLoading={valuesQuery.isLoading}
+          valuesError={valuesQuery.isError}
         />
       )}
 

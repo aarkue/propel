@@ -5,9 +5,11 @@ import { Meta } from "@storybook/addon-docs/blocks";
 # Viewer configuration
 
 Every viewer in `@r4pm/components` takes a typed `data` prop plus an optional, shared
-configuration for coloring, formatting, and interactivity. A host sets the config once
-(via `ViewerConfigProvider`); individual viewers may override any field. All config is
-optional, so `<PetriNetViewer data={net} />` works on its own.
+configuration for coloring, formatting, interactivity, and the layout engine. A host sets the config
+once (via `ViewerConfigProvider`); individual viewers may override any field. Most config is optional
+with sensible fallbacks; the exception is `layout`, which graph viewers (DFG, OC-DFG, OC-DECLARE,
+Petri net) need to place nodes, since the core ships no engine. See
+[Layout Engines](?path=/docs/getting-started-layout-engines--docs).
 
 ## `ViewerProps<T>`
 
@@ -34,6 +36,7 @@ interface ViewerConfig {
   alignmentStyle?: AlignmentStyle; // "trace" | "deviation"
   onSelect?: (target: ViewerTarget) => void;
   onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
+  layout?: LayoutEngine; // layout engine for graph viewers
 }
 ```
 
@@ -80,6 +83,23 @@ interface ViewerAction {
 `onSelect` reports a plain left-click. `onElementContextMenu` is the escape hatch to build a
 fully custom menu. Both receive a [`ViewerTarget`](#viewertarget).
 
+### `layout` (`LayoutEngine`)
+
+The layout engine for graph viewers: one function per surface, plus `renderSvg` for image export.
+The core ships no engine, so graph viewers render a no-op layout (nodes in a line) until you supply
+one. Pass a ready bundle (`elkLayout` or `wasmLayout`) through the provider. Full guide:
+[Layout Engines](?path=/docs/getting-started-layout-engines--docs).
+
+```ts
+interface LayoutEngine {
+  dfg?: DfgLayoutFn;
+  ocdfg?: DfgLayoutFn;
+  declare?: DeclareLayoutFn;
+  petri?: PetriLayoutFn;
+  renderSvg?: StyledGraphRenderer;
+}
+```
+
 ## `ViewerTarget`
 
 A domain element a host can act on.
@@ -107,6 +127,7 @@ Per-viewer props override the provider; unset fields fall back to the viewer's d
 
 ## See also
 
+- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): wiring the `layout` field.
 - [Petri Net](?path=/docs/viewers-petri-net--docs)
 - [Directly-Follows Graph](?path=/docs/viewers-directly-follows-graph--docs)
 - [Alignment Net](?path=/docs/viewers-alignment-net--docs)

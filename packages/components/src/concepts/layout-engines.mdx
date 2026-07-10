@@ -1,0 +1,98 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Getting Started/Layout Engines" tags={["dev"]} />
+
+# Layout engines
+
+Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri net) need a **layout engine** to place nodes and route
+edges. The core package ships none, so a consumer that never renders a graph bundles no layout code.
+You pick an engine, import it, and pass it in. Without one, graph viewers fall back to a no-op layout
+(nodes stacked in a line): nothing crashes, but nothing is laid out either.
+
+An engine is a single object (a `LayoutEngine`) covering every graph surface. Supply it via the shared
+[`ViewerConfig.layout`](?path=/docs/getting-started-viewer-configuration--docs) (app-wide) or a
+viewer's `layoutOverride` prop (per instance).
+
+## Pick an engine
+
+Two ready-made engines ship as separate subpaths, so you only bundle the one you import (and nothing
+if you import neither):
+
+| Engine | Import | Notes |
+| --- | --- | --- |
+| **Rust (wasm)** | `import { wasmLayout } from "@r4pm/components/rust-layout/wasm"` | The bundled Rust engine, compiled to wasm and base64-inlined. Orthogonal or diagonal edge routing, stable drag-relayout, and an SVG image export that matches the on-screen graph (carries `renderSvg`). Loads a ~310 KB gz chunk lazily on first layout. |
+| **ELK** | `import { elkLayout } from "@r4pm/components/elk-layout"` | Pure JS ([elkjs](https://github.com/kieler/elkjs)), no wasm or backend. Spline edge routing; the elkjs chunk (~420 KB gz) loads lazily on first layout. |
+
+Both chunks load only when a graph is first laid out; neither is in the core bundle. The wasm ships
+base64-inlined for zero-config portability, which costs roughly 80 KB gz over the raw binary; ship it
+as a separate `.wasm` asset via `setRustLayoutWasm(url)` to bring it down to ~230 KB gz.
+
+Both are complete `LayoutEngine` objects. Drop one into the provider:
+
+```tsx
+import { ViewerConfigProvider, DFGViewer, PetriNetViewer } from "@r4pm/components";
+import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
+
+<ViewerConfigProvider value={{ layout: wasmLayout }}>
+  <DFGViewer data={dfg} />
+  <PetriNetViewer data={net} />
+</ViewerConfigProvider>;
+```
+
+To use ELK instead, import `elkLayout` from `@r4pm/components/elk-layout` and pass it the same way.
+
+## Per-viewer override
+
+Skip the provider and pass a layout to one viewer. `layoutOverride` beats the provider; `renderSvg` is
+a separate prop on graph viewers. The wasm engine also exports the individual `wasm{Dfg,Ocdfg,Declare,Petri}Layout`
+functions plus `wasmRenderStyledGraph` for this:
+
+```tsx
+import { DFGViewer } from "@r4pm/components";
+import { wasmOcdfgLayout, wasmRenderStyledGraph } from "@r4pm/components/rust-layout/wasm";
+
+<DFGViewer data={dfg} layoutOverride={wasmOcdfgLayout} renderSvg={wasmRenderStyledGraph} />;
+```
+
+## Custom transport
+
+The Rust layout runs over a `LayoutTransport`: the channel that actually executes the engine.
+`wasmLayout` binds it to an in-browser wasm transport, but a host with its own backend (native, server,
+worker) can run layout there instead. This is how the studio app ships zero browser wasm: it points the
+transport at its backend's `layout_graph` / `reroute_graph` bindings. `createRustLayout(transport)`
+assembles the whole engine for you:
+
+```ts
+import { createRustLayout, type LayoutTransport } from "@r4pm/components";
+
+const transport: LayoutTransport = {
+  layoutGraph: (spec) => callMyBackend("layout_graph", spec),
+  rerouteGraph: (spec) => callMyBackend("reroute_graph", spec),
+};
+
+const layout = {
+  ...createRustLayout(transport, { diagonal: false }),
+  // renderSvg: draw the StyledGraph via your backend's export_graph_svg binding
+};
+```
+
+## `LayoutEngine`
+
+The object shape both bundles produce, and what `ViewerConfig.layout` accepts. Every surface is
+optional; any omitted one falls back to the no-op.
+
+```ts
+interface LayoutEngine {
+  dfg?: DfgLayoutFn; // case-centric DFG
+  ocdfg?: DfgLayoutFn; // object-centric DFG
+  declare?: DeclareLayoutFn; // OC-DECLARE
+  petri?: PetriLayoutFn; // Petri net + object-centric Petri net (editor/viewer/simulator)
+  renderSvg?: StyledGraphRenderer; // draw the on-screen graph to SVG (image export)
+}
+```
+
+## See also
+
+- [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config `layout` lives on.
+- [Directly-Follows Graph](?path=/docs/viewers-directly-follows-graph--docs)
+- [Petri Net](?path=/docs/viewers-petri-net--docs)

@@ -49,6 +49,14 @@ jobs:
           node-version: lts/*
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'engine -> target'
+      - name: Install wasm-pack
+        run: npm install -g wasm-pack
+      - name: Build viz-layout wasm (Storybook showcases the in-browser Rust engine)
+        run: pnpm --filter @r4pm/components build:wasm
       - name: Build storybook
         run: pnpm --filter @r4pm/components showcase
       - uses: actions/upload-artifact@v4

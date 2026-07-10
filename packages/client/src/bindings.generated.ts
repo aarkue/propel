@@ -485,6 +485,201 @@ target: RelabelTarget
 condition?: (Condition | null)
 }
 
+export type MarkingKind = ("dot" | "square")
+/**
+ * A single decorative glyph drawn centered in a node (e.g. the start/end terminal chrome on a
+ * DFG). Distinct from [`MarkingGroup`], which draws a *counted row* of tokens.
+ */
+
+export type IconKind = ("triangle" | "square")
+
+/**
+ * A fully laid-out, fully styled diagram, ready to draw with no further layout decisions.
+ */
+
+export interface StyledNode {
+cx: number
+cy: number
+w: number
+h: number
+/**
+ * Node outline shape.
+ */
+shape?: ({
+radius?: number
+kind: "box"
+} | {
+kind: "ellipse"
+} | {
+kind: "circle"
+})
+fill?: (string | null)
+stroke?: (string | null)
+stroke_width?: number
+stroke_dash?: (string | null)
+labels?: StyledLabel[]
+marking?: MarkingGroup[]
+icon?: (StyledIcon | null)
+}
+/**
+ * One line of text drawn centered in a node, offset vertically by `dy`. Multiple labels stack
+ * (e.g. an activity name line + a frequency-count line below it).
+ */
+
+export interface StyledLabel {
+text: string
+size?: number
+weight?: number
+color?: (string | null)
+/**
+ * Vertical offset from the node center, in px.
+ */
+dy?: number
+/**
+ * Word-wrap to fit the node width (max 2 lines, ellipsized). Off by default: pass one
+ * `StyledLabel` per pre-wrapped line instead when the caller already knows the split.
+ */
+wrap?: boolean
+}
+/**
+ * A group of same-kind tokens drawn inside a node (e.g. Petri place markings). Groups are drawn
+ * left-to-right in a single row; if the total count across all groups doesn't fit the node's
+ * width, the renderer collapses the whole row to a single numeral instead.
+ */
+
+export interface MarkingGroup {
+kind: MarkingKind
+color?: (string | null)
+count: number
+}
+
+export interface StyledIcon {
+kind: IconKind
+color?: (string | null)
+/**
+ * Icon half-size as a fraction of the node's half-extent. Defaults to the terminal-chrome
+ * proportions used on screen (~0.3 of the radius).
+ */
+scale?: number
+}
+/**
+ * One edge in a [`StyledGraph`]: an already-routed polyline plus its own styling.
+ */
+
+export interface StyledEdge {
+/**
+ * Routed polyline points, already in the same coordinate space as node `cx`/`cy`.
+ */
+points: [number, number][]
+color?: (string | null)
+width?: number
+dash?: (string | null)
+/**
+ * End-of-edge marker glyph.
+ */
+marker_start?: (("none" | "arrow" | "ball") | "arrow_ball")
+/**
+ * End-of-edge marker glyph.
+ */
+marker_end?: (("none" | "arrow" | "ball") | "arrow_ball")
+labels?: EdgeLabel[]
+dots?: EdgeDot[]
+/**
+ * Corner radius (px) for rounding the polyline's interior joins. 0 draws straight segments
+ * (a plain multi-point polyline), matching whatever radius the on-screen edge used.
+ */
+rounded?: number
+}
+/**
+ * A text label anchored at a fraction along the edge's polyline.
+ */
+
+export interface EdgeLabel {
+text: string
+/**
+ * Fraction (0..1) of the polyline's length. Defaults to the midpoint.
+ */
+at?: number
+/**
+ * Pixel displacement from the `at` anchor (e.g. the on-screen label de-overlap pass).
+ */
+dx?: number
+dy?: number
+bg?: (string | null)
+color?: (string | null)
+}
+/**
+ * A small dot drawn along an edge's curve, filled or hollow (OC-Declare cardinality markers).
+ */
+
+export interface EdgeDot {
+at: number
+color: string
+filled?: boolean
+}
+/**
+ * A titled group of legend entries (e.g. "Object types").
+ */
+
+export interface LegendGroup {
+title?: (string | null)
+items: LegendItem[]
+}
+/**
+ * One legend entry: a labeled swatch.
+ */
+
+export interface LegendItem {
+label: string
+color?: (string | null)
+}
+
+export interface SvgPalette {
+node_bg: string
+node_border: string
+node_text: string
+arc_color: string
+arc_label_bg: string
+export_bg: string
+}
+
+export interface GraphNode {
+width: number
+height: number
+/**
+ * Draw as an ellipse (arcs meet the outline) vs a box. Defaults to box.
+ */
+ellipse?: boolean
+/**
+ * Pin to the first or last layer: `"first"` (source rank) or `"last"` (sink rank).
+ */
+pin?: (string | null)
+/**
+ * Optional grouping id (e.g. an object type). Same-category nodes are held in a consistent
+ * order across layers as a crossing-neutral tiebreak. Absent means no grouping.
+ */
+category?: (number | null)
+/**
+ * Optional seed centre `[x, y]` in final space. When any node has a seed, the layout keeps the
+ * structural layer/order but places the cross-axis at the seed (a stable relayout that leaves
+ * un-dragged nodes put). Absent means classic layout.
+ * 
+ * @minItems 2
+ * @maxItems 2
+ */
+seed?: ([number, number] | null)
+/**
+ * Hard-pin this node's seed cross-coordinate (others yield around it); use for the just-dragged
+ * node so it lands exactly where dropped. Only meaningful with `seed`.
+ */
+pinned?: boolean
+/**
+ * Minimum clearance (px) to keep free beyond this node's border on the positive order side
+ * (screen right in TB, screen bottom in LR): room for caller-drawn self-loops + labels.
+ */
+clear_after?: number
+}
+
 export interface DottedChartPoints {
 /**
  * X-axis values (interpretation depends on [`DottedChartXAxis`]).
@@ -921,8 +1116,7 @@ object_counts: {
 }
 }
 /**
- * Case-centric DFG counts. Start/end carry real per-activity frequencies (unlike the crate's
- * set-based `DirectlyFollowsGraph`).
+ * Case-centric DFG counts. Start/end carry real per-activity frequencies.
  */
 
 export interface OcelDfPerformance {
@@ -1078,6 +1272,69 @@ scope: AttributeScope
 keys: string[]
 type: "RemoveAttributes"
 })
+
+export interface StyledGraph {
+background?: (string | null)
+padding?: number
+nodes: StyledNode[]
+edges: StyledEdge[]
+legend?: LegendGroup[]
+}
+/**
+ * One node in a [`StyledGraph`]: final position/size plus all of its own styling.
+ */
+
+export type Nullable_SvgPalette = (SvgPalette | null)
+
+/**
+ * Colors passed from the frontend (or defaulted to light theme).
+ */
+
+export interface GraphSpec {
+nodes: GraphNode[]
+/**
+ * Directed edges as `(from_index, to_index)` into `nodes`.
+ */
+edges: [number, number][]
+/**
+ * Optional per-edge importance (same length as `edges`); heavier edges lay out straighter
+ * and shorter. Empty => all equal.
+ */
+weights?: number[]
+/**
+ * `"TB"` top->bottom (default) or `"LR"` left->right.
+ */
+direction?: (string | null)
+/**
+ * Flow layout: tighter gaps + terminal centring (`true`) vs classic gaps (`false`, default).
+ */
+flow_edges?: boolean
+/**
+ * Diagonal (flow) routing vs orthogonal straight-channel routing (`false`, default). Only
+ * meaningful with `flow_edges`.
+ */
+flow_diagonal?: boolean
+/**
+ * Optional `[width, height]` in final space of each edge's mid-point label (same length/order
+ * as `edges`). The layout reserves that space on the edge centre so labels don't overlap other
+ * edges/nodes. Empty => no reservation.
+ */
+edge_label_sizes?: [number, number][]
+/**
+ * Optional per-edge drawn stroke width (same length/order as `edges`); port spreading keeps
+ * adjacent thick strokes from visually merging. Empty => all 2.0.
+ */
+thickness?: number[]
+}
+/**
+ * One node in a generic graph-layout request. Only its size and shape matter to the layout;
+ * labels/colors are the caller's concern (this binding returns geometry, not an image).
+ */
+
+export interface GraphLayout {
+centers: [number, number][]
+routes: [number, number][][]
+}
 
 export interface DottedChartOptions {
 /**
@@ -1509,6 +1766,16 @@ export interface Bindings {
     "ocel": SlimLinkedOCELHandle;
     "transforms": Transform[];
     }; ret: SlimLinkedOCELHandle };
+  "app_bindings::viz::export_graph_svg": { args: {
+    "graph": StyledGraph;
+    "palette": Nullable_SvgPalette;
+    }; ret: string };
+  "app_bindings::viz::layout_graph": { args: {
+    "spec": GraphSpec;
+    }; ret: GraphLayout };
+  "app_bindings::viz::reroute_graph": { args: {
+    "spec": GraphSpec;
+    }; ret: GraphLayout };
   "process_mining::analysis::case_centric::dotted_chart::get_dotted_chart": { args: {
     "xes": EventLogHandle;
     "options"?: DottedChartOptions;
@@ -1842,6 +2109,7 @@ export const RETURN_TYPES = {
   "EventLogActivityProjection": "EventLogActivityProjection",
   "EventLogInput": "EventLogInput",
   "FitnessResult": "FitnessResult",
+  "GraphLayout": "GraphLayout",
   "IndexLinkedOCEL": "IndexLinkedOCEL",
   "LogAlignments": "LogAlignments",
   "LogGlobals": "LogGlobals",
@@ -1917,6 +2185,7 @@ export interface ReturnTypeShape {
   "EventLogActivityProjection": EventLogActivityProjectionHandle;
   "EventLogInput": EventLogInput;
   "FitnessResult": FitnessResult;
+  "GraphLayout": GraphLayout;
   "IndexLinkedOCEL": IndexLinkedOCELHandle;
   "LogAlignments": LogAlignments;
   "LogGlobals": LogGlobals;
@@ -1995,6 +2264,9 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::petri_net_io::export_petri_net_pnml": "string",
   "app_bindings::transforms::apply_event_log_transforms": "EventLog",
   "app_bindings::transforms::apply_ocel_transforms": "SlimLinkedOCEL",
+  "app_bindings::viz::export_graph_svg": "string",
+  "app_bindings::viz::layout_graph": "GraphLayout",
+  "app_bindings::viz::reroute_graph": "GraphLayout",
   "process_mining::analysis::case_centric::dotted_chart::get_dotted_chart": "DottedChartData",
   "process_mining::analysis::case_centric::event_timestamp_histogram::get_event_timestamps": "AggregatedEventTimestamps",
   "process_mining::analysis::object_centric::object_attribute_changes::get_object_attribute_changes": "ObjectAttributeChanges",

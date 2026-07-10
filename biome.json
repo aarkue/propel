@@ -8,6 +8,7 @@
       "examples/*/src/**",
       "packages/client/gen/**",
       "!packages/client/src/bindings.generated.ts",
+      "!packages/client/gen/bindings-meta.json",
       "!**/*.css"
     ]
   },

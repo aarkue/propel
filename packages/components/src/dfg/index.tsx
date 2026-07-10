@@ -3,8 +3,11 @@ import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
 import { shadeHex } from "./util/colors";
 import { type DfgArc, type DfgMetric, DFG_END_ID, DFG_START_ID } from "./util/dfg-model";
 import type { DfArcDuration, DfPerformance, OcelDfPerformance } from "./util/performance-types";
-import { DfgGraph } from "./DfgGraph";
+import { DfgGraph, type DfgLayoutFn } from "./DfgGraph";
 import { FrequencyPicker } from "../inputs/FrequencyPicker";
+import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
+
+export type { DfgLayoutFn } from "./DfgGraph";
 
 /** Local view-model. Kept explicit so the viewer has no `@r4pm/client` dependency. */
 export interface DirectlyFollowsGraph {
@@ -91,10 +94,15 @@ function buildCaseDfg(
 /** Extra props for the case-centric DFG viewer. `performance` enables the frequency/performance toggle and duration heatmap; omit to show frequency only. */
 export interface DFGViewerProps extends ViewerProps<DirectlyFollowsGraph> {
   performance?: DfPerformance;
+  /** Draw the exact on-screen graph through a host-supplied renderer (typically the
+   *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. */
+  renderSvg?: StyledGraphRenderer;
+  /** Replace the default Rust layout (e.g. with a host-supplied one). */
+  layoutOverride?: DfgLayoutFn;
 }
 
 export function DFGViewer(props: DFGViewerProps) {
-  const { data, performance } = props;
+  const { data, performance, renderSvg, layoutOverride } = props;
   const cfg = useViewerConfig(props);
   const [metric, setMetric] = useState<DfgMetric>("count");
 
@@ -119,6 +127,8 @@ export function DFGViewer(props: DFGViewerProps) {
       onSelect={cfg.onSelect}
       actions={cfg.actions}
       onElementContextMenu={cfg.onElementContextMenu}
+      renderSvg={renderSvg ?? cfg.layout?.renderSvg}
+      layoutOverride={layoutOverride ?? cfg.layout?.dfg}
     />
   );
 }
@@ -126,10 +136,15 @@ export function DFGViewer(props: DFGViewerProps) {
 /** Extra props for the OC-DFG viewer. `performance` enables the frequency/performance toggle; omit to show frequency only. */
 export interface OCDFGViewerProps extends ViewerProps<OCDirectlyFollowsGraph> {
   performance?: OcelDfPerformance;
+  /** Draw the exact on-screen graph through a host-supplied renderer (typically the
+   *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. */
+  renderSvg?: StyledGraphRenderer;
+  /** Replace the default Rust layout (e.g. with a host-supplied one). */
+  layoutOverride?: DfgLayoutFn;
 }
 
 export function OCDFGViewer(props: OCDFGViewerProps) {
-  const { data, performance } = props;
+  const { data, performance, renderSvg, layoutOverride } = props;
   const cfg = useViewerConfig(props);
   const [metric, setMetric] = useState<DfgMetric>("count");
   const actHex = useCallback((act: string) => cfg.colorOf?.("activity", act) ?? "#888888", [cfg.colorOf]);
@@ -277,6 +292,8 @@ export function OCDFGViewer(props: OCDFGViewerProps) {
       onSelect={cfg.onSelect}
       actions={cfg.actions}
       onElementContextMenu={cfg.onElementContextMenu}
+      renderSvg={renderSvg ?? cfg.layout?.renderSvg}
+      layoutOverride={layoutOverride ?? cfg.layout?.ocdfg}
     />
   );
 }

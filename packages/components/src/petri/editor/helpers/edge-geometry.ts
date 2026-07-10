@@ -79,21 +79,18 @@ export function polylineMidpoint(pts: Pt[]): Pt {
 export type ArcRoutingLite = { points: Pt[]; srcPos: Pt; tgtPos: Pt };
 
 /**
- * The full arc path (rounded ELK routing, following a dragged endpoint; or a
- * straight border-to-border fallback) plus its label anchor. Single source of
- * truth for both the on-screen `CustomEdge` and the SVG export.
+ * The raw (un-rounded, un-shortened) arc polyline: routed bend points following a dragged
+ * endpoint, or a straight border-to-border fallback. Shared by `arcGeometry` (on-screen path +
+ * label) and the `StyledGraph` export builder (which does its own rounding/marker-gap shortening).
  */
-export function arcGeometry(opts: {
+export function arcRawPoints(opts: {
   sourceCenter: Pt;
   targetCenter: Pt;
   sourceType: PetriNetNode["type"];
   targetType: PetriNetNode["type"];
-  strokeWidth: number;
   routing?: ArcRoutingLite;
-}): { path: string; labelX: number; labelY: number } {
-  const { sourceCenter, targetCenter, sourceType, targetType, strokeWidth, routing } = opts;
-  const endGap = endGapFor(markerSizeFor(strokeWidth));
-
+}): Pt[] {
+  const { sourceCenter, targetCenter, sourceType, targetType, routing } = opts;
   if (routing && routing.points.length >= 2) {
     const pts = routing.points.map((p) => ({ ...p }));
     const srcDx = sourceCenter.x - routing.srcPos.x;
@@ -107,8 +104,7 @@ export function arcGeometry(opts: {
       const n = pts.length;
       pts[n - 1] = { x: pts[n - 1].x + tgtDx, y: pts[n - 1].y + tgtDy };
     }
-    const mid = polylineMidpoint(pts);
-    return { path: roundedPolyline(shortenEnd(pts, endGap), 8), labelX: mid.x, labelY: mid.y };
+    return pts;
   }
 
   const tSize = nodeSize(targetType);
@@ -135,8 +131,32 @@ export function arcGeometry(opts: {
           sSize.height,
         )
       : getIntersectionCirc(targetCenter.x, targetCenter.y, sourceCenter.x, sourceCenter.y, sSize.width);
-  const start = interSource ?? sourceCenter;
-  const rawEnd = interTarget ?? targetCenter;
+  return [interSource ?? sourceCenter, interTarget ?? targetCenter];
+}
+
+/**
+ * The full arc path (rounded orthogonal routing, following a dragged endpoint; or a
+ * straight border-to-border fallback) plus its label anchor. Single source of
+ * truth for both the on-screen `CustomEdge` and the SVG export.
+ */
+export function arcGeometry(opts: {
+  sourceCenter: Pt;
+  targetCenter: Pt;
+  sourceType: PetriNetNode["type"];
+  targetType: PetriNetNode["type"];
+  strokeWidth: number;
+  routing?: ArcRoutingLite;
+}): { path: string; labelX: number; labelY: number } {
+  const { strokeWidth, routing } = opts;
+  const endGap = endGapFor(markerSizeFor(strokeWidth));
+  const pts = arcRawPoints(opts);
+
+  if (routing && routing.points.length >= 2) {
+    const mid = polylineMidpoint(pts);
+    return { path: roundedPolyline(shortenEnd(pts, endGap), 8), labelX: mid.x, labelY: mid.y };
+  }
+
+  const [start, rawEnd] = pts;
   const end = shortenEnd([start, rawEnd], endGap)[1] ?? rawEnd;
   return {
     path: `M ${start.x},${start.y} L ${end.x},${end.y}`,

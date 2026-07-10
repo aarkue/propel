@@ -3,7 +3,7 @@ import { withSelector, datasetEmptyBox } from "./_shared";
 import { TransformBuilder } from "../transforms";
 import { backend } from "../backends";
 import { useDatasetSelection } from "../panels/active-datasets";
-import { useDatasets } from "../stores";
+import { useDatasets, uniqueDatasetLabel } from "../stores";
 import { PiShuffle } from "react-icons/pi";
 import { definePanel } from "./define-vis";
 
@@ -20,7 +20,11 @@ export function OcelTransformsDockPanel(_props: IDockviewPanelProps) {
         datasetName={ocel}
         objectType="OCEL"
         onResult={(handle, outName) =>
-          addDataset({ id: handle, kind: "SlimLinkedOCEL", label: outName || handle })
+          addDataset({
+            id: handle,
+            kind: "SlimLinkedOCEL",
+            label: uniqueDatasetLabel(outName || "Transformed OCEL"),
+          })
         }
       />
     </div>,

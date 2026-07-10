@@ -31,7 +31,7 @@ function ActivityContextMenu({
 
 // Hidden handles: ReactFlow requires them for edge endpoints, but we don't
 // want visible connector dots since this graph is read-only. Keeping them as
-// 1×1 fully-transparent targets at the four sides lets ELK-routed edges
+// 1x1 fully-transparent targets at the four sides lets routed edges
 // anchor correctly without showing anything.
 const HIDDEN_HANDLE_STYLE: React.CSSProperties = {
   width: 1,
@@ -56,7 +56,7 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
   const colorFg = activityColor(data.label, "foreground");
 
   // Hidden-type filter applied at render time so toggling the filter doesn't
-  // invalidate the ELK layout.
+  // invalidate the layout.
   const visibleTypes = data.objectTypes.filter((t) => !hiddenObjectTypes.has(t.name));
   const eventCount = eventTypeCounts[data.label] ?? 0;
 
@@ -84,7 +84,7 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
                   <span className="text-[10px]">
                     <span style={{ color: objectTypeColor(t.name) }}>{t.name}</span>
                     <span className="text-[var(--gray-8)] ml-1">
-                      {t.min === t.max ? t.min : `${t.min}–${t.max}`} per event
+                      {t.min === t.max ? t.min : `${t.min}-${t.max}`} per event
                     </span>
                   </span>
                 </ContextMenu.Label>

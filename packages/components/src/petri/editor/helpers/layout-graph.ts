@@ -1,10 +1,8 @@
-import ELK, { type ElkNode, type LayoutOptions } from "elkjs/lib/elk.bundled.js";
 import type { Edge } from "@xyflow/react";
 import type { ArcData, PetriNetNode } from "../Editor";
+import { layoutGraph, type LayoutTransport } from "../../../rust-layout";
 
-const elk = new ELK();
-
-/** Canonical node sizes, shared by ELK layout, the node
+/** Canonical node sizes, shared by the layout engine, the node
  *  components (rendered width/height), and the edge border-clipping geometry. */
 export const TRANSITION_SIZE = { width: 120, height: 52 } as const;
 export const PLACE_SIZE = { width: 52, height: 52 } as const;
@@ -13,11 +11,9 @@ export function nodeSize(type: PetriNetNode["type"]): { width: number; height: n
   return type === "place" ? PLACE_SIZE : TRANSITION_SIZE;
 }
 
-/** ELK orthogonal bend-point routing captured for an arc, mirroring the DFG
- *  edge routing. Points are in flow coordinates (graph top-left origin, which
- *  equals flow space because node centers are written as `elkTopLeft + size/2`).
- *  `srcPos`/`tgtPos` are the source/target node *center* positions at layout
- *  time, used to detect a later drag and fall back to a live straight path. */
+/** Orthogonal bend-point routing captured for an arc. Points are in flow coordinates (graph
+ *  top-left origin = flow space, node centers written as center). `srcPos`/`tgtPos` are the source/
+ *  target node *center* positions at layout time, used to detect a later drag. */
 export type ArcRouting = {
   kind: "polyline";
   points: { x: number; y: number }[];
@@ -25,82 +21,99 @@ export type ArcRouting = {
   tgtPos: { x: number; y: number };
 };
 
-const DEFAULT_OPTIONS: LayoutOptions = {
-  "elk.algorithm": "layered",
-  "elk.direction": "RIGHT",
-  "elk.edgeRouting": "ORTHOGONAL",
-  "elk.layered.spacing.nodeNodeBetweenLayers": "55",
-  "elk.spacing.nodeNode": "40",
-  "elk.spacing.edgeNode": "25",
-  "elk.spacing.edgeEdge": "18",
-  "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
-  "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
+/**
+ * Lay out a Petri net with the bundled Rust engine (orthogonal routing, left->right). Nodes are
+ * positioned by their *center* (matching the editor's `nodeOrigin=[0.5,0.5]`) and edges carry
+ * `type:"custom"` plus bend-point routing in `data.routing`.
+ */
+export type PetriLayoutOptions = {
+  /** Stable relayout: seed each node at a centre and hold the un-dragged ones there. Return the
+   *  current centre for every node and set `pinned` on the just-dragged one so it stays exactly
+   *  where dropped. Return `undefined` for a node to leave it unseeded. Omit for a fresh layout. */
+  seed?: (node: PetriNetNode) => { x: number; y: number; pinned?: boolean } | undefined;
+  /** On-drop relayout: re-derive the grid from the seeded positions and re-route edges only (nodes
+   *  stay exactly where dropped). Requires `seed` to cover every node. Omit for a fresh layout. */
+  reroute?: boolean;
 };
 
-/**
- * Lay out a Petri net with ELK. Returns nodes positioned by their *center*
- * (matching the editor's `nodeOrigin=[0.5,0.5]`) and edges carrying
- * `type:"custom"` plus ELK bend-point routing in `data.routing`.
- */
-export async function layoutPetriNet(
+/** A pluggable Petri-net layout (same contract as {@link layoutPetriNet}): positions nodes by
+ *  *center* and writes bend-point `ArcRouting` into each edge's `data.routing`. */
+export type PetriLayoutFn = (
   nodes: PetriNetNode[],
   edges: Edge<ArcData>[],
-  options: LayoutOptions = {},
-): Promise<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }> {
-  const graph = {
-    id: "root",
-    layoutOptions: { ...DEFAULT_OPTIONS, ...options },
-    children: nodes.map((n) => ({ id: n.id, ...nodeSize(n.type) })),
-    edges: edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
-  };
+  options?: PetriLayoutOptions,
+) => Promise<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>;
 
-  const laidOut: ElkNode = await elk.layout(graph as unknown as ElkNode);
-
-  const center = new Map<string, { x: number; y: number }>();
-  const sizeById = new Map<string, { width: number; height: number }>();
-  for (const c of laidOut.children ?? []) {
-    const w = c.width ?? 0;
-    const h = c.height ?? 0;
-    center.set(c.id, { x: (c.x ?? 0) + w / 2, y: (c.y ?? 0) + h / 2 });
-    sizeById.set(c.id, { width: w, height: h });
-  }
-
-  const routingById = new Map<string, ArcRouting>();
-  for (const re of laidOut.edges ?? []) {
-    const section = (re as { sections?: ElkEdgeSection[] }).sections?.[0];
-    if (!section) continue;
-    const points: { x: number; y: number }[] = [
-      section.startPoint,
-      ...(section.bendPoints ?? []),
-      section.endPoint,
-    ];
-    routingById.set(re.id, {
-      kind: "polyline",
-      points,
-      srcPos: center.get(sourceOf(edges, re.id)) ?? { x: 0, y: 0 },
-      tgtPos: center.get(targetOf(edges, re.id)) ?? { x: 0, y: 0 },
+export function createRustPetriLayout(transport: LayoutTransport): PetriLayoutFn {
+  return async (
+    nodes: PetriNetNode[],
+    edges: Edge<ArcData>[],
+    options?: PetriLayoutOptions,
+  ): Promise<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }> => {
+    // Feed the engine the SAME canonical node order the Rust SVG export uses (places then transitions,
+    // each sorted by id) so the on-screen layout is byte-identical to the export. Results map back by
+    // id, so the render is unaffected by this ordering. Uniform weights also match the export.
+    const ordered = [...nodes].sort((a, b) => {
+      const ra = a.type === "place" ? 0 : 1;
+      const rb = b.type === "place" ? 0 : 1;
+      if (ra !== rb) return ra - rb;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
-  }
+    // Object-centric nets carry an object type per place; map each distinct type to a stable index so
+    // the engine keeps every type on a consistent lane (crossing-neutral). Plain Petri nets have no
+    // type -> no category -> unchanged layout.
+    const objectTypeIndex = new Map<string, number>();
+    for (const t of [
+      ...new Set(nodes.flatMap((n) => (n.type === "place" && n.data.objectType ? [n.data.objectType] : []))),
+    ].sort()) {
+      objectTypeIndex.set(t, objectTypeIndex.size);
+    }
+    const laid = await layoutGraph(ordered, edges, {
+      transport,
+      id: (n) => n.id,
+      source: (e) => e.source,
+      target: (e) => e.target,
+      direction: "LR",
+      flowEdges: false,
+      reroute: options?.reroute,
+      weight: () => 1,
+      nodeSpec: (n) => {
+        const s = nodeSize(n.type);
+        const category =
+          n.type === "place" && n.data.objectType ? objectTypeIndex.get(n.data.objectType) : undefined;
+        const seeded = options?.seed?.(n);
+        return {
+          width: s.width,
+          height: s.height,
+          ellipse: n.type === "place",
+          category,
+          seed: seeded ? ([seeded.x, seeded.y] as [number, number]) : undefined,
+          pinned: seeded?.pinned,
+        };
+      },
+    });
 
-  return {
-    nodes: nodes.map((n) => ({ ...n, position: center.get(n.id) ?? { x: 0, y: 0 } }) as PetriNetNode),
-    edges: edges.map((e) => ({
-      ...e,
-      type: "custom",
-      data: { ...e.data, routing: routingById.get(e.id) },
-    })),
+    const routingOf = (e: Edge<ArcData>): ArcRouting => ({
+      kind: "polyline",
+      points: laid.routeOf(e) ?? [],
+      srcPos: laid.centerOf(e.source),
+      tgtPos: laid.centerOf(e.target),
+    });
+
+    return {
+      nodes: nodes.map((n) => ({ ...n, position: laid.centerOf(n.id) }) as PetriNetNode),
+      edges: edges.map((e) => ({
+        ...e,
+        type: "custom",
+        data: { ...e.data, routing: routingOf(e) },
+      })),
+    };
   };
 }
 
-type ElkEdgeSection = {
-  startPoint: { x: number; y: number };
-  endPoint: { x: number; y: number };
-  bendPoints?: { x: number; y: number }[];
-};
-
-function sourceOf(edges: Edge<ArcData>[], id: string): string {
-  return edges.find((e) => e.id === id)?.source ?? "";
-}
-function targetOf(edges: Edge<ArcData>[], id: string): string {
-  return edges.find((e) => e.id === id)?.target ?? "";
-}
+/** Engine-agnostic fallback: lays places/transitions out in a row, arcs unrouted. Import an engine
+ *  bundle (`@r4pm/components/elk-layout` or `@r4pm/components/rust-layout/wasm`) for a real layout. */
+export const noopPetriLayout: PetriLayoutFn = async (nodes, edges) => ({
+  nodes: nodes.map((n, i) => ({ ...n, position: { x: i * 160, y: 0 } }) as PetriNetNode),
+  edges,
+});

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH } from "./ActivityNode";
 import { describeConstraintRich } from "./constraintText";
-import { deformPoints, pointsToSvgPath, snapEndpointsToNodeBorders } from "./elkLayout";
+import { deformPoints, roundedPointsToSvgPath, snapEndpointsToNodeBorders } from "./layout-util";
 import { type DotInfo, MultiDot } from "./MultiDot";
 import type { ConstraintEdgeData, RenderArcType } from "./types";
 import { useVizContext } from "./VizContext";
@@ -15,40 +15,10 @@ type Point = { x: number; y: number };
 // Neutral marker color (same for all arcs so the object-type color stays on the path itself).
 const MARKER_COLOR = "#4b5563";
 
-/** Sample a cubic bezier at parameter t. */
-function cubicBez(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
-  const u = 1 - t;
-  return {
-    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
-    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
-  };
-}
-
-/** Densely sample the routed curve so we can place labels by arc length. */
-function sampleCurve(points: Point[], n = 16): Point[] {
-  if (points.length < 2) return [...points];
-  const out: Point[] = [points[0]];
-  let i = 1;
-  while (i < points.length) {
-    const rem = points.length - i;
-    if (rem >= 3) {
-      const p0 = out[out.length - 1];
-      for (let s = 1; s <= n; s++) out.push(cubicBez(p0, points[i], points[i + 1], points[i + 2], s / n));
-      i += 3;
-    } else if (rem === 2) {
-      out.push(points[i + 1]);
-      i += 2;
-    } else {
-      out.push(points[i]);
-      i += 1;
-    }
-  }
-  return out;
-}
-
-/** Point + tangent angle at arc-length parameter t∈[0,1], with optional pixel offset. */
+/** Point + tangent angle at arc-length parameter t∈[0,1], with optional pixel offset. `points` are
+ *  the routed polyline vertices (Rust engine). */
 function getPlacementOnCurve(points: Point[], t: number, offsetPx = 0) {
-  const sampled = sampleCurve(points, 20);
+  const sampled = points;
   if (sampled.length < 2) return { x: sampled[0]?.x ?? 0, y: sampled[0]?.y ?? 0, angle: 0 };
   const segs: { dx: number; dy: number; len: number; acc: number }[] = [];
   let acc = 0;
@@ -248,16 +218,17 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
       Math.abs(targetDelta.x) > 0.5 ||
       Math.abs(targetDelta.y) > 0.5;
 
+    const toPath = (p: Point[]) => roundedPointsToSvgPath(p, 16);
     let points: Point[];
     if (moved) {
       const deformed = deformPoints(data.routedPoints, sourceDelta, targetDelta);
       const srcCenter = { x: sourcePos.x + sw / 2, y: sourcePos.y + sh / 2 };
       const tgtCenter = { x: targetPos.x + tw / 2, y: targetPos.y + th / 2 };
       points = snapEndpointsToNodeBorders(deformed, srcCenter, tgtCenter, sw / 2, sh / 2);
-      path = pointsToSvgPath(points);
+      path = toPath(points);
     } else {
       points = data.routedPoints;
-      path = data.routedPath ?? pointsToSvgPath(points);
+      path = data.routedPath ?? toPath(points);
     }
     let currentOffset = startOffset;
     displacements = labelItems.map((item) => {

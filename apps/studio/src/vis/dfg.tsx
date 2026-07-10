@@ -1,8 +1,8 @@
 import type { EventLogHandle } from "@r4pm/client";
-import { DFGViewer } from "@r4pm/components";
 import { PiFlowArrow } from "react-icons/pi";
 import { backend } from "../backends";
 import { defineVis } from "./define-vis";
+import { DFGPanel } from "./components/DFGPanel";
 
 const DF_PERFORMANCE = "app_bindings::event_log::get_df_performance" as const;
 
@@ -24,5 +24,5 @@ export const vis = defineVis({
   extraProps: async (ctx) => ({
     performance: await backend.callBinding(DF_PERFORMANCE, { event_log: ctx.datasetId as EventLogHandle }),
   }),
-  component: DFGViewer,
+  component: DFGPanel,
 });

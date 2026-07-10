@@ -6,7 +6,7 @@ import { PiListBullets } from "react-icons/pi";
 import { withSelector, datasetEmptyBox } from "./_shared";
 import { useDatasetSelection } from "../panels/active-datasets";
 import { backend } from "../backends";
-import { useDatasets } from "../stores";
+import { useDatasets, uniqueDatasetLabel } from "../stores";
 import { definePanel } from "./define-vis";
 
 const GET_LOG_TRACE_VARIANTS = "app_bindings::event_log::get_log_trace_variants" as const;
@@ -52,8 +52,7 @@ export function LogVariantsPanel({
             { type: "FilterVariants", variants: sequences, mode: mode === "keep" ? "Keep" : "Remove" },
           ],
         })) as EventLogHandle;
-        const verb = mode === "keep" ? "Kept" : "Excluded";
-        onFilterApplied(handle, `${verb} ${sequences.length} variant${sequences.length === 1 ? "" : "s"}`);
+        onFilterApplied(handle, mode === "keep" ? "Kept variants" : "Excluded variants");
       }
     : undefined;
   const info = useQuery({
@@ -89,7 +88,9 @@ export function LogVariantsDockPanel(_props: IDockviewPanelProps) {
       key={log}
       backend={backend}
       eventLog={log as EventLogHandle}
-      onFilterApplied={(handle, label) => addDataset({ id: handle, kind: "EventLog", label })}
+      onFilterApplied={(handle, label) =>
+        addDataset({ id: handle, kind: "EventLog", label: uniqueDatasetLabel(label) })
+      }
     />,
     "log-variants",
   );

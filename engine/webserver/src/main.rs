@@ -86,19 +86,22 @@ async fn call(
     Ok(([(header::CONTENT_TYPE, "application/json")], bytes))
 }
 
-#[derive(Serialize)]
-struct LoadedObject {
-    id: String,
-    kind: String,
+async fn objects(State(b): State<WebBackend>) -> Result<impl IntoResponse, (StatusCode, String)> {
+    Ok(Json(backend_shared::get_objects_with_type(&b).map_err(err)?))
 }
 
-async fn objects(State(b): State<WebBackend>) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let objs = backend_shared::get_objects_with_type(&b).map_err(err)?;
-    let out: Vec<LoadedObject> = objs
-        .into_iter()
-        .map(|(id, kind)| LoadedObject { id, kind })
-        .collect();
-    Ok(Json(out))
+#[derive(Deserialize)]
+struct SetLabelParams {
+    id: String,
+    label: Option<String>,
+}
+
+async fn set_label(
+    State(b): State<WebBackend>,
+    Query(p): Query<SetLabelParams>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    backend_shared::set_object_label(&b, p.id, p.label).map_err(err)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn functions() -> impl IntoResponse {
@@ -175,12 +178,7 @@ async fn load_artifact(
 }
 
 async fn artifacts(State(b): State<WebBackend>) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let v = backend_shared::list_artifacts(&b).map_err(err)?;
-    let out: Vec<LoadedObject> = v
-        .into_iter()
-        .map(|(id, kind)| LoadedObject { id, kind })
-        .collect();
-    Ok(Json(out))
+    Ok(Json(backend_shared::list_artifacts(&b).map_err(err)?))
 }
 
 #[derive(Deserialize)]
@@ -234,6 +232,7 @@ async fn main() {
     let api = Router::new()
         .route("/call", post(call))
         .route("/objects", get(objects))
+        .route("/set-label", post(set_label))
         .route("/functions", get(functions))
         .route("/item-kinds", get(item_kinds))
         .route("/load", post(load))

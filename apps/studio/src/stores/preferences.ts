@@ -5,6 +5,14 @@ import type { AlignmentStyle, ColorResolver, ViewerFormat } from "@r4pm/componen
 export type DurationStyle = "short" | "long";
 export type { AlignmentStyle };
 
+/** Which graph layout engine the DFG / OC-DFG / Petri / OC-declare viewers use. `rust` is the default
+ *  (tuned orthogonal routing, stable drag-relayout); `elk` is the legacy elkjs alternative. */
+export type LayoutEngine = "rust" | "elk";
+
+/** DFG / OC-DFG edge routing style (Rust engine only). `diagonal` is the default: flowing edges;
+ *  `orthogonal` is straight vertical channels with L-bends (ELK-like). */
+export type DfgRouting = "orthogonal" | "diagonal";
+
 /**
  * Cross-cutting display preferences consumed by every viewer (via the shell's `ViewerConfigProvider`):
  * a stable, optionally user-overridden color per domain key (activity / object type), and value
@@ -23,6 +31,10 @@ export interface PreferencesState {
   durationStyle: DurationStyle;
   /** Which alignment strip style the alignment viewers render (trace strip vs deviation strip). */
   alignmentStyle: AlignmentStyle;
+  /** Which graph layout engine the DFG / OC-DFG / Petri / OC-declare viewers use. */
+  layoutEngine: LayoutEngine;
+  /** DFG / OC-DFG edge routing style (Rust engine only). */
+  dfgRouting: DfgRouting;
   /**
    * Surface advanced/internal import kinds (e.g. raw OCEL, IndexLinkedOCEL, activity projections).
    * Off by default: most users should import the curated representation (SlimLinkedOCEL / EventLog),
@@ -33,6 +45,8 @@ export interface PreferencesState {
   clearColor: (scope: string, key: string) => void;
   setDurationStyle: (s: DurationStyle) => void;
   setAlignmentStyle: (s: AlignmentStyle) => void;
+  setLayoutEngine: (e: LayoutEngine) => void;
+  setDfgRouting: (r: DfgRouting) => void;
   setShowExpertKinds: (v: boolean) => void;
   /** Merge a batch of seen `(scope, key)` pairs into `knownColorKeys` (no-op if all already known). */
   mergeKnownColorKeys: (pairs: ReadonlyArray<[string, string]>) => void;
@@ -42,7 +56,7 @@ const STORAGE_KEY = "propel-preferences";
 
 function load(): Pick<
   PreferencesState,
-  "colorOverrides" | "durationStyle" | "alignmentStyle" | "showExpertKinds"
+  "colorOverrides" | "durationStyle" | "alignmentStyle" | "layoutEngine" | "dfgRouting" | "showExpertKinds"
 > {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -50,6 +64,8 @@ function load(): Pick<
       colorOverrides: raw.colorOverrides ?? {},
       durationStyle: raw.durationStyle === "long" ? "long" : "short",
       alignmentStyle: raw.alignmentStyle === "deviation" ? "deviation" : "trace",
+      layoutEngine: raw.layoutEngine === "elk" ? "elk" : "rust",
+      dfgRouting: raw.dfgRouting === "orthogonal" ? "orthogonal" : "diagonal",
       showExpertKinds: raw.showExpertKinds === true,
     };
   } catch {
@@ -57,6 +73,8 @@ function load(): Pick<
       colorOverrides: {},
       durationStyle: "short",
       alignmentStyle: "trace",
+      layoutEngine: "rust",
+      dfgRouting: "diagonal",
       showExpertKinds: false,
     };
   }
@@ -70,6 +88,8 @@ function persist(s: PreferencesState): void {
         colorOverrides: s.colorOverrides,
         durationStyle: s.durationStyle,
         alignmentStyle: s.alignmentStyle,
+        layoutEngine: s.layoutEngine,
+        dfgRouting: s.dfgRouting,
         showExpertKinds: s.showExpertKinds,
       }),
     );
@@ -99,6 +119,14 @@ export const usePreferences = create<PreferencesState>((set, get) => ({
   },
   setAlignmentStyle: (alignmentStyle) => {
     set({ alignmentStyle });
+    persist(get());
+  },
+  setLayoutEngine: (layoutEngine) => {
+    set({ layoutEngine });
+    persist(get());
+  },
+  setDfgRouting: (dfgRouting) => {
+    set({ dfgRouting });
     persist(get());
   },
   setShowExpertKinds: (showExpertKinds) => {

@@ -4,6 +4,7 @@ import { PetriNetViewer, type PetriNet } from "./petri-net";
 import { PetriNetSimulator, type SimTrace } from "./petri-net-simulator";
 import { useWorkbench, type WorkbenchMode } from "./shared/use-workbench";
 import type { ViewerProps } from "./viewer/viewer-config";
+import type { StyledGraphRenderer } from "./graph-svg/styled-graph";
 
 export type PetriNetMode = WorkbenchMode;
 
@@ -20,6 +21,8 @@ export interface PetriNetWorkbenchProps extends ViewerProps<PetriNet> {
   /** Initial state of the replay view's "Force fire" toggle (force-fire not-enabled
    *  transitions, token-replay style). Defaults to off; the user can flip it in the toolbar. */
   allowForcedFiring?: boolean;
+  /** Draw the exact on-screen graph through a host-supplied renderer, applied in View mode. */
+  renderSvg?: StyledGraphRenderer;
 }
 
 /** View / Replay / Edit toggle over one Petri net. Pure. */
@@ -30,6 +33,7 @@ export function PetriNetWorkbench({
   toolbar,
   onSaveTraceAsLog,
   allowForcedFiring = false,
+  renderSvg,
 }: PetriNetWorkbenchProps) {
   const { mode, setMode, currentNet, editSeed, handleEdit, enterEdit } = useWorkbench(
     data,
@@ -87,11 +91,13 @@ export function PetriNetWorkbench({
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>{toolbar?.(currentNet)}</div>
       </div>
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        {mode === "view" && <PetriNetViewer data={currentNet} />}
+        {mode === "view" && <PetriNetViewer data={currentNet} renderSvg={renderSvg} />}
         {mode === "simulate" && (
           <PetriNetSimulator data={currentNet} onSaveAsLog={onSaveTraceAsLog} allowForcedFiring={forceFire} />
         )}
-        {mode === "edit" && <PetriNetViewer data={editSeed} editable onChange={handleEdit} />}
+        {mode === "edit" && (
+          <PetriNetViewer data={editSeed} editable onChange={handleEdit} renderSvg={renderSvg} />
+        )}
       </div>
     </div>
   );

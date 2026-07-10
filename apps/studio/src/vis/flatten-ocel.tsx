@@ -9,7 +9,7 @@ import { withSelector, datasetEmptyBox } from "./_shared";
 import { useDatasetSelection } from "../panels/active-datasets";
 import { backend } from "../backends";
 import { definePanel } from "./define-vis";
-import { useDatasets } from "../stores";
+import { useDatasets, uniqueDatasetLabel } from "../stores";
 
 const GET_OCEL_INFO = "app_bindings::ocel::get_ocel_info" as const;
 const FLATTEN_OCEL_ON =
@@ -43,7 +43,7 @@ export function FlattenOCELPanel({ backend, ocel, onFlattened }: FlattenOCELPane
     mutationFn: async (ot: string) => {
       const handle = await backend.callBinding(FLATTEN_OCEL_ON, { ocel, object_type: ot });
       const prev_label = datasets.find((d) => d.id === ocel)?.label ?? ocel;
-      const label = `${prev_label} ${objectType}` || handle;
+      const label = uniqueDatasetLabel(`${prev_label} / ${ot}`);
       addDataset({ id: handle, kind: "EventLog", label });
       return { handle, label };
     },

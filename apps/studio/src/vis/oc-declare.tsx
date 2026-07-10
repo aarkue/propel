@@ -1,6 +1,6 @@
 import type { OCDeclareDiscoveryOptions, SlimLinkedOCELHandle } from "@r4pm/client";
-import { OCDeclareViewer } from "@r4pm/components";
 import { PiListBullets } from "react-icons/pi";
+import { OCDeclarePanel } from "./components/OCDeclarePanel";
 import { defineVis } from "./define-vis";
 
 // Default OC-DECLARE discovery options (required for non-empty arrow types).
@@ -30,5 +30,5 @@ export const vis = defineVis({
     needs: "SlimLinkedOCEL",
     args: (ctx) => ({ locel: ctx.datasetId as SlimLinkedOCELHandle, options: OC_DECLARE_OPTIONS }),
   },
-  component: OCDeclareViewer,
+  component: OCDeclarePanel,
 });

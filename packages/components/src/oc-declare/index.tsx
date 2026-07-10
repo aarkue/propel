@@ -5,6 +5,8 @@ import { FaArrowDown, FaArrowRight, FaCog } from "react-icons/fa";
 import { shadeHex } from "../dfg/util/colors";
 import { Legend } from "./Legend";
 import { OCDeclareViz, type OCDeclareVizHandle } from "./OCDeclareViz";
+import type { DeclareLayoutFn } from "./layout-util";
+import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 import {
   type ArcType,
   collapseEfEpPairs,
@@ -12,6 +14,14 @@ import {
   type ConstraintLabel,
   type RawConstraint,
 } from "./types";
+
+// Re-export the layout primitives so a host can supply a custom layout matching the routed-edge
+// output, plus the default Rust engine.
+export { createRustDeclareLayout } from "./rust-declare-layout";
+export type { DeclareLayoutFn } from "./layout-util";
+export { roundedPointsToSvgPath, snapEndpointsToNodeBorders, edgeLabelWidth } from "./layout-util";
+export { ACT_NODE_WIDTH, ACT_NODE_HEIGHT } from "./ActivityNode";
+export type { ConstraintEdgeData } from "./types";
 
 const ALL_ARC_TYPES: ArcType[] = ["AS", "EF", "EP", "DF", "DP"];
 
@@ -66,12 +76,14 @@ function toRawConstraint(arc: OCDeclareArc): RawConstraint {
 
 /**
  * Reusable OC-DECLARE viewer: renders discovered object-centric DECLARE
- * behavioral constraints (`OCDeclareArc[]`) as an interactive ELK-routed graph,
+ * behavioral constraints (`OCDeclareArc[]`) as an interactive routed graph,
  * with arc-type / object-type visibility filters, a layout-direction toggle and
  * an explanatory legend.
  */
-export function OCDeclareViewer(props: ViewerProps<OCDeclareArc[]>) {
-  const { data } = props;
+export function OCDeclareViewer(
+  props: ViewerProps<OCDeclareArc[]> & { layoutOverride?: DeclareLayoutFn; renderSvg?: StyledGraphRenderer },
+) {
+  const { data, layoutOverride, renderSvg } = props;
   const cfg = useViewerConfig(props);
   const activityColor = (name: string, mode: "normal" | "foreground" | "light" = "normal") =>
     shadeHex(cfg.colorOf?.("activity", name) ?? "#888888", mode);
@@ -111,6 +123,8 @@ export function OCDeclareViewer(props: ViewerProps<OCDeclareArc[]>) {
           hiddenArcTypes={hiddenArcTypes}
           hiddenObjectTypes={hiddenObjectTypes}
           direction={layoutDirection}
+          layoutOverride={layoutOverride ?? cfg.layout?.declare}
+          renderSvg={renderSvg ?? cfg.layout?.renderSvg}
         />
       )}
 

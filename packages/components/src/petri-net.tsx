@@ -1,10 +1,13 @@
 import {
   buildPetriNetSvg,
   Editor,
-  layoutPetriNet,
+  noopPetriLayout,
   nodesToPetriNet,
+  petriModelToStyledGraph,
+  usePetriLayout,
   type ArcData,
   type EditorEdgePatch,
+  type PetriLayoutFn,
   type PetriNetNode,
   type PlaceData,
   type TokenMark,
@@ -23,6 +26,7 @@ import {
 } from "react";
 import type { ViewerProps } from "./viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "./viewer/export";
+import type { LegendGroup, StyledGraphRenderer } from "./graph-svg/styled-graph";
 
 /** Petri net data shape. `label` is optional (serializes as missing/null); assignable to/from the generated `@r4pm/client` `PetriNet` type. */
 export interface PetriNet {
@@ -80,6 +84,9 @@ export interface PlacePresentation extends ElementInteractions {
   /** Explicit per-token marks (dots/squares, colored/faded); rendered in both the
    *  DOM node and the SVG export. Takes precedence over `tokens`. */
   tokenMarks?: TokenMark[];
+  /** Object type this place belongs to (OCPN). Used purely as a layout grouping so each type
+   *  forms a consistent lane; does not affect rendering. */
+  objectType?: string;
   /** Render the marking yourself (e.g. per-object-type tokens). */
   renderMarking?: () => ReactNode;
   /** Extra editable control rendered inside the place (e.g. an object-type select). */
@@ -192,6 +199,8 @@ export function baseElements(rawNet: PetriNet): { nodes: PetriNetNode[]; edges: 
 async function layout(
   rawNet: PetriNet,
   overlay?: PetriNetOverlay,
+  categoryOf?: (placeId: string) => string | undefined,
+  layoutFn: PetriLayoutFn = noopPetriLayout,
 ): Promise<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }> {
   const net = normalizePetriNet(rawNet);
   const transitionNodes: PetriNetNode[] = net.transitions.map((t) => {
@@ -222,6 +231,7 @@ async function layout(
         finalTokens,
         tokenColor: pres?.tokenColor,
         tokenMarks: pres?.tokenMarks,
+        objectType: pres?.objectType ?? categoryOf?.(p.id),
         label: pres?.label,
         style: pres?.style,
         className: pres?.className,
@@ -256,11 +266,11 @@ async function layout(
     };
   });
 
-  return layoutPetriNet(nodes, edges);
+  return layoutFn(nodes, edges);
 }
 
 /** Patch overlay-derived fields (style, tokens, handlers, custom renders) onto an
- *  already-laid-out node/edge set, preserving positions and elk edge routing.
+ *  already-laid-out node/edge set, preserving positions and edge routing.
  *  Cheap and synchronous - used by simulators to re-skin on every state change
  *  without re-running layout. */
 export function applyOverlay(
@@ -302,6 +312,7 @@ export function applyOverlay(
         finalTokens,
         tokenColor: pres?.tokenColor,
         tokenMarks: pres?.tokenMarks,
+        objectType: pres?.objectType ?? n.data.objectType,
         label: pres?.label,
         style: pres?.style,
         className: pres?.className,
@@ -346,14 +357,33 @@ export interface PetriNetViewerProps extends ViewerProps<PetriNet> {
   editable?: boolean;
   /** Called with the serialized net after each edit. */
   onChange?: (net: PetriNet) => void;
+  /** Draw the exact on-screen graph through a host-supplied renderer (typically the
+   *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. */
+  renderSvg?: StyledGraphRenderer;
+  /** Extra legend rows folded into the `StyledGraph` export (e.g. OCPN's object-type legend).
+   *  Purely decorative on screen (the frame draws its own legend overlay); only used by `renderSvg`. */
+  legend?: LegendGroup[];
+  /** Optional grouping id per place (e.g. an object type). Same-group places are held in a
+   *  consistent lane across layers (crossing-neutral) so the layout matches the editable OCPN
+   *  view. Memoize it so a stable identity doesn't force a relayout. */
+  categoryOf?: (placeId: string) => string | undefined;
 }
 
-export function PetriNetViewer({ data, overlay, editable, onChange }: PetriNetViewerProps) {
+export function PetriNetViewer({
+  data,
+  overlay,
+  editable,
+  onChange,
+  renderSvg,
+  legend,
+  categoryOf,
+}: PetriNetViewerProps) {
   const [base, setBase] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>({
     nodes: [],
     edges: [],
   });
   const [seedKey, setSeedKey] = useState(0);
+  const petriLayout = usePetriLayout();
 
   // Accept either the array shape or the client/record shape (and tolerate
   // loading/partial data) so studio bindings and stories both work.
@@ -363,7 +393,7 @@ export function PetriNetViewer({ data, overlay, editable, onChange }: PetriNetVi
   // changes never relayout or remount the editor (which would discard live edits).
   useEffect(() => {
     let cancelled = false;
-    layout(net).then((res) => {
+    layout(net, undefined, categoryOf, petriLayout).then((res) => {
       if (cancelled) return;
       setBase(res);
       setSeedKey((k) => k + 1);
@@ -371,16 +401,30 @@ export function PetriNetViewer({ data, overlay, editable, onChange }: PetriNetVi
     return () => {
       cancelled = true;
     };
-  }, [net]);
+  }, [net, categoryOf, petriLayout]);
 
   const display = useMemo(() => applyOverlay(base, net, overlay), [base, net, overlay]);
 
-  // Advertise a vector export (honors overlay styling). Reads the latest display at
-  // export time through a ref so the registered source stays stable.
+  // Advertise a vector export (honors overlay styling). Reads the latest display/renderer at
+  // export-click time through refs so the registered source stays stable.
   const displayRef = useRef(display);
   displayRef.current = display;
+  const renderSvgRef = useRef(renderSvg);
+  renderSvgRef.current = renderSvg;
+  const legendRef = useRef(legend);
+  legendRef.current = legend;
   const exportSource = useMemo<VectorExportSource>(
-    () => ({ toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges) }),
+    () => ({
+      toSvg: async () => {
+        const { nodes, edges } = displayRef.current;
+        const render = renderSvgRef.current;
+        if (render) {
+          const graph = petriModelToStyledGraph(nodes, edges, legendRef.current);
+          return graph ? render(graph) : null;
+        }
+        return buildPetriNetSvg(nodes, edges);
+      },
+    }),
     [],
   );
   useRegisterExport("petri-net", exportSource);

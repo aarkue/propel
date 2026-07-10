@@ -9,6 +9,9 @@ export { shadeHex, softBadgeStyle, colorToHex } from "./dfg/util/colors";
 // react-plotly.js out of the core entry. Import them from "@r4pm/components/charts".
 // Universal image/SVG export control (frame + useRegisterExport).
 export * from "./viewer/export";
+// Generic pure-draw SVG export: the `StyledGraph` type shared with the `export_graph_svg` Rust
+// binding. Concrete per-viewer builders live alongside each viewer (e.g. `dfg/util/styled-graph.ts`).
+export * from "./graph-svg/styled-graph";
 // Shared async/loading/error/empty UI for viewers and panels.
 export * from "./feedback";
 export * from "./petri-net";
@@ -52,3 +55,12 @@ export { DeviationAlignmentStrip, buildDeviationAlignmentSvg } from "./shared/De
 export { AlignmentStrip } from "./shared/AlignmentStrip";
 export * from "./shared/CoverageBar";
 export * from "./shared/LogMetadataCard";
+export {
+  createRustDfgLayout,
+  createRustOcdfgLayout,
+  layoutGraph,
+  type GraphLayout,
+  type GraphNodeSpec,
+  type LaidOutGraph,
+  type LayoutTransport,
+} from "./rust-layout";

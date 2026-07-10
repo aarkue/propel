@@ -26,7 +26,8 @@ import {
   useRef,
   useState,
 } from "react";
-import ELK from "elkjs/lib/elk.bundled.js";
+import { layoutGraph } from "@r4pm/components";
+import { layoutTransport } from "../../../backends";
 import toast from "react-hot-toast";
 
 import type { BackendContext as ClientBackend } from "@r4pm/client";
@@ -575,33 +576,25 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
   }, [nodes, edges, setNodes, setEdges]);
 
   const handleAutoLayout = useCallback(async () => {
-    const elk = new ELK();
-    const layoutOptions = {
-      "elk.algorithm": "layered",
-      "elk.direction": "RIGHT",
-      "elk.spacing.nodeNode": "80",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "100",
-    };
-
-    const graph = {
-      id: "root",
-      layoutOptions,
-      children: nodes.map((n) => ({
-        id: n.id,
-        width: n.measured?.width ?? 200,
-        height: n.measured?.height ?? 100,
-      })),
-      edges: edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
-    };
-
+    const sizeOf = (n: (typeof nodes)[number]) => ({
+      width: n.measured?.width ?? 200,
+      height: n.measured?.height ?? 100,
+    });
     try {
-      const layoutedGraph = await elk.layout(graph);
+      const laid = await layoutGraph(nodes, edges, {
+        transport: layoutTransport,
+        id: (n) => n.id,
+        source: (e) => e.source,
+        target: (e) => e.target,
+        direction: "LR",
+        flowEdges: true,
+        nodeSpec: sizeOf,
+      });
+      // Rust returns node centers; React Flow positions are top-left.
       const newNodes = nodes.map((node) => {
-        const layoutedNode = layoutedGraph.children?.find((n) => n.id === node.id);
-        if (layoutedNode) {
-          return { ...node, position: { x: layoutedNode.x!, y: layoutedNode.y! } };
-        }
-        return node;
+        const c = laid.centerOf(node.id);
+        const s = sizeOf(node);
+        return { ...node, position: { x: c.x - s.width / 2, y: c.y - s.height / 2 } };
       });
       setNodes(newNodes);
       setTimeout(() => fitView({ padding: 0.2 }), 50);

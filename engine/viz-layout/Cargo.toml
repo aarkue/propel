@@ -1,0 +1,17 @@
+[package]
+name = "viz-layout"
+version = "0.0.0"
+edition = "2021"
+description = "Layered graph layout engine + generic StyledGraph SVG renderer (no process_mining), shared by the backend bindings and a components wasm."
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+schemars = { version = "1.1.0", optional = true }
+
+[features]
+# Adds `JsonSchema` derives so app-bindings can register the StyledGraph/SvgPalette binding types.
+# Off by default so the wasm build stays small.
+schemars = ["dep:schemars"]

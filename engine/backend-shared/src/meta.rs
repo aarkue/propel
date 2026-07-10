@@ -31,6 +31,10 @@ pub struct ItemMeta {
 #[derive(Debug, Default)]
 pub struct ObjMeta {
     inner: RwLock<HashMap<String, ItemMeta>>,
+    /// User-facing display labels, kept as a side-map so renaming a dataset never touches the
+    /// lifecycle policy above. Lives in the engine (not just the frontend), so a relabel survives
+    /// a frontend reload on backends that keep the engine process alive (webserver / tauri).
+    labels: RwLock<HashMap<String, String>>,
 }
 
 impl ObjMeta {
@@ -55,8 +59,25 @@ impl ObjMeta {
     pub fn set(&self, id: &str, m: ItemMeta) {
         self.inner.write().unwrap().insert(id.to_string(), m);
     }
+    /// The user-facing label for `id`, if one was set; absent means the UI falls back to the id.
+    pub fn label_of(&self, id: &str) -> Option<String> {
+        self.labels.read().unwrap().get(id).cloned()
+    }
+    /// Set (`Some`) or clear (`None`) the display label for `id`.
+    pub fn set_label(&self, id: &str, label: Option<String>) {
+        let mut g = self.labels.write().unwrap();
+        match label {
+            Some(l) => {
+                g.insert(id.to_string(), l);
+            }
+            None => {
+                g.remove(id);
+            }
+        }
+    }
     pub fn remove(&self, id: &str) {
         self.inner.write().unwrap().remove(id);
+        self.labels.write().unwrap().remove(id);
     }
     pub fn bump_generation(&self, id: &str) {
         let mut g = self.inner.write().unwrap();
@@ -92,6 +113,15 @@ impl ObjMeta {
             .collect();
         for k in &hit {
             g.remove(k);
+        }
+        let mut labels = self.labels.write().unwrap();
+        let label_hit: Vec<String> = labels
+            .keys()
+            .filter(|k| k.starts_with(prefix))
+            .cloned()
+            .collect();
+        for k in &label_hit {
+            labels.remove(k);
         }
         hit
     }

@@ -1,4 +1,5 @@
-import type { BackendContext } from "@r4pm/client";
+import type { BackendContext, GraphSpec } from "@r4pm/client";
+import type { LayoutTransport } from "@r4pm/components";
 import { setBackend } from "../shell/backend-singleton";
 import { createWasmBackend } from "@backend-wasm";
 import { createHttpBackend } from "./http";
@@ -27,3 +28,15 @@ export const backend: BackendContext = detectBackend();
 
 // Expose on the shell singleton, reached via `getBackend()`.
 setBackend(backend);
+
+/**
+ * Layout transport backed by this backend's binding channel: layout runs wherever the backend runs
+ * (native / server / worker), never a browser wasm. Passed to the components' `createRust*Layout`
+ * factories (see `use-layout-engine`), so the app bundles no viz-layout wasm and layout + SVG export
+ * share one engine.
+ */
+export const layoutTransport: LayoutTransport = {
+  layoutGraph: (spec) => backend.callBinding("app_bindings::viz::layout_graph", { spec: spec as GraphSpec }),
+  rerouteGraph: (spec) =>
+    backend.callBinding("app_bindings::viz::reroute_graph", { spec: spec as GraphSpec }),
+};

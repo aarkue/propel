@@ -8,12 +8,12 @@ import {
   ReactFlow,
   ReactFlowProvider,
   type ReactFlowInstance,
+  type ReactFlowProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ViewerAction, ViewerTarget } from "../viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
-import { applyLayoutToNodes } from "./util/auto-layout";
 import { colorToHex } from "./util/colors";
 import { durationColor } from "./util/duration";
 import {
@@ -31,7 +31,9 @@ import {
 } from "./util/dfg-model";
 import { DFG_EDGE_TYPES, type DfgEdgeType } from "./DfgEdge";
 import DfgSettings, { metricDisplayName } from "./DfgSettings";
-import { buildDfgSvgFromPanel } from "./util/svg-export";
+import { buildDfgStyledGraph } from "./util/styled-graph";
+import { noopDfgLayout } from "../rust-layout";
+import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 
 export type { DfgArc } from "./util/dfg-model";
 
@@ -159,7 +161,16 @@ function TerminalNode({ data }: NodeProps<DfgTerminalNode>) {
 /** Node type registry shared by every DFG-style panel. */
 export const DFG_NODE_TYPES = { activity: ActivityNode, terminal: TerminalNode };
 
+/** Fallback when no `layoutOverride` and no `ViewerConfig.layout` engine: engine-agnostic no-op. Import
+ *  an engine bundle (`@r4pm/components/elk-layout` or `@r4pm/components/rust-layout/wasm`) for a real layout. */
+const defaultDfgLayout = noopDfgLayout;
+
+/** Cap on how many edges the auto-seeded initial view shows across all groups, so dense
+ *  DFG / OC-DFG graphs never overload. The user can still widen past this via the edge slider. */
+const MAX_INITIAL_EDGES = 25;
+
 export interface UseDfgPanelReturn {
+  onNodeDragStop: NonNullable<ReactFlowProps["onNodeDragStop"]>;
   attachRef: (instance: unknown) => void;
   edgeSlider: number;
   setEdgeSlider: (v: number | ((prev: number) => number)) => void;
@@ -201,9 +212,7 @@ function edgeLabelMidpoint(
 
   const routing = edge.data?.routing;
   if (routing?.kind === "polyline" && routing.points.length >= 2) {
-    const pts = routing.points;
-    const isCubicChain = (pts.length - 1) % 3 === 0 && pts.length >= 4;
-    const anchors = isCubicChain ? pts.filter((_, i) => i % 3 === 0) : pts;
+    const anchors = routing.points;
     let total = 0;
     const segs: number[] = [];
     for (let i = 1; i < anchors.length; i++) {
@@ -291,8 +300,10 @@ export function deOverlapEdgeLabels(
       if (!overlap) break;
     }
     const dy = ly - lbl.y;
-    if (dy !== 0 && lbl.edge.data) {
-      lbl.edge.data.labelOffset = { dx: 0, dy };
+    if (lbl.edge.data) {
+      // Always write (not just when nudging) so a stale offset from an earlier layout is cleared -
+      // otherwise a label that no longer overlaps keeps its old displacement and sits off its edge.
+      lbl.edge.data.labelOffset = dy !== 0 ? { dx: 0, dy } : undefined;
     }
     placed.push({ x: lbl.x, y: ly, w: lbl.w });
   }
@@ -306,14 +317,21 @@ export function useDfgPanel({
   metric = "count",
   formatDuration,
   heatmap = false,
+  layoutOverride,
+  direction = "TB",
 }: {
   activityCounts: Record<string, number>;
   arcs: DfgArc[];
   metric?: DfgMetric;
   formatDuration?: (ms: number) => string;
   heatmap?: boolean;
+  layoutOverride?: DfgLayoutFn;
+  direction?: "TB" | "LR";
 }): UseDfgPanelReturn {
   const flowRef = useRef<ReactFlowInstance<DfgNode, DfgEdgeType>>();
+  // Ids of nodes the user has manually placed. They stay pinned across subsequent drag-relayouts so
+  // earlier placements don't revert; a fresh layout (data/selection change) clears them.
+  const pinnedIds = useRef<Set<string>>(new Set());
   const [userEdgeSlider, setUserEdgeSlider] = useState<number | null>(null);
 
   const selection = useMemo(() => {
@@ -338,9 +356,13 @@ export function useDfgPanel({
       const groupCounts = [...arcsByGroup.values()].map((list) => list.map((a) => a.count));
       const totalMass = groupCounts.reduce((s, cs) => s + cs.reduce((t, c) => t + c, 0), 0);
       const target = totalMass * 0.8;
+      const unionAt = (n: number) => groupCounts.reduce((s, cs) => s + Math.min(n, cs.length), 0);
       let seed = 1;
       let covered = 0;
       for (let n = 1; n <= maxGroupSize; n++) {
+        // Cap the total edges shown in the initial view so dense graphs stay legible. Stop
+        // before growing N past the cap, but always keep at least N=1 so every group shows one.
+        if (n > 1 && unionAt(n) > MAX_INITIAL_EDGES) break;
         for (const cs of groupCounts) {
           if (n - 1 < cs.length) covered += cs[n - 1];
         }
@@ -404,12 +426,14 @@ export function useDfgPanel({
   }, [userEdgeSlider, arcs, activityCounts]);
 
   useEffect(() => {
-    // The ELK layout below is async and ends by replacing the whole ReactFlow graph.
+    // The layout below is async and ends by replacing the whole ReactFlow graph.
     // Without this guard, a slower older layout (e.g. the larger default selection) can
     // resolve after a newer, smaller one and overwrite it, leaving the canvas showing a
     // stale selection that no longer matches the picker. `cancelled` makes only the latest
     // effect run commit; superseded runs bail before touching the graph.
     let cancelled = false;
+    // A fresh (data-driven) layout supersedes any manual placements.
+    pinnedIds.current.clear();
     const { filteredArcs, keptActivities, maxPerGroup } = selection;
 
     const nodes: DfgNode[] = [...keptActivities].map((act): DfgNode => {
@@ -420,11 +444,6 @@ export function useDfgPanel({
           type: "terminal",
           position: { x: 0, y: 0 },
           data: { kind, count: activityCounts[act] ?? 0 },
-          ...({
-            layoutOptions: {
-              "elk.layered.layering.layerConstraint": kind === "start" ? "FIRST" : "LAST",
-            },
-          } as object),
         };
       }
       return {
@@ -468,7 +487,9 @@ export function useDfgPanel({
           strokeWidth = 1.5 + 4.5 * Math.sqrt(t);
           if (heatmap && isPerf && a.duration != null) color = durationColor(t);
         } else {
-          strokeWidth = Math.min(6, 1 + Math.log2(1 + (6 * a.count) / maxInGroup));
+          // sqrt scaling (1..8px): spreads mid-range frequency differences far more visibly than
+          // the old log2 compression, while keeping rare arcs thin-but-visible.
+          strokeWidth = 1 + 7 * Math.sqrt(Math.min(1, a.count / maxInGroup));
         }
       } else {
         label = "";
@@ -484,6 +505,8 @@ export function useDfgPanel({
         data: {
           label,
           color,
+          count: a.count,
+          group: a.group,
           parallelIndex: parallelIndexByKey.get(a.key) ?? 0,
           parallelCount: parallelCountByPair.get(pair) ?? 1,
         },
@@ -494,26 +517,12 @@ export function useDfgPanel({
         ...(a.title ? { ariaLabel: a.title } : {}),
       };
     });
-    applyLayoutToNodes(
-      nodes as unknown as Node<Record<string, unknown>>[],
-      edges,
-      {
-        "elk.direction": "DOWN",
-        "elk.algorithm": "layered",
-        "elk.edgeRouting": "SPLINES",
-        "elk.layered.spacing.nodeNodeBetweenLayers": "80",
-        "elk.spacing.nodeNode": "90",
-        "elk.spacing.edgeNode": "30",
-        "elk.spacing.edgeEdge": "20",
-        "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
-        "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
-        "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-      } as Record<string, string>,
-      (n) =>
-        n.type === "terminal"
-          ? { width: TERM_NODE_SIZE, height: TERM_NODE_SIZE }
-          : { width: OCEL_NODE_WIDTH, height: OCEL_NODE_HEIGHT },
-    )
+    const nodeSize = (n: DfgNode) =>
+      n.type === "terminal"
+        ? { width: TERM_NODE_SIZE, height: TERM_NODE_SIZE }
+        : { width: OCEL_NODE_WIDTH, height: OCEL_NODE_HEIGHT };
+    const runLayout = (layoutOverride ?? defaultDfgLayout)(nodes, edges, nodeSize, { direction });
+    runLayout
       .then(() => {
         if (cancelled) return;
         deOverlapEdgeLabels(nodes, edges, (n) =>
@@ -534,14 +543,59 @@ export function useDfgPanel({
             flowRef.current?.fitView();
           });
       })
-      .catch((e) => console.error("[useDfgPanel] layout failed:", e));
+      .catch((e: unknown) => console.error("[useDfgPanel] layout failed:", e));
 
     return () => {
       cancelled = true;
     };
-  }, [selection, activityCounts, metric, formatDuration, heatmap]);
+  }, [selection, activityCounts, metric, formatDuration, heatmap, layoutOverride, direction]);
+
+  // Stable relayout after a node drag: re-run the same layout, seeding every node at its current
+  // centre (so un-dragged nodes stay put) and pinning the dragged one. Only edges re-route and any
+  // node the drop crowds yields; no fitView so the view doesn't jump.
+  const onNodeDragStop = useCallback<NonNullable<ReactFlowProps["onNodeDragStop"]>>(
+    (_e, dragged) => {
+      const instance = flowRef.current;
+      if (!instance) return;
+      // The just-dragged node joins the manually-placed set; every member stays pinned so earlier
+      // placements survive this relayout. Un-pinned nodes reflow (seeded, soft) around them.
+      pinnedIds.current.add(dragged.id);
+      const nodes = instance.getNodes().map((n) => ({ ...n })) as DfgNode[];
+      const edges = instance.getEdges().map((e) => ({ ...e })) as DfgEdgeType[];
+      const nodeSize = (n: DfgNode) =>
+        n.type === "terminal"
+          ? { width: TERM_NODE_SIZE, height: TERM_NODE_SIZE }
+          : { width: OCEL_NODE_WIDTH, height: OCEL_NODE_HEIGHT };
+      void (layoutOverride ?? defaultDfgLayout)(nodes, edges, nodeSize, {
+        direction,
+        // Re-route from the actual dropped positions: rebuild the grid from geometry, so the dragged
+        // node's edges route cleanly around boxes instead of following a stale topological chain.
+        reroute: true,
+        seed: (n) => {
+          const { width, height } = nodeSize(n);
+          return {
+            x: n.position.x + width / 2,
+            y: n.position.y + height / 2,
+            pinned: pinnedIds.current.has(n.id),
+          };
+        },
+      })
+        .then(() => {
+          deOverlapEdgeLabels(nodes, edges, (n) =>
+            n.type === "terminal"
+              ? { w: TERM_NODE_SIZE, h: TERM_NODE_SIZE }
+              : { w: OCEL_NODE_WIDTH, h: OCEL_NODE_HEIGHT },
+          );
+          instance.setNodes(nodes);
+          instance.setEdges(edges);
+        })
+        .catch((e: unknown) => console.error("[useDfgPanel] relayout failed:", e));
+    },
+    [layoutOverride, direction],
+  );
 
   return {
+    onNodeDragStop,
     attachRef: (instance) => {
       flowRef.current = instance as ReactFlowInstance<DfgNode, DfgEdgeType>;
     },
@@ -596,7 +650,37 @@ export interface DfgGraphProps {
   actions?: ViewerAction[];
   /** Escape hatch: report a right-click and let the host build a fully custom menu. */
   onElementContextMenu?: (t: ViewerTarget, e: { clientX: number; clientY: number }) => void;
+  /** Draw the exact on-screen `StyledGraph` through a host-supplied renderer (typically the
+   *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. Read live at export-click
+   *  time, so drag/layout changes are always reflected. */
+  renderSvg?: StyledGraphRenderer;
+  /** Called with the raw *shown* arcs (after the threshold filter), keeping each arc's `group`, so
+   *  a grouped host (OC-DFG) can rebuild a filtered per-group graph for export. */
+  onShownArcsChange?: (arcs: DfgArc[]) => void;
+  /** Replace the built-in elkjs layout with a host-supplied one (e.g. the Rust engine). Must write
+   *  `node.position` (top-left) and `edge.data.routing` in place, exactly like `applyLayoutToNodes`. */
+  layoutOverride?: DfgLayoutFn;
 }
+
+/** Stable-relayout options for a {@link DfgLayoutFn}: seed each node at a centre (keeping un-dragged
+ *  nodes put) and pin the just-dragged one so it holds where dropped. */
+export type DfgLayoutOptions = {
+  /** Layout flow direction: "TB" (top-to-bottom, default) or "LR" (left-to-right). */
+  direction?: "TB" | "LR";
+  seed?: (node: DfgNode) => { x: number; y: number; pinned?: boolean } | undefined;
+  /** On-drop relayout: take every node's `seed` as its final position and re-route edges from that
+   *  geometry (no layout recompute), so the dragged node stays put and its arcs route cleanly around
+   *  boxes instead of raking through them. Requires `seed` to cover every node. */
+  reroute?: boolean;
+};
+
+/** A pluggable layout: positions `nodes` (top-left) and writes `edge.data.routing` in place. */
+export type DfgLayoutFn = (
+  nodes: DfgNode[],
+  edges: DfgEdgeType[],
+  nodeSize: (n: DfgNode) => { width: number; height: number },
+  options?: DfgLayoutOptions,
+) => Promise<void>;
 
 /**
  * The full DFG render shell: ReactFlow graph + settings card. Advertises a vector export of
@@ -617,15 +701,41 @@ export function DfgGraph({
   onSelect,
   actions,
   onElementContextMenu,
+  renderSvg,
+  onShownArcsChange,
+  layoutOverride,
 }: DfgGraphProps) {
-  const { attachRef, edgeSlider, setEdgeSlider, coverage, selection, getLayoutedNodes, getLayoutedEdges } =
-    useDfgPanel({
-      activityCounts,
-      arcs,
-      metric,
-      formatDuration,
-      heatmap,
-    });
+  const [direction, setDirection] = useState<"TB" | "LR">("TB");
+  const {
+    onNodeDragStop,
+    attachRef,
+    edgeSlider,
+    setEdgeSlider,
+    coverage,
+    selection,
+    getLayoutedNodes,
+    getLayoutedEdges,
+  } = useDfgPanel({
+    activityCounts,
+    arcs,
+    metric,
+    formatDuration,
+    heatmap,
+    layoutOverride,
+    direction,
+  });
+
+  const lastArcsSig = useRef<string>("");
+  useEffect(() => {
+    if (!onShownArcsChange) return;
+    const sig = selection.filteredArcs
+      .map((a) => `${a.group ?? ""}\0${a.from}>${a.to}=${a.count}`)
+      .sort()
+      .join("|");
+    if (sig === lastArcsSig.current) return;
+    lastArcsSig.current = sig;
+    onShownArcsChange(selection.filteredArcs);
+  }, [selection, onShownArcsChange]);
 
   const [menu, setMenu] = useState<{ x: number; y: number; act: string } | null>(null);
   const activityActions = useMemo(
@@ -655,6 +765,7 @@ export function DfgGraph({
     const rfEdges = getLayoutedEdges();
     const routingByKey = new Map<string, DfgArc["routing"]>();
     const swByKey = new Map<string, number>();
+    const labelOffsetByKey = new Map<string, { dx: number; dy: number }>();
     if (rfEdges) {
       for (const e of rfEdges) {
         const r = e.data?.routing;
@@ -664,12 +775,16 @@ export function DfgGraph({
         if (typeof e.style?.strokeWidth === "number") {
           swByKey.set(e.id, e.style.strokeWidth);
         }
+        if (e.data?.labelOffset) {
+          labelOffsetByKey.set(e.id, e.data.labelOffset);
+        }
       }
     }
     const arcsWithRouting = selection.filteredArcs.map((a) => ({
       ...a,
       routing: routingByKey.get(a.key) ?? a.routing,
       strokeWidth: swByKey.get(a.key) ?? a.strokeWidth,
+      labelOffset: labelOffsetByKey.get(a.key) ?? a.labelOffset,
     }));
     return {
       layoutedNodes,
@@ -686,11 +801,18 @@ export function DfgGraph({
     };
   };
 
-  const toSvg = () => {
+  // Read live layout/props at export-click time (not cached), so drag/layout changes are always
+  // reflected - the `toSvg` closure itself is rebuilt every render, but `useRegisterExport` only
+  // re-registers when the wrapping `exportSource` object's identity changes, so it's read through
+  // a ref to keep that identity stable.
+  const toSvg = async () => {
     const inputs = buildSvgInputs();
-    return inputs ? buildDfgSvgFromPanel(inputs) : null;
+    if (!inputs) return null;
+    const graph = buildDfgStyledGraph(inputs);
+    // Host-supplied renderer (studio: the `export_graph_svg` binding; standalone: `wasmRenderStyledGraph`
+    // from `@r4pm/components/rust-layout/wasm`). Without one, SVG export is unavailable.
+    return graph && renderSvg ? renderSvg(graph) : null;
   };
-  // Read the latest layout/props at export time through a ref, so the registered source is stable.
   const toSvgRef = useRef(toSvg);
   toSvgRef.current = toSvg;
   const exportSource = useMemo<VectorExportSource>(() => ({ toSvg: () => toSvgRef.current() }), []);
@@ -712,6 +834,7 @@ export function DfgGraph({
               nodeTypes={DFG_NODE_TYPES}
               edgeTypes={DFG_EDGE_TYPES}
               onBeforeDelete={async () => false}
+              onNodeDragStop={onNodeDragStop}
               onInit={attachRef}
               className="node-dfg"
               fitView
@@ -730,6 +853,8 @@ export function DfgGraph({
                     setEdgeSlider={setEdgeSlider}
                     coverage={coverage}
                     hasPerformanceData={hasPerformanceData}
+                    direction={direction}
+                    onDirectionChange={setDirection}
                   />
                 </Card>
               </Panel>

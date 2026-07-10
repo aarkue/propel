@@ -76,6 +76,11 @@ export function createHttpBackend(base = "/api"): BackendContext {
       const res = await fetch(`${root}/unload?${q}`, { method: "POST" });
       if (!res.ok) await fail(res);
     },
+    async setLabel(id, label) {
+      const q = new URLSearchParams({ id, label });
+      const res = await fetch(`${root}/set-label?${q}`, { method: "POST" });
+      if (!res.ok) await fail(res);
+    },
     async loadArtifactBytes(id, kind, data, format) {
       const q = new URLSearchParams({ id, kind, format });
       const res = await fetch(`${root}/load-artifact?${q}`, {

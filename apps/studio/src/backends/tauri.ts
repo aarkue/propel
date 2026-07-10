@@ -57,6 +57,9 @@ export function createTauriBackend(): BackendContext {
     async unloadObject(name) {
       await (await invoke())("unload_object", { name });
     },
+    async setLabel(id, label) {
+      await (await invoke())("set_object_label", { id, label });
+    },
     async loadArtifactBytes(id, kind, data, format) {
       await (await invoke())("load_artifact_bytes", {
         id,

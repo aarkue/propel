@@ -1,6 +1,6 @@
 import {
   Editor,
-  layoutPetriNet,
+  usePetriLayout,
   buildPetriNetSvg,
   fireOcpnDetailed,
   isOcpnEnabled,
@@ -115,16 +115,17 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
     [ocpn],
   );
 
+  const petriLayout = usePetriLayout();
   useEffect(() => {
     let cancelled = false;
     const { nodes, edges } = baseElements(ocpn.petri_net);
-    layoutPetriNet(nodes, edges).then((res) => {
+    petriLayout(nodes, edges).then((res) => {
       if (!cancelled) setBase(res);
     });
     return () => {
       cancelled = true;
     };
-  }, [ocpn]);
+  }, [ocpn, petriLayout]);
 
   const typeOf = useCallback((placeId: string): string => ocpn.place_object_type[placeId] ?? "", [ocpn]);
 

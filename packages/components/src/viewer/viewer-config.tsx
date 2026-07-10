@@ -1,4 +1,22 @@
 import { type ComponentType, createContext, type ReactNode, useCallback, useContext, useMemo } from "react";
+import type { DfgLayoutFn } from "../dfg/DfgGraph";
+import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
+import type { DeclareLayoutFn } from "../oc-declare/layout-util";
+import type { PetriLayoutFn } from "../petri/editor/helpers/layout-graph";
+
+/**
+ * Default layout engine for graph viewers in a subtree, used when a viewer gets no explicit
+ * `layoutOverride` (and, for SVG export, no explicit `renderSvg`). The core ships no engine; import a
+ * bundle - `@r4pm/components/elk-layout` or `@r4pm/components/rust-layout/wasm` - or supply your own,
+ * and provide it via `ViewerConfigProvider`. Omit any field for the engine-agnostic no-op default.
+ */
+export interface LayoutDefaults {
+  dfg?: DfgLayoutFn;
+  ocdfg?: DfgLayoutFn;
+  declare?: DeclareLayoutFn;
+  petri?: PetriLayoutFn;
+  renderSvg?: StyledGraphRenderer;
+}
 
 /** A domain element a host can act on. `scope` is the kind ("activity", "objectType", ...). */
 export interface ViewerTarget {
@@ -83,6 +101,8 @@ export interface ViewerConfig {
   actions?: ViewerAction[];
   onSelect?: (target: ViewerTarget) => void;
   onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
+  /** Default layout engine for graph viewers; explicit `layoutOverride`/`renderSvg` props still win. */
+  layout?: LayoutDefaults;
 }
 
 export interface ViewerProps<T> extends ViewerConfig {
@@ -109,6 +129,7 @@ export function useViewerConfig(props: ViewerConfig): ViewerConfig {
       onElementContextMenu: props.onElementContextMenu ?? ctx.onElementContextMenu,
       format: { ...ctx.format, ...props.format },
       alignmentStyle: props.alignmentStyle ?? ctx.alignmentStyle,
+      layout: props.layout ?? ctx.layout,
     }),
     [
       ctx,
@@ -118,6 +139,7 @@ export function useViewerConfig(props: ViewerConfig): ViewerConfig {
       props.onElementContextMenu,
       props.format,
       props.alignmentStyle,
+      props.layout,
     ],
   );
 }

@@ -9,6 +9,7 @@ import init, {
   list_functions,
   load_artifact_bytes,
   load_item_bytes,
+  set_object_label,
   unload_artifact,
   unload_object,
 } from "@propel-engine/backend_wasm.js";
@@ -43,10 +44,7 @@ self.onmessage = async (e: MessageEvent<{ id: number; method: string; args: any[
         result = JSON.parse(new TextDecoder().decode(execute_binding(args[0], args[1], args[2])));
         break;
       case "listObjects":
-        result = (get_all_objects_with_type() as Array<[string, string]>).map(([oid, kind]) => ({
-          id: oid,
-          kind,
-        }));
+        result = get_all_objects_with_type();
         break;
       case "listFunctions":
         result = list_functions();
@@ -70,11 +68,14 @@ self.onmessage = async (e: MessageEvent<{ id: number; method: string; args: any[
           // already-unloaded / unknown id: nothing to do.
         }
         break;
+      case "setLabel":
+        set_object_label(args[0], args[1]);
+        break;
       case "loadArtifactBytes":
         load_artifact_bytes(args[0], args[1], args[2], args[3]);
         break;
       case "listArtifacts":
-        result = (list_artifacts() as Array<[string, string]>).map(([id, kind]) => ({ id, kind }));
+        result = list_artifacts();
         break;
       case "getArtifact":
         result = get_artifact(args[0]);

@@ -1,7 +1,7 @@
 import { Theme } from "@r4pm/components/ui";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
-import { Toaster } from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 import { backend } from "../backends";
 import { AppViewerConfig } from "./AppViewerConfig";
 import { BackendReactContext } from "./backend-context";
@@ -21,6 +21,14 @@ export const queryClient = new QueryClient({
 
 /** The full studio: backend + theme + query providers wrapping the top bar and dashboard. */
 export function SharedRootApp() {
+  useEffect(() => {
+    const onExportError = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      toast.error(`Export failed: ${detail ?? "unknown error"}`);
+    };
+    window.addEventListener("propel:export-error", onExportError);
+    return () => window.removeEventListener("propel:export-error", onExportError);
+  }, []);
   return (
     <BackendReactContext.Provider value={backend}>
       <ThemeProvider>

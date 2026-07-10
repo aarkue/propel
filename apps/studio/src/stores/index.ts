@@ -1,6 +1,6 @@
 // Studio zustand stores (datasets, artifacts, preferences).
-export { useDatasets, type Dataset, type DatasetsState } from "./datasets";
-export { useArtifacts, type Artifact, type ArtifactsState } from "./artifacts";
+export { useDatasets, uniqueDatasetLabel, uniqueName, type Dataset, type DatasetsState } from "./datasets";
+export { useArtifacts, uniqueArtifactName, type Artifact, type ArtifactsState } from "./artifacts";
 export {
   usePreferences,
   registerColorKey,
@@ -12,4 +12,5 @@ export {
   type PreferencesState,
   type DurationStyle,
   type AlignmentStyle,
+  type LayoutEngine,
 } from "./preferences";

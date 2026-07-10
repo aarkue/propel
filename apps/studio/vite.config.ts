@@ -41,6 +41,10 @@ export default defineConfig(({ mode }) => {
         ),
       },
     },
+    // @r4pm/components is consumed from TS source (its exports point at src/*). Keep it out of the
+    // dep pre-bundler so edits to component source hot-reload instead of being frozen in a cached
+    // optimized chunk.
+    optimizeDeps: { exclude: ["@r4pm/components"] },
     server: {
       fs: { allow: ["../.."] },
       // `--mode webserver`: proxy /api to the axum engine (PROPEL_PORT 3751).

@@ -81,7 +81,7 @@ export interface DfgArc {
    * from a dense group. Typically the object type name for OCEL DFGs.
    */
   group?: string;
-  /** ELK-routed polyline; carried through to the SVG exporter. */
+  /** Routed polyline; carried through to the SVG exporter. */
   routing?: {
     points: { x: number; y: number }[];
     srcPos: { x: number; y: number };
@@ -89,6 +89,8 @@ export interface DfgArc {
   };
   /** Pre-computed stroke width from the live UI. */
   strokeWidth?: number;
+  /** Label displacement from the on-screen de-overlap pass; carried through to the SVG exporter. */
+  labelOffset?: { dx: number; dy: number };
 }
 
 /** Coverage stats shown next to the edge slider. */

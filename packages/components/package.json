@@ -29,13 +29,19 @@
     "./ui/styles.css": "./src/ui/styles.css",
     "./petri": "./src/petri/index.ts",
     "./petri/editor.css": "./src/petri/editor/editor.css",
-    "./charts": "./src/charts/index.ts"
+    "./charts": "./src/charts/index.ts",
+    "./elk-layout": "./src/elk-layout/index.ts",
+    "./rust-layout/wasm": "./src/rust-layout/wasm.ts",
+    "./rust-layout/viz_layout_wasm_bg.wasm": "./src/rust-layout/pkg/viz_layout_wasm_bg.wasm"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "docs:types": "node scripts/gen-data-types-doc.mjs && node scripts/gen-component-types-doc.mjs",
     "dev": "storybook dev -p 6006 --no-open",
     "showcase": "storybook build",
+    "build:wasm": "wasm-pack build ../../engine/viz-layout-wasm --target web --out-dir ../../packages/components/src/rust-layout/pkg --out-name viz_layout_wasm --release && node scripts/gen-wasm-inline.mjs",
+    "prepare": "node scripts/ensure-wasm.mjs --soft",
+    "prebuild": "node scripts/ensure-wasm.mjs",
     "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && tailwindcss -i src/ui/styles.css -o dist/ui/styles.css --minify",
     "prepack": "pnpm run build"
   },
@@ -96,6 +102,14 @@
       "./charts": {
         "types": "./dist/charts/index.d.ts",
         "import": "./dist/charts/index.js"
+      },
+      "./elk-layout": {
+        "types": "./dist/elk-layout/index.d.ts",
+        "import": "./dist/elk-layout/index.js"
+      },
+      "./rust-layout/wasm": {
+        "types": "./dist/rust-layout/wasm.d.ts",
+        "import": "./dist/rust-layout/wasm.js"
       }
     }
   },

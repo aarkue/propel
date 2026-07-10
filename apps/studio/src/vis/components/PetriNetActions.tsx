@@ -2,13 +2,14 @@ import type { PetriNet as ClientPetriNet } from "@r4pm/client";
 import { normalizePetriNet, type PetriNet } from "@r4pm/components";
 import { Button } from "@r4pm/components/ui";
 import { backend } from "../../backends";
+import { uniqueArtifactName } from "../../stores";
 
 const EXPORT_PNML = "app_bindings::petri_net_io::export_petri_net_pnml" as const;
 
 /** Convert a net (either shape) to the exact client/Rust shape the bindings deserialize.
  *  A bare cast is not enough: edited nets carry the array shape (arcs as `{ nodes }`), which
  *  the wasm backend rejects with "missing field `from_to`". */
-function toClientNet(net: PetriNet): ClientPetriNet {
+export function toClientNet(net: PetriNet): ClientPetriNet {
   const n = normalizePetriNet(net);
   const placeIds = new Set(n.places.map((p) => p.id));
   return {
@@ -34,7 +35,7 @@ export function PetriNetActions({ net }: { net: PetriNet }) {
         onClick={async () => {
           const xml = (await backend.callBinding(EXPORT_PNML, { net: toClientNet(net) })) as string;
           await backend.loadArtifactBytes(
-            `Saved Petri Net (${new Date().toISOString()})`,
+            uniqueArtifactName("Petri net"),
             "PetriNet",
             new TextEncoder().encode(xml),
             ".pnml",

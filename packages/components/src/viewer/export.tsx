@@ -25,8 +25,10 @@ import { Button, DropdownMenu, Text } from "@r4pm/components/ui";
 
 /** A viewer's self-contained vector rendering of its current state. */
 export interface VectorExportSource {
-  /** Build the current view as a standalone SVG string, or null when not ready. */
-  toSvg: () => string | null;
+  /** Build the current view as a standalone SVG string, or null when not ready. Reads live state
+   *  at call time (not cached), so async renderers (e.g. a Rust-engine binding) see the exact
+   *  on-screen geometry as of the export click, drag included. */
+  toSvg: () => string | null | Promise<string | null>;
   /** Optional extra menu content (e.g. a per-viewer row-limit picker). */
   menuExtras?: ReactNode;
 }
@@ -169,9 +171,10 @@ export function ViewerExportFrame({
 
   const targets = useMemo<ExportTarget[]>(() => {
     if (source) {
-      const svgOrThrow = () => {
-        const svg = source.toSvg();
-        if (!svg) throw new Error("nothing to export");
+      const svgOrThrow = async () => {
+        const svg = await source.toSvg();
+        if (!svg)
+          throw new Error(`nothing to export (source produced ${svg === null ? "null" : "empty string"})`);
         return svg;
       };
       return [
@@ -181,7 +184,7 @@ export function ViewerExportFrame({
           ext: "svg",
           mime: "image/svg+xml",
           raster: false,
-          render: async () => new Blob([svgOrThrow()], { type: "image/svg+xml;charset=utf-8" }),
+          render: async () => new Blob([await svgOrThrow()], { type: "image/svg+xml;charset=utf-8" }),
         },
         {
           id: "png",
@@ -189,7 +192,7 @@ export function ViewerExportFrame({
           ext: "png",
           mime: "image/png",
           raster: true,
-          render: ({ scale }) => rasterizeSvg(svgOrThrow(), scale, "image/png"),
+          render: async ({ scale }) => rasterizeSvg(await svgOrThrow(), scale, "image/png"),
         },
         {
           id: "jpeg",
@@ -197,7 +200,7 @@ export function ViewerExportFrame({
           ext: "jpg",
           mime: "image/jpeg",
           raster: true,
-          render: ({ scale }) => rasterizeSvg(svgOrThrow(), scale, "image/jpeg"),
+          render: async ({ scale }) => rasterizeSvg(await svgOrThrow(), scale, "image/jpeg"),
         },
       ];
     }
@@ -271,6 +274,14 @@ function ExportMenu({
     setBusy(true);
     try {
       await onPick(t, scale);
+    } catch (err) {
+      // Surface instead of silently swallowing, so a failed vector source (e.g. an async
+      // engine whose SVG is not ready) is diagnosable rather than a no-op click.
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("export failed", err);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("propel:export-error", { detail: message }));
+      }
     } finally {
       setBusy(false);
     }

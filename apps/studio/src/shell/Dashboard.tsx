@@ -240,7 +240,7 @@ function EmptyPanelsPlaceholder() {
   }
 
   return (
-    <div className="inset-0 z-50 flex items-center justify-center bg-[var(--color-background)] overflow-auto h-full">
+    <div className="inset-0 z-50 flex items-center justify-center bg-[var(--color-background)] overflow-hidden">
       <div className="flex flex-col items-center text-center gap-4 px-8 py-8 max-w-3xl">
         <div className="rounded-full bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-3">
           <PiSparkle size={28} />

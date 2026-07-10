@@ -52,7 +52,7 @@ export interface ConstraintEdgeData {
   bundleIndex: number;
   bundleTotal: number;
   constraintIndex: number;
-  /** ELK-computed point sequence (on-curve + off-curve). */
+  /** Routed polyline vertices (Rust engine), drawn as a rounded polyline. */
   routedPoints?: { x: number; y: number }[];
   routedPath?: string;
   /** Node positions captured at layout time, used to detect drag and deform. */

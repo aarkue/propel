@@ -156,7 +156,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       for (const f of exportFormatsFor(kinds.data ?? [], d.kind)) {
         list.push({
           id: `export:${d.id}:${f.ext}`,
-          title: `Export ${d.id} as ${f.ext.toUpperCase()}`,
+          title: `Export ${d.label} as ${f.ext.toUpperCase()}`,
           subtitle: `${d.kind} · .${f.ext}`,
           section: "Data",
           icon: PiFileArrowDown,
@@ -169,7 +169,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       }
       list.push({
         id: `unload:${d.id}`,
-        title: `Unload ${d.id}`,
+        title: `Unload ${d.label}`,
         subtitle: d.kind,
         section: "Data",
         icon: PiTrash,

@@ -41,6 +41,11 @@ pub fn unload_object(name: String) -> Result<(), String> {
 }
 
 #[wasm_bindgen]
+pub fn set_object_label(id: String, label: Option<String>) -> Result<(), String> {
+    backend_shared::set_object_label(&BACKEND, id, label)
+}
+
+#[wasm_bindgen]
 pub fn export_object(name: String, format: String) -> Result<Vec<u8>, String> {
     backend_shared::export_object(&BACKEND, &name, &format)
 }

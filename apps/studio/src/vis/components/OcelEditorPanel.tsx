@@ -4,7 +4,7 @@ import { Button, DropdownMenu, TextField } from "@r4pm/components/ui";
 import type { SlimLinkedOCELHandle } from "@r4pm/client";
 import { PiDownloadSimple, PiFloppyDisk } from "react-icons/pi";
 import { backend } from "../../backends";
-import { useDatasets } from "../../stores";
+import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
 const FROM_JSON = "app_bindings::ocel::ocel_from_json" as const;
 const TO_JSON = "app_bindings::ocel::ocel_to_json" as const;
@@ -30,7 +30,7 @@ export function OcelEditorPanel() {
       useDatasets.getState().addDataset({
         id: handle,
         kind: "SlimLinkedOCEL",
-        label: `${name.trim() || "OCEL"} (${model.events.length} ev · ${model.objects.length} ob)`,
+        label: uniqueDatasetLabel(name.trim() || "OCEL"),
       });
     } finally {
       setBusy(false);

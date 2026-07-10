@@ -8,7 +8,7 @@ import { flattenColor } from "../../../dfg/util/colors";
 let currentExportBg = "#ffffff";
 
 /** Read colors from the live DOM at export time so exports match the active theme. */
-function resolveThemeColors() {
+export function resolveThemeColors() {
   if (typeof document === "undefined") {
     return {
       nodeBg: "#ffffff",

@@ -519,7 +519,7 @@ export function buildDeviationAlignmentSvg(
           y: axisY - CHIP_HALF - 2,
           width: w,
           height: SVG_PILL_H + 4,
-          fill: theme.bg,
+          fill: "none",
         }),
       );
       svgMoveChip(svg, cx, axisY, col.sync.label, cellColor(col.sync, colorOf), theme);

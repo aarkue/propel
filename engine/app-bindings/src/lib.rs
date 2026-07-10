@@ -7,6 +7,7 @@ use process_mining::{
 };
 
 pub mod alignments;
+pub mod viz;
 pub mod event_log;
 pub mod ocel;
 pub mod petri_net_io;

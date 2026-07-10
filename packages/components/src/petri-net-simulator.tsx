@@ -1,6 +1,6 @@
 import {
   Editor,
-  layoutPetriNet,
+  usePetriLayout,
   buildPetriNetSvg,
   isEnabled,
   type Marking,
@@ -224,16 +224,17 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
   const exportTraces = () => finalizeActive(traces).filter((t) => t.steps.length > 0);
   const hasRecordedTrace = traces.some((t) => t.steps.length > 0);
 
+  const petriLayout = usePetriLayout();
   useEffect(() => {
     let cancelled = false;
     const { nodes, edges } = baseElements(net);
-    layoutPetriNet(nodes, edges).then((res) => {
+    petriLayout(nodes, edges).then((res) => {
       if (!cancelled) setBase(res);
     });
     return () => {
       cancelled = true;
     };
-  }, [net]);
+  }, [net, petriLayout]);
 
   const overlay = useMemo<PetriNetOverlay>(
     () => ({

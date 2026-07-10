@@ -3,7 +3,7 @@ import { withSelector, datasetEmptyBox } from "./_shared";
 import { TransformBuilder } from "../transforms";
 import { backend } from "../backends";
 import { useDatasetSelection } from "../panels/active-datasets";
-import { useDatasets } from "../stores";
+import { useDatasets, uniqueDatasetLabel } from "../stores";
 import { PiShuffle } from "react-icons/pi";
 import { definePanel } from "./define-vis";
 
@@ -19,7 +19,13 @@ export function LogTransformsDockPanel(_props: IDockviewPanelProps) {
         backend={backend}
         datasetName={log}
         objectType="EventLog"
-        onResult={(handle, outName) => addDataset({ id: handle, kind: "EventLog", label: outName || handle })}
+        onResult={(handle, outName) =>
+          addDataset({
+            id: handle,
+            kind: "EventLog",
+            label: uniqueDatasetLabel(outName || "Transformed log"),
+          })
+        }
       />
     </div>,
   );

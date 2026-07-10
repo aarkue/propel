@@ -4,6 +4,7 @@ import { Handle, type Node, type NodeProps, Position, useReactFlow } from "@xyfl
 import { useCallback, useContext, useEffect } from "react";
 import { TbDatabase } from "react-icons/tb";
 import { BackendContext } from "../../BackendContext";
+import { useDatasets } from "../../../stores";
 import { NodeWrapper } from "./NodeWrapper";
 import { getTypeColor } from "./utils";
 
@@ -23,6 +24,8 @@ export function ObjectNode({ id, data, selected }: NodeProps<ObjectNode>) {
   const { type, selectedObject } = data;
   const { updateNodeData } = useReactFlow();
   const backend = useContext(BackendContext);
+  const datasets = useDatasets((s) => s.datasets);
+  const labelFor = (oid: string) => datasets.find((d) => d.id === oid)?.label ?? oid;
 
   const availableObjectsQuery = useQuery({
     queryKey: ["loaded-objects", `loaded-${type}`],
@@ -82,7 +85,7 @@ export function ObjectNode({ id, data, selected }: NodeProps<ObjectNode>) {
         <Select.Content>
           {availableObjectsQuery.data?.map((name) => (
             <Select.Item key={name} value={name}>
-              {name}
+              {labelFor(name)}
             </Select.Item>
           ))}
           {availableObjectsQuery.data?.length === 0 && (

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { FaHammer } from "react-icons/fa";
 import { PiDownloadSimple } from "react-icons/pi";
 import { backend } from "../../backends";
-import { useDatasets } from "../../stores";
+import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
 const FROM_JSON = "app_bindings::event_log::event_log_from_json" as const;
 const TO_JSON = "app_bindings::event_log::event_log_to_json" as const;
@@ -19,7 +19,6 @@ export function EventLogEditorPanel() {
   const datasets = useDatasets((s) => s.datasets);
   const sources = datasets.filter((d) => d.kind === "EventLog");
 
-  const caseCount = new Set(model.rows.map((r) => r.caseId)).size;
   const empty = model.rows.length === 0;
 
   const save = async () => {
@@ -31,7 +30,7 @@ export function EventLogEditorPanel() {
       useDatasets.getState().addDataset({
         id: handle,
         kind: "EventLog",
-        label: `${name.trim() || "Event Log"} (${caseCount} case${caseCount === 1 ? "" : "s"})`,
+        label: uniqueDatasetLabel(name.trim() || "Event Log"),
       });
     } finally {
       setBusy(false);

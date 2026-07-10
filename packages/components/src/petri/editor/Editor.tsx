@@ -14,14 +14,14 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { LayoutOptions } from "elkjs";
 import { createContext, useCallback, useContext, useEffect, useRef } from "react";
 import { PiCircle, PiSquare, PiTreeStructure } from "react-icons/pi";
 import CustomEdge from "./CustomEdge";
 import "./editor.css";
 import { ExportControls } from "./helpers/export-controls";
 import { useLayoutedElements } from "./helpers/Layout";
-import type { ArcRouting } from "./helpers/layout-graph";
+import { usePetriLayout } from "./helpers/layout-context";
+import type { ArcRouting, PetriLayoutFn } from "./helpers/layout-graph";
 import { uid } from "../id";
 import PlaceNode from "./PlaceNode";
 import TransitionNode from "./TransitionNode";
@@ -177,7 +177,14 @@ function InnerEditor() {
 
   const connectingNodeId = useRef<string | null>(null);
 
-  const { getLayoutedElements } = useLayoutedElements();
+  const contextLayout = usePetriLayout();
+  const { getLayoutedElements, relayoutStable } = useLayoutedElements(props.layoutOverride ?? contextLayout);
+  const onNodeDragStop = useCallback<NonNullable<ReactFlowProps["onNodeDragStop"]>>(
+    (_event, node) => {
+      if (props.relayoutOnDrag && !props.readOnly) relayoutStable(node.id);
+    },
+    [props.relayoutOnDrag, props.readOnly, relayoutStable],
+  );
 
   // Read-only viewers often mount at 0 size, where ReactFlow's one-shot fitView
   // no-ops; re-fit when the container resizes. `nodes` is intentionally not a dep
@@ -294,6 +301,7 @@ function InnerEditor() {
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStop={onNodeDragStop}
         nodeOrigin={nodeOrigin}
         onConnectStart={onConnectStart}
         nodesConnectable={props.readOnly ? false : undefined}
@@ -338,7 +346,7 @@ function InnerEditor() {
             color="gray"
             title="Auto-layout"
             onClick={() => {
-              getLayoutedElements(props.layoutOptions ?? {}, true);
+              getLayoutedElements(undefined, true);
             }}
           >
             <PiTreeStructure /> Layout
@@ -356,7 +364,6 @@ export type EditorProps = {
   readOnly?: boolean;
   initialNodes?: PetriNetNode[];
   initialEdges?: Edge<ArcData>[];
-  layoutOptions?: LayoutOptions;
   editorProps?: ReactFlowProps<PetriNetNode, Edge<ArcData>>;
   /** Show the built-in PNG/SVG export buttons. Off when a host (e.g. a viewer frame) owns export. */
   showExportControls?: boolean;
@@ -368,6 +375,13 @@ export type EditorProps = {
   editable?: boolean;
   /** Fired (rAF-coalesced) on any node/edge change while editing. */
   onChange?: (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => void;
+  /** After a node drag, re-run a *stable* relayout: only edges re-route and any node the drop
+   *  crowds yields; the dragged node stays where dropped and everything else stays put. On by
+   *  default (editable mode only); pass `false` for free-form dragging. */
+  relayoutOnDrag?: boolean;
+  /** Replace the default (Rust) Petri layout - e.g. with the ELK engine. The "Layout" button runs
+   *  it; stable drag-relayout only applies if the engine honors `options.seed` (ELK no-ops). */
+  layoutOverride?: PetriLayoutFn;
   /** Controlled node set: when provided, the editor mirrors it into internal state
    *  on change (no remount, positions preserved). Used by viewers/simulators that
    *  push live data updates. Editable mode uses `initialNodes` instead. */
@@ -409,7 +423,13 @@ export type ArcPresentation = {
 };
 export const EditorPropsContext = createContext<EditorProps>({});
 export default function Editor(props: EditorProps) {
-  const normalized: EditorProps = { ...props, readOnly: props.readOnly ?? !props.editable };
+  const normalized: EditorProps = {
+    ...props,
+    readOnly: props.readOnly ?? !props.editable,
+    // Stable relayout-on-drag is on by default (only acts in editable mode); pass `false` for
+    // free-form dragging.
+    relayoutOnDrag: props.relayoutOnDrag ?? true,
+  };
   return (
     <ReactFlowProvider>
       <EditorPropsContext.Provider value={normalized}>

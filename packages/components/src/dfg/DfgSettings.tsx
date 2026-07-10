@@ -1,5 +1,5 @@
 import { Button, Slider } from "@r4pm/components/ui";
-import { FaMinus, FaPlus } from "react-icons/fa";
+import { FaArrowDown, FaArrowRight, FaMinus, FaPlus } from "react-icons/fa";
 import { PiChartBar, PiTimer } from "react-icons/pi";
 import { SlGraph } from "react-icons/sl";
 import { type DfgCoverage, type DfgMetric, isPerformanceMetric } from "./util/dfg-model";
@@ -11,6 +11,9 @@ export interface DfgSettingsProps {
   setEdgeSlider: (v: number | ((prev: number) => number)) => void;
   coverage: DfgCoverage;
   hasPerformanceData: boolean;
+  /** Layout flow direction: "TB" (top-to-bottom) or "LR" (left-to-right). */
+  direction: "TB" | "LR";
+  onDirectionChange: (d: "TB" | "LR") => void;
 }
 
 const FREQ_METRICS: { value: DfgMetric; label: string; title: string }[] = [
@@ -39,12 +42,33 @@ export default function DfgSettings({
   setEdgeSlider,
   coverage,
   hasPerformanceData,
+  direction,
+  onDirectionChange,
 }: DfgSettingsProps) {
   const isPerf = isPerformanceMetric(metric);
   const subMetrics = isPerf ? PERF_METRICS : FREQ_METRICS;
 
   return (
     <div className="flex flex-col items-center gap-y-1">
+      {/* Layout direction: vertical (top-down) vs horizontal (left-to-right). */}
+      <div className="flex items-center rounded-md border border-(--gray-6) overflow-hidden">
+        <button
+          type="button"
+          className={`p-1 text-[11px] ${direction === "TB" ? "bg-(--gray-12) text-(--gray-1)" : "bg-(--color-panel-solid) text-(--gray-9) hover:bg-(--gray-a3)"}`}
+          title="Vertical layout"
+          onClick={() => onDirectionChange("TB")}
+        >
+          <FaArrowDown />
+        </button>
+        <button
+          type="button"
+          className={`p-1 text-[11px] ${direction === "LR" ? "bg-(--gray-12) text-(--gray-1)" : "bg-(--color-panel-solid) text-(--gray-9) hover:bg-(--gray-a3)"}`}
+          title="Horizontal layout"
+          onClick={() => onDirectionChange("LR")}
+        >
+          <FaArrowRight />
+        </button>
+      </div>
       <SlGraph className="size-4 text-[var(--gray-10)]" title="Arcs" />
       <Slider
         size="2"

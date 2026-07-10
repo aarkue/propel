@@ -10,186 +10,58 @@ import { useId } from "react";
 
 // ---- Geometry helpers ----
 
-/**
- * Render a point chain produced by ELK's SPLINES edge routing as an SVG path.
- * With SPLINES, ELK returns [startPoint, ...bendPoints, endPoint] where bend
- * points are cubic-bezier control points (c1, c2, end) per segment. If the
- * chain length is 1 + 3N we emit N cubic segments; otherwise we fall back to
- * Catmull-Rom smoothing.
- */
-function splinePath(chain: { x: number; y: number }[]): string {
-  if (chain.length === 0) return "";
-  if (chain.length === 1) return `M ${chain[0].x},${chain[0].y}`;
+type Pt = { x: number; y: number };
 
-  if ((chain.length - 1) % 3 === 0 && chain.length >= 4) {
-    const parts: string[] = [`M ${chain[0].x},${chain[0].y}`];
-    for (let i = 1; i + 2 < chain.length; i += 3) {
-      parts.push(
-        `C ${chain[i].x},${chain[i].y} ${chain[i + 1].x},${chain[i + 1].y} ${chain[i + 2].x},${chain[i + 2].y}`,
-      );
-    }
-    return parts.join(" ");
+/** Render plain waypoints (the Rust engine) as a polyline with circular-arc rounded corners,
+ *  matching the Rust SVG's `rounded_polyline`. `r` is the max corner radius. */
+function roundedPolylinePath(pts: Pt[], r: number): string {
+  if (pts.length === 0) return "";
+  if (pts.length <= 2) {
+    return pts.length === 1
+      ? `M ${pts[0].x},${pts[0].y}`
+      : `M ${pts[0].x},${pts[0].y} L ${pts[1].x},${pts[1].y}`;
   }
-
-  if (chain.length === 2) {
-    return `M ${chain[0].x},${chain[0].y} L ${chain[1].x},${chain[1].y}`;
+  const parts: string[] = [`M ${pts[0].x},${pts[0].y}`];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const v1x = p0.x - p1.x;
+    const v1y = p0.y - p1.y;
+    const v2x = p2.x - p1.x;
+    const v2y = p2.y - p1.y;
+    const l1 = Math.hypot(v1x, v1y) || 1;
+    const l2 = Math.hypot(v2x, v2y) || 1;
+    const rr = Math.min(r, l1 / 2, l2 / 2);
+    const a = { x: p1.x + (v1x / l1) * rr, y: p1.y + (v1y / l1) * rr };
+    const b = { x: p1.x + (v2x / l2) * rr, y: p1.y + (v2y / l2) * rr };
+    parts.push(`L ${a.x},${a.y} Q ${p1.x},${p1.y} ${b.x},${b.y}`);
   }
-  const tension = 1;
-  const parts: string[] = [`M ${chain[0].x},${chain[0].y}`];
-  for (let i = 0; i < chain.length - 1; i++) {
-    const p0 = i === 0 ? chain[0] : chain[i - 1];
-    const p1 = chain[i];
-    const p2 = chain[i + 1];
-    const p3 = i + 2 < chain.length ? chain[i + 2] : chain[i + 1];
-    const c1x = p1.x + ((p2.x - p0.x) * tension) / 6;
-    const c1y = p1.y + ((p2.y - p0.y) * tension) / 6;
-    const c2x = p2.x - ((p3.x - p1.x) * tension) / 6;
-    const c2y = p2.y - ((p3.y - p1.y) * tension) / 6;
-    parts.push(`C ${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`);
-  }
+  const last = pts[pts.length - 1];
+  parts.push(`L ${last.x},${last.y}`);
   return parts.join(" ");
 }
 
-// ---- Rect-clipping helpers for cubic bezier splines ----
-type Pt = { x: number; y: number };
-type Rect = { x: number; y: number; w: number; h: number };
-
-function ptInRect(p: Pt, r: Rect): boolean {
-  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
-}
-
-function lerpPt(a: Pt, b: Pt, t: number): Pt {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
-
-function cubicPt(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt {
-  const u = 1 - t;
-  return {
-    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
-    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
-  };
-}
-
-function splitCubicRight(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): [Pt, Pt, Pt, Pt] {
-  const a = lerpPt(p0, p1, t);
-  const b = lerpPt(p1, p2, t);
-  const c = lerpPt(p2, p3, t);
-  const d = lerpPt(a, b, t);
-  const e = lerpPt(b, c, t);
-  const f = lerpPt(d, e, t);
-  return [f, e, c, p3];
-}
-
-function splitCubicLeft(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): [Pt, Pt, Pt, Pt] {
-  const a = lerpPt(p0, p1, t);
-  const b = lerpPt(p1, p2, t);
-  const c = lerpPt(p2, p3, t);
-  const d = lerpPt(a, b, t);
-  const e = lerpPt(b, c, t);
-  const f = lerpPt(d, e, t);
-  return [p0, a, d, f];
-}
-
-/**
- * Clip a 1+3N cubic-spline point chain so endpoints land on the source /
- * target rectangle borders.
- */
-function clipSplineToRects(pts: Pt[], srcRect: Rect | null, tgtRect: Rect | null, shortenEnd = 0): Pt[] {
-  const isCubicChain = (pts.length - 1) % 3 === 0 && pts.length >= 4;
-  const result = pts.map((p) => ({ ...p }));
-
-  if (!isCubicChain) {
-    if (shortenEnd > 0 && result.length >= 2) {
-      const last = result[result.length - 1];
-      const prev = result[result.length - 2];
-      const dx = last.x - prev.x;
-      const dy = last.y - prev.y;
-      const len = Math.hypot(dx, dy);
-      if (len > shortenEnd) {
-        result[result.length - 1] = {
-          x: last.x - (dx / len) * shortenEnd,
-          y: last.y - (dy / len) * shortenEnd,
-        };
-      }
-    }
-    return result;
+/** Trim the last segment by `shortenEnd` so the arrowhead lands just off the node border. */
+function shortenLastSegment(pts: Pt[], shortenEnd: number): Pt[] {
+  if (shortenEnd <= 0 || pts.length < 2) return pts;
+  const out = pts.map((p) => ({ ...p }));
+  const last = out[out.length - 1];
+  const prev = out[out.length - 2];
+  const dx = last.x - prev.x;
+  const dy = last.y - prev.y;
+  const len = Math.hypot(dx, dy);
+  if (len > shortenEnd) {
+    out[out.length - 1] = { x: last.x - (dx / len) * shortenEnd, y: last.y - (dy / len) * shortenEnd };
   }
-  const STEPS = 20;
-
-  if (srcRect && ptInRect(result[0], srcRect)) {
-    const [p0, p1, p2, p3] = [result[0], result[1], result[2], result[3]];
-    let exitT = -1;
-    for (let i = 1; i <= STEPS; i++) {
-      const t = i / STEPS;
-      if (!ptInRect(cubicPt(p0, p1, p2, p3, t), srcRect)) {
-        exitT = t;
-        break;
-      }
-    }
-    if (exitT > 0) {
-      let lo = exitT - 1 / STEPS;
-      let hi = exitT;
-      for (let i = 0; i < 8; i++) {
-        const mid = (lo + hi) / 2;
-        if (ptInRect(cubicPt(p0, p1, p2, p3, mid), srcRect)) lo = mid;
-        else hi = mid;
-      }
-      const [rp0, rp1, rp2, rp3] = splitCubicRight(p0, p1, p2, p3, hi);
-      result[0] = rp0;
-      result[1] = rp1;
-      result[2] = rp2;
-      result[3] = rp3;
-    }
-  }
-
-  const n = result.length;
-  if (tgtRect && ptInRect(result[n - 1], tgtRect)) {
-    const [p0, p1, p2, p3] = [result[n - 4], result[n - 3], result[n - 2], result[n - 1]];
-    let entryT = -1;
-    for (let i = STEPS - 1; i >= 0; i--) {
-      const t = i / STEPS;
-      if (!ptInRect(cubicPt(p0, p1, p2, p3, t), tgtRect)) {
-        entryT = t;
-        break;
-      }
-    }
-    if (entryT >= 0) {
-      let lo = entryT;
-      let hi = entryT + 1 / STEPS;
-      for (let i = 0; i < 8; i++) {
-        const mid = (lo + hi) / 2;
-        if (!ptInRect(cubicPt(p0, p1, p2, p3, mid), tgtRect)) lo = mid;
-        else hi = mid;
-      }
-      const [lp0, lp1, lp2, lp3] = splitCubicLeft(p0, p1, p2, p3, lo);
-      result[n - 4] = lp0;
-      result[n - 3] = lp1;
-      result[n - 2] = lp2;
-      result[n - 1] = lp3;
-    }
-  }
-
-  if (shortenEnd > 0 && result.length >= 2) {
-    const last = result[result.length - 1];
-    const prev = result[result.length - 2];
-    const dx = last.x - prev.x;
-    const dy = last.y - prev.y;
-    const len = Math.hypot(dx, dy);
-    if (len > shortenEnd) {
-      result[result.length - 1] = {
-        x: last.x - (dx / len) * shortenEnd,
-        y: last.y - (dy / len) * shortenEnd,
-      };
-    }
-  }
-
-  return result;
+  return out;
 }
 
 // ---- Types ----
 
 export type EdgeRouting = {
   kind: "polyline";
+  /** Plain waypoints (the Rust engine), rendered as a rounded polyline. */
   points: { x: number; y: number }[];
   srcPos: { x: number; y: number };
   tgtPos: { x: number; y: number };
@@ -198,6 +70,8 @@ export type EdgeRouting = {
 export interface DfgEdgeData extends Record<string, unknown> {
   label: string;
   color: string;
+  /** Object type this arc belongs to (OC-DFG only); drives per-type layout reconstruction. */
+  group?: string;
   routing?: EdgeRouting;
   /** 0-based index among parallel edges sharing the same (source, target). */
   parallelIndex?: number;
@@ -212,7 +86,7 @@ export type DfgEdgeType = Edge<DfgEdgeData, "default">;
 // ---- Component ----
 
 /**
- * Shared DFG edge component. Renders ELK-routed splines with border snapping,
+ * Shared DFG edge component. Renders the Rust engine's rounded-polyline routing,
  * self-loops, or a bezier fallback. Includes a custom arrow marker that scales
  * with stroke width.
  */
@@ -256,49 +130,28 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
     labelX = startX + loopW * 0.75;
     labelY = (startY + endY) / 2;
   } else if (data.routing?.kind === "polyline" && data.routing.points.length >= 2) {
-    const rawPts = data.routing.points;
-    const isCubicChain = (rawPts.length - 1) % 3 === 0 && rawPts.length >= 4;
+    let pts = data.routing.points.map((p) => ({ x: p.x, y: p.y }));
 
-    const pts = rawPts.map((p) => ({ x: p.x, y: p.y }));
-
+    // Follow dragged nodes: shift the routed endpoints by the node's displacement since layout.
     const srcDx = sourceNode.position.x - data.routing.srcPos.x;
     const srcDy = sourceNode.position.y - data.routing.srcPos.y;
     const tgtDx = targetNode.position.x - data.routing.tgtPos.x;
     const tgtDy = targetNode.position.y - data.routing.tgtPos.y;
-    if (srcDx !== 0 || srcDy !== 0) {
-      pts[0] = { x: pts[0].x + srcDx, y: pts[0].y + srcDy };
-      if (isCubicChain && pts.length >= 2) {
-        pts[1] = { x: pts[1].x + srcDx, y: pts[1].y + srcDy };
-      }
-    }
+    if (srcDx !== 0 || srcDy !== 0) pts[0] = { x: pts[0].x + srcDx, y: pts[0].y + srcDy };
     if (tgtDx !== 0 || tgtDy !== 0) {
       const n = pts.length;
       pts[n - 1] = { x: pts[n - 1].x + tgtDx, y: pts[n - 1].y + tgtDy };
-      if (isCubicChain && pts.length >= 2) {
-        pts[n - 2] = { x: pts[n - 2].x + tgtDx, y: pts[n - 2].y + tgtDy };
-      }
     }
 
-    const halfSw = sw / 2;
-    const srcR: Rect = {
-      x: sourceNode.internals.positionAbsolute.x,
-      y: sourceNode.internals.positionAbsolute.y,
-      w: sourceNode.measured?.width ?? 120,
-      h: sourceNode.measured?.height ?? 52,
-    };
-    const tgtR: Rect = {
-      x: targetNode.internals.positionAbsolute.x - halfSw,
-      y: targetNode.internals.positionAbsolute.y - halfSw,
-      w: (targetNode.measured?.width ?? 120) + sw,
-      h: (targetNode.measured?.height ?? 52) + sw,
-    };
-    const shortenEnd = Math.max(0, 0.35 * markerSize - halfSw);
-    const clipped = clipSplineToRects(pts, srcR, tgtR, shortenEnd);
-    for (let i = 0; i < pts.length; i++) pts[i] = clipped[i];
+    // The arrow marker's tip sits 0.35.markerSize ahead of the path's last point (refX=7 in a 20u
+    // viewBox, tip at x=14). Shorten the path by exactly that so the tip lands ON the target border
+    // instead of `halfSw` past it (which drove the head into the node).
+    const shortenEnd = 0.35 * markerSize;
+    pts = shortenLastSegment(pts, shortenEnd);
 
-    edgePath = splinePath(pts);
+    edgePath = roundedPolylinePath(pts, 18);
 
-    const anchors = isCubicChain ? pts.filter((_, i) => i % 3 === 0) : pts;
+    const anchors = pts;
     let total = 0;
     const segs: number[] = [];
     for (let i = 1; i < anchors.length; i++) {
@@ -380,9 +233,11 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               fontSize: 10,
               color,
-              background: "var(--color-panel-solid)",
-              padding: "0 3px",
-              borderRadius: 3,
+              // Halo (panel-colored glow) instead of a filled chip: keeps the number legible over
+              // arcs without a hard box cluttering the graph. Mirrors the SVG export's stroke halo.
+              // Stacked layers build a dense, near-opaque glow so the digits read over dark arcs.
+              textShadow:
+                "0 0 2px var(--color-panel-solid), 0 0 2px var(--color-panel-solid), 0 0 2px var(--color-panel-solid), 0 0 3px var(--color-panel-solid), 0 0 4px var(--color-panel-solid)",
               zIndex: 1,
             }}
           >

@@ -287,6 +287,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     };
     const onEnter = (e: Event) => {
       const dt = (e as DragEvent).dataTransfer;
+      console.log("[dnd] dragenter types=", dt ? Array.from(dt.types) : null);
       if (!looksLikeFile(dt)) return;
       e.preventDefault();
       if (clearTimer) clearTimeout(clearTimer);
@@ -317,6 +318,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     };
     const onDrop = (e: Event) => {
       const dt = (e as DragEvent).dataTransfer;
+      console.log("[dnd] drop types=", dt ? Array.from(dt.types) : null, "files=", dt?.files?.length ?? 0);
       if (!looksLikeFile(dt)) return;
       e.preventDefault();
       setDragging(false);
@@ -325,6 +327,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       // can present a placeholder-named File, so the path is the trustworthy source.
       if (onDesktop) {
         const paths = extractPathsFromDataTransfer(dt);
+        console.log("[dnd] extracted paths=", paths);
         if (paths.length > 0) {
           for (const p of paths) handleDroppedPath(p);
           return;

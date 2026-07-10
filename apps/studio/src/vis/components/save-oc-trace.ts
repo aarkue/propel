@@ -1,6 +1,6 @@
 import type { OcSequenceStep } from "@r4pm/components";
 import { backend } from "../../backends";
-import { useDatasets } from "../../stores";
+import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
 const OCEL_FROM_TRACE = "app_bindings::ocel::ocel_from_oc_sim_trace" as const;
 
@@ -18,6 +18,6 @@ export async function saveOcTraceAsOcel(trace: OcSequenceStep[]): Promise<void> 
   useDatasets.getState().addDataset({
     id: handle,
     kind: "SlimLinkedOCEL",
-    label: `Simulated OCEL (${steps.length} event${steps.length === 1 ? "" : "s"})`,
+    label: uniqueDatasetLabel("Simulated OCEL"),
   });
 }

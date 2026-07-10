@@ -44,12 +44,6 @@ impl Backend for TauriBackend<'_, '_> {
     }
 }
 
-#[derive(Serialize)]
-struct LoadedObject {
-    id: String,
-    kind: String,
-}
-
 /// Paths the app was launched to open (OS file association / CLI args / macOS "Opened" events).
 /// Drained by `get_initial_files` once the frontend is ready to import them.
 #[derive(Default)]
@@ -103,12 +97,9 @@ async fn execute_binding(
 async fn get_all_objects_with_type(
     app: AppHandle,
     state: State<'_, ExtendedAppState>,
-) -> Result<Vec<LoadedObject>, String> {
+) -> Result<Vec<backend_shared::ObjectInfo>, String> {
     let backend = TauriBackend::new(&app, &state);
-    Ok(backend_shared::get_objects_with_type(&backend)?
-        .into_iter()
-        .map(|(id, kind)| LoadedObject { id, kind })
-        .collect())
+    backend_shared::get_objects_with_type(&backend)
 }
 
 #[tauri::command]
@@ -158,6 +149,17 @@ async fn unload_object(
 }
 
 #[tauri::command]
+async fn set_object_label(
+    app: AppHandle,
+    state: State<'_, ExtendedAppState>,
+    id: String,
+    label: Option<String>,
+) -> Result<(), String> {
+    let backend = TauriBackend::new(&app, &state);
+    backend_shared::set_object_label(&backend, id, label)
+}
+
+#[tauri::command]
 async fn load_artifact_bytes(
     app: AppHandle,
     state: State<'_, ExtendedAppState>,
@@ -174,12 +176,9 @@ async fn load_artifact_bytes(
 async fn list_artifacts(
     app: AppHandle,
     state: State<'_, ExtendedAppState>,
-) -> Result<Vec<LoadedObject>, String> {
+) -> Result<Vec<backend_shared::ObjectInfo>, String> {
     let backend = TauriBackend::new(&app, &state);
-    Ok(backend_shared::list_artifacts(&backend)?
-        .into_iter()
-        .map(|(id, kind)| LoadedObject { id, kind })
-        .collect())
+    backend_shared::list_artifacts(&backend)
 }
 
 #[tauri::command]
@@ -342,6 +341,7 @@ pub fn run() {
             load_item_bytes,
             export_object,
             unload_object,
+            set_object_label,
             load_artifact_bytes,
             list_artifacts,
             get_artifact,

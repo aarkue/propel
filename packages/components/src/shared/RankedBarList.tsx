@@ -62,7 +62,17 @@ export function RankedBarList({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        width: "100%",
+        height: "100%",
+        overflowY: "auto",
+        paddingBlockEnd: "2rem",
+      }}
+    >
       {shown.map((it, i) => {
         const c = cfg.colorOf?.(scope, it.key) ?? FALLBACK_PALETTE[i % FALLBACK_PALETTE.length];
         const rowStyle = {
@@ -71,7 +81,7 @@ export function RankedBarList({
           alignItems: "center",
           gap: 10,
           width: "100%",
-          height: 30,
+          minHeight: 30,
           padding: "0 8px",
           borderRadius: 6,
           border: "none",

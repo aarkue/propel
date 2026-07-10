@@ -10,6 +10,8 @@ use process_mining::{
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashSet;
+use std::sync::RwLock;
 pub mod artifact;
 pub mod meta;
 pub use meta::{ItemMeta, ItemRole, ObjMeta, Provenance};
@@ -32,6 +34,11 @@ pub mod state {
         pub meta: ObjMeta,
         pub files_to_import: RwLock<Vec<PathBuf>>,
         pub artifacts: RwLock<HashMap<String, PropelArtifact>>,
+        /// Insertion order of registry-object / artifact ids, kept because the underlying maps are
+        /// unordered (`HashMap`). Reconciled lazily in the list getters so the frontend gets a stable
+        /// order that survives a reload (newest last). See `reconcile_order`.
+        pub object_order: RwLock<Vec<String>>,
+        pub artifact_order: RwLock<Vec<String>>,
     }
     /// Deref to the wrapped `AppState` so existing `.items` / `.add` / `.contains_key` call
     /// sites keep working unchanged; only the lifecycle policy (`.meta`) is new.
@@ -173,14 +180,20 @@ pub fn load_artifact_path<B: Backend>(
     Ok(())
 }
 
-pub fn list_artifacts<B: Backend>(backend: &B) -> Result<Vec<(String, String)>, String> {
-    let m = backend
-        .get_state()
-        .artifacts
-        .read()
-        .map_err(|e| e.to_string())?;
-    Ok(m.iter()
-        .map(|(id, a)| (id.clone(), a.kind().to_string()))
+pub fn list_artifacts<B: Backend>(backend: &B) -> Result<Vec<ObjectInfo>, String> {
+    let st = backend.get_state();
+    let m = st.artifacts.read().map_err(|e| e.to_string())?;
+    let present: HashSet<String> = m.keys().cloned().collect();
+    let ordered = reconcile_order(&st.artifact_order, &present);
+    Ok(ordered
+        .into_iter()
+        .filter_map(|id| {
+            m.get(&id).map(|a| ObjectInfo {
+                kind: a.kind().to_string(),
+                label: st.meta.label_of(&id),
+                id,
+            })
+        })
         .collect())
 }
 
@@ -196,12 +209,9 @@ pub fn get_artifact<B: Backend>(backend: &B, id: &str) -> Result<serde_json::Val
 }
 
 pub fn unload_artifact<B: Backend>(backend: &B, id: String) -> Result<(), String> {
-    backend
-        .get_state()
-        .artifacts
-        .write()
-        .map_err(|e| e.to_string())?
-        .remove(&id);
+    let st = backend.get_state();
+    st.artifacts.write().map_err(|e| e.to_string())?.remove(&id);
+    st.meta.set_label(&id, None);
     emit_artifacts_changed(backend);
     Ok(())
 }
@@ -357,19 +367,63 @@ pub fn export_item_path<B: Backend>(backend: &B, id: &str, path: &str) -> Result
     }
 }
 
-pub fn get_objects_with_type<B: Backend>(backend: &B) -> Result<Vec<(String, String)>, String> {
-    let meta = &backend.get_state().meta;
-    let objects = backend
-        .get_state()
-        .items
-        .read()
-        .map_err(|e| e.to_string())?;
-    let result: Vec<_> = objects
+/// A loaded registry object as the frontend sees it: handle `id`, registry `kind`, and the
+/// optional user-facing `label` (absent when the user never renamed it, so the UI shows the id).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObjectInfo {
+    pub id: String,
+    pub kind: String,
+    pub label: Option<String>,
+}
+
+/// The ids in `present`, in insertion order: drop remembered ids that are gone, append ones we
+/// haven't seen. The object/artifact stores are unordered `HashMap`s, so this side-list is what gives
+/// the frontend a stable "newest last" order that also survives a reload (engine process outlives it).
+fn reconcile_order(order_lock: &RwLock<Vec<String>>, present: &HashSet<String>) -> Vec<String> {
+    let mut order = order_lock.write().unwrap();
+    order.retain(|id| present.contains(id));
+    // Append ids we have not seen. Normally one appears at a time (each add re-lists), so this is
+    // plain insertion order; sorting only breaks ties when several first show up in the same call.
+    let mut newcomers: Vec<&String> = present.iter().filter(|id| !order.contains(id)).collect();
+    newcomers.sort();
+    order.extend(newcomers.into_iter().cloned());
+    order.clone()
+}
+
+pub fn get_objects_with_type<B: Backend>(backend: &B) -> Result<Vec<ObjectInfo>, String> {
+    let st = backend.get_state();
+    let meta = &st.meta;
+    let objects = st.items.read().map_err(|e| e.to_string())?;
+    let present: HashSet<String> = objects
         .iter()
         .filter(|(name, _)| !meta.is_hidden(name))
-        .map(|(name, object)| (name.to_string(), object.kind().to_string()))
+        .map(|(name, _)| name.clone())
         .collect();
-    Ok(result)
+    let ordered = reconcile_order(&st.object_order, &present);
+    Ok(ordered
+        .into_iter()
+        .filter_map(|id| {
+            objects.get(&id).map(|object| ObjectInfo {
+                kind: object.kind().to_string(),
+                label: meta.label_of(&id),
+                id,
+            })
+        })
+        .collect())
+}
+
+/// Set (or, when `label` is empty/blank, clear) the user-facing display label for object `id`.
+/// Stored engine-side so it outlives a frontend reload; emits `objects-changed` so every surface
+/// picks up the new name.
+pub fn set_object_label<B: Backend>(
+    backend: &B,
+    id: String,
+    label: Option<String>,
+) -> Result<(), String> {
+    let label = label.filter(|l| !l.trim().is_empty());
+    backend.get_state().meta.set_label(&id, label);
+    emit_objects_changed(backend);
+    Ok(())
 }
 
 pub fn export_object<B: Backend>(backend: &B, name: &str, format: &str) -> Result<Vec<u8>, String> {
@@ -667,7 +721,11 @@ mod artifact_store_tests {
         load_artifact_bytes(&b, "net1".into(), "PetriNet", PNML.as_bytes(), "pnml").unwrap();
         assert_eq!(
             list_artifacts(&b).unwrap(),
-            vec![("net1".to_string(), "PetriNet".to_string())]
+            vec![ObjectInfo {
+                id: "net1".to_string(),
+                kind: "PetriNet".to_string(),
+                label: None,
+            }]
         );
         assert!(get_artifact(&b, "net1").unwrap().get("places").is_some());
         assert!(b

@@ -1,7 +1,7 @@
 import type { SlimLinkedOCELHandle } from "@r4pm/client";
-import { OCDFGViewer } from "@r4pm/components";
 import { PiFlowArrow } from "react-icons/pi";
 import { backend } from "../backends";
+import { OCDFGPanel } from "./components/OCDFGPanel";
 import { defineVis } from "./define-vis";
 
 const OCEL_DF_PERFORMANCE = "app_bindings::ocel::get_ocel_df_performance" as const;
@@ -26,5 +26,5 @@ export const vis = defineVis({
     const performance = await backend.callBinding(OCEL_DF_PERFORMANCE, { ocel });
     return { performance };
   },
-  component: OCDFGViewer,
+  component: OCDFGPanel,
 });

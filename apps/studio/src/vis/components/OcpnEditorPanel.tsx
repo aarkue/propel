@@ -1,4 +1,5 @@
 import { ObjectCentricPetriNetWorkbench, type ObjectCentricPetriNet } from "@r4pm/components";
+import { renderGraphSvg } from "./render-graph-svg";
 import { saveOcTraceAsOcel } from "./save-oc-trace";
 
 const EMPTY_OCPN: ObjectCentricPetriNet = {
@@ -16,6 +17,7 @@ export function OcpnEditorPanel() {
       data={EMPTY_OCPN}
       initialMode="edit"
       onSaveTraceAsLog={saveOcTraceAsOcel}
+      renderSvg={renderGraphSvg}
     />
   );
 }

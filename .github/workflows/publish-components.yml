@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The viz-layout wasm is built from Rust at pack time (prebuild); it is not committed.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -22,10 +27,16 @@ jobs:
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Install wasm-pack
+        run: npm install -g wasm-pack
+
       # OIDC trusted publishing needs npm >= 11.5.1 (newer than what setup-node bundles).
       - run: npm install -g npm@latest
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Build viz-layout wasm
+        run: pnpm --filter @r4pm/components build:wasm
 
       - name: Verify tag matches package version
         if: startsWith(github.ref, 'refs/tags/')

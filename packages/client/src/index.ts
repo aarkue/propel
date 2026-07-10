@@ -7,6 +7,8 @@ import type { JSONSchema7 } from "json-schema";
 export interface LoadedObject {
   id: string;
   kind: string;
+  /** User-facing display label; absent/null means the UI falls back to the id. */
+  label?: string | null;
 }
 
 /**
@@ -54,6 +56,8 @@ export interface ItemKindInfo {
 export interface ArtifactInfo {
   id: string;
   kind: string;
+  /** User-facing display label; absent/null means the UI falls back to the id. */
+  label?: string | null;
 }
 
 /** Which transport an active backend speaks. */
@@ -82,6 +86,8 @@ export interface BackendContext {
   loadItem(id: string, kind: string, data: Uint8Array, format: string): Promise<void>;
   exportObject(name: string, format: string): Promise<Uint8Array>;
   unloadObject(name: string): Promise<void>;
+  /** Set (or, with an empty string, clear) an object's user-facing display label; persists engine-side. */
+  setLabel(id: string, label: string): Promise<void>;
 
   // --- artifacts (engine-owned, non-registry values, e.g. Petri nets) ---
   loadArtifactBytes(id: string, kind: string, data: Uint8Array, format: string): Promise<void>;

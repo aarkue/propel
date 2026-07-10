@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["backend-shared", "app-bindings", "meta-gen", "wasm", "webserver", "app"]
+members = ["backend-shared", "app-bindings", "meta-gen", "wasm", "webserver", "app", "viz-layout", "viz-layout-wasm"]
 # `app` (tauri) excluded: requires system GUI libs. Build via `cargo tauri build`.
 # `meta-gen` excluded: codegen tool, prevents `preserve_order` unifying into runtime crates.
 default-members = ["backend-shared", "app-bindings", "webserver"]

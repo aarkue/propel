@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useEdges, useNodes, useReactFlow, type Edge } from "@xyflow/react";
 import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "./viewer/export";
+import type { LegendGroup, StyledGraphRenderer } from "./graph-svg/styled-graph";
 import { shadeHex } from "./dfg/util/colors";
 import { PetriNetViewer, normalizePetriNet, type PetriNet, type PetriNetOverlay } from "./petri-net";
 import {
   Editor,
   buildPetriNetSvg,
-  layoutPetriNet,
   nodesToPetriNet,
+  petriModelToStyledGraph,
+  usePetriLayout,
   type ArcContext,
   type ArcData,
   type ArcPresentation,
@@ -78,6 +80,12 @@ function NumberedTokens({ count, color, isFinal }: { count: number; color: strin
   );
 }
 
+/** Adapt the flat `{type,color}` legend rows into a `StyledGraph` `LegendGroup`. */
+function toStyledLegend(rows: { type: string; color: string }[]): LegendGroup[] {
+  if (rows.length === 0) return [];
+  return [{ title: "Object types", items: rows.map((r) => ({ label: r.type, color: r.color })) }];
+}
+
 /** Distinct object types, in first-seen order, paired with their color. */
 function objectTypeLegend(types: string[], otColor: OtColor): { type: string; color: string }[] {
   const seen = new Set<string>();
@@ -141,6 +149,7 @@ function buildStaticOverlay(ocpn: ObjectCentricPetriNet, otColor: OtColor): Petr
   return {
     place: (p) => ({
       label: typeOf(p.id),
+      objectType: typeOf(p.id),
       renderMarking: () => (
         <>
           <NumberedTokens count={p.tokens} color={color(p.id, "foreground")} />
@@ -428,21 +437,24 @@ function OcpnEditor({
   data,
   otColor,
   onChange,
+  renderSvg,
 }: {
   data: ObjectCentricPetriNet;
   otColor: OtColor;
   onChange?: (ocpn: ObjectCentricPetriNet) => void;
+  renderSvg?: StyledGraphRenderer;
 }) {
   const [seed, setSeed] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] } | null>(null);
   const [objectTypes, setObjectTypes] = useState<string[]>(() => placeTypes(ocpnToElements(data).nodes));
   const liveRef = useRef<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>({ nodes: [], edges: [] });
+  const petriLayout = usePetriLayout();
 
   // Lay out the seed once per incoming net; the editor owns it (uncontrolled) after.
   useEffect(() => {
     let cancelled = false;
     const elements = ocpnToElements(data);
     liveRef.current = elements;
-    layoutPetriNet(elements.nodes, elements.edges).then((res) => {
+    petriLayout(elements.nodes, elements.edges).then((res) => {
       if (cancelled) return;
       liveRef.current = res;
       setSeed(res);
@@ -450,7 +462,7 @@ function OcpnEditor({
     return () => {
       cancelled = true;
     };
-  }, [data]);
+  }, [data, petriLayout]);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -481,35 +493,60 @@ function OcpnEditor({
     [otColor, objectTypes],
   );
 
-  const arcOverlay = useCallback((arc: ArcContext, d: ArcData): ArcPresentation => {
-    const variable = !!d.variable;
-    return {
-      style: arcVariableStyle(variable),
-      badge: <ArcVariableToggle edgeId={arc.id} variable={variable} />,
-    };
-  }, []);
+  // Color an arc by its place endpoint's object type (like the read-only overlay). The place side
+  // is whichever end is a place; its objectType lives on the live node data.
+  const arcStroke = useCallback(
+    (placeId: string | undefined): string | undefined => {
+      if (!placeId) return undefined;
+      const node = liveRef.current.nodes.find((n) => n.id === placeId && n.type === "place");
+      const ot = (node?.data as PlaceData | undefined)?.objectType;
+      return ot ? otColor(ot) : undefined;
+    },
+    [otColor],
+  );
+
+  const arcOverlay = useCallback(
+    (arc: ArcContext, d: ArcData): ArcPresentation => {
+      const variable = !!d.variable;
+      const stroke = arcStroke(arc.fromType === "place" ? arc.from : arc.to);
+      return {
+        style: { ...arcVariableStyle(variable), ...(stroke ? { stroke } : {}) },
+        badge: <ArcVariableToggle edgeId={arc.id} variable={variable} />,
+      };
+    },
+    [arcStroke],
+  );
+
+  const legend = useMemo(() => objectTypeLegend(objectTypes, otColor), [objectTypes, otColor]);
+  const styledLegend = useMemo(() => toStyledLegend(legend), [legend]);
 
   // Export honors styling by re-applying the place + arc overlays to the live net (the
   // overlays run at render in the DOM, so the SVG builder must re-derive them here).
   const exportSource = useMemo<VectorExportSource>(
     () => ({
-      toSvg: () => {
+      toSvg: async () => {
         const { nodes, edges } = liveRef.current;
+        const placeIds = new Set(nodes.filter((n) => n.type === "place").map((n) => n.id));
         const styledNodes = nodes.map((n) =>
           n.type === "place" ? { ...n, data: { ...n.data, ...placeOverlay(n.id, n.data) } } : n,
         );
-        const styledEdges = edges.map((e) => ({
-          ...e,
-          style: { ...e.style, ...arcVariableStyle(!!e.data?.variable) },
-        }));
+        const styledEdges = edges.map((e) => {
+          const stroke = arcStroke(placeIds.has(e.source) ? e.source : e.target);
+          return {
+            ...e,
+            style: { ...e.style, ...arcVariableStyle(!!e.data?.variable), ...(stroke ? { stroke } : {}) },
+          };
+        });
+        if (renderSvg) {
+          const graph = petriModelToStyledGraph(styledNodes, styledEdges, styledLegend);
+          return graph ? renderSvg(graph) : null;
+        }
         return buildPetriNetSvg(styledNodes, styledEdges);
       },
     }),
-    [placeOverlay],
+    [placeOverlay, arcStroke, renderSvg, styledLegend],
   );
   useRegisterExport("petri-net", exportSource);
-
-  const legend = useMemo(() => objectTypeLegend(objectTypes, otColor), [objectTypes, otColor]);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 256 }}>
@@ -539,24 +576,36 @@ function OcpnEditor({
 export interface ObjectCentricPetriNetViewerProps extends ViewerProps<ObjectCentricPetriNet> {
   editable?: boolean;
   onChange?: (ocpn: ObjectCentricPetriNet) => void;
+  /** Draw the exact on-screen graph through a host-supplied renderer (typically the
+   *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. */
+  renderSvg?: StyledGraphRenderer;
 }
 
 export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerProps) {
-  const { data, editable, onChange } = props;
+  const { data, editable, onChange, renderSvg } = props;
   const cfg = useViewerConfig(props);
   const otColor = useCallback<OtColor>(
     (ot, mode = "normal") => shadeHex(cfg.colorOf?.("objectType", ot) ?? "#888888", mode),
     [cfg.colorOf],
   );
+  // Memoized so its stable identity doesn't retrigger the viewer's layout effect.
+  const placeTypes = data.place_object_type;
+  const categoryOf = useCallback((placeId: string) => placeTypes[placeId], [placeTypes]);
 
-  if (editable) return <OcpnEditor data={data} otColor={otColor} onChange={onChange} />;
+  if (editable) return <OcpnEditor data={data} otColor={otColor} onChange={onChange} renderSvg={renderSvg} />;
 
   const normNet = normalizePetriNet(data.petri_net);
   const overlay = buildStaticOverlay({ ...data, petri_net: normNet }, otColor);
   const legend = objectTypeLegend(Object.values(data.place_object_type), otColor);
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 256 }}>
-      <PetriNetViewer data={normNet} overlay={overlay} />
+      <PetriNetViewer
+        data={normNet}
+        overlay={overlay}
+        categoryOf={categoryOf}
+        renderSvg={renderSvg}
+        legend={toStyledLegend(legend)}
+      />
       <LegendBox legend={legend} />
     </div>
   );

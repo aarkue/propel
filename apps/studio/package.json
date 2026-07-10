@@ -30,8 +30,7 @@
     "react-plotly.js": "^2.6.0",
     "zustand": "^5.0.0",
     "@xyflow/react": "^12.10.0",
-    "clsx": "^2.1.1",
-    "elkjs": "^0.10.0"
+    "clsx": "^2.1.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

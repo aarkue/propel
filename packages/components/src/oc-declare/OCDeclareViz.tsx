@@ -2,18 +2,22 @@ import {
   type Edge,
   type Node,
   ReactFlow,
+  type ReactFlowProps,
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH, ActivityNode } from "./ActivityNode";
 import { ConstraintEdge } from "./ConstraintEdge";
-import { computeElkLayout } from "./elkLayout";
+import { type DeclareLayoutFn, noopDeclareLayout } from "./layout-util";
+import { ocDeclareModelToStyledGraph } from "./styled-graph";
 import type { ActivityNodeData, ConstraintEdgeData, RawConstraint } from "./types";
 import { type ColorResolver, VizProvider } from "./VizContext";
+import { useRegisterExport, type VectorExportSource } from "../viewer/export";
+import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 
 export interface OCDeclareVizProps {
   constraints: RawConstraint[];
@@ -40,6 +44,13 @@ export interface OCDeclareVizProps {
    *  sequence reads left-to-right). "DOWN" produces a vertical layout
    *  that fits narrow, page-shaped surfaces. */
   direction?: "RIGHT" | "DOWN";
+  /** Replace the default Rust layout with a host-supplied one. Same contract: return
+   *  nodes with positions + edges with routing data. */
+  layoutOverride?: DeclareLayoutFn;
+  /** Draw the exact on-screen graph through a host-supplied renderer (typically the
+   *  `export_graph_svg` Rust binding). Absent: falls back to the frame's DOM snapshot export
+   *  (this viewer has no built-in JS vector drawer, unlike DFG/Petri). */
+  renderSvg?: StyledGraphRenderer;
 }
 
 /** Imperative handle for the viz: exposes current laid-out nodes/edges for export. */
@@ -107,14 +118,20 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     hiddenObjectTypes = new Set(),
     onFocusChange,
     direction = "RIGHT",
+    layoutOverride,
+    renderSvg,
   },
   ref,
 ) {
+  const runLayout = layoutOverride ?? noopDeclareLayout;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ActivityNodeData, "activity">>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<ConstraintEdgeData, "constraint">>([]);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const { fitView } = useReactFlow();
+  const { fitView, getNodes, getEdges } = useReactFlow();
+  // Nodes the user has manually placed; they stay pinned across later drag-relayouts. A fresh layout
+  // (constraint change) clears them.
+  const pinnedIds = useRef<Set<string>>(new Set());
 
   useImperativeHandle(
     ref,
@@ -125,8 +142,27 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     [nodes, edges],
   );
 
-  // Rebuild nodes + edges whenever the constraint set changes, then run ELK.
+  const renderSvgRef = useRef(renderSvg);
+  renderSvgRef.current = renderSvg;
+  const colorsRef = useRef({ activityColor, objectTypeColor });
+  colorsRef.current = { activityColor, objectTypeColor };
+  const exportSource = useMemo<VectorExportSource>(
+    () => ({
+      toSvg: async () => {
+        const render = renderSvgRef.current;
+        if (!render) return null;
+        const { activityColor: ac, objectTypeColor: oc } = colorsRef.current;
+        const graph = ocDeclareModelToStyledGraph(nodes, edges, ac, oc);
+        return graph ? render(graph) : null;
+      },
+    }),
+    [nodes, edges],
+  );
+  useRegisterExport("oc-declare", exportSource);
+
+  // Rebuild nodes + edges whenever the constraint set changes, then run the layout.
   useEffect(() => {
+    pinnedIds.current.clear(); // a fresh (constraint-change) layout supersedes manual placements
     const activities = Array.from(new Set(constraints.flatMap((c) => [c.from, c.to]))).sort();
     const initNodes: Node<ActivityNodeData, "activity">[] = activities.map((act) => ({
       id: act,
@@ -154,7 +190,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     const bundled = bundleEdges(initEdges);
 
     let cancelled = false;
-    computeElkLayout(initNodes, bundled, { direction }).then((r) => {
+    runLayout(initNodes, bundled, { direction }).then((r) => {
       if (cancelled) return;
       setNodes(r.nodes);
       setEdges(r.edges as Edge<ConstraintEdgeData, "constraint">[]);
@@ -163,7 +199,33 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     return () => {
       cancelled = true;
     };
-  }, [constraints, activityInvolvements, direction, setNodes, setEdges, fitView]);
+  }, [constraints, activityInvolvements, direction, setNodes, setEdges, fitView, runLayout]);
+
+  // Stable relayout after a node drag: seed every node at its current centre (un-dragged nodes stay
+  // put), pin the manually-placed set, and re-route edges over that geometry. The dragged node holds
+  // exactly where dropped; only edges (and any node the drop crowds) move.
+  const onNodeDragStop = useCallback<NonNullable<ReactFlowProps["onNodeDragStop"]>>(
+    (_e, dragged) => {
+      pinnedIds.current.add(dragged.id);
+      const curNodes = getNodes() as Node<ActivityNodeData, "activity">[];
+      const curEdges = getEdges() as Edge<ConstraintEdgeData, "constraint">[];
+      void runLayout(curNodes, curEdges, {
+        direction,
+        reroute: true,
+        seed: (n) => ({
+          x: n.position.x + ACT_NODE_WIDTH / 2,
+          y: n.position.y + ACT_NODE_HEIGHT / 2,
+          pinned: pinnedIds.current.has(n.id),
+        }),
+      })
+        .then((r) => {
+          setNodes(r.nodes);
+          setEdges(r.edges as Edge<ConstraintEdgeData, "constraint">[]);
+        })
+        .catch((e) => console.error("[oc-declare] reroute failed:", e));
+    },
+    [runLayout, direction, getNodes, getEdges, setNodes, setEdges],
+  );
 
   const ctxValue = useMemo(
     () => ({
@@ -195,6 +257,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
         edgeTypes={EDGE_TYPES}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStop={onNodeDragStop}
         minZoom={0.1}
         maxZoom={2}
         nodesConnectable={false}

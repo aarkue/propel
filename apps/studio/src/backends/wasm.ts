@@ -65,6 +65,9 @@ export function createWasmBackend(): BackendContext {
     async unloadObject(name) {
       await call("unloadObject", [name]);
     },
+    async setLabel(id, label) {
+      await call("setLabel", [id, label]);
+    },
     async loadArtifactBytes(id, kind, data, format) {
       await call("loadArtifactBytes", [id, kind, data, format], [data.buffer]);
     },

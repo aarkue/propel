@@ -1,8 +1,10 @@
 import { Button, DropdownMenu, IconButton, Kbd, Separator } from "@r4pm/components/ui";
 import { type ReactNode, useEffect, useState } from "react";
-import { PiDotsThreeVertical, PiMagnifyingGlass, PiMoon, PiPlus, PiSun } from "react-icons/pi";
+import { PiDotsThreeVertical, PiMagnifyingGlass, PiMoon, PiPlus, PiStack, PiSun } from "react-icons/pi";
 import { CommandPalette } from "./CommandPalette";
 import { LoadedStrip } from "./LoadedStrip";
+import { LoadedDialog } from "./LoadedDialog";
+import { useArtifacts, useDatasets } from "../stores";
 import { ImportButton } from "./ImportButton";
 import { PanelGallery } from "./PanelGallery";
 import { SettingsDialog } from "./SettingsDialog";
@@ -16,6 +18,8 @@ export function TopBar({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loadedOpen, setLoadedOpen] = useState(false);
+  const loadedCount = useDatasets((s) => s.datasets.length) + useArtifacts((s) => s.artifacts.length);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -54,7 +58,20 @@ export function TopBar({ children }: { children: ReactNode }) {
           <span className="hidden sm:inline">Add panel</span>
         </Button>
         <Separator orientation="vertical" size="1" className="!mx-1 hidden sm:block" />
-        <LoadedStrip />
+        <div className="hidden md:flex min-w-0 flex-1">
+          <LoadedStrip />
+        </div>
+        {loadedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setLoadedOpen(true)}
+            title="Loaded data"
+            className="flex items-center gap-1 h-7 px-2 rounded text-xs text-[var(--gray-11)] hover:bg-[var(--gray-a3)] cursor-pointer shrink-0 ml-auto md:ml-0"
+          >
+            <PiStack size={14} />
+            <span className="tabular-nums">{loadedCount}</span>
+          </button>
+        )}
         <div className="flex items-center gap-1 pl-1 shrink-0">
           <button
             type="button"
@@ -95,6 +112,7 @@ export function TopBar({ children }: { children: ReactNode }) {
       <div className="flex-1 min-h-0 relative">{children}</div>
 
       <PanelGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} />
+      <LoadedDialog open={loadedOpen} onClose={() => setLoadedOpen(false)} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>

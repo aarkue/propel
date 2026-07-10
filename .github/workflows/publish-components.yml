@@ -30,8 +30,7 @@ jobs:
       - name: Install wasm-pack
         run: npm install -g wasm-pack
 
-      # OIDC trusted publishing needs npm >= 11.5.1 (newer than what setup-node bundles).
-      - run: npm install -g npm@latest
+      - run: npm install -g npm@11
 
       - run: pnpm install --frozen-lockfile
 

@@ -33,15 +33,17 @@ export const vis = defineVis({
   // `onProjectActivities` re-projects constraints onto kept activities via the rust lossless
   // projection; without a backend, counts/projection fall back to name-sort / naive drop-touching.
   extraProps: async (ctx) => {
-    const stats = await ctx.backend.callBinding("process_mining::bindings::ocel_type_stats", {
-      ocel: ctx.datasetId as SlimLinkedOCELHandle,
-    });
+    const ocel = ctx.datasetId as SlimLinkedOCELHandle;
+    const [stats, activityInvolvements] = await Promise.all([
+      ctx.backend.callBinding("process_mining::bindings::ocel_type_stats", { ocel }),
+      ctx.backend.callBinding("app_bindings::ocel::get_ocel_activity_object_involvements", { ocel }),
+    ]);
     const onProjectActivities = (arcs: OCDeclareArc[], activities: string[]) =>
       ctx.backend.callBinding(
         "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart",
         { arcs, activities, lossless_reduction: true },
       );
-    return { eventTypeCounts: stats.event_type_counts, onProjectActivities };
+    return { eventTypeCounts: stats.event_type_counts, activityInvolvements, onProjectActivities };
   },
   component: OCDeclarePanel,
 });

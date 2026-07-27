@@ -1,5 +1,6 @@
 import { AlignmentStrip, type ResolvedMove } from "@r4pm/components";
 import {
+  AlertDialog,
   Badge,
   Button,
   Dialog,
@@ -11,7 +12,11 @@ import {
   TextField,
 } from "@r4pm/components/ui";
 import { useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import { backend } from "../backends";
+import { clearCurrentProjectData } from "../persistence/restore";
 import { makeColorResolver, usePreferences } from "../stores";
+import { withBusy } from "./BusyOverlay";
 
 const SCOPE_LABELS: Record<string, string> = {
   activity: "Activities",
@@ -31,6 +36,13 @@ const SECTIONS: { id: SectionId; label: string; hint: string }[] = [
   { id: "import", label: "Import", hint: "Data types" },
   { id: "colors", label: "Colors", hint: "Palette" },
 ];
+
+const SETTING_ROW_STYLE: React.CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid var(--gray-a4)",
+  background: "var(--gray-a2)",
+};
 
 const MOVES: ResolvedMove[] = [
   { kind: "sync", label: "a", hidden: false },
@@ -56,9 +68,20 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const clearColor = usePreferences((s) => s.clearColor);
   const showExpertKinds = usePreferences((s) => s.showExpertKinds);
   const setShowExpertKinds = usePreferences((s) => s.setShowExpertKinds);
+  const cacheMaxMb = usePreferences((s) => s.cacheMaxMb);
+  const setCacheMaxMb = usePreferences((s) => s.setCacheMaxMb);
 
   const [section, setSection] = useState<SectionId>("display");
   const [colorSearch, setColorSearch] = useState("");
+
+  const handleClearData = async () => {
+    try {
+      await withBusy("Clearing cached data…", () => clearCurrentProjectData(backend));
+      toast.success("Cleared cached data for this project.");
+    } catch (e) {
+      toast.error(`Could not clear data: ${String(e)}`);
+    }
+  };
 
   const overrides = Object.entries(colorOverrides);
   const resolve = useMemo(() => makeColorResolver(colorOverrides), [colorOverrides]);
@@ -223,28 +246,70 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
                 )}
 
                 {section === "import" && (
-                  <SectionBlock
-                    title="Expert import types"
-                    hint="Off by default. Imports use the curated SlimLinkedOCEL / EventLog."
-                  >
-                    <Flex
-                      align="center"
-                      justify="between"
-                      gap="3"
-                      style={{
-                        padding: "12px 14px",
-                        borderRadius: 10,
-                        border: "1px solid var(--gray-a4)",
-                        background: "var(--gray-a2)",
-                      }}
+                  <Flex direction="column" gap="4">
+                    <SectionBlock
+                      title="Expert import types"
+                      hint="Off by default. Imports use the curated SlimLinkedOCEL / EventLog."
                     >
-                      <Text size="2" color="gray" style={{ flex: 1 }}>
-                        Show advanced representations (raw OCEL, IndexLinkedOCEL, activity projection) when
-                        importing files.
-                      </Text>
-                      <Switch checked={showExpertKinds} onCheckedChange={setShowExpertKinds} />
-                    </Flex>
-                  </SectionBlock>
+                      <Flex align="center" justify="between" gap="3" style={SETTING_ROW_STYLE}>
+                        <Text size="2" color="gray" style={{ flex: 1 }}>
+                          Show advanced representations (raw OCEL, IndexLinkedOCEL, activity projection) when
+                          importing files.
+                        </Text>
+                        <Switch checked={showExpertKinds} onCheckedChange={setShowExpertKinds} />
+                      </Flex>
+                    </SectionBlock>
+                    <SectionBlock
+                      title="Browser storage (wasm)"
+                      hint="Datasets larger than this are not cached for automatic restore; you relink their file on reload. 0 = cache everything."
+                    >
+                      <Flex align="center" justify="between" gap="3" style={SETTING_ROW_STYLE}>
+                        <Text size="2" color="gray" style={{ flex: 1 }}>
+                          Max dataset size to cache (MB)
+                        </Text>
+                        <TextField.Root
+                          type="number"
+                          min="0"
+                          value={String(cacheMaxMb)}
+                          onChange={(e) => setCacheMaxMb(Number(e.target.value) || 0)}
+                          style={{ width: 90 }}
+                        />
+                      </Flex>
+                    </SectionBlock>
+                    <SectionBlock
+                      title="Clear cached data"
+                      hint="Remove this project's cached datasets and saved session. Use to recover from a session that fails to restore. Cannot be undone."
+                    >
+                      <AlertDialog.Root>
+                        <AlertDialog.Trigger>
+                          <Button variant="soft" color="red">
+                            Clear cached data
+                          </Button>
+                        </AlertDialog.Trigger>
+                        <AlertDialog.Content maxWidth="420px">
+                          <AlertDialog.Title>Clear cached data</AlertDialog.Title>
+                          <AlertDialog.Description>
+                            <Text>
+                              Remove this project's cached datasets and saved session? Loaded data is unloaded
+                              and the workspace is emptied.
+                            </Text>
+                          </AlertDialog.Description>
+                          <Flex gap="3" mt="4" justify="end">
+                            <AlertDialog.Cancel>
+                              <Button variant="soft" color="gray">
+                                Cancel
+                              </Button>
+                            </AlertDialog.Cancel>
+                            <AlertDialog.Action>
+                              <Button color="red" onClick={() => void handleClearData()}>
+                                Clear
+                              </Button>
+                            </AlertDialog.Action>
+                          </Flex>
+                        </AlertDialog.Content>
+                      </AlertDialog.Root>
+                    </SectionBlock>
+                  </Flex>
                 )}
 
                 {section === "colors" && (

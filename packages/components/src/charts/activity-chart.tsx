@@ -1,5 +1,5 @@
 import { Card, SegmentedControl, Switch, Text } from "@r4pm/components/ui";
-import { useState } from "react";
+import { useViewSetting } from "../viewer/view-state";
 import { RxBarChart, RxListBullet, RxPieChart } from "react-icons/rx";
 import { useViewerConfig } from "../viewer/viewer-config";
 import { ThemedPlot } from "./themed-plot";
@@ -14,16 +14,10 @@ export interface ActivityChartProps {
   numEvents: number;
 }
 
-/**
- * Activity frequency chart: vertical-bar / horizontal-bar / pie (SegmentedControl), per-activity
- * colors from the viewer color resolver, an optional "Group Other" toggle that folds rare (<1% of
- * events) activities into one "Other" slice, and per-activity % labels. Backend-free: pass
- * `counts` and `numEvents`; the studio's activity-chart vis fetches them.
- */
+/** Activity frequency chart (list / bar / pie); backend-free, pass `counts` and `numEvents`. */
 export function ActivityChart({ counts: raw, numEvents }: ActivityChartProps) {
-  const [chartType, setChartType] = useState<ChartType>("list");
-  const [groupOther, setGroupOther] = useState(true);
-  // Shared activity colors from the host (or the deterministic default), HSL hex.
+  const [chartType, setChartType] = useViewSetting<ChartType>("chartType", "list");
+  const [groupOther, setGroupOther] = useViewSetting("groupOther", true);
   const { colorOf } = useViewerConfig({});
 
   const counts: Record<string, number> = { ...raw };

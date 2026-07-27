@@ -18,6 +18,8 @@ interface VizContextValue {
   hoveredNodeId: string | null;
   /** Event-type occurrence counts from the OCEL (activity -> count). */
   eventTypeCounts: Record<string, number>;
+  /** Render object involvement as ∀/ALL()/ANY() text notation instead of quantifier dots. */
+  showTextLabels: boolean;
 }
 
 const neutralResolver: ColorResolver = () => "#6b7280";
@@ -30,6 +32,7 @@ const VizContext = createContext<VizContextValue>({
   focusedNodeId: null,
   hoveredNodeId: null,
   eventTypeCounts: {},
+  showTextLabels: false,
 });
 
 export const VizProvider = VizContext.Provider;

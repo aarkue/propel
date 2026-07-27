@@ -17,7 +17,7 @@ const APPLY_EVENT_LOG_TRANSFORMS = "app_bindings::transforms::apply_event_log_tr
 export interface LogVariantsPanelProps {
   backend: BackendContext;
   eventLog: EventLogHandle;
-  onSelect?: (activity: string) => void;
+  onSelectActivity?: (activity: string) => void;
   /** Called after a keep/exclude filter produced a new derived log handle. */
   onFilterApplied?: (handle: EventLogHandle, label: string) => void;
   onSelectionChange?: (sel: { variantIndices: number[]; traceCount: number; eventCount: number }) => void;
@@ -26,7 +26,7 @@ export interface LogVariantsPanelProps {
 export function LogVariantsPanel({
   backend,
   eventLog,
-  onSelect,
+  onSelectActivity,
   onFilterApplied,
   onSelectionChange,
 }: LogVariantsPanelProps) {
@@ -70,7 +70,7 @@ export function LogVariantsPanel({
       variants={variants.data}
       numTraces={info.data.num_traces}
       numEvents={info.data.num_events}
-      onSelect={onSelect}
+      onSelectActivity={onSelectActivity}
       onFilterVariants={applyFilter}
       onSelectionChange={onSelectionChange}
     />
@@ -78,8 +78,8 @@ export function LogVariantsPanel({
 }
 
 /** Interactive trace-variant explorer for the active event log. */
-export function LogVariantsDockPanel(_props: IDockviewPanelProps) {
-  const { id: log, selector } = useDatasetSelection("EventLog");
+export function LogVariantsDockPanel(props: IDockviewPanelProps) {
+  const { id: log, selector } = useDatasetSelection("EventLog", props);
   const addDataset = useDatasets((s) => s.addDataset);
   if (!log) return withSelector(selector, datasetEmptyBox("EventLog"), "log-variants");
   return withSelector(

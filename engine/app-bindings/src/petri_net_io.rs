@@ -1,8 +1,5 @@
-//! PNML (XML text) import/export codec bindings for Petri nets.
-//!
-//! PNML is XML text, so these use `String` I/O rather than bytes to avoid the JSON int-array
-//! bloat a `Vec<u8>` return would serialize to. `stringify_error` lets the binding return a
-//! `Result`; the error is propagated as the handler's error string.
+//! PNML (XML text) import/export codec bindings for Petri nets. Uses `String` I/O rather than
+//! bytes to avoid the JSON int-array bloat a `Vec<u8>` return would serialize to.
 
 use process_mining::bindings::register_binding;
 use process_mining::core::process_models::case_centric::petri_net::pnml::export_petri_net_to_pnml;

@@ -114,68 +114,85 @@ export function colorToHex(color: ThemeColor, mode: "normal" | "foreground" | "l
   return COLORS_MAP[color];
 }
 
-function hexTriple(hex: string): [number, number, number] {
+export function hexTriple(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 const clampByte = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
-const toHex = (r: number, g: number, b: number) =>
+export const toHex = (r: number, g: number, b: number) =>
   `#${[r, g, b].map((x) => clampByte(x).toString(16).padStart(2, "0")).join("")}`;
 
-/** Derive a darker ("foreground", for text/borders) or lighter ("light", for fills) shade from a
- *  hex, so one shared hex color still has the fill/text variants the viewers need. */
+/** Mix `a` toward `b` by `t` (0..1). Both `#rrggbb`. */
+export function mix(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = hexTriple(a);
+  const [br, bg, bb] = hexTriple(b);
+  return toHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
+}
+
+/** Derive a text/border ("foreground") or fill ("light") shade from a hex, mixed against system Canvas/CanvasText so it follows the active theme. */
 export function shadeHex(hex: string, mode: "normal" | "foreground" | "light" = "normal"): string {
   if (mode === "normal" || hex[0] !== "#" || hex.length < 7) return hex;
-  const [r, g, b] = hexTriple(hex);
   if (mode === "foreground") return `color-mix(in srgb, ${hex} 75%, CanvasText)`;
-  return toHex(r + (255 - r) * 0.8, g + (255 - g) * 0.8, b + (255 - b) * 0.8);
+  return `color-mix(in srgb, ${hex} 20%, Canvas)`;
 }
+
+/** Default arc stroke when no data color applies; exporters must route this through `flattenColor`, a raw `var()` reaches the renderer unresolved. */
+export const DEFAULT_ARC_COLOR = "var(--gray-11)";
 
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 const HEX8 = /^#[0-9a-fA-F]{8}$/;
 
 let probeEl: HTMLElement | null = null;
+let probeHost: HTMLElement | null = null;
 
-/** Resolve any CSS color string to sRGB `[r, g, b, a]` via a themed DOM probe.
- *  `getComputedStyle().color` always serializes to `rgb()/rgba()`, so this flattens
- *  rgba/hsl/oklch/`color(display-p3 …)`/color-mix/system colors (`CanvasText`) uniformly and
- *  theme-correctly. Returns `null` outside the DOM or for an unparseable input. */
+/** Resolve any CSS color string to sRGB [r, g, b, a] via a DOM probe pinned to a light theme scope, so exports are theme-independent. Returns null outside the DOM or for unparseable input. */
 function resolveViaDom(color: string): [number, number, number, number] | null {
   if (typeof document === "undefined") return null;
+  if (!probeHost) {
+    probeHost = document.createElement("div");
+    // own light Radix scope so tokens resolve light even inside a dark app
+    probeHost.className = "radix-themes light light-theme";
+    probeHost.style.cssText =
+      "position:absolute;width:0;height:0;visibility:hidden;pointer-events:none;color-scheme:light";
+  }
+  if (probeHost.parentElement !== document.body) document.body.appendChild(probeHost);
   if (!probeEl) {
     probeEl = document.createElement("span");
-    probeEl.style.cssText = "position:absolute;width:0;height:0;visibility:hidden;pointer-events:none";
-    (document.querySelector(".radix-themes") ?? document.body).appendChild(probeEl);
+    probeHost.appendChild(probeEl);
   }
   probeEl.style.color = "";
   probeEl.style.color = color;
   if (!probeEl.style.color) return null;
-  const m = getComputedStyle(probeEl).color.match(/rgba?\(([^)]+)\)/);
-  if (!m) return null;
-  const [r, g, b, a = 1] = m[1]
-    .split(/[,\s/]+/)
-    .filter(Boolean)
-    .map(Number);
-  if ([r, g, b].some(Number.isNaN)) return null;
-  return [r, g, b, a];
+  const computed = getComputedStyle(probeEl).color;
+  const nums = (s: string) =>
+    s
+      .split(/[,\s/]+/)
+      .filter(Boolean)
+      .map(Number);
+  const m = computed.match(/^rgba?\(([^)]+)\)/);
+  if (m) {
+    const [r, g, b, a = 1] = nums(m[1]);
+    if ([r, g, b].some(Number.isNaN)) return null;
+    return [r, g, b, a];
+  }
+  const srgb = computed.match(/^color\(srgb\s+([^)]+)\)/);
+  if (srgb) {
+    const [r, g, b, a = 1] = nums(srgb[1]);
+    if ([r, g, b].some(Number.isNaN)) return null;
+    return [r * 255, g * 255, b * 255, a];
+  }
+  return null;
 }
 
-/** The current viewer background as a solid `#rrggbb`, for compositing translucent export
- *  colors. Reads `--color-background`; falls back to theme-appropriate white/near-black. */
+/** The export background as a solid `#rrggbb`, for compositing translucent export colors.
+ *  Always the LIGHT theme background (see `resolveViaDom`): exports don't follow the app theme. */
 export function exportBackgroundHex(): string {
   const bg = resolveViaDom("var(--color-background)");
   if (bg) return toHex(bg[0], bg[1], bg[2]);
-  const dark =
-    typeof document !== "undefined" &&
-    (document.documentElement.classList.contains("dark") ||
-      document.documentElement.getAttribute("data-theme") === "dark" ||
-      document.querySelector(".radix-themes")?.classList.contains("dark") === true);
-  return dark ? "#111113" : "#ffffff";
+  return "#ffffff";
 }
 
-/** Flatten any CSS color to a solid, export-safe `#rrggbb`, compositing translucency over `bgHex`.
- *  Some programs render 8-digit hex / `rgba()` / `color-mix()` / `oklch()` as black.
- *  SVG export routes every color through this so only plain 6-digit hex is emitted. */
+/** Flatten any CSS color to a solid, export-safe `#rrggbb`, compositing translucency over `bgHex`. */
 export function flattenColor(color: string, bgHex = "#ffffff"): string {
   if (!color) return color;
   if (HEX6.test(color)) return color.toLowerCase();

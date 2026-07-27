@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useViewSetting } from "../viewer/view-state";
 import type { PlotParams } from "react-plotly.js";
 import { ThemedPlot as Plot } from "./themed-plot";
 import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
@@ -24,10 +25,7 @@ export interface CaseDurations {
 type Mode = "histogram" | "ecdf";
 type Scale = "linear" | "log";
 
-/**
- * Format a duration in milliseconds as a short human-readable string
- * with at most two units (e.g. "1d 2h", "3m 15s", "450ms").
- */
+/** Short human-readable duration, at most two units (e.g. "1d 2h", "3m 15s", "450ms"). */
 function formatDurationMs(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return "-";
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -111,21 +109,16 @@ function Badge({ children, color }: { children: React.ReactNode; color: string }
   );
 }
 
-/**
- * Distribution of case durations (histogram or ECDF) with median/mean/p90
- * markers, on a log- or linear-scale time axis. Ported faithfully from
- * propel's `CaseDurationPlot`.
- */
+/** Distribution of case durations (histogram or ECDF) with median/mean/p90 markers, on a log/linear axis. */
 export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
   const { data } = props;
   // Honor the shared duration format (preferences) for the prominent stat labels.
   const fmt = useViewerConfig(props).format?.duration ?? formatDurationMs;
-  const [mode, setMode] = useState<Mode>("histogram");
-  const [scale, setScale] = useState<Scale>("log");
+  const [mode, setMode] = useViewSetting<Mode>("mode", "histogram");
+  const [scale, setScale] = useViewSetting<Scale>("scale", "log");
 
-  // Transform a duration (ms) into plot space. We use a linear Plotly axis and
-  // pre-transform the values to avoid Plotly's log-axis bar-width quirks (widths
-  // would otherwise be interpreted in log10 units).
+  // Pre-transform values onto a linear Plotly axis (log10 for "log") to avoid its log-axis bar-width
+  // quirk, where widths would be interpreted in log10 units.
   const toX = useMemo(() => {
     return scale === "log" ? (v: number) => Math.log10(Math.max(1, v)) : (v: number) => v;
   }, [scale]);

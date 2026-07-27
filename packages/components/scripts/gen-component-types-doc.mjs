@@ -17,6 +17,7 @@ const OUT = join(pkg, ".storybook/component-types.generated.json");
 const ENTRIES = [
   ["@r4pm/components", "src/index.ts"],
   ["@r4pm/components/petri", "src/petri/index.ts"],
+  ["@r4pm/components/process-tree", "src/process-tree/index.ts"],
   ["@r4pm/components/charts", "src/charts/index.ts"],
   ["@r4pm/components/ui", "src/ui/index.ts"],
 ];

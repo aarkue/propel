@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
-import { shadeHex } from "./util/colors";
+import { useViewSetting } from "../viewer/view-state";
+import { DEFAULT_ARC_COLOR, shadeHex } from "./util/colors";
 import { type DfgArc, type DfgMetric, DFG_END_ID, DFG_START_ID } from "./util/dfg-model";
 import type { DfArcDuration, DfPerformance, OcelDfPerformance } from "./util/performance-types";
 import { DfgGraph, type DfgLayoutFn } from "./DfgGraph";
@@ -31,7 +32,7 @@ function buildCaseDfg(
 ): { activityCounts: Record<string, number>; arcs: DfgArc[] } {
   const activityCounts: Record<string, number> = { ...dfg.activities };
   const arcs: DfgArc[] = [];
-  const color = "#9ca3af";
+  const color = DEFAULT_ARC_COLOR;
 
   const perfLookup = new Map<string, DfArcDuration>();
   if (performance) {
@@ -104,11 +105,8 @@ export interface DFGViewerProps extends ViewerProps<DirectlyFollowsGraph> {
 export function DFGViewer(props: DFGViewerProps) {
   const { data, performance, renderSvg, layoutOverride } = props;
   const cfg = useViewerConfig(props);
-  const [metric, setMetric] = useState<DfgMetric>("count");
+  const [metric, setMetric] = useViewSetting<DfgMetric>("metric", "count");
 
-  // colorOf is always defined (useViewerConfig falls back to the shared deterministic resolver);
-  // node fill and text derive from it. Edges stay neutral gray in frequency mode and only take
-  // color from the duration heatmap in performance mode.
   const actHex = useCallback((act: string) => cfg.colorOf?.("activity", act) ?? "#888888", [cfg.colorOf]);
   const actForeground = useCallback((act: string) => shadeHex(actHex(act), "foreground"), [actHex]);
   const { activityCounts, arcs } = useMemo(() => buildCaseDfg(data, performance), [data, performance]);
@@ -146,30 +144,27 @@ export interface OCDFGViewerProps extends ViewerProps<OCDirectlyFollowsGraph> {
 export function OCDFGViewer(props: OCDFGViewerProps) {
   const { data, performance, renderSvg, layoutOverride } = props;
   const cfg = useViewerConfig(props);
-  const [metric, setMetric] = useState<DfgMetric>("count");
+  const [metric, setMetric] = useViewSetting<DfgMetric>("metric", "count");
   const actHex = useCallback((act: string) => cfg.colorOf?.("activity", act) ?? "#888888", [cfg.colorOf]);
   const actForeground = useCallback((act: string) => shadeHex(actHex(act), "foreground"), [actHex]);
   const otColor = useCallback((ot: string) => cfg.colorOf?.("objectType", ot) ?? "#888888", [cfg.colorOf]);
 
   const objectTypes = useMemo(() => Object.keys(data.object_type_to_dfg).sort(), [data]);
-
-  // Object instance counts
   const objectCounts = data.object_counts;
 
-  // Default: pre-select the 3 most frequent object types.
-  const [userSelectedTypes, setUserSelectedTypes] = useState<Set<string> | null>(null);
+  // JSON-safe array; null = not yet chosen, fall back to the default (top-3 by frequency).
+  const [userSelectedTypes, setUserSelectedTypes] = useViewSetting<string[] | null>("selectedTypes", null);
   const selectedTypes = useMemo<Set<string>>(() => {
-    if (userSelectedTypes !== null) return userSelectedTypes;
+    if (userSelectedTypes !== null) return new Set(userSelectedTypes);
     if (objectTypes.length === 0) return new Set();
     const ranked = [...objectTypes].sort((a, b) => (objectCounts[b] ?? 0) - (objectCounts[a] ?? 0));
     return new Set(ranked.slice(0, 3));
   }, [userSelectedTypes, objectTypes, objectCounts]);
 
   const updateSelectedTypes = (updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
-    setUserSelectedTypes((prev) => {
-      const current = prev ?? selectedTypes;
-      return typeof updater === "function" ? updater(current) : updater;
-    });
+    const current = userSelectedTypes !== null ? new Set(userSelectedTypes) : selectedTypes;
+    const next = typeof updater === "function" ? updater(current) : updater;
+    setUserSelectedTypes([...next]);
   };
 
   const { activityCounts, arcs, objectCountTotal } = useMemo(() => {

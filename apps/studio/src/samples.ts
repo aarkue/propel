@@ -1,7 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { useDatasets } from "./stores";
 import type { BackendContext } from "@r4pm/client";
+import { loadItemCached } from "./persistence/session";
+import { useDatasets } from "./stores";
 
 export interface SampleDataset {
   id: string;
@@ -31,8 +32,9 @@ export const SAMPLE_DATASETS: SampleDataset[] = [
       // The dev server may transparently gunzip the response (vite/Content-Encoding), so pick the
       // format from the actual bytes: gzip magic (1f 8b) -> still compressed, else already decompressed.
       const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b;
-      await backend.loadItem("rtfm", "EventLog", bytes, gzipped ? "xes.gz" : "xes");
-      return { id: "rtfm", kind: "EventLog", label: "Road Traffic Fine Management" };
+      const d = { id: "rtfm", kind: "EventLog", label: "Road Traffic Fine Management" };
+      await loadItemCached(backend, { ...d, format: gzipped ? "xes.gz" : "xes", sampleId: "rtfm" }, bytes);
+      return d;
     },
   },
   {
@@ -43,13 +45,34 @@ export const SAMPLE_DATASETS: SampleDataset[] = [
     path: "examples/order-management.xml.gz",
     load: async (backend, bytes) => {
       const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b;
-      // The dev server may transparently gunzip the response (vite/Content-Encoding), so pick the
-      // format from the actual bytes: gzip magic (1f 8b) -> still compressed, else already decompressed.
-      await backend.loadItem("order-management", "SlimLinkedOCEL", bytes, gzipped ? "xml.gz" : ".ocel.xml");
-      return { id: "order-management", kind: "SlimLinkedOCEL", label: "Order Management" };
+      const d = { id: "order-management", kind: "SlimLinkedOCEL", label: "Order Management" };
+      await loadItemCached(
+        backend,
+        { ...d, format: gzipped ? "xml.gz" : ".ocel.xml", sampleId: "order-management" },
+        bytes,
+      );
+      return d;
     },
   },
 ];
+
+export function findSample(id: string): SampleDataset | undefined {
+  return SAMPLE_DATASETS.find((s) => s.id === id);
+}
+
+/** Result is tagged with `sampleId` so a project can re-fetch the example on restore; callers add it
+ *  to the dataset store. */
+export async function loadSampleIntoEngine(
+  backend: BackendContext,
+  sample: SampleDataset,
+): Promise<{ id: string; kind: string; label: string; sampleId: string }> {
+  const url = new URL(sample.path, document.baseURI).toString();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const d = await sample.load(backend, bytes);
+  return { ...d, sampleId: sample.id };
+}
 
 export async function loadSample(
   backend: BackendContext,
@@ -58,11 +81,7 @@ export async function loadSample(
 ): Promise<void> {
   await toast.promise(
     (async () => {
-      const url = new URL(sample.path, document.baseURI).toString();
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      const d = await sample.load(backend, bytes);
+      const d = await loadSampleIntoEngine(backend, sample);
       useDatasets.getState().addDataset(d);
       await queryClient.invalidateQueries();
     })(),

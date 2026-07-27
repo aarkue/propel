@@ -9,8 +9,6 @@ import {
 import { useId } from "react";
 import { type FlowDirection, selfLoopBezier } from "./util/self-loop";
 
-// ---- Geometry helpers ----
-
 type Pt = { x: number; y: number };
 
 /** Render plain waypoints (the Rust engine) as a polyline with circular-arc rounded corners,
@@ -58,8 +56,6 @@ function shortenLastSegment(pts: Pt[], shortenEnd: number): Pt[] {
   return out;
 }
 
-// ---- Types ----
-
 export type EdgeRouting = {
   kind: "polyline";
   /** Plain waypoints (the Rust engine), rendered as a rounded polyline. */
@@ -86,20 +82,12 @@ export interface DfgEdgeData extends Record<string, unknown> {
 
 export type DfgEdgeType = Edge<DfgEdgeData, "default">;
 
-// ---- Component ----
-
-/**
- * Shared DFG edge component. Renders the Rust engine's rounded-polyline routing,
- * self-loops, or a bezier fallback. Includes a custom arrow marker that scales
- * with stroke width.
- */
+/** Shared DFG edge: rounded-polyline routing, self-loops, or bezier fallback, with a scaling arrow marker. */
 export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
   const { id, source, target, sourceX, sourceY, targetX, targetY, style, data } = edge;
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
-  // Per-render-instance unique prefix: the same graph rendered twice (pipeline
-  // preview + panel) must not emit colliding `<marker>` ids, or `url(#id)`
-  // resolves across compositing layers to the first one and breaks.
+  // unique prefix so two renders of the same graph don't emit colliding marker ids
   const uid = useId().replace(/[^\w-]/g, "");
 
   if (!data || !sourceNode || !targetNode) return null;
@@ -122,7 +110,14 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
     const nh = sourceNode.measured?.height ?? 52;
     const nx = sourceNode.internals.positionAbsolute.x;
     const ny = sourceNode.internals.positionAbsolute.y;
-    const { p0, c1, c2, p3, labelX: lx, labelY: ly } = selfLoopBezier(
+    const {
+      p0,
+      c1,
+      c2,
+      p3,
+      labelX: lx,
+      labelY: ly,
+    } = selfLoopBezier(
       { x: nx, y: ny, width: nw, height: nh },
       data.parallelIndex ?? 0,
       sw,
@@ -145,9 +140,7 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
       pts[n - 1] = { x: pts[n - 1].x + tgtDx, y: pts[n - 1].y + tgtDy };
     }
 
-    // The arrow marker's tip sits 0.35.markerSize ahead of the path's last point (refX=7 in a 20u
-    // viewBox, tip at x=14). Shorten the path by exactly that so the tip lands ON the target border
-    // instead of `halfSw` past it (which drove the head into the node).
+    // shorten so the marker tip lands on the target border, not past it
     const shortenEnd = 0.35 * markerSize;
     pts = shortenLastSegment(pts, shortenEnd);
 
@@ -209,10 +202,10 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
           refY="10"
           markerUnits="userSpaceOnUse"
         >
+          {/* style, not fill/stroke attributes: color may be a var() token, which SVG attrs don't substitute */}
           <path
             d="M 0,2 L 14,10 L 0,18 Z"
-            fill={color}
-            stroke={color}
+            style={{ fill: color, stroke: color }}
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
@@ -234,10 +227,9 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               fontSize: 10,
-              color,
-              // Halo (panel-colored glow) instead of a filled chip: keeps the number legible over
-              // arcs without a hard box cluttering the graph. Mirrors the SVG export's stroke halo.
-              // Stacked layers build a dense, near-opaque glow so the digits read over dark arcs.
+              // text color, not arc color: arc hex reads poorly as text at 10px
+              color: "var(--gray-12)",
+              // panel-colored halo keeps digits legible over arcs without a filled chip
               textShadow:
                 "0 0 2px var(--color-panel-solid), 0 0 2px var(--color-panel-solid), 0 0 2px var(--color-panel-solid), 0 0 3px var(--color-panel-solid), 0 0 4px var(--color-panel-solid)",
               zIndex: 1,

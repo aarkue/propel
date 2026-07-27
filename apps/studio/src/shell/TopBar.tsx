@@ -1,12 +1,17 @@
 import { Button, DropdownMenu, IconButton, Kbd, Separator } from "@r4pm/components/ui";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { PiDotsThreeVertical, PiMagnifyingGlass, PiMoon, PiPlus, PiStack, PiSun } from "react-icons/pi";
+import { backend } from "../backends";
+import { openProjectFile, saveProjectFile } from "../persistence/restore";
+import { withBusy } from "./BusyOverlay";
 import { CommandPalette } from "./CommandPalette";
 import { LoadedStrip } from "./LoadedStrip";
 import { LoadedDialog } from "./LoadedDialog";
 import { useArtifacts, useDatasets } from "../stores";
 import { ImportButton } from "./ImportButton";
 import { PanelGallery } from "./PanelGallery";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 import { SettingsDialog } from "./SettingsDialog";
 import { UpdaterChip } from "./updater/UpdaterChip";
 import { isMac, shortcutLabel } from "./platform";
@@ -20,6 +25,27 @@ export function TopBar({ children }: { children: ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [loadedOpen, setLoadedOpen] = useState(false);
   const loadedCount = useDatasets((s) => s.datasets.length) + useArtifacts((s) => s.artifacts.length);
+  const openInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSaveProject = async () => {
+    try {
+      await saveProjectFile(backend);
+    } catch (e) {
+      toast.error(`Could not save project: ${String(e)}`);
+    }
+  };
+
+  const handleOpenProject = async (file: File) => {
+    try {
+      const n = await withBusy(`Opening ${file.name}…`, async () => {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        return openProjectFile(backend, bytes);
+      });
+      toast.success(`Opened project (${n} object${n === 1 ? "" : "s"})`);
+    } catch (e) {
+      toast.error(`Could not open project: ${String(e)}`);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -52,6 +78,7 @@ export function TopBar({ children }: { children: ReactNode }) {
           <UpdaterChip />
         </div>
         <Separator orientation="vertical" size="1" className="!mx-1 hidden sm:block" />
+        <ProjectSwitcher />
         <ImportButton />
         <Button size="2" variant="soft" onClick={() => setGalleryOpen(true)}>
           <PiPlus />
@@ -104,8 +131,24 @@ export function TopBar({ children }: { children: ReactNode }) {
                 Show welcome screen
               </DropdownMenu.Item>
               <DropdownMenu.Item onClick={() => setSettingsOpen(true)}>Preferences…</DropdownMenu.Item>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item onClick={() => void handleSaveProject()}>Save project…</DropdownMenu.Item>
+              <DropdownMenu.Item onClick={() => openInputRef.current?.click()}>
+                Open project…
+              </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Root>
+          <input
+            ref={openInputRef}
+            type="file"
+            accept=".propel,application/octet-stream"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleOpenProject(f);
+              e.target.value = "";
+            }}
+          />
         </div>
       </header>
 

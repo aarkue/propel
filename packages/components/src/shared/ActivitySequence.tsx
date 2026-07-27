@@ -4,9 +4,7 @@ import { softBadgeStyle } from "../dfg/util/colors";
 import { darken, svgEl } from "../dfg/util/svg-export";
 import { useColorOf } from "../viewer/viewer-config";
 
-// Chevron pill geometry, shared by both the CSS clip-path
-// on ActivityChip and the SVG export renderer. `CHEV_PX` matches `--chev` on
-// the screen component so exported images look identical to the panel.
+// Chevron pill geometry shared by the CSS clip-path (ActivityChip) and the SVG export renderer.
 export const CHEV_PX = 6;
 /** Chevron pill outline as a CSS clip-path; percentage-based so it stretches to any width.
  *  Reads `--chev` (set to `${CHEV_PX}px`) for the notch/arrow depth. */
@@ -16,9 +14,7 @@ export const SVG_PILL_H = 22;
 export const SVG_PILL_PAD_X = 10;
 export const SVG_CHAR_W = 7;
 export const SVG_MAX_PILL_CHARS = 18;
-// Gap (px) between the arrow tip of pill N and the notch base of pill N+1.
-// With CHEV_PX=6 and GAP=4 the advance is pillW-2, giving 2px visual overlap,
-// matching the -mx-0.5 / gap-0.5 behaviour of the React layout.
+// Gap (px) between the arrow tip of pill N and the notch base of pill N+1; matches -mx-0.5/gap-0.5 in React.
 export const SVG_CHEV_GAP = 4;
 
 export interface SvgPill {
@@ -29,11 +25,7 @@ export interface SvgPill {
   color: string;
 }
 
-/**
- * Lay out chevron pills for one activity sequence within a bounded horizontal
- * area, wrapping onto new lines when needed. Returns absolute pill positions
- * and total line count; pass the result to {@link renderActivityPillsSvg}.
- */
+/** Lay out chevron pills for one activity sequence, wrapping onto new lines; pass the result to {@link renderActivityPillsSvg}. */
 export function layoutActivityPills(
   activities: string[],
   opts: { startX: number; maxRight: number; colorOf: (a: string) => string },
@@ -55,12 +47,7 @@ export function layoutActivityPills(
   return { pills, lineCount: Math.max(1, line + 1) };
 }
 
-/**
- * Draw one chevron pill (outline + centered label) centered at `(cx, cy)`. The single source of the
- * chevron polygon + label placement, shared by the sequence exporter and the alignment strips so the
- * shape and text stay identical everywhere. `stroke` is optional (omit for a borderless soft badge,
- * matching the DOM `ActivityChip`).
- */
+/** Draw one chevron pill (outline + centered label), shared by the sequence exporter and alignment strips. */
 export function drawChevronPill(
   parent: SVGElement,
   opts: {
@@ -101,12 +88,7 @@ export function drawChevronPill(
   parent.appendChild(labelEl);
 }
 
-/**
- * Append chevron pill polygons and labels to `parent`. Renders back-to-front
- * so the left notch of pill N+1 visually slots over the arrow tip of pill N.
- * `rowTopY` is the absolute top of this sequence row; `rowHeight` is the
- * per-line height.
- */
+/** Append chevron pill polygons and labels to `parent`, back-to-front so notches slot over the prior arrow tip. */
 export function renderActivityPillsSvg(
   parent: SVGElement,
   pills: SvgPill[],
@@ -128,9 +110,8 @@ export function renderActivityPillsSvg(
   }
 }
 
-/** A single chevron-clipped activity badge, soft-tinted by `color` (a hex). `widthClass` controls
- *  the inner label sizing (e.g. a fixed `"w-12"` for short codes, or the default cap).
- *  Set `chain={false}` when using the chip standalone (removes the `-mx-0.5` chain overlap). */
+/** A single chevron-clipped activity badge, soft-tinted by `color`. Set `chain={false}` to remove the
+ *  `-mx-0.5` chain overlap when using the chip standalone. */
 export function ActivityChip({
   activity,
   color,
@@ -171,9 +152,7 @@ export function ActivityChip({
   );
 }
 
-/** A horizontal run of chevron activity chips representing one trace / variant. `colorOf` overrides
- *  the chip color per activity; defaults to the ambient `ViewerConfig` colorOf (scope "activity"),
- *  falling back to the stable hashed palette. */
+/** A horizontal run of chevron activity chips for one trace/variant; `colorOf` overrides the ambient default. */
 export function ActivitySequence({
   activities,
   colorOf,

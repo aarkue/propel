@@ -372,6 +372,35 @@ first_time?: (string | null)
 last_time?: (string | null)
 }
 
+export interface OcelTypePairRelation {
+source_type: string
+target_type: string
+/**
+ * Real total across all qualifiers, independent of the `qualifiers` cap below.
+ */
+count: number
+/**
+ * Top qualifiers by count, capped at `max_qualifiers_per_pair`.
+ */
+qualifiers: OcelTypeQualifierCount[]
+/**
+ * Sum of counts of qualifiers omitted from `qualifiers`.
+ */
+other_qualifier_count: number
+/**
+ * Real number of distinct qualifiers (may exceed `qualifiers.len()`).
+ */
+distinct_qualifiers: number
+}
+/**
+ * A qualifier and its instance count.
+ */
+
+export interface OcelTypeQualifierCount {
+qualifier: string
+count: number
+}
+
 export interface OcelTypeInput {
 name: string
 attributes?: OcelTypeAttrInput[]
@@ -465,6 +494,35 @@ key: string
 substring: string
 type: "AttributeContains"
 } | {
+/**
+ * Inclusive window start (RFC 3339, e.g. "2025-01-01T00:00:00+00:00").
+ */
+start: string
+/**
+ * Exclusive window end (RFC 3339).
+ */
+end: string
+mode: TimeframeMode
+type: "Timeframe"
+} | {
+key: string
+type: "AttributeExists"
+} | {
+value: string
+type: "EntityType"
+} | {
+min_ms?: (number | null)
+max_ms?: (number | null)
+type: "Duration"
+} | {
+quantifier: MatchQuantifier
+condition: Condition
+type: "EventMatch"
+} | {
+quantifier: MatchQuantifier
+condition: Condition
+type: "ObjectMatch"
+} | {
 conditions: Condition[]
 type: "And"
 } | {
@@ -474,6 +532,20 @@ type: "Or"
 condition: Condition
 type: "Not"
 })
+/**
+ * How an entity's temporal footprint must relate to a window `[start, end)`.
+ * For an event the footprint is its single timestamp, so span-based modes collapse
+ * to point-in-window. For a trace (XES case) or an OCEL object the footprint is the
+ * set of its (related) event timestamps and `span` means `[first, last]`.
+ */
+
+export type TimeframeMode = ("AnyEvent" | "AllEvents" | "SpanWithin" | "SpanEncloses" | "StartsWithin" | "EndsWithin" | "Overlaps" | "Before" | "After")
+/**
+ * How related entities (events / objects) must satisfy a sub-condition in an
+ * `EventMatch` / `ObjectMatch` predicate.
+ */
+
+export type MatchQuantifier = ("Any" | "All" | "First" | "Last")
 
 export type RequiredOrForbidden = ("Required" | "Forbidden")
 /**
@@ -519,6 +591,11 @@ stroke_width?: number
 stroke_dash?: (string | null)
 labels?: StyledLabel[]
 marking?: MarkingGroup[]
+/**
+ * Vertical offset of the marking row from the node center, in px (e.g. OC-Declare draws
+ * its involvement dots below the label).
+ */
+marking_dy?: number
 icon?: (StyledIcon | null)
 }
 /**
@@ -536,10 +613,24 @@ color?: (string | null)
  */
 dy?: number
 /**
+ * Horizontal offset from the node center, in px (e.g. to re-center a text+bullet group).
+ */
+dx?: number
+/**
  * Word-wrap to fit the node width (max 2 lines, ellipsized). Off by default: pass one
  * `StyledLabel` per pre-wrapped line instead when the caller already knows the split.
  */
 wrap?: boolean
+/**
+ * Small kind-indicator glyph drawn just left of the text (OCEL type graph: square = event
+ * type, dot = object type). Ignored on wrapped labels. Text width is estimated (no text
+ * measurement in the renderer), so placement is approximate.
+ */
+bullet?: (MarkingKind | null)
+/**
+ * Bullet fill; defaults to the label color.
+ */
+bullet_color?: (string | null)
 }
 /**
  * A group of same-kind tokens drawn inside a node (e.g. Petri place markings). Groups are drawn
@@ -551,6 +642,26 @@ export interface MarkingGroup {
 kind: MarkingKind
 color?: (string | null)
 count: number
+/**
+ * Draw a dashed border on each dot (OC-Declare optional involvement, min 0).
+ */
+dashed?: boolean
+/**
+ * Fixed dot radius. When any group sets it, the whole row renders in exact mode: fixed
+ * sizes, tight per-group clusters, no fit-to-node scaling and no numeral collapse
+ * (OC-Declare involvement dots, mirroring the on-screen `MultiDot`).
+ */
+radius?: (number | null)
+/**
+ * Center-to-center spacing between this group's dots (exact mode; below `2*radius`
+ * overlaps them into a cluster). Defaults to a non-overlapping `2*radius + 2`.
+ */
+step?: (number | null)
+/**
+ * Ring stroke around each dot (exact mode). Absent: ring only when `dashed`, in the
+ * node's stroke color.
+ */
+stroke?: (string | null)
 }
 
 export interface StyledIcon {
@@ -572,16 +683,34 @@ export interface StyledEdge {
  */
 points: [number, number][]
 color?: (string | null)
+/**
+ * Linear gradient stroke from the first to the last polyline point (userSpaceOnUse), used by
+ * OC-Declare multi-object-type arcs. Two or more stops override `color` on the path; `color`
+ * stays the fallback for consumers of single-color fields (dots/labels defaults).
+ */
+gradient?: GradientStop[]
 width?: number
 dash?: (string | null)
 /**
- * End-of-edge marker glyph.
+ * End-of-edge marker glyph. The ball-bearing kinds mirror the on-screen OC-Declare markers:
+ * the ball is centered exactly on the path endpoint (the node border).
  */
-marker_start?: (("none" | "arrow" | "ball") | "arrow_ball")
+marker_start?: (("none" | "arrow") | "arrow_centered" | "ball" | "arrow_ball" | "arrow_bar" | "ball_arrow" | "ball_bar_arrow")
 /**
- * End-of-edge marker glyph.
+ * End-of-edge marker glyph. The ball-bearing kinds mirror the on-screen OC-Declare markers:
+ * the ball is centered exactly on the path endpoint (the node border).
  */
-marker_end?: (("none" | "arrow" | "ball") | "arrow_ball")
+marker_end?: (("none" | "arrow") | "arrow_centered" | "ball" | "arrow_ball" | "arrow_bar" | "ball_arrow" | "ball_bar_arrow")
+/**
+ * Marker fill; defaults to the edge color (OC-Declare draws all markers in one neutral
+ * gray so the object-type color stays on the path itself).
+ */
+marker_color?: (string | null)
+/**
+ * Marker base size in px (the side of the 12-unit marker viewBox); defaults to
+ * `marker_size_for(width)`. OC-Declare passes 6 to match its small on-screen markers.
+ */
+marker_size?: (number | null)
 labels?: EdgeLabel[]
 dots?: EdgeDot[]
 /**
@@ -589,6 +718,17 @@ dots?: EdgeDot[]
  * (a plain multi-point polyline), matching whatever radius the on-screen edge used.
  */
 rounded?: number
+}
+/**
+ * One stop of a [`StyledEdge::gradient`] stroke.
+ */
+
+export interface GradientStop {
+/**
+ * Fraction (0..1) along the gradient axis.
+ */
+offset: number
+color: string
 }
 /**
  * A text label anchored at a fraction along the edge's polyline.
@@ -616,6 +756,11 @@ export interface EdgeDot {
 at: number
 color: string
 filled?: boolean
+/**
+ * Ring stroke around the dot (the on-screen `MultiDot` ring: color mixed toward
+ * CanvasText). Absent: filled dots draw ringless, hollow ones ring in `color`.
+ */
+stroke?: (string | null)
 }
 /**
  * A titled group of legend entries (e.g. "Object types").
@@ -1010,6 +1155,19 @@ arcs: DfArcDuration[]
  * Per-arc duration statistics.
  */
 
+export interface EventTimeHistogram {
+/**
+ * Event counts keyed by bin-start epoch millis (as a string) then by event type / activity.
+ */
+events_per_timestamp: {
+[k: string]: {
+[k: string]: number
+}
+}
+activities: string[]
+bin_width_ms: number
+}
+
 export interface LogGlobals {
 /**
  * Log-level free-form attributes.
@@ -1163,6 +1321,14 @@ total: number
 object_types: string[]
 }
 
+export interface OcelTypeRelations {
+e2o_type_relations: OcelTypePairRelation[]
+o2o_type_relations: OcelTypePairRelation[]
+}
+/**
+ * Aggregated relation between two types (event->object for E2O, object->object for O2O).
+ */
+
 export interface OcelInput {
 eventTypes?: OcelTypeInput[]
 objectTypes?: OcelTypeInput[]
@@ -1290,6 +1456,11 @@ background?: (string | null)
 padding?: number
 nodes: StyledNode[]
 edges: StyledEdge[]
+/**
+ * Draw edges (and their markers/dots) AFTER nodes, so border-centered markers sit on top
+ * of node borders (OC-Declare). Default: edges underneath, like React Flow's default.
+ */
+edges_on_top?: boolean
 legend?: LegendGroup[]
 }
 /**
@@ -1337,6 +1508,17 @@ edge_label_sizes?: [number, number][]
  * adjacent thick strokes from visually merging. Empty => all 2.0.
  */
 thickness?: number[]
+/**
+ * Tidy-tree layout instead of layered; input must be a rooted tree/forest, edges come back unrouted.
+ */
+tree?: boolean
+/**
+ * Compact the cross axis after placement (priority method): pull weakly-linked clusters together
+ * and straighten long-edge lanes onto their endpoints, removing the slack Brandes-Kopf leaves.
+ * Order-preserving (crossings unchanged). For dense hub-and-spoke graphs like the OCEL type
+ * graph; the flow surfaces (DFG/Petri) leave it off. Default `false`.
+ */
+compact?: boolean
 }
 /**
  * One node in a generic graph-layout request. Only its size and shape matter to the layout;
@@ -1423,6 +1605,13 @@ events_per_timestamp: {
  * All distinct activity names found in the log.
  */
 activities: string[]
+/**
+ * Width of each equal-width bin, in milliseconds.
+ * Each bin has their center as key, so a bar then spans
+ * `[center - bin_width_ms / 2, center + bin_width_ms / 2)`.
+ * Empty bins might be omitted.
+ */
+bin_width_ms: number
 }
 
 export interface ObjectAttributeChanges {
@@ -1696,6 +1885,10 @@ export interface Bindings {
   "app_bindings::event_log::get_df_performance": { args: {
     "event_log": EventLogHandle;
     }; ret: DfPerformance };
+  "app_bindings::event_log::get_event_log_timestamps": { args: {
+    "event_log": EventLogHandle;
+    "num_bins": number;
+    }; ret: EventTimeHistogram };
   "app_bindings::event_log::get_log_globals": { args: {
     "event_log": EventLogHandle;
     }; ret: LogGlobals };
@@ -1746,6 +1939,10 @@ export interface Bindings {
   "app_bindings::ocel::get_ocel_df_performance": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OcelDfPerformance };
+  "app_bindings::ocel::get_ocel_event_timestamps": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "num_bins": number;
+    }; ret: EventTimeHistogram };
   "app_bindings::ocel::get_ocel_info": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OCELInfo };
@@ -1765,6 +1962,10 @@ export interface Bindings {
     "filter": string;
     "type_filter": Nullable_string;
     }; ret: ObjectBrowserPage };
+  "app_bindings::ocel::get_ocel_type_relations": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "max_qualifiers_per_pair": number;
+    }; ret: OcelTypeRelations };
   "app_bindings::ocel::get_removable_attributes_ocel": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: AttributeCatalogEntry[] };
@@ -2087,6 +2288,11 @@ export interface Bindings {
     "locel": SlimLinkedOCELHandle;
     "options"?: OCDeclareDiscoveryOptions;
     }; ret: OCDeclareArc[] };
+  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart": { args: {
+    "arcs": OCDeclareArc[];
+    "activities": string[];
+    "lossless_reduction": boolean;
+    }; ret: OCDeclareArc[] };
   "process_mining::discovery::object_centric::variants::get_variants_of_object_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob_type": string;
@@ -2131,6 +2337,7 @@ export const RETURN_TYPES = {
   "EventLog": "EventLog",
   "EventLogActivityProjection": "EventLogActivityProjection",
   "EventLogInput": "EventLogInput",
+  "EventTimeHistogram": "EventTimeHistogram",
   "FitnessResult": "FitnessResult",
   "GraphLayout": "GraphLayout",
   "IndexLinkedOCEL": "IndexLinkedOCEL",
@@ -2159,6 +2366,7 @@ export const RETURN_TYPES = {
   "OcelAttributeSummary": "OcelAttributeSummary",
   "OcelDfPerformance": "OcelDfPerformance",
   "OcelInput": "OcelInput",
+  "OcelTypeRelations": "OcelTypeRelations",
   "PetriNet": "PetriNet",
   "SlimLinkedOCEL": "SlimLinkedOCEL",
   "TraceBrowserPage": "TraceBrowserPage",
@@ -2208,6 +2416,7 @@ export interface ReturnTypeShape {
   "EventLog": EventLogHandle;
   "EventLogActivityProjection": EventLogActivityProjectionHandle;
   "EventLogInput": EventLogInput;
+  "EventTimeHistogram": EventTimeHistogram;
   "FitnessResult": FitnessResult;
   "GraphLayout": GraphLayout;
   "IndexLinkedOCEL": IndexLinkedOCELHandle;
@@ -2236,6 +2445,7 @@ export interface ReturnTypeShape {
   "OcelAttributeSummary": OcelAttributeSummary;
   "OcelDfPerformance": OcelDfPerformance;
   "OcelInput": OcelInput;
+  "OcelTypeRelations": OcelTypeRelations;
   "PetriNet": PetriNet;
   "SlimLinkedOCEL": SlimLinkedOCELHandle;
   "TraceBrowserPage": TraceBrowserPage;
@@ -2266,6 +2476,7 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::event_log::get_case_durations": "CaseDurations",
   "app_bindings::event_log::get_df": "DfgCounts",
   "app_bindings::event_log::get_df_performance": "DfPerformance",
+  "app_bindings::event_log::get_event_log_timestamps": "EventTimeHistogram",
   "app_bindings::event_log::get_log_globals": "LogGlobals",
   "app_bindings::event_log::get_log_info": "NumberOfTracesAndEvents",
   "app_bindings::event_log::get_log_trace_variants": "TraceVariants",
@@ -2279,10 +2490,12 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::ocel::get_ocel_attribute_values": "AttributeValues",
   "app_bindings::ocel::get_ocel_df": "OcDfgCounts",
   "app_bindings::ocel::get_ocel_df_performance": "OcelDfPerformance",
+  "app_bindings::ocel::get_ocel_event_timestamps": "EventTimeHistogram",
   "app_bindings::ocel::get_ocel_info": "OCELInfo",
   "app_bindings::ocel::get_ocel_object_changes_plot": "OCELObjectAttributeChanges",
   "app_bindings::ocel::get_ocel_object_ids": "Array_of_string",
   "app_bindings::ocel::get_ocel_objects_page": "ObjectBrowserPage",
+  "app_bindings::ocel::get_ocel_type_relations": "OcelTypeRelations",
   "app_bindings::ocel::get_removable_attributes_ocel": "Array_of_AttributeCatalogEntry",
   "app_bindings::ocel::ocel_from_json": "SlimLinkedOCEL",
   "app_bindings::ocel::ocel_from_oc_sim_trace": "SlimLinkedOCEL",
@@ -2364,5 +2577,6 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::discovery::case_centric::dfg::discover_dfg": "DirectlyFollowsGraph",
   "process_mining::discovery::object_centric::dfg::get_dfg_of_object_type": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
   "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints": "Array_of_OCDeclareArc",
+  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart": "Array_of_OCDeclareArc",
   "process_mining::discovery::object_centric::variants::get_variants_of_object_type": "Array_of_Tuple_of_Array_of_string_and_uint",
 };

@@ -1,9 +1,4 @@
-/**
- * Local copies of the `DfArcDuration` and `OcelDfPerformance` shapes, kept here so
- * this component has no `@r4pm/client` dependency. Structurally assignable to/from
- * the generated bindings. Fed via the optional
- * `performance` prop on viewers; absent = overlay not shown.
- */
+/** Local copies of the `DfArcDuration`/`OcelDfPerformance` shapes, structurally assignable to the generated bindings, to avoid a `@r4pm/client` dependency. */
 
 /** Per-arc DF performance statistics (durations in milliseconds). */
 export type DfArcDuration = {
@@ -17,10 +12,7 @@ export type DfArcDuration = {
   p90_ms: number;
 };
 
-/**
- * Per-object-type DF performance statistics: for each object type, a list of
- * arc durations computed from the event sequences of individual objects.
- */
+/** Per-object-type DF performance statistics: arc durations per object type, from individual object event sequences. */
 export type OcelDfPerformance = {
   arcs_per_object_type: { [key in string]?: Array<DfArcDuration> };
 };

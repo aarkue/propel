@@ -334,6 +334,7 @@ function SelectionStatsBar({
   );
 }
 
+// Not a ViewerProps: takes pre-computed variant stats, not a single `data` blob.
 export interface LogVariantsProps {
   /** Distinct trace variants of the log (from `get_log_trace_variants`). */
   variants: TraceVariants;
@@ -344,7 +345,7 @@ export interface LogVariantsProps {
   /** Optional callback when a single activity badge is clicked (drill into one
    *  activity, e.g. send-to-transforms). For the multi-variant checkbox
    *  selection, use {@link onSelectionChange} instead. */
-  onSelect?: (activity: string) => void;
+  onSelectActivity?: (activity: string) => void;
   /**
    * Optional callback emitting a variant-filter intent. The host turns this
    * into a `FilterVariants` transform ({@link KeepOrRemove} + `variants`); the
@@ -379,7 +380,7 @@ export function LogVariants({
   variants,
   numTraces,
   numEvents,
-  onSelect,
+  onSelectActivity,
   onFilterVariants,
   onSelectionChange,
   initialSelectedVariantIndices,
@@ -696,8 +697,8 @@ export function LogVariants({
                             {showLabels.map((activity, j) => (
                               <div
                                 key={`${j}-${activity}`}
-                                onClick={onSelect ? () => onSelect(activity) : undefined}
-                                style={onSelect ? { cursor: "pointer" } : undefined}
+                                onClick={onSelectActivity ? () => onSelectActivity(activity) : undefined}
+                                style={onSelectActivity ? { cursor: "pointer" } : undefined}
                               >
                                 <ActivityChip
                                   activity={activity}

@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import { useDatasets } from "../stores";
 import { exportFormatsFor } from "@r4pm/client";
 import { backend } from "../backends";
+import { unloadDataset } from "../persistence/session";
 import { addPanelToDockview, VISIBLE_PANELS } from "../panels/registry";
 import { useImport } from "./import-context";
 import { useThemeMode } from "./theme-context";
@@ -92,8 +93,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const unload = useCallback(
     async (id: string) => {
-      useDatasets.getState().removeDataset(id);
-      await backend.unloadObject(id);
+      await unloadDataset(backend, id);
       await queryClient.invalidateQueries();
     },
     [queryClient],

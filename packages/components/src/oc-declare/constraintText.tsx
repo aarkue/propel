@@ -2,21 +2,7 @@ import type { ReactNode } from "react";
 import type { ConstraintLabel, RenderArcType } from "./types";
 import type { ColorResolver } from "./VizContext";
 
-/**
- * Rich JSX description of a constraint with colored activity/object-type spans.
- *
- * Arc semantics (source = "from" node with the dot):
- * - AS:  source and target always co-occur
- * - EF:  after source, target eventually follows
- * - EP:  before source, target must have occurred (arrow points back to target)
- * - DF/DP: direct variants of EF/EP
- *
- * Object involvement:
- * - each(T): checked per-object, for each T-object involved in source,
- *   the matching target event must also involve that same T-object
- * - all(T): the target event must involve ALL T-objects from the source event
- * - any(T): the target event must share at least one T-object with the source
- */
+/** Rich JSX description of a constraint with colored activity/object-type spans; see `coreDescription`/`involvementDescription` for the arc-type and quantifier wording. */
 export function describeConstraintRich(
   from: string,
   to: string,

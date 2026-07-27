@@ -1,14 +1,5 @@
-//! Pure-Rust Sugiyama-style layered layout, direction-generic (Petri nets = LR, DFGs = TB).
-//!
-//! Pipeline:
-//!   1. Build integer-ID adjacency from the [`LayeredInput`] (Petri/DFG adapters feed it).
-//!   2. Greedy feedback-arc-set cycle breaking (Eades-Lin-Smyth).
-//!   3. Longest-path layering (+ First/Last layer constraints for terminals).
-//!   4. Dummy-node insertion for edges spanning > 1 layer.
-//!   5. Barycenter + greedy-transposition crossing minimization (keep-best).
-//!   6. Brandes-Köpf coordinate assignment (aligns chains/long edges straight).
-//!   7. Four-sided ported orthogonal routing with gutter lanes + monotone tracks.
-//!   8. Unwind dummies/reversed arcs; transpose for TB -> [`LayeredOutput`].
+//! Pure-Rust Sugiyama-style layered layout, direction-generic (Petri nets = LR, DFGs = TB):
+//! cycle breaking, longest-path layering, dummy insertion, crossing minimization, Brandes-Kopf coordinate assignment, then ported orthogonal routing.
 
 use process_mining::core::process_models::case_centric::petri_net::ArcType;
 use process_mining::PetriNet;
@@ -135,6 +126,7 @@ pub fn layout_petri_net(net: &PetriNet) -> LayoutResult {
         edge_label_sizes: vec![],
         seed: vec![],
         pinned: vec![],
+        compact: false,
     });
 
     let nodes: Vec<LayoutNode> = (0..uuids.len())

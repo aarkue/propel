@@ -1,6 +1,5 @@
-//! Per-object metadata side-table: role (visibility), generation (cache validity),
-//! and provenance. Kept separate from `process_mining`'s `AppState` so the registry
-//! stays a plain id -> item map; lifecycle policy lives here.
+//! Per-object metadata side-table: role, generation, and provenance. Kept separate from
+//! `process_mining`'s `AppState` so the registry stays a plain id -> item map.
 
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -14,10 +13,11 @@ pub enum ItemRole {
     Result,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Provenance {
     pub sources: Vec<String>,
-    pub op: String,
+    /// `{fn, args}` JSON for a binding call, or a `"convert:<Kind>"` string for a kind conversion.
+    pub op: serde_json::Value,
     pub source_gen: u64,
 }
 
@@ -32,8 +32,7 @@ pub struct ItemMeta {
 pub struct ObjMeta {
     inner: RwLock<HashMap<String, ItemMeta>>,
     /// User-facing display labels, kept as a side-map so renaming a dataset never touches the
-    /// lifecycle policy above. Lives in the engine (not just the frontend), so a relabel survives
-    /// a frontend reload on backends that keep the engine process alive (webserver / tauri).
+    /// lifecycle policy above; lives in the engine so a relabel survives a frontend reload.
     labels: RwLock<HashMap<String, String>>,
 }
 
@@ -102,6 +101,14 @@ impl ObjMeta {
             .unwrap()
             .get(id)
             .and_then(|m| m.provenance.as_ref().map(|p| p.source_gen))
+    }
+
+    pub fn provenance_of(&self, id: &str) -> Option<Provenance> {
+        self.inner
+            .read()
+            .unwrap()
+            .get(id)
+            .and_then(|m| m.provenance.clone())
     }
     /// Remove every entry whose id starts with `prefix`; returns the removed ids.
     pub fn remove_with_prefix(&self, prefix: &str) -> Vec<String> {
@@ -181,6 +188,27 @@ mod tests {
             m.provenance_source_gen("log__as__EventLogActivityProjection"),
             Some(3)
         );
+    }
+
+    #[test]
+    fn provenance_of_reads_back() {
+        let m = ObjMeta::default();
+        assert!(m.provenance_of("absent").is_none());
+        m.set(
+            "d",
+            ItemMeta {
+                role: ItemRole::Primary,
+                generation: 0,
+                provenance: Some(Provenance {
+                    sources: vec!["s".into()],
+                    op: "op".into(),
+                    source_gen: 2,
+                }),
+            },
+        );
+        let p = m.provenance_of("d").unwrap();
+        assert_eq!(p.sources, vec!["s".to_string()]);
+        assert_eq!(p.source_gen, 2);
     }
 
     #[test]

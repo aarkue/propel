@@ -1,9 +1,4 @@
-/**
- * Converts the DFG SVG model (`buildDfgSvgModel`) into a generic `StyledGraph`, drawn by the
- * `export_graph_svg` renderer (the backend binding in studio, or the bundled wasm standalone).
- * Geometry (node boxes, edge polylines) is exactly the on-screen model's, so the export matches the
- * screen pixel-for-pixel; only the actual pixel pushing is generic.
- */
+/** Converts the DFG SVG model into a generic `StyledGraph`, drawn by `export_graph_svg`; geometry matches the on-screen model pixel-for-pixel. */
 
 import type { StyledGraph, StyledNode } from "../../graph-svg/styled-graph";
 import { buildStyledGraph } from "../../graph-svg/build-styled-graph";
@@ -132,7 +127,7 @@ export function dfgModelToStyledGraph(
       const isLoop = src.id === tgt.id;
       return {
         points,
-        color: edge.color,
+        color: flattenColor(edge.color, bgHex),
         width: edge.strokeWidth ?? 2,
         marker_end: "arrow",
         rounded: isLoop ? 0 : 18,
@@ -143,8 +138,9 @@ export function dfgModelToStyledGraph(
                 at: 0.5,
                 dx: edge.labelOffset?.dx ?? 0,
                 dy: edge.labelOffset?.dy ?? 0,
-                bg: flattenColor("#ffffffcc", bgHex),
-                color: edge.color,
+                // panel + text tokens, mirroring DfgEdge's on-screen halo/color
+                bg: flattenColor("var(--color-panel-solid)", bgHex),
+                color: flattenColor("var(--gray-12)", bgHex),
               },
             ]
           : [],

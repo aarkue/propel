@@ -2,20 +2,19 @@ import { type ComponentType, createContext, type ReactNode, useCallback, useCont
 import type { DfgLayoutFn } from "../dfg/DfgGraph";
 import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 import type { DeclareLayoutFn } from "../oc-declare/layout-util";
+import type { TypeGraphLayoutFn } from "../ocel-type-graph/OcelTypeGraph";
 import type { PetriLayoutFn } from "../petri/editor/helpers/layout-graph";
+import type { ProcessTreeLayoutFn } from "../process-tree/editor/helpers/layout-graph";
 
-/**
- * A layout engine for graph viewers: one layout fn per surface, plus `renderSvg` for image export.
- * The core ships no engine, so import a prebuilt bundle (`elkLayout` from `@r4pm/components/elk-layout`
- * or `wasmLayout` from `@r4pm/components/rust-layout/wasm`) and pass the whole object through
- * `ViewerConfigProvider`; a viewer's `layoutOverride`/`renderSvg` props still win. Any omitted surface
- * falls back to the engine-agnostic no-op. Advanced hosts can build one with `createRustLayout(transport)`.
- */
+/** A layout engine for graph viewers: one layout fn per surface, plus `renderSvg` for image export.
+ *  The core ships no engine; import a prebuilt bundle and pass it through `ViewerConfigProvider`. */
 export interface LayoutEngine {
   dfg?: DfgLayoutFn;
   ocdfg?: DfgLayoutFn;
   declare?: DeclareLayoutFn;
   petri?: PetriLayoutFn;
+  processTree?: ProcessTreeLayoutFn;
+  typeGraph?: TypeGraphLayoutFn;
   renderSvg?: StyledGraphRenderer;
 }
 
@@ -91,10 +90,7 @@ export interface ViewerAction {
   run: (target: ViewerTarget) => void;
 }
 
-/**
- * Cross-cutting viewer configuration + interactivity. A host sets it via `ViewerConfigProvider`;
- * `ViewerProps` may override any field; unset fields fall back to viewer defaults.
- */
+/** Cross-cutting viewer configuration + interactivity, set via `ViewerConfigProvider`; `ViewerProps` may override any field. */
 export interface ViewerConfig {
   colorOf?: ColorResolver;
   format?: ViewerFormat;
@@ -111,6 +107,10 @@ export interface ViewerProps<T> extends ViewerConfig {
   /** Source object handle id, for drill-down. */
   handle?: string;
 }
+
+/** Props for a viewer with no interactive surface: it renders `data` and nothing else. Use this
+ *  instead of ViewerProps<T> when colorOf/onSelect/actions/format would be ignored. */
+export type StaticViewerProps<T> = { data: T };
 
 const ViewerConfigContext = createContext<ViewerConfig>({});
 

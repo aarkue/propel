@@ -10,29 +10,22 @@ export interface ObjectAttributeChangesChartProps {
   objectID: string;
 }
 
-/**
- * Plots one object's attribute values over time: numeric attributes as filled time-series,
- * categorical attributes as colored bands above the axis. Backend-free: pass the `ObjectAttributeChanges`
- * for a chosen object; the studio's ObjectAttributeChangesPanel does the object-id picking + fetch.
- */
+/** Plots one object's attribute values over time: numeric as filled time-series, categorical as colored bands. */
 export function ObjectAttributeChangesChart({ data, objectID }: ObjectAttributeChangesChartProps) {
   const plotData = useMemo(() => buildPlotData(data, objectID), [data, objectID]);
 
   const layout: Partial<Plotly.Layout> = {
-    template: "plotly_white" as unknown as Plotly.Template,
     title: {
       text: `Attribute Values Over Time for <i>${plotData.objectID}</i>`,
       x: 0.05,
       y: 0.98,
       xanchor: "left",
     },
-    xaxis: { title: { text: "Time" }, autorange: true, gridcolor: "#e5e7eb" },
-    yaxis: { title: { text: "Value" }, gridcolor: "#e5e7eb" },
+    xaxis: { title: { text: "Time" }, autorange: true },
+    yaxis: { title: { text: "Value" } },
     hovermode: "x unified",
     hoverdistance: -1,
     margin: { l: 60, r: 30, t: 75 + plotData.categoricalCount * 20, b: 60 },
-    paper_bgcolor: "rgba(255,255,255,1)",
-    plot_bgcolor: "rgba(255,255,255,1)",
     annotations: plotData.annotations,
     shapes: plotData.shapes,
     autosize: true,

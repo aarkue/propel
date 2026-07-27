@@ -15,19 +15,12 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./pipeline.css";
-import {
-  forwardRef,
-  useCallback,
-  useContext,
-  useEffect,
-  useId,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { layoutGraph } from "@r4pm/components";
 import { layoutTransport } from "../../../backends";
+import { scheduleSessionSave } from "../../../persistence/session";
+import { slimNode } from "../../pipeline-slim";
+import { usePipelines } from "../../../stores/pipelines";
 import toast from "react-hot-toast";
 
 import type { BackendContext as ClientBackend } from "@r4pm/client";
@@ -48,6 +41,7 @@ import { StructNode } from "./StructNode";
 import { ArrayNode } from "./ArrayNode";
 import { ArtifactNode } from "./ArtifactNode";
 import { FileImportNode } from "./FileImportNode";
+import { PresetNode } from "./PresetNode";
 import { ViewerOutputNode } from "./ViewerOutputNode";
 
 import type { AppNode, SavedPipeline } from "./editor/types";
@@ -59,6 +53,7 @@ import { usePipelineFiltering } from "./editor/usePipelineFiltering";
 import { usePipelineExecution } from "./editor/usePipelineExecution";
 import { isCompatible } from "./utils";
 import { getNodeType, outputNameFor } from "./editor/helpers";
+import { useThemeMode } from "../../../shell/theme-context";
 
 const nodeTypes = {
   function: FunctionNode,
@@ -69,34 +64,8 @@ const nodeTypes = {
   array: ArrayNode,
   artifact: ArtifactNode,
   fileImport: FileImportNode,
+  preset: PresetNode,
 };
-
-/** Drop volatile execution results before persisting a pipeline: `output`/`executionStatus` are
- *  per-run on every node, and a jsonView's `value`/`returnType`/`hasRun` are its rendered result.
- *  Primitive/struct/enum `value` is user INPUT, so it is kept. Prevents bloated / oversized saves. */
-function stripRuntimeNodeData(n: AppNode): AppNode {
-  const data = { ...n.data } as Record<string, unknown>;
-  delete data.output;
-  delete data.executionStatus;
-  if (n.type === "jsonView") {
-    delete data.value;
-    delete data.returnType;
-    delete data.hasRun;
-  }
-  return { ...n, data } as AppNode;
-}
-
-/** Persist pipelines, surfacing a full-storage error instead of throwing uncaught. */
-function persistPipelines(saved: SavedPipeline[]): boolean {
-  try {
-    localStorage.setItem("r4pm-pipelines", JSON.stringify(saved));
-    return true;
-  } catch (e) {
-    console.error("Failed to persist pipelines", e);
-    toast.error("Could not save pipeline: browser storage is full. Delete old pipelines and retry.");
-    return false;
-  }
-}
 
 export interface PipelineEditorProps {
   backend: ClientBackend;
@@ -109,22 +78,13 @@ export interface PipelineEditorProps {
 export interface PipelineHandle {
   addObjectNode: (handle: { id: string; kind: string }) => void;
   addArtifactNode: (a: { value: unknown; returnType: string; label: string }) => void;
+  loadGraph: (nodes: AppNode[], edges: Edge[]) => void;
 }
 
 export const PipelineEditor = forwardRef<PipelineHandle, PipelineEditorProps>(function PipelineEditor(
   { backend, viewerRegistry, onOpenOutputAsPanel },
   ref,
 ) {
-  const handleRef = useRef<PipelineHandle | null>(null);
-  useImperativeHandle(
-    ref,
-    () => ({
-      addObjectNode: (h) => handleRef.current?.addObjectNode(h),
-      addArtifactNode: (a) => handleRef.current?.addArtifactNode(a),
-    }),
-    [],
-  );
-
   const adapted = useMemo<CoreBackend>(
     () => ({
       executeFunction: (functionID, args, opts) =>
@@ -164,7 +124,8 @@ export const PipelineEditor = forwardRef<PipelineHandle, PipelineEditorProps>(fu
           <ReactFlowProvider>
             <PipelineEditorContent
               registerHandle={(h) => {
-                handleRef.current = h;
+                if (typeof ref === "function") ref(h);
+                else if (ref) ref.current = h;
               }}
             />
           </ReactFlowProvider>
@@ -174,7 +135,8 @@ export const PipelineEditor = forwardRef<PipelineHandle, PipelineEditorProps>(fu
   );
 });
 
-function PipelineEditorContent({ registerHandle }: { registerHandle: (h: PipelineHandle) => void }) {
+function PipelineEditorContent({ registerHandle }: { registerHandle: (h: PipelineHandle | null) => void }) {
+  const { resolved } = useThemeMode();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([] as Edge[]);
@@ -186,7 +148,8 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllNodes, setShowAllNodes] = useState(false);
   const [selectedNode, setSelectedNode] = useState<AppNode | null>(null);
-  const [savedPipelines, setSavedPipelines] = useState<SavedPipeline[]>([]);
+  const savedPipelines = usePipelines((s) => s.saved);
+  const pipelinesLoadSeq = usePipelines((s) => s.loadSeq);
   const [clipboard, setClipboard] = useState<{ nodes: AppNode[]; edges: Edge[] } | null>(null);
 
   const [contextMenu, setContextMenu] = useState<{
@@ -278,52 +241,63 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
     [screenToFlowPosition, setNodes],
   );
 
-  useEffect(() => {
-    registerHandle({ addObjectNode, addArtifactNode });
-  }, [registerHandle, addObjectNode, addArtifactNode]);
+  // Incoming positions can land off-viewport; fit view once React Flow has measured the new nodes.
+  const loadGraph = useCallback(
+    (newNodes: AppNode[], newEdges: Edge[]) => {
+      setNodes(newNodes);
+      setEdges(newEdges);
+      setTimeout(() => fitView({ padding: 0.2 }), 50);
+    },
+    [setNodes, setEdges, fitView],
+  );
 
-  // Load saved pipelines
   useEffect(() => {
-    const saved = localStorage.getItem("r4pm-pipelines");
-    if (saved) {
-      try {
-        setSavedPipelines(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load pipelines", e);
-      }
-    }
-  }, []);
+    registerHandle({ addObjectNode, addArtifactNode, loadGraph });
+    return () => registerHandle(null);
+  }, [registerHandle, addObjectNode, addArtifactNode, loadGraph]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies(pipelinesLoadSeq): trigger dep for project switch; draft read via getState() to skip re-firing on autosaves
+  useEffect(() => {
+    const draft = usePipelines.getState().draft;
+    setNodes(draft?.nodes ?? []);
+    setEdges(draft?.edges ?? []);
+  }, [pipelinesLoadSeq, setNodes, setEdges]);
+
+  // Selection/executionStatus churn changes node identity but not the slimmed draft; skip no-op saves.
+  const lastSavedDraftRef = useRef<string | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const slim = JSON.stringify({ nodes: nodes.map(slimNode), edges });
+      if (slim === lastSavedDraftRef.current) return;
+      lastSavedDraftRef.current = slim;
+      usePipelines.getState().setDraft(nodes, edges);
+      scheduleSessionSave(); // pipelines are frontend-only; no engine event would otherwise persist them
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [nodes, edges]);
 
   const savePipeline = useCallback(
     (name: string) => {
       if (!name) return;
-      const newPipeline: SavedPipeline = {
-        name,
-        nodes: nodes.map(stripRuntimeNodeData),
-        edges,
-        createdAt: Date.now(),
-      };
-      const newSaved = [...savedPipelines.filter((p) => p.name !== name), newPipeline];
-      setSavedPipelines(newSaved);
-      if (!persistPipelines(newSaved)) return;
+      usePipelines.getState().savePipeline(name, nodes, edges);
+      scheduleSessionSave();
       toast.success(`Pipeline "${name}" saved`);
       setPipelineName("");
       setCurrentPipelineName(name);
     },
-    [nodes, edges, savedPipelines],
+    [nodes, edges],
   );
 
   const deletePipeline = useCallback(
     (name: string) => {
-      const newSaved = savedPipelines.filter((p) => p.name !== name);
-      setSavedPipelines(newSaved);
-      persistPipelines(newSaved);
+      usePipelines.getState().deletePipeline(name);
+      scheduleSessionSave();
       toast.success(`Pipeline "${name}" deleted`);
       if (currentPipelineName === name) {
         setCurrentPipelineName(null);
       }
     },
-    [savedPipelines, currentPipelineName],
+    [currentPipelineName],
   );
 
   const loadPipeline = useCallback(
@@ -464,7 +438,6 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
       // Determine source type (reuses getNodeType so it stays exhaustive, incl. array sources).
       const sourceType = getNodeType(sourceNode);
 
-      // Determine target type
       let targetType: ExtendedJSONSchema | undefined;
       if (targetNode.type === "function") {
         const funcMeta = targetNode.data.functionMeta;
@@ -644,7 +617,6 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleCopy, handlePaste, handleSelectAll, handleDuplicate, currentPipelineName, savePipeline]);
 
-  // Context Menu Handlers
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: AppNode) => {
     event.preventDefault();
     event.stopPropagation();
@@ -707,6 +679,7 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
         onContextMenu={onPaneContextMenu}
       >
         <ReactFlow
+          colorMode={resolved}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}

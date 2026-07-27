@@ -22,7 +22,8 @@ import { ExportControls } from "./helpers/export-controls";
 import { useLayoutedElements } from "./helpers/Layout";
 import { usePetriLayout } from "./helpers/layout-context";
 import type { ArcRouting, PetriLayoutFn } from "./helpers/layout-graph";
-import { uid } from "../id";
+import { uid } from "../../shared/id";
+import { useIsDarkMode } from "../../viewer/dark-mode";
 import PlaceNode from "./PlaceNode";
 import TransitionNode from "./TransitionNode";
 const nodeTypes = {
@@ -43,10 +44,7 @@ export type TransitionData = ElementHandlers & {
   /** Replace the transition's inner content entirely (e.g. an icon). */
   renderContent?: () => React.ReactNode;
 };
-/** One drawn token: a dot or square, optionally colored/faded. Both the DOM node
- *  and the SVG export render from this, so overlay/simulator markings (e.g. a green
- *  "final reached" square) appear in exports too - unlike JSX `renderMarking`, which
- *  the standalone SVG builder cannot run. Omitted `color` falls back to the node text. */
+/** One drawn token: a dot or square, optionally colored/faded; both DOM and SVG export render from this. */
 export type TokenMark = { shape: "dot" | "square"; color?: string; opacity?: number; title?: string };
 
 export type PlaceData = ElementHandlers & {
@@ -186,9 +184,7 @@ function InnerEditor() {
     [props.relayoutOnDrag, props.readOnly, relayoutStable],
   );
 
-  // Read-only viewers often mount at 0 size, where ReactFlow's one-shot fitView
-  // no-ops; re-fit when the container resizes. `nodes` is intentionally not a dep
-  // (count read via getNodes) so dragging doesn't trigger a fit mid-drag.
+  // Read-only viewers often mount at 0 size, where ReactFlow's one-shot fitView no-ops; re-fit on resize.
   useEffect(() => {
     if (!props.readOnly) return;
     const el = wrapperRef.current;
@@ -291,9 +287,11 @@ function InnerEditor() {
   );
 
   const nodeOrigin: NodeOrigin = [0.5, 0.5];
+  const colorMode = useIsDarkMode() ? "dark" : "light";
   return (
     <div ref={wrapperRef} style={{ width: "100%", height: "100%" }}>
       <ReactFlow
+        colorMode={colorMode}
         className={`petri-net-editor ${props.readOnly ? "readonly" : ""}`}
         nodes={nodes}
         edges={edges}
@@ -375,16 +373,14 @@ export type EditorProps = {
   editable?: boolean;
   /** Fired (rAF-coalesced) on any node/edge change while editing. */
   onChange?: (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => void;
-  /** After a node drag, re-run a *stable* relayout: only edges re-route and any node the drop
-   *  crowds yields; the dragged node stays where dropped and everything else stays put. On by
-   *  default (editable mode only); pass `false` for free-form dragging. */
+  /** After a node drag, re-run a *stable* relayout: dragged node stays put, only crowded nodes/edges
+   *  re-route. On by default (editable mode only); pass `false` for free-form dragging. */
   relayoutOnDrag?: boolean;
   /** Replace the default (Rust) Petri layout - e.g. with the ELK engine. The "Layout" button runs
    *  it; stable drag-relayout only applies if the engine honors `options.seed` (ELK no-ops). */
   layoutOverride?: PetriLayoutFn;
-  /** Controlled node set: when provided, the editor mirrors it into internal state
-   *  on change (no remount, positions preserved). Used by viewers/simulators that
-   *  push live data updates. Editable mode uses `initialNodes` instead. */
+  /** Controlled node set: editor mirrors it into internal state on change, positions preserved.
+   *  Used by viewers/simulators pushing live data; editable mode uses `initialNodes` instead. */
   nodes?: PetriNetNode[];
   edges?: Edge<ArcData>[];
   /** Editable mode only: cosmetic data merged into the editor's live nodes by id,
@@ -393,13 +389,11 @@ export type EditorProps = {
   overlayNodeData?: Map<string, Partial<TransitionData & PlaceData>>;
   /** Editable mode only: cosmetic arc patches matched to live edges by endpoints. */
   overlayEdgeData?: EditorEdgePatch[];
-  /** Live per-place presentation resolver, evaluated at render by every place node -
-   *  including ones added in-canvas - with the place's current data. Returns fields
-   *  to merge over that data (never tokens/finalTokens; the stepper owns those). */
+  /** Live per-place presentation resolver, evaluated at render; returns fields to merge over the
+   *  place's current data (never tokens/finalTokens, the stepper owns those). */
   placeOverlay?: (placeId: string, data: PlaceData) => Partial<PlaceData> | undefined;
-  /** Live per-arc presentation resolver, evaluated at render by every edge with its
-   *  current data and resolved endpoint kinds (so a consumer can tell place from
-   *  transition without re-deriving topology). */
+  /** Live per-arc presentation resolver, evaluated at render with resolved endpoint kinds so a
+   *  consumer can tell place from transition without re-deriving topology. */
   arcOverlay?: (arc: ArcContext, data: ArcData) => ArcPresentation | undefined;
 };
 

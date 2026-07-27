@@ -98,13 +98,8 @@ function wrapLabel(label: string, maxChars: number, maxLines: number): string[] 
 
 const center = (n: PetriNetNode) => n.position;
 
-/**
- * Serialize a laid-out Petri net to a standalone vector SVG string
- * (real circles / rects / paths: no foreignObject, no external CSS). Mirrors
- * the on-screen rendering via the shared {@link arcGeometry}. Custom
- * `renderMarking`/`renderContent` (arbitrary JSX) cannot be vectorized, so they
- * fall back to the default token dots / label.
- */
+/** Serialize a laid-out Petri net to a standalone vector SVG string; custom `renderMarking`/`renderContent`
+ *  JSX cannot be vectorized, so they fall back to the default token dots / label. */
 export function buildPetriNetSvg(nodes: PetriNetNode[], edges: Edge<ArcData>[]): string | null {
   if (nodes.length === 0) return null;
   const theme = resolveThemeColors();
@@ -245,9 +240,7 @@ export function buildPetriNetSvg(nodes: PetriNetNode[], edges: Edge<ArcData>[]):
       const g = el("g", opacity !== 1 ? { opacity } : {});
       g.appendChild(el("circle", { cx, cy, r, fill, stroke, "stroke-width": strokeW }));
 
-      // Explicit per-token marks win (mirrors a DOM tokenMarks render, e.g. the
-      // simulator's green final tokens); otherwise initial-marking tokens (round
-      // dots) followed by final-marking tokens (faded squares).
+      // Explicit per-token marks win; otherwise initial tokens (dots) then final tokens (faded squares).
       const marks = n.data.tokenMarks;
       if (marks && marks.length > 0) {
         const total = marks.length;

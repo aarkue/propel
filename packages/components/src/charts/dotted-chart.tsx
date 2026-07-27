@@ -13,6 +13,7 @@ import {
   TextField,
 } from "@r4pm/components/ui";
 import { type JSX, useMemo, useRef, useState } from "react";
+import { useViewSetting } from "../viewer/view-state";
 import { PiChartLineDown, PiChartLineUp, PiX } from "react-icons/pi";
 import { ThemedPlot as Plot } from "./themed-plot";
 import { ErrorState } from "../feedback/ErrorState";
@@ -37,8 +38,7 @@ export interface DottedChartOptions {
   timestamp_key: string;
 }
 
-// Axis option types are inlined into `DottedChartOptions` in the generated
-// bindings; alias them here so the configurable controls stay typed verbatim.
+// Axis option types are inlined in the generated `DottedChartOptions`; alias them so controls stay typed.
 type DottedChartXAxis = DottedChartOptions["x_axis"];
 type DottedChartYAxis = DottedChartOptions["y_axis"];
 type DottedChartColorAxis = DottedChartOptions["color_axis"];
@@ -101,21 +101,14 @@ export interface DottedChartProps {
   onRetry?: () => void;
   /** Controlled axis selection (the viz `controls`). Defaults to Time/Case/Activity when omitted. */
   controls?: DottedChartAxisConfig;
-  /** When provided, the axis "Configure" popover is shown and changes are reported here (the host
-   *  refetches). When omitted (e.g. a pipeline viewer with no backend), the axis controls are
-   *  hidden and only presentation controls remain. */
+  /** When provided, shows the axis "Configure" popover and reports changes here; omit to hide axis controls (e.g. no backend). */
   onControlsChange?: (next: DottedChartAxisConfig) => void;
   /** Optional bridge for downstream filtering (time-range selection). */
   onSelect?: (s: { scope: string; key: string }) => void;
   title?: string;
 }
 
-/**
- * Configurable dotted chart over `DottedChartData`. Backend-free: the host owns
- * the fetch and passes `data` plus a controlled `axis`. Owns its presentation
- * controls (dot size/opacity, hover, sort direction) and, when `onAxisChange`
- * is wired, the X/Y/color axis selectors that drive a refetch.
- */
+/** Configurable dotted chart; backend-free, host owns the fetch and passes `data` + a controlled `axis`. */
 export function DottedChart({
   data,
   loading,
@@ -129,10 +122,10 @@ export function DottedChart({
   const { colorOf } = useViewerConfig({});
   const [selectedRange, setSelectedRange] = useState<{ startMs: number; endMs: number } | null>(null);
   const plotID = useRef(Math.random().toString());
-  const [markerSize, setMarkerSize] = useState(3);
-  const [markerOpacity, setMarkerOpacity] = useState(65);
-  const [hoverEnabled, setHoverEnabled] = useState(false);
-  const [direction, setDirection] = useState<"up" | "down">("up");
+  const [markerSize, setMarkerSize] = useViewSetting("markerSize", 3);
+  const [markerOpacity, setMarkerOpacity] = useViewSetting("markerOpacity", 65);
+  const [hoverEnabled, setHoverEnabled] = useViewSetting("hoverEnabled", false);
+  const [direction, setDirection] = useViewSetting<"up" | "down">("direction", "up");
 
   const { x: xAxisConfig, y: yAxisConfig, color: colorAxisConfig } = axis;
   const setAxis = (patch: Partial<DottedChartAxisConfig>) => onAxisChange?.({ ...axis, ...patch });
@@ -167,7 +160,7 @@ export function DottedChart({
 
   const layout: Partial<Plotly.Layout> = useMemo(() => {
     return {
-      font: { size: 22, weight: 500, color: "var(--r4pm-node-text)" },
+      font: { size: 22, weight: 500 },
       autosize: true,
       legend: {
         font: { size: 11 },

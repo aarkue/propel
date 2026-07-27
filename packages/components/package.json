@@ -1,6 +1,6 @@
 {
   "name": "@r4pm/components",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Reusable viewers (DFG, Petri net, dotted chart, OCEL, alignments) and inputs for process mining",
   "keywords": [
     "process-mining",
@@ -29,6 +29,8 @@
     "./ui/styles.css": "./src/ui/styles.css",
     "./petri": "./src/petri/index.ts",
     "./petri/editor.css": "./src/petri/editor/editor.css",
+    "./process-tree": "./src/process-tree/index.ts",
+    "./process-tree/editor.css": "./src/process-tree/editor/editor.css",
     "./charts": "./src/charts/index.ts",
     "./elk-layout": "./src/elk-layout/index.ts",
     "./rust-layout/wasm": "./src/rust-layout/wasm.ts",
@@ -59,8 +61,8 @@
     "react-dom": ">=18"
   },
   "devDependencies": {
-    "@storybook/addon-docs": "^10",
-    "@storybook/react-vite": "^10",
+    "@storybook/addon-docs": "^10.5.3",
+    "@storybook/react-vite": "^10.5.3",
     "@tailwindcss/cli": "^4.0.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^18.3.0",
@@ -70,7 +72,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "remark-gfm": "^4.0.1",
-    "storybook": "^10",
+    "storybook": "^10.5.3",
     "tailwindcss": "^4.0.0",
     "tsup": "^8.5.1",
     "typescript": "^5.5.0",

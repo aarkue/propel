@@ -4,6 +4,7 @@ import { ActivityChip, SVG_PILL_H } from "./ActivitySequence";
 import { svgEl, serializeSvg, SVG_NS } from "../dfg/util/svg-export";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { useColorOf } from "../viewer/viewer-config";
+import { isDarkMode } from "../viewer/dark-mode";
 import {
   MOVE_COLOR,
   MoveGlyphIcon,
@@ -44,11 +45,8 @@ function cellColor(move: ResolvedMove, colorOf?: (activity: string) => string): 
   return colorOf?.(move.label) ?? colorToHex(MOVE_COLOR[move.kind]);
 }
 
-/**
- * One x-position in the trace. A `sync` move sits alone on the axis. A deviation
- * column carries a `log` move (deviating up) and/or a `model` move (deviating
- * down); an adjacent log+model pair shares one column as a substitution.
- */
+/** One x-position in the trace: a lone `sync` move on the axis, or a deviation column carrying a
+ *  `log`/`model` move (or both, as an adjacent substitution). */
 interface Column {
   sync?: ResolvedMove;
   log?: ResolvedMove;
@@ -245,9 +243,7 @@ function railsFor(columns: Column[], i: number): Rails {
   };
 }
 
-/** The two continuous background rails through one column. `preserveAspectRatio="none"` stretches the
- *  0..100 horizontal viewBox to the column's own width while y stays in pixels, so rails join
- *  seamlessly across columns of differing widths; `non-scaling-stroke` keeps the line weight even. */
+/** The two continuous background rails through one column, stretched to its width via `preserveAspectRatio="none"`. */
 function RailBg({ rails }: { rails: Rails }) {
   const rail = (enter: number, center: number, exit: number) => (
     <polyline
@@ -343,10 +339,8 @@ function DeviationColumn({
   );
 }
 
-// ─── Vector SVG export ────────────────────────────────────────────────────────
-// Standalone SVG (no foreignObject, no external CSS), theme-aware. Reuses `layoutActivityPills` for
-// chip width + truncation; the chevron + axis + lanes + icons + labels are drawn here so the colors
-// adapt to light/dark (the shared pill renderer bakes light-only colors).
+// Standalone SVG (no foreignObject, no external CSS), theme-aware; drawn here rather than via the
+// shared pill renderer, which bakes light-only colors.
 
 interface SvgTheme {
   bg: string;
@@ -369,15 +363,6 @@ const SVG_DARK: SvgTheme = {
   guide: "#2a2d31",
   faint: "#7e8389",
 };
-
-function svgIsDark(): boolean {
-  if (typeof document === "undefined") return false;
-  return (
-    document.documentElement.classList.contains("dark") ||
-    document.documentElement.getAttribute("data-theme") === "dark" ||
-    document.querySelector(".radix-themes")?.classList.contains("dark") === true
-  );
-}
 
 const SVG_LABEL_W = 44;
 const SVG_PAD = 14;
@@ -426,7 +411,7 @@ export function buildDeviationAlignmentSvg(
 ): string | null {
   if (moves.length === 0) return null;
   const { colorOf } = opts;
-  const theme = svgIsDark() ? SVG_DARK : SVG_LIGHT;
+  const theme = isDarkMode() ? SVG_DARK : SVG_LIGHT;
   const columns = toColumns(moves);
 
   const widths = columns.map((c) => {
@@ -543,16 +528,8 @@ export function buildDeviationAlignmentSvg(
   return serializeSvg(svg);
 }
 
-/**
- * Deviation-style alignment strip. A central axis carries the synchronous moves;
- * log moves bow upward and model moves bow downward, so non-conformance reads as
- * vertical deviation from the baseline. Moves keep their horizontal order; an
- * adjacent log/model pair shares one column (log above, model below), while a
- * lone log or model move gets a `>>` skip placeholder opposite it.
- *
- * Pass `exportKey` when rendered inside a `ViewerExportFrame` to advertise a true
- * vector SVG of the strip to that frame's export menu.
- */
+/** Deviation-style alignment strip: a central axis carries syncs, log moves bow up, model moves bow
+ *  down. Pass `exportKey` to advertise a vector SVG to a surrounding `ViewerExportFrame`. */
 export function DeviationAlignmentStrip({
   moves,
   colorOf,

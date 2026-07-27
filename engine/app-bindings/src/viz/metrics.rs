@@ -1,6 +1,5 @@
-//! Layout quality metrics - used by tests to objectively track routing/placement quality
-//! and to catch regressions the eye would (bbox, crossings, coincident overlaps, edges
-//! cutting through node boxes, edge<->node clearance, detours, bends, edge length).
+//! Layout quality metrics, used by tests to objectively track routing/placement quality and
+//! catch regressions the eye would (crossings, overlaps, node hits, clearance, detours, bends).
 
 type Pt = (f64, f64);
 type Rect = (f64, f64, f64, f64); // (cx, cy, w, h)
@@ -28,8 +27,7 @@ pub struct LayoutMetrics {
     /// busiest node's ports are. Low values mean arcs meet the node almost on top of each other.
     pub min_port_sep: f64,
     /// Largest distance between an edge endpoint and the border of the node it connects to
-    /// (source side measured strictly; target side allows the arrowhead end-gap). A shape-fit
-    /// route touches its nodes -> this stays ~0.
+    /// (target side allows the arrowhead end-gap). A shape-fit route keeps this ~0.
     pub connection_gap: f64,
     /// Interior vertices whose turn angle exceeds ~8° (near-collinear points don't count).
     pub bends: usize,
@@ -155,9 +153,8 @@ fn segment_rect_dist(p: Pt, q: Pt, r: Rect) -> f64 {
     d
 }
 
-/// Distance from a point to a node's drawn border. For a box it is the (signed->clamped)
-/// distance to the rectangle outline; for an ellipse the radial gap to the outline. ~0 when
-/// the point sits on the border, as a shape-fit arc endpoint should.
+/// Distance from a point to a node's drawn border: rectangle outline for a box, radial gap for
+/// an ellipse. ~0 when the point sits on the border, as a shape-fit arc endpoint should.
 fn point_border_dist(p: Pt, r: Rect, ellipse: bool) -> f64 {
     let (cx, cy, w, h) = r;
     let (hw, hh) = (w / 2.0, h / 2.0);
@@ -215,8 +212,7 @@ fn count_bends(poly: &[Pt]) -> usize {
 }
 
 /// Compute metrics. `edge_endpoints[i]` gives the node-box indices this edge connects
-/// (`usize::MAX` for none), so those two boxes are excluded from its clearance/hit checks.
-/// `node_ellipse[i]` marks a node drawn as an ellipse (else a box) for shape-aware gaps.
+/// (`usize::MAX` for none), excluded from its clearance/hit checks; `node_ellipse[i]` marks ellipse vs box for shape-aware gaps.
 pub fn compute(
     node_boxes: &[Rect],
     edges: &[Vec<Pt>],
@@ -319,9 +315,8 @@ pub fn compute(
 
     let bends = polys.iter().map(|(_, p)| count_bends(p)).sum();
 
-    // Detour: the route overshoots the order-axis span of its endpoints *in open space*. An
-    // overshoot vertex that sits beside a node box (within a node-gap) is an obstacle-avoiding
-    // jog, not a wiggle, so it is not flagged; a genuine up-then-down excursion in the clear is.
+    // Detour: the route overshoots the order-axis span of its endpoints in open space; an
+    // overshoot beside a node box is an obstacle-avoiding jog and not flagged.
     let mut detours = 0;
     for (orig, p) in &polys {
         let (a, b) = (p[0], p[p.len() - 1]);

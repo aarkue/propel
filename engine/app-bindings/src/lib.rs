@@ -10,6 +10,7 @@ pub mod alignments;
 pub mod event_log;
 pub mod ocel;
 pub mod petri_net_io;
+pub mod slim_project;
 pub mod transforms;
 pub mod types;
 pub mod viz;
@@ -32,10 +33,8 @@ pub fn alphappp_auto(log_proj: &EventLogActivityProjection) -> PetriNet {
     net
 }
 
-/// Discover a Petri net from an event log with Alpha+++.
-///
-/// Projects to activities internally, so no intermediate
-/// `EventLogActivityProjection` is stored in the registry.
+/// Discover a Petri net from an event log with Alpha+++. Projects to activities internally, so
+/// no intermediate `EventLogActivityProjection` is stored in the registry.
 #[register_binding]
 pub fn discover_petri_net(event_log: &process_mining::EventLog) -> PetriNet {
     let proj = EventLogActivityProjection::from(event_log);

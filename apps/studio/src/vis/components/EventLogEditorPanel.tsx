@@ -1,20 +1,20 @@
 import type { EventLogHandle } from "@r4pm/client";
 import { EMPTY_LOG, EventLogEditor, fromLogJson, toLogJson, type EventLogModel } from "@r4pm/components";
 import { Button, DropdownMenu, TextField } from "@r4pm/components/ui";
+import type { IDockviewPanelProps } from "dockview";
 import { useState } from "react";
 import { FaHammer } from "react-icons/fa";
 import { PiDownloadSimple } from "react-icons/pi";
 import { backend } from "../../backends";
+import { usePanelDraft } from "../../panels/panel-state";
 import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
 const FROM_JSON = "app_bindings::event_log::event_log_from_json" as const;
 const TO_JSON = "app_bindings::event_log::event_log_to_json" as const;
 
-/** Studio "create new event log" panel: the pure editor plus backend Save (register as a dataset)
- *  and Import-to-seed (load an existing EventLog back into the editor). */
-export function EventLogEditorPanel() {
-  const [model, setModel] = useState<EventLogModel>(EMPTY_LOG);
-  const [name, setName] = useState("Event Log");
+export function EventLogEditorPanel(props: IDockviewPanelProps) {
+  const [model, setModel] = usePanelDraft<EventLogModel>(props, "model", EMPTY_LOG);
+  const [name, setName] = usePanelDraft(props, "name", "Event Log");
   const [busy, setBusy] = useState(false);
   const datasets = useDatasets((s) => s.datasets);
   const sources = datasets.filter((d) => d.kind === "EventLog");

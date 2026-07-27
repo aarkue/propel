@@ -34,9 +34,8 @@ pub mod state {
         pub meta: ObjMeta,
         pub files_to_import: RwLock<Vec<PathBuf>>,
         pub artifacts: RwLock<HashMap<String, PropelArtifact>>,
-        /// Insertion order of registry-object / artifact ids, kept because the underlying maps are
-        /// unordered (`HashMap`). Reconciled lazily in the list getters so the frontend gets a stable
-        /// order that survives a reload (newest last). See `reconcile_order`.
+        /// Insertion order of registry-object / artifact ids, kept because the underlying maps
+        /// are unordered; reconciled lazily so the frontend gets a stable order. See `reconcile_order`.
         pub object_order: RwLock<Vec<String>>,
         pub artifact_order: RwLock<Vec<String>>,
     }
@@ -55,9 +54,8 @@ pub mod state {
     }
 }
 
-/// Single generic signal the frontend subscribes to so every surface (dataset chips, pipeline
-/// object lists, panel selectors) refreshes whenever the loaded-object set changes, regardless of
-/// which path mutated it (import, unload, or a binding that stored a registry-typed result).
+/// Single generic signal the frontend subscribes to so every surface refreshes whenever the
+/// loaded-object set changes, regardless of which path mutated it.
 fn emit_objects_changed<B: Backend>(backend: &B) {
     let _ = backend.emit("objects-changed", ());
 }
@@ -191,6 +189,7 @@ pub fn list_artifacts<B: Backend>(backend: &B) -> Result<Vec<ObjectInfo>, String
             m.get(&id).map(|a| ObjectInfo {
                 kind: a.kind().to_string(),
                 label: st.meta.label_of(&id),
+                provenance: st.meta.provenance_of(&id),
                 id,
             })
         })
@@ -228,8 +227,7 @@ pub fn export_artifact<B: Backend>(backend: &B, id: &str, format: &str) -> Resul
 }
 
 /// Registry kinds an item of `kind` can be converted into, mirroring
-/// `process_mining::bindings::RegistryItem::convert`'s match arms. The conversions cannot be
-/// reflected at runtime, so they are restated here; keep in sync if upstream adds a conversion.
+/// `RegistryItem::convert`'s match arms; keep in sync if upstream adds a conversion.
 pub fn convertible_to(kind: RegistryItemKind) -> Vec<RegistryItemKind> {
     use process_mining::bindings::RegistryItemKind::*;
     match kind {
@@ -369,16 +367,17 @@ pub fn export_item_path<B: Backend>(backend: &B, id: &str, path: &str) -> Result
 
 /// A loaded registry object as the frontend sees it: handle `id`, registry `kind`, and the
 /// optional user-facing `label` (absent when the user never renamed it, so the UI shows the id).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ObjectInfo {
     pub id: String,
     pub kind: String,
     pub label: Option<String>,
+    /// Recorded lineage when this object was produced by a binding (transform/discovery); absent for imports.
+    pub provenance: Option<Provenance>,
 }
 
 /// The ids in `present`, in insertion order: drop remembered ids that are gone, append ones we
-/// haven't seen. The object/artifact stores are unordered `HashMap`s, so this side-list is what gives
-/// the frontend a stable "newest last" order that also survives a reload (engine process outlives it).
+/// haven't seen. Gives the frontend a stable "newest last" order over the unordered stores.
 fn reconcile_order(order_lock: &RwLock<Vec<String>>, present: &HashSet<String>) -> Vec<String> {
     let mut order = order_lock.write().unwrap();
     order.retain(|id| present.contains(id));
@@ -406,15 +405,15 @@ pub fn get_objects_with_type<B: Backend>(backend: &B) -> Result<Vec<ObjectInfo>,
             objects.get(&id).map(|object| ObjectInfo {
                 kind: object.kind().to_string(),
                 label: meta.label_of(&id),
+                provenance: meta.provenance_of(&id),
                 id,
             })
         })
         .collect())
 }
 
-/// Set (or, when `label` is empty/blank, clear) the user-facing display label for object `id`.
-/// Stored engine-side so it outlives a frontend reload; emits `objects-changed` so every surface
-/// picks up the new name.
+/// Set (or, when `label` is empty/blank, clear) the user-facing display label for object `id`;
+/// emits `objects-changed` so every surface picks up the new name.
 pub fn set_object_label<B: Backend>(
     backend: &B,
     id: String,
@@ -443,9 +442,8 @@ pub fn list_functions() -> Vec<bindings::BindingMeta> {
     bindings::list_functions_meta()
 }
 
-/// A single planned argument conversion: the registry item referenced by `arg_name` (`src_id`,
-/// of a different but convertible kind) should be materialized as `derived_id` of `target_kind`,
-/// and the argument swapped to point at it.
+/// A single planned argument conversion: the item referenced by `arg_name` (`src_id`) should be
+/// materialized as `derived_id` of `target_kind`, and the argument swapped to point at it.
 pub struct ConvPlan {
     pub arg_name: String,
     pub src_id: String,
@@ -502,15 +500,52 @@ pub fn plan_conversions(
     out
 }
 
+/// Ids of the args whose schema is a registry reference (`x-registry-ref`).
+pub fn registry_ref_arg_ids(args: &Value, arg_schemas: &[(String, Value)]) -> Vec<String> {
+    let obj = match args.as_object() {
+        Some(o) => o,
+        None => return Vec::new(),
+    };
+    arg_schemas
+        .iter()
+        .filter(|(_, schema)| {
+            schema
+                .get("x-registry-ref")
+                .and_then(|v| v.as_str())
+                .is_some()
+        })
+        .filter_map(|(name, _)| obj.get(name).and_then(|v| v.as_str()).map(String::from))
+        .collect()
+}
+
+/// `None` when the call reads no registry objects.
+pub fn build_provenance(
+    function_id: &str,
+    args: &Value,
+    arg_schemas: &[(String, Value)],
+    gen_of: impl Fn(&str) -> u64,
+) -> Option<Provenance> {
+    let sources = registry_ref_arg_ids(args, arg_schemas);
+    if sources.is_empty() {
+        return None;
+    }
+    let source_gen = sources.iter().map(|id| gen_of(id)).max().unwrap_or(0);
+    let op = serde_json::json!({ "fn": function_id, "args": args });
+    Some(Provenance {
+        sources,
+        op,
+        source_gen,
+    })
+}
+
 /// Whether the cached derived object `derived_id` was built from the current generation of its
 /// source (so it can be reused instead of rebuilt).
 fn is_fresh(meta: &ObjMeta, derived_id: &str, src_gen: u64) -> bool {
     meta.provenance_source_gen(derived_id) == Some(src_gen)
 }
 
-/// Decide whether a binding result should be re-keyed to a caller-supplied name. Applies only when
-/// a name is given, exactly one new handle appeared (`delta == 1`), and the result is the JSON
-/// string id of that handle. Returns `(minted_id, output_name)`.
+/// Decide whether a binding result should be re-keyed to a caller-supplied name: applies only
+/// when a name is given, exactly one new handle appeared, and the result is that handle's JSON id.
 pub fn decide_rename(
     result: &[u8],
     delta: i64,
@@ -534,11 +569,13 @@ pub fn execute_binding<B: Backend>(
         bindings::get_fn_binding(function_id).ok_or_else(|| "Unknown function ID".to_string())?;
     let st = backend.get_state();
     let arg_schemas = (binding.args)();
+    // Provenance sources are the user-supplied ids, captured before the __as__ conversion below may
+    // rewrite an arg to point at a hidden derived object.
+    let original_args = args.clone();
     let mut args = args.clone();
 
     // Transparently convert registry-ref arguments whose passed object is of a different but
-    // convertible kind. The result is cached as a hidden `{src}__as__{Kind}` derived item and
-    // reused while its source's generation is unchanged.
+    // convertible kind, caching the result as a hidden `{src}__as__{Kind}` derived item.
     let plans = {
         let kind_of = |id: &str| {
             st.items
@@ -564,7 +601,7 @@ pub fn execute_binding<B: Backend>(
                     generation: 0,
                     provenance: Some(Provenance {
                         sources: vec![p.src_id.clone()],
-                        op: format!("convert:{}", p.target_kind),
+                        op: format!("convert:{}", p.target_kind).into(),
                         source_gen: src_gen,
                     }),
                 },
@@ -584,9 +621,12 @@ pub fn execute_binding<B: Backend>(
         emit_objects_changed(backend);
     }
 
+    let provenance = build_provenance(function_id, &original_args, &arg_schemas, |id| {
+        st.meta.generation_of(id)
+    });
+
     // If the caller named the output and the call minted exactly one handle, re-key it to that
-    // deterministic name (role `Result`, hidden) and return the new id. Lets the pipeline overwrite
-    // a node's prior intermediate on re-run instead of piling up `res_*` handles.
+    // deterministic name, letting the pipeline overwrite a node's prior intermediate on re-run.
     if let Ok(bytes) = &result {
         if let Some((old, new)) = decide_rename(bytes, after as i64 - before as i64, output_name) {
             if let Ok(mut items) = st.items.write() {
@@ -599,10 +639,30 @@ pub fn execute_binding<B: Backend>(
                 ItemMeta {
                     role: ItemRole::Result,
                     generation: 0,
-                    provenance: None,
+                    provenance,
                 },
             );
             return serde_json::to_vec(&new).map_err(|e| e.to_string());
+        }
+    }
+
+    // Un-renamed produced object: still record lineage on the minted handle.
+    if let (Ok(bytes), Some(prov)) = (&result, provenance) {
+        if after > before {
+            if let Ok(minted_id) = serde_json::from_slice::<String>(bytes) {
+                if st.contains_key(&minted_id) {
+                    let role = st.meta.role_of(&minted_id);
+                    let generation = st.meta.generation_of(&minted_id);
+                    st.meta.set(
+                        &minted_id,
+                        ItemMeta {
+                            role,
+                            generation,
+                            provenance: Some(prov),
+                        },
+                    );
+                }
+            }
         }
     }
     result
@@ -610,7 +670,7 @@ pub fn execute_binding<B: Backend>(
 
 #[cfg(test)]
 mod convert_dispatch_tests {
-    use super::plan_conversions;
+    use super::{build_provenance, plan_conversions, registry_ref_arg_ids};
     use serde_json::json;
 
     fn schemas() -> Vec<(String, serde_json::Value)> {
@@ -618,6 +678,51 @@ mod convert_dispatch_tests {
             "log_proj".into(),
             json!({ "x-registry-ref": "EventLogActivityProjection" }),
         )]
+    }
+
+    #[test]
+    fn collects_registry_ref_arg_ids() {
+        let schemas = vec![
+            (
+                "event_log".to_string(),
+                json!({ "x-registry-ref": "EventLog" }),
+            ),
+            ("transforms".to_string(), json!({ "type": "array" })),
+        ];
+        let args = json!({ "event_log": "log1", "transforms": [] });
+        assert_eq!(
+            registry_ref_arg_ids(&args, &schemas),
+            vec!["log1".to_string()]
+        );
+        let plain = vec![("n".to_string(), json!({ "type": "number" }))];
+        assert!(registry_ref_arg_ids(&json!({ "n": 1 }), &plain).is_empty());
+    }
+
+    #[test]
+    fn builds_provenance_from_registry_args() {
+        let schemas = vec![(
+            "event_log".to_string(),
+            json!({ "x-registry-ref": "EventLog" }),
+        )];
+        let args = json!({ "event_log": "log1", "transforms": [{ "FilterActivities": {} }] });
+        let p = build_provenance("apply_event_log_transforms", &args, &schemas, |id| {
+            if id == "log1" {
+                3
+            } else {
+                0
+            }
+        })
+        .unwrap();
+        assert_eq!(p.sources, vec!["log1".to_string()]);
+        assert_eq!(p.source_gen, 3);
+        assert_eq!(p.op["fn"], "apply_event_log_transforms");
+        assert_eq!(p.op["args"], args);
+    }
+
+    #[test]
+    fn no_provenance_without_registry_args() {
+        let schemas = vec![("x".to_string(), json!({ "type": "number" }))];
+        assert!(build_provenance("f", &json!({ "x": 1 }), &schemas, |_| 0).is_none());
     }
 
     #[test]
@@ -725,6 +830,7 @@ mod artifact_store_tests {
                 id: "net1".to_string(),
                 kind: "PetriNet".to_string(),
                 label: None,
+                provenance: None,
             }]
         );
         assert!(get_artifact(&b, "net1").unwrap().get("places").is_some());
@@ -744,5 +850,81 @@ mod artifact_store_tests {
         load_artifact_bytes(&b, "n".into(), "PetriNet", PNML.as_bytes(), "pnml").unwrap();
         let bytes = export_artifact(&b, "n", "pnml").unwrap();
         assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn listing_carries_provenance() {
+        let b = backend();
+        load_artifact_bytes(&b, "net1".into(), "PetriNet", PNML.as_bytes(), "pnml").unwrap();
+        b.get_state().meta.set(
+            "net1",
+            ItemMeta {
+                role: ItemRole::Primary,
+                generation: 0,
+                provenance: Some(Provenance {
+                    sources: vec!["log1".into()],
+                    op: "op".into(),
+                    source_gen: 0,
+                }),
+            },
+        );
+        let listed = list_artifacts(&b).unwrap();
+        let info = listed.iter().find(|o| o.id == "net1").expect("net1 listed");
+        assert_eq!(
+            info.provenance.as_ref().unwrap().sources,
+            vec!["log1".to_string()]
+        );
+    }
+}
+
+#[cfg(test)]
+mod provenance_dispatch_tests {
+    use super::*;
+    use process_mining::bindings::register_binding;
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    #[register_binding]
+    fn test_clone_log(event_log: &process_mining::EventLog) -> process_mining::EventLog {
+        event_log.clone()
+    }
+
+    struct B {
+        state: ExtendedAppState,
+        events: Mutex<Vec<String>>,
+    }
+    impl Backend for B {
+        fn get_state(&self) -> &ExtendedAppState {
+            &self.state
+        }
+        fn emit<S: serde::Serialize + Clone>(&self, name: &str, _data: S) -> Result<(), String> {
+            self.events.lock().unwrap().push(name.to_string());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn records_provenance_for_produced_object() {
+        let b = B {
+            state: ExtendedAppState::default(),
+            events: Mutex::new(Vec::new()),
+        };
+        b.get_state()
+            .add("log1".to_string(), process_mining::EventLog::default());
+        // The test binding's registry id is compiler-decided; find it by suffix.
+        let fid = list_functions()
+            .into_iter()
+            .map(|f| f.id)
+            .find(|id| id.ends_with("test_clone_log"))
+            .expect("test binding registered");
+        let out = execute_binding(&b, &fid, &json!({ "event_log": "log1" }), None).unwrap();
+        let new_id: String = serde_json::from_slice(&out).unwrap();
+        let prov = b
+            .get_state()
+            .meta
+            .provenance_of(&new_id)
+            .expect("provenance recorded");
+        assert_eq!(prov.sources, vec!["log1".to_string()]);
+        assert!(prov.op["fn"].as_str().unwrap().ends_with("test_clone_log"));
     }
 }

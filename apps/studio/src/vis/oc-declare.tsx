@@ -1,4 +1,4 @@
-import type { OCDeclareDiscoveryOptions, SlimLinkedOCELHandle } from "@r4pm/client";
+import type { OCDeclareArc, OCDeclareDiscoveryOptions, SlimLinkedOCELHandle } from "@r4pm/client";
 import { PiListBullets } from "react-icons/pi";
 import { OCDeclarePanel } from "./components/OCDeclarePanel";
 import { defineVis } from "./define-vis";
@@ -29,6 +29,19 @@ export const vis = defineVis({
     binding: "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints",
     needs: "SlimLinkedOCEL",
     args: (ctx) => ({ locel: ctx.datasetId as SlimLinkedOCELHandle, options: OC_DECLARE_OPTIONS }),
+  },
+  // `onProjectActivities` re-projects constraints onto kept activities via the rust lossless
+  // projection; without a backend, counts/projection fall back to name-sort / naive drop-touching.
+  extraProps: async (ctx) => {
+    const stats = await ctx.backend.callBinding("process_mining::bindings::ocel_type_stats", {
+      ocel: ctx.datasetId as SlimLinkedOCELHandle,
+    });
+    const onProjectActivities = (arcs: OCDeclareArc[], activities: string[]) =>
+      ctx.backend.callBinding(
+        "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart",
+        { arcs, activities, lossless_reduction: true },
+      );
+    return { eventTypeCounts: stats.event_type_counts, onProjectActivities };
   },
   component: OCDeclarePanel,
 });

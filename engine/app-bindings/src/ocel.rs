@@ -1,10 +1,5 @@
-//! OCEL (object-centric) analysis bindings.
-//!
-//! Each binding takes `&OCEL` directly; the `#[register_binding]` macro maps that to an
-//! `OCELHandle` and resolves it from the object store at dispatch time. Where the body needs
-//! the indexed `LinkedOCELAccess` API (relationships, reverse indices), we build a
-//! `SlimLinkedOCEL` in-place via `SlimLinkedOCEL::from_ocel` (events are pre-sorted by
-//! timestamp at link time).
+//! OCEL (object-centric) analysis bindings. Each binding takes `&OCEL` directly, resolved via
+//! `OCELHandle`; where the indexed `LinkedOCELAccess` API is needed, we build a `SlimLinkedOCEL` in-place.
 use std::collections::{HashMap, HashSet};
 
 use process_mining::bindings::register_binding;
@@ -24,9 +19,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{
     AttributeCatalogEntry, AttributeKind, AttributeScope, AttributeValues, DfArcDuration,
-    NumericStats, OCELInfo, OCELObjectAttributeChanges, ObjectBrowserPage, ObjectBrowserRow,
-    ObjectDetail, ObjectEventRow, ObjectInvolvementCounts, ObjectSortField, OcDfgCounts,
-    OcelAttributeInfo, OcelAttributeLevel, OcelAttributeSummary, OcelDfPerformance,
+    EventTimeHistogram, NumericStats, OCELInfo, OCELObjectAttributeChanges, ObjectBrowserPage,
+    ObjectBrowserRow, ObjectDetail, ObjectEventRow, ObjectInvolvementCounts, ObjectSortField,
+    OcDfgCounts, OcelAttributeInfo, OcelAttributeLevel, OcelAttributeSummary, OcelDfPerformance,
     ATTR_VALUES_CAP,
 };
 
@@ -45,12 +40,8 @@ pub struct OcSimTraceStep {
     pub objects: Vec<OcSimTraceObject>,
 }
 
-/// Build a slim linked OCEL from an object-centric simulation trace: one event per step
-/// (timestamps spaced 1 minute apart from a fixed base), each linked to the objects it
-/// touched. Object ids are prefixed with their type so they stay unique across types, and a
-/// repeated (type, id) maps to a single shared object linked to every event it appears in.
-/// Steps with a blank activity (silent transitions) are dropped. Auto-stored under a fresh
-/// handle by the registry.
+/// Build a slim linked OCEL from an object-centric simulation trace: one event per step, each
+/// linked to the objects it touched. A repeated (type, id) maps to one shared object; blank-activity steps are dropped.
 #[register_binding]
 pub fn ocel_from_oc_sim_trace(trace: Vec<OcSimTraceStep>) -> SlimLinkedOCEL {
     const BASE_MS: i64 = 1_577_836_800_000; // 2020-01-01T00:00:00Z
@@ -262,10 +253,8 @@ fn map_ocel_type(t: OcelTypeInput) -> OCELType {
     }
 }
 
-/// Build a slim linked OCEL from the editor's structured JSON: declared event/object types with
-/// their attribute schemas, events (with E2O relationships) and objects (timestamped attributes,
-/// O2O relationships). Constructed as a `process_mining::OCEL` then linked, so attribute indexing
-/// and event time-sorting follow the crate's own `from_ocel`. Auto-stored under a fresh handle.
+/// Build a slim linked OCEL from the editor's structured JSON. Constructed as a
+/// `process_mining::OCEL` then linked, so attribute indexing and time-sorting follow the crate's own `from_ocel`.
 #[register_binding]
 pub fn ocel_from_json(input: OcelInput) -> SlimLinkedOCEL {
     let events = input
@@ -341,9 +330,8 @@ fn ocel_value_type_str(v: &OCELAttributeValue) -> &'static str {
     }
 }
 
-/// Read an existing OCEL back into the editor's structured JSON (import-to-seed). Inverse of
-/// `ocel_from_json`: declared types with their schemas, events (E2O) and objects (timestamped
-/// attributes, O2O), with qualifiers preserved.
+/// Read an existing OCEL back into the editor's structured JSON (import-to-seed); inverse of
+/// `ocel_from_json`, with qualifiers preserved.
 #[register_binding]
 pub fn ocel_to_json(ocel: &SlimLinkedOCEL) -> OcelInput {
     let map_type = |t: &process_mining::core::event_data::object_centric::OCELType| OcelTypeInput {
@@ -446,6 +434,21 @@ pub fn get_ocel_info(ocel: &SlimLinkedOCEL) -> OCELInfo {
         event_types: ocel.get_ev_types().map(|s| s.to_string()).collect(),
         object_types: ocel.get_ob_types().map(|s| s.to_string()).collect(),
     }
+}
+
+/// Time histogram of events, split per event type.
+#[register_binding]
+pub fn get_ocel_event_timestamps(ocel: &SlimLinkedOCEL, num_bins: usize) -> EventTimeHistogram {
+    let evs: Vec<(i64, String)> = ocel
+        .get_all_evs()
+        .map(|ev| {
+            (
+                ocel.get_ev_time(&ev).timestamp_millis(),
+                ocel.get_ev_type_of(&ev).to_string(),
+            )
+        })
+        .collect();
+    EventTimeHistogram::from_events(evs, num_bins)
 }
 
 /// First 100 object IDs.
@@ -565,9 +568,8 @@ fn ms_to_rfc3339(ms: i64) -> String {
         .unwrap_or_default()
 }
 
-/// Detail (events, O2O, attributes) for a single object.
-///
-/// On unknown `object_id` returns an empty `ObjectDetail`; the registry binding is infallible.
+/// Detail (events, O2O, attributes) for a single object. On unknown `object_id` returns an
+/// empty `ObjectDetail`, since the registry binding is infallible.
 #[register_binding]
 pub fn get_object_detail(ocel: &SlimLinkedOCEL, object_id: String) -> ObjectDetail {
     let Some(ob) = ocel.get_ob_by_id(&object_id) else {
@@ -824,10 +826,8 @@ pub fn get_ocel_attribute_summary(
     }
 }
 
-/// All distinct categorical values (with counts, most-frequent first) for one OCEL attribute -
-/// the full list the attribute filter's value picker searches. Numeric values are ignored.
-/// For objects the latest value per object is counted. Capped at `ATTR_VALUES_CAP`;
-/// `total_distinct` reports the true count before truncation.
+/// All distinct categorical values (with counts, most-frequent first) for one OCEL attribute
+/// (for objects, the latest value per object), capped at `ATTR_VALUES_CAP`.
 #[register_binding]
 pub fn get_ocel_attribute_values(
     ocel: &SlimLinkedOCEL,
@@ -955,9 +955,8 @@ pub fn get_ocel_activity_object_involvements(
         .collect()
 }
 
-/// Object-centric DFG counts. Replaces the crate's flatten-based `discover_dfg_from_ocel`:
-/// per type, objects are reduced in parallel over interned event-type indices.
-/// Start/end carry event-based frequencies.
+/// Object-centric DFG counts: per type, objects are reduced in parallel over interned
+/// event-type indices. Start/end carry event-based frequencies.
 #[register_binding]
 pub fn get_ocel_df(ocel: &SlimLinkedOCEL) -> OcDfgCounts {
     let ev_type_names: Vec<&str> = ocel.get_ev_types().collect();
@@ -1042,6 +1041,104 @@ pub fn get_ocel_df(ocel: &SlimLinkedOCEL) -> OcDfgCounts {
     }
 
     result
+}
+
+/// A qualifier and its instance count.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OcelTypeQualifierCount {
+    pub qualifier: String,
+    pub count: usize,
+}
+
+/// Aggregated relation between two types (event->object for E2O, object->object for O2O).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OcelTypePairRelation {
+    pub source_type: String,
+    pub target_type: String,
+    /// Real total across all qualifiers, independent of the `qualifiers` cap below.
+    pub count: usize,
+    /// Top qualifiers by count, capped at `max_qualifiers_per_pair`.
+    pub qualifiers: Vec<OcelTypeQualifierCount>,
+    /// Sum of counts of qualifiers omitted from `qualifiers`.
+    pub other_qualifier_count: usize,
+    /// Real number of distinct qualifiers (may exceed `qualifiers.len()`).
+    pub distinct_qualifiers: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OcelTypeRelations {
+    pub e2o_type_relations: Vec<OcelTypePairRelation>,
+    pub o2o_type_relations: Vec<OcelTypePairRelation>,
+}
+
+fn pair_relations(
+    counts: HashMap<(String, String), HashMap<String, usize>>,
+    max_qualifiers_per_pair: usize,
+) -> Vec<OcelTypePairRelation> {
+    counts
+        .into_iter()
+        .map(|((source_type, target_type), qualifier_counts)| {
+            let mut qualifiers: Vec<OcelTypeQualifierCount> = qualifier_counts
+                .into_iter()
+                .map(|(qualifier, count)| OcelTypeQualifierCount { qualifier, count })
+                .collect();
+            qualifiers.sort_by(|a, b| b.count.cmp(&a.count));
+            let distinct_qualifiers = qualifiers.len();
+            let total: usize = qualifiers.iter().map(|q| q.count).sum();
+            let other = if qualifiers.len() > max_qualifiers_per_pair {
+                qualifiers.split_off(max_qualifiers_per_pair)
+            } else {
+                Vec::new()
+            };
+            OcelTypePairRelation {
+                source_type,
+                target_type,
+                count: total,
+                qualifiers,
+                other_qualifier_count: other.iter().map(|q| q.count).sum(),
+                distinct_qualifiers,
+            }
+        })
+        .collect()
+}
+
+/// Type-level E2O/O2O relations. `max_qualifiers_per_pair` caps itemized qualifiers per pair
+/// (0 = totals only), since some OCELs have near-unique qualifiers per instance.
+#[register_binding]
+pub fn get_ocel_type_relations(
+    ocel: &SlimLinkedOCEL,
+    max_qualifiers_per_pair: usize,
+) -> OcelTypeRelations {
+    let mut e2o_counts: HashMap<(String, String), HashMap<String, usize>> = HashMap::new();
+    for ev in ocel.get_all_evs() {
+        let ev_type = ocel.get_ev_type_of(&ev).to_string();
+        for (qualifier, ob) in ocel.get_e2o(&ev) {
+            let ob_type = ocel.get_ob_type_of(ob).to_string();
+            *e2o_counts
+                .entry((ev_type.clone(), ob_type))
+                .or_default()
+                .entry(qualifier.to_string())
+                .or_insert(0) += 1;
+        }
+    }
+
+    let mut o2o_counts: HashMap<(String, String), HashMap<String, usize>> = HashMap::new();
+    for ob in ocel.get_all_obs() {
+        let ob_type = ocel.get_ob_type_of(&ob).to_string();
+        for (qualifier, ob2) in ocel.get_o2o(&ob) {
+            let ob2_type = ocel.get_ob_type_of(ob2).to_string();
+            *o2o_counts
+                .entry((ob_type.clone(), ob2_type))
+                .or_default()
+                .entry(qualifier.to_string())
+                .or_insert(0) += 1;
+        }
+    }
+
+    OcelTypeRelations {
+        e2o_type_relations: pair_relations(e2o_counts, max_qualifiers_per_pair),
+        o2o_type_relations: pair_relations(o2o_counts, max_qualifiers_per_pair),
+    }
 }
 
 /// Per-object-type directly-follows arc duration statistics (performance overlay).

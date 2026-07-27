@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useViewSetting } from "../viewer/view-state";
 import type { PlotParams } from "react-plotly.js";
 import { ThemedPlot as Plot } from "./themed-plot";
-import type { ViewerProps } from "../viewer/viewer-config";
+import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
 
 // Local view-model mirroring the generated @r4pm/client type.
 export interface AggregatedEventTimestamps {
@@ -13,22 +14,11 @@ function sum(values: (number | undefined)[]): number {
   return values.reduce<number>((s, a) => s + (a ?? 0), 0);
 }
 
-// Deterministic per-activity color (replaces propel's GlobalState.activityColors,
-// which is gated out -- these viewers take only `data`).
-function colorForAct(act: string): string {
-  let h = 0;
-  for (let i = 0; i < act.length; i++) h = (h * 31 + act.charCodeAt(i)) >>> 0;
-  return `hsl(${h % 360}, 65%, 55%)`;
-}
-
-/**
- * Histogram of events over time, either aggregated or stacked per activity.
- * Ported faithfully from propel's `EventsPerTimePlot`. The interactive
- * time-range selection / send-to-transforms bridge is gated out (these
- * viewers take only `data`).
- */
-export function EventsPerTimeChart({ data }: ViewerProps<AggregatedEventTimestamps>) {
-  const [mode, setMode] = useState<"per-activity" | "aggregated">("per-activity");
+/** Histogram of events over time, aggregated or stacked per activity. */
+export function EventsPerTimeChart(props: ViewerProps<AggregatedEventTimestamps>) {
+  const { data } = props;
+  const { colorOf } = useViewerConfig(props);
+  const [mode, setMode] = useViewSetting<"per-activity" | "aggregated">("mode", "per-activity");
 
   const sortedTimestamps = useMemo(() => {
     const ts = Object.keys(data.events_per_timestamp).map((t) => parseInt(t, 10));
@@ -57,24 +47,33 @@ export function EventsPerTimeChart({ data }: ViewerProps<AggregatedEventTimestam
           y: sortedTimestamps.map((t) => data.events_per_timestamp[t]?.[act] ?? 0),
           type: "bar",
           name: act,
-          marker: { color: colorForAct(act) },
+          marker: { color: colorOf?.("activity", act) ?? "#888888" },
         }));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", minHeight: 200 }}>
       <div
+        data-export-ignore
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
           gap: 8,
-          padding: "4px 8px",
+          // clear export frame's download button in top-right corner
+          padding: "4px 44px 4px 8px",
         }}
       >
         <select
           value={mode}
           onChange={(e) => setMode(e.target.value as typeof mode)}
-          style={{ fontSize: 12 }}
+          style={{
+            fontSize: 12,
+            background: "var(--color-surface)",
+            color: "var(--gray-12)",
+            border: "1px solid var(--gray-7)",
+            borderRadius: "var(--radius-2)",
+            padding: "2px 4px",
+          }}
         >
           <option value="aggregated">Aggregated</option>
           <option value="per-activity">Per Activity</option>
@@ -87,7 +86,7 @@ export function EventsPerTimeChart({ data }: ViewerProps<AggregatedEventTimestam
             autosize: true,
             legend: {
               font: { size: 12 },
-              bgcolor: "#ffffff00",
+              bgcolor: "rgba(0,0,0,0)",
               title: { text: "Activity" },
               itemsizing: "constant",
               orientation: "h",

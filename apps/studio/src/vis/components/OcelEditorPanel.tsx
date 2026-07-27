@@ -2,19 +2,19 @@ import { useState } from "react";
 import { EMPTY_OCEL, fromOcelJson, OcelEditor, toOcelJson, type OcelModel } from "@r4pm/components";
 import { Button, DropdownMenu, TextField } from "@r4pm/components/ui";
 import type { SlimLinkedOCELHandle } from "@r4pm/client";
+import type { IDockviewPanelProps } from "dockview";
 import { PiDownloadSimple, PiFloppyDisk } from "react-icons/pi";
 import { backend } from "../../backends";
+import { usePanelDraft } from "../../panels/panel-state";
 import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
 const FROM_JSON = "app_bindings::ocel::ocel_from_json" as const;
 const TO_JSON = "app_bindings::ocel::ocel_to_json" as const;
 const OCEL_KINDS = new Set(["OCEL", "SlimLinkedOCEL", "IndexLinkedOCEL"]);
 
-/** Studio "create new OCEL" panel: the pure editor plus backend Save (register as a SlimLinkedOCEL
- *  dataset) and Import-to-seed (load an existing OCEL back into the editor). */
-export function OcelEditorPanel() {
-  const [model, setModel] = useState<OcelModel>(EMPTY_OCEL);
-  const [name, setName] = useState("OCEL");
+export function OcelEditorPanel(props: IDockviewPanelProps) {
+  const [model, setModel] = usePanelDraft<OcelModel>(props, "model", EMPTY_OCEL);
+  const [name, setName] = usePanelDraft(props, "name", "OCEL");
   const [busy, setBusy] = useState(false);
   const datasets = useDatasets((s) => s.datasets);
   const sources = datasets.filter((d) => OCEL_KINDS.has(d.kind));

@@ -1,10 +1,4 @@
-/**
- * DFG SVG-model builder + small SVG/DOM utilities. `buildDfgSvgModel` turns a live DFG panel's state
- * (laid-out node positions/sizes + edge metadata: color, count, per-pair parallel index) into an
- * intermediate `DfgSvgNode`/`DfgSvgEdge` model, doing all the metric/color/parallel-index computation
- * once. The `StyledGraph` builder (`dfg/util/styled-graph.ts`) consumes that model and the generic
- * `export_graph_svg` renderer draws it, so nothing here draws pixels itself.
- */
+/** DFG SVG-model builder + small SVG/DOM utilities; `buildDfgSvgModel` turns panel state into a `DfgSvgNode`/`DfgSvgEdge` model consumed by `StyledGraph`. */
 
 import {
   type DfgArc,
@@ -13,6 +7,7 @@ import {
   formatMetricValue,
   isPerformanceMetric,
 } from "./dfg-model";
+import { DEFAULT_ARC_COLOR } from "./colors";
 import { durationColor } from "./duration";
 
 export const SVG_NS = "http://www.w3.org/2000/svg";
@@ -118,9 +113,7 @@ export interface DfgSvgBuilderInputs {
   direction?: "TB" | "LR";
 }
 
-/** Convert a live DFG panel's state into the intermediate `DfgSvgNode`/`DfgSvgEdge` model shared
- *  by both the built-in JS drawer (`buildDfgSvg`) and the generic `StyledGraph` builder
- *  (`dfg/util/styled-graph.ts`) - all the metric/color/parallel-index computation lives here once. */
+/** Convert a live DFG panel's state into the `DfgSvgNode`/`DfgSvgEdge` model shared by the JS drawer and the `StyledGraph` builder. */
 export function buildDfgSvgModel(
   inputs: DfgSvgBuilderInputs,
 ): { nodes: DfgSvgNode[]; edges: DfgSvgEdge[]; legend?: DfgSvgExportOptions["legend"] } | null {
@@ -210,7 +203,7 @@ export function buildDfgSvgModel(
     } else {
       strokeWidth = 1.5;
     }
-    let color = a.color ?? "#9ca3af";
+    let color = a.color ?? DEFAULT_ARC_COLOR;
     if (heatmap && isPerf && a.duration != null && val != null) {
       const t = valMax > valMin ? (val - valMin) / (valMax - valMin) : 0.5;
       color = durationColor(t);

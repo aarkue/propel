@@ -5,10 +5,7 @@ import { useColorOf } from "../viewer/viewer-config";
 const SILENT = "τ";
 const SILENT_COLOR = "#9ca3af";
 
-// Each step is one clipped shape: a chevron header (inward notch on the left, pointed arrow
-// on the right) merging into a body rectangle below. The body is inset by the chevron depth
-// on both sides so it sits symmetric under the header (and the arrow is a real point); one
-// element, so the body never bleeds through the notch/arrow cutouts.
+// Each step is one clipped shape: a chevron header (notch left, pointed arrow right) over a body rectangle.
 const STEP_HEAD_PX = 21;
 const STEP_CHEV_PX = 7;
 const STEP_CLIP =
@@ -95,11 +92,7 @@ function ObjectChip({ obj, color }: { obj: OcSequenceObject; color: string }) {
   );
 }
 
-/**
- * Horizontal object-centric trace: a run of fired transitions where each step carries a
- * set of object instances, clustered and colored by object type. The object-centric
- * analogue of {@link ActivitySequence} (which has no per-step objects).
- */
+/** Horizontal object-centric trace: fired transitions with per-step object instances, clustered by type. */
 export function ObjectCentricSequence({
   steps,
   colorOf,
@@ -134,9 +127,7 @@ export function ObjectCentricSequence({
         </div>
       )}
 
-      {/* Each step: a solid chevron header (activity) over a faint body rectangle (objects),
-          cut from one shape so the body meets the chevron's bottom endpoints without bleeding
-          through its notch/arrow cutouts. */}
+      {/* Each step: a solid chevron header (activity) over a faint body rectangle (objects). */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 4 }}>
         {steps.map((step, i) => {
           const silent = !step.label?.trim();

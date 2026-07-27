@@ -367,6 +367,8 @@ export interface PetriNetViewerProps extends ViewerProps<PetriNet> {
    *  consistent lane across layers (crossing-neutral) so the layout matches the editable OCPN
    *  view. Memoize it so a stable identity doesn't force a relayout. */
   categoryOf?: (placeId: string) => string | undefined;
+  /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
+  exportKey?: string;
 }
 
 export function PetriNetViewer({
@@ -377,6 +379,7 @@ export function PetriNetViewer({
   renderSvg,
   legend,
   categoryOf,
+  exportKey,
 }: PetriNetViewerProps) {
   const [base, setBase] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>({
     nodes: [],
@@ -427,7 +430,7 @@ export function PetriNetViewer({
     }),
     [],
   );
-  useRegisterExport("petri-net", exportSource);
+  useRegisterExport(exportKey ?? "petri-net", exportSource);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;

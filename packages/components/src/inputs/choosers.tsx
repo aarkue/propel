@@ -49,7 +49,7 @@ const defaultKindColor = (k: string): BadgeColor =>
 
 type PickerPassthrough = Pick<
   FrequencyPickerProps,
-  "value" | "onChange" | "mode" | "searchable" | "showBars" | "colorOf"
+  "value" | "onChange" | "mode" | "searchable" | "showBars" | "showCutoff" | "colorOf"
 >;
 
 export function ActivityChooser({ counts, ...rest }: { counts: Record<string, number> } & PickerPassthrough) {
@@ -95,12 +95,7 @@ function rowStyle(highlighted: boolean): CSSProperties {
   };
 }
 
-/**
- * Single-select dataset combobox built on Radix Popover (Radix Select cannot host a search box
- * with arrow-key navigation). Optional filter, kind badges, compatibility (`accept`), and an
- * import action. Keyboard: focus stays in the filter; arrows move a highlight, Enter activates,
- * Escape closes.
- */
+/** Single-select dataset combobox built on Radix Popover (Radix Select can't host a search box with arrow-key nav). */
 export function DatasetSelector({
   datasets,
   value,

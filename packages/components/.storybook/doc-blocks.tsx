@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { Heading, Source, useOf } from "@storybook/addon-docs/blocks";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+import { useTheme } from "storybook/theming";
 import manifest from "./component-types.generated.json";
 
 /**
@@ -36,49 +37,76 @@ const STORY_SOURCES = import.meta.glob("../src/**/*.stories.@(ts|tsx)", {
   eager: true,
 }) as Record<string, string>;
 
-/** Manifest types referenced by the props table, then (transitively) by those declarations. */
-function collectReferenced(argTypes: unknown): TypeEntry[] {
-  const found: TypeEntry[] = [];
+// Shown but not recursed into: LayoutEngine names every surface's layout fn, so following it
+// would pull each surface's node/edge type family into every viewer's docs page.
+const NO_RECURSE = new Set(["LayoutEngine"]);
+
+interface FoundEntry extends TypeEntry {
+  depth: number;
+  via?: string;
+}
+
+/** BFS closure of manifest types named by the props table; ordered by distance, direct references first. */
+function collectReferenced(argTypes: unknown): FoundEntry[] {
+  const found: FoundEntry[] = [];
   const seen = new Set<string>();
-  const scan = (text: string) => {
+  const scan = (text: string, depth: number, via?: string) => {
     for (const m of text.matchAll(NAME_RE)) {
       const t = BY_NAME.get(m[1]);
       if (t && !seen.has(t.name)) {
         seen.add(t.name);
-        found.push(t);
+        found.push({ ...t, depth, via });
       }
     }
   };
-  scan(JSON.stringify(argTypes) ?? "");
+  scan(JSON.stringify(argTypes) ?? "", 0);
   // Grows while iterating: each shown declaration may pull in further named types (BFS closure).
-  for (let i = 0; i < found.length; i++) scan(found[i].code);
+  for (let i = 0; i < found.length; i++) {
+    if (!NO_RECURSE.has(found[i].name)) scan(found[i].code, found[i].depth + 1, found[i].name);
+  }
   return found;
 }
 
 export function ReferencedTypes() {
   const resolved = useOf("story", ["story"]);
+  // Explicit docs-theme text color: a dark story's Radix root Theme flips the document's
+  // color-scheme, turning inherited (UA-default) text white on the still-light docs page.
+  const theme = useTheme();
   const argTypes = resolved.type === "story" ? resolved.story.argTypes : undefined;
   const entries = useMemo(() => (argTypes ? collectReferenced(argTypes) : []), [argTypes]);
   if (!entries.length) return null;
   return (
-    <>
+    <div style={{ color: theme.color.defaultText }}>
       <Heading>Prop types</Heading>
       <p>
-        Named types from the props table above, as declared in the package (including the types
-        they reference). Expand to see the definition.
+        Named types from the props table above, as declared in the package. Expand to see the
+        definition.
       </p>
-      {entries.map((t) => (
-        <details key={t.name} style={{ marginBottom: 8 }}>
-          <summary style={{ cursor: "pointer", lineHeight: "24px" }}>
-            <code style={{ fontWeight: 600 }}>{t.name}</code>{" "}
-            <span style={{ opacity: 0.6, fontSize: 12 }}>
-              {t.kind} from <code style={{ fontSize: 12 }}>{t.entry}</code>
-            </span>
-          </summary>
-          <Source code={t.code} language="tsx" />
-        </details>
+      {entries.map((t, i) => (
+        <Fragment key={t.name}>
+          {t.depth > 0 && (i === 0 || entries[i - 1].depth === 0) && (
+            <p style={{ opacity: 0.6, fontSize: 12, margin: "16px 0 8px" }}>
+              Referenced by the declarations above:
+            </p>
+          )}
+          <details style={{ marginBottom: 8, opacity: t.depth > 1 ? 0.75 : 1 }}>
+            <summary style={{ cursor: "pointer", lineHeight: "24px" }}>
+              <code style={{ fontWeight: 600 }}>{t.name}</code>{" "}
+              <span style={{ opacity: 0.6, fontSize: 12 }}>
+                {t.kind} from <code style={{ fontSize: 12 }}>{t.entry}</code>
+                {t.via && (
+                  <>
+                    {" "}
+                    · via <code style={{ fontSize: 12 }}>{t.via}</code>
+                  </>
+                )}
+              </span>
+            </summary>
+            <Source code={t.code} language="tsx" />
+          </details>
+        </Fragment>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -182,6 +210,7 @@ function toAppExample(src: string): string | null {
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const theme = useTheme();
   return (
     <button
       type="button"
@@ -198,11 +227,11 @@ function CopyButton({ text }: { text: string }) {
         zIndex: 1,
         padding: "4px 12px",
         border: "none",
-        borderLeft: "1px solid rgba(0,0,0,0.1)",
-        borderBottom: "1px solid rgba(0,0,0,0.1)",
+        borderLeft: `1px solid ${theme.appBorderColor}`,
+        borderBottom: `1px solid ${theme.appBorderColor}`,
         borderRadius: "0 4px 0 4px",
-        background: "#fff",
-        color: "#2b9a66",
+        background: theme.background.content,
+        color: theme.color.secondary,
         fontSize: 12,
         fontWeight: 700,
         cursor: "pointer",

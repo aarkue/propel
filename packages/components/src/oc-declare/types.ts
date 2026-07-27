@@ -1,14 +1,8 @@
-// Self-contained types for the OC-DECLARE viz component.
-// Do NOT import anything from outside this folder here: the viz folder is
-// intentionally extractable as a standalone unit.
+// Self-contained types for the OC-DECLARE viz component; do not import from outside this folder.
 
 export type ArcType = "AS" | "EF" | "EP" | "DF" | "DP";
 
-/**
- * Rendered arc type: the backend's five arc types plus synthetic "EFEP" / "DFDP"
- * produced by pair-collapsing (an EF A->B plus an EP B->A with an equal label
- * merges into one arc with markers on both ends).
- */
+/** Rendered arc type: the backend's five arc types plus synthetic "EFEP"/"DFDP" from pair-collapsing. */
 export type RenderArcType = ArcType | "EFEP" | "DFDP";
 
 export interface ObjectTypeRef {
@@ -35,12 +29,7 @@ export interface RawConstraint {
 
 export interface ActivityNodeData {
   label: string;
-  /**
-   * Object types this activity is involved with in the OCEL, with per-event
-   * min/max involvement counts. Sourced from the backend
-   * `get_ocel_activity_object_involvements` call, independent of the
-   * discovered constraint set.
-   */
+  /** Object types this activity is involved with in the OCEL, with per-event min/max counts (from `get_ocel_activity_object_involvements`). */
   objectTypes: { name: string; min: number; max: number }[];
   [key: string]: unknown;
 }
@@ -52,6 +41,13 @@ export interface ConstraintEdgeData {
   bundleIndex: number;
   bundleTotal: number;
   constraintIndex: number;
+  /** Evaluation result for this arc (fraction of violating situations), when evaluated. */
+  violation?: number;
+  /** For a render-layer collapsed EFEP/DFDP arc: the two underlying model-edge ids it stands for
+   *  (`forward` = EF/DF, `backward` = EP/DP). Absent on plain single arcs. */
+  pair?: { forward: string; backward: string };
+  /** Per-direction evaluation results for a collapsed arc (mirrors {@link pair}). */
+  pairViolation?: { forward?: number; backward?: number };
   /** Routed polyline vertices (Rust engine), drawn as a rounded polyline. */
   routedPoints?: { x: number; y: number }[];
   routedPath?: string;
@@ -99,12 +95,8 @@ export function generateObjectTypeColors(names: string[]): Record<string, string
   return colors;
 }
 
-/**
- * Canonical string for a constraint label, used to decide whether two constraints
- * with different arc types share the "same object involvement". Object-type names
- * are sorted inside each quantifier group so order-insensitive.
- */
-function labelKey(label: ConstraintLabel): string {
+/** Canonical string for a constraint label, used to decide whether two constraints share the same object involvement (sorted, so order-insensitive). */
+export function labelKey(label: ConstraintLabel): string {
   const part = (refs: ObjectTypeRef[]) =>
     refs
       .map((r) => r.object_type)
@@ -114,11 +106,7 @@ function labelKey(label: ConstraintLabel): string {
   return `${part(label.each)}|${part(label.any)}|${part(label.all)}`;
 }
 
-/**
- * Merge complementary pairs: an EF A->B with label L and an EP B->A with label L
- * collapse into a single arc of synthetic type "EFEP" (same for DF/DP -> "DFDP").
- * The surviving arc keeps the EF/DF direction.
- */
+/** Merge complementary pairs: an EF A->B and EP B->A with the same label collapse into one "EFEP" arc (same for DF/DP -> "DFDP"), keeping the EF/DF direction. */
 export function collapseEfEpPairs(constraints: RawConstraint[]): RawConstraint[] {
   const index = new Map<string, number>(); // key -> constraints idx
   const consumed = new Set<number>();

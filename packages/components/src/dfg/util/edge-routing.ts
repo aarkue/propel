@@ -1,11 +1,6 @@
 export type XY = { x: number; y: number };
 
-/**
- * Write a routed polyline onto a React Flow edge's `data` (in place), the shape both the Rust and ELK
- * layout engines produce. `srcPos`/`tgtPos` are the layout-time node top-lefts, so the on-screen edge
- * can re-deform the route when a node is dragged. Loosely typed so the strict `DfgEdgeData` shape
- * isn't over-constrained.
- */
+/** Write a routed polyline onto a React Flow edge's `data` in place; `srcPos`/`tgtPos` let the on-screen edge re-deform the route when dragged. */
 export function writeEdgeRouting(
   edge: { data?: Record<string, unknown> },
   points: XY[],

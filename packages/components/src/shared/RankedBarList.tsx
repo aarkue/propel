@@ -2,9 +2,7 @@ import { Text } from "@r4pm/components/ui";
 import { type ColorResolver, useViewerConfig } from "../viewer/viewer-config";
 import { type FreqItem, normalizeItems, sortByCountDesc } from "../inputs/selection";
 
-// Self-coloring when no shared `colorOf` resolver is provided (standalone /
-// Storybook / external hosts). Assigned by rank so the few visible items stay
-// distinct (no hash collisions). A real ViewerConfig colorOf always wins.
+// Self-coloring fallback (standalone/Storybook) when no shared `colorOf` resolver is provided.
 const FALLBACK_PALETTE = [
   "#4f46e5",
   "#0891b2",
@@ -31,12 +29,12 @@ export interface RankedBarListProps {
   /** Format the value shown on the right (default: localized integer). */
   valueFormat?: (n: number) => string;
   onItemClick?: (key: string) => void;
+  /** Key of the currently-selected row, highlighted with an accent background + ring. */
+  selectedKey?: string;
   emptyText?: string;
 }
 
-/** Read-only ranked list with inline frequency data-bars + color swatches. Display
- *  sibling of FrequencyPicker; used for count/distribution displays (OCEL counts,
- *  activity frequencies, log-only alignment moves). */
+/** Read-only ranked list with inline frequency data-bars + color swatches; display sibling of FrequencyPicker. */
 export function RankedBarList({
   items,
   scope = "activity",
@@ -44,6 +42,7 @@ export function RankedBarList({
   max,
   valueFormat,
   onItemClick,
+  selectedKey,
   emptyText = "No items",
 }: RankedBarListProps) {
   const cfg = useViewerConfig({ colorOf });
@@ -75,6 +74,7 @@ export function RankedBarList({
     >
       {shown.map((it, i) => {
         const c = cfg.colorOf?.(scope, it.key) ?? FALLBACK_PALETTE[i % FALLBACK_PALETTE.length];
+        const isSelected = selectedKey != null && it.key === selectedKey;
         const rowStyle = {
           position: "relative",
           display: "flex",
@@ -121,7 +121,7 @@ export function RankedBarList({
                 flex: 1,
                 minWidth: 0,
                 fontSize: 13,
-                fontWeight: 500,
+                fontWeight: isSelected ? 800 : 500,
                 color: "var(--gray-12)",
               }}
             >

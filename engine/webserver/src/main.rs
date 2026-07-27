@@ -1,8 +1,5 @@
-//! Webserver target: runs the engine in an axum process and serves the studio over HTTP.
-//!
-//! The API mirrors the wasm exports one-to-one and matches the contract the frontend's
-//! `createHttpBackend` (apps/studio/src/backends/http.ts) speaks. The same built studio `dist/`
-//! is served as static files, so dev (vite proxies `/api`) and prod (axum serves both) share it.
+//! Webserver target: runs the engine in an axum process and serves the studio over HTTP. The API
+//! mirrors the wasm exports one-to-one, matching the contract the frontend's `createHttpBackend` speaks.
 
 use std::convert::Infallible;
 use std::str::FromStr;
@@ -28,9 +25,8 @@ use tower_http::services::{ServeDir, ServeFile};
 use backend_shared::process_mining::bindings::RegistryItemKind;
 use backend_shared::{Backend, ExtendedAppState};
 
-// Force-link the open app-bindings crate so its registry entries are included. `extern crate` alone
-// is a pure side-effect link the opt-level-3 build drops; the #[used] reference to a real symbol
-// pulls the crate (one codegen unit, see engine/Cargo.toml) and all its inventory registrations.
+// Force-link the app-bindings crate so its registry entries are included: `extern crate` alone
+// is a side-effect link the opt-level-3 build drops, so the #[used] reference to a real symbol pulls it in.
 extern crate app_bindings;
 #[used]
 static _FORCE_LINK_APP_BINDINGS: fn() -> String = app_bindings::app_ping;
@@ -87,7 +83,9 @@ async fn call(
 }
 
 async fn objects(State(b): State<WebBackend>) -> Result<impl IntoResponse, (StatusCode, String)> {
-    Ok(Json(backend_shared::get_objects_with_type(&b).map_err(err)?))
+    Ok(Json(
+        backend_shared::get_objects_with_type(&b).map_err(err)?,
+    ))
 }
 
 #[derive(Deserialize)]

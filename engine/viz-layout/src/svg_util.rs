@@ -1,6 +1,5 @@
-//! Generic SVG drawing helpers shared by the pure-draw graph renderer ([`crate::viz::graph_svg`]):
-//! number/text formatting, polyline rounding + simplification, and the export color palette. No
-//! layout and no domain (Petri/DFG) knowledge lives here.
+//! Generic SVG drawing helpers shared by the pure-draw graph renderer: number/text formatting,
+//! polyline rounding + simplification, and the export color palette. No layout or domain knowledge lives here.
 
 use serde::{Deserialize, Serialize};
 
@@ -48,10 +47,8 @@ pub(crate) fn marker_size_for(sw: f64) -> f64 {
 
 type Pt = (f64, f64);
 
-/// Shorten the last segment by `by` units (to leave room for the arrowhead). Never walks past the
-/// last corner: the marker orients along the path's final segment, so consuming the corner would
-/// swing the arrow away from the node it points into. When the final segment is shorter than `by`,
-/// a stub of it is kept, so the arrow tucks partly into the node (still connected, pointing in).
+/// Shorten the last segment by `by` units (to leave room for the arrowhead). Never walks past
+/// the last corner, since the marker orients along the path's final segment.
 pub(crate) fn shorten_end(pts: &[Pt], by: f64) -> Vec<Pt> {
     if pts.len() < 2 || by <= 0.0 {
         return pts.to_vec();
@@ -74,7 +71,13 @@ pub(crate) fn rounded_polyline(pts: &[Pt], r: f64) -> String {
         return String::new();
     }
     if pts.len() == 2 {
-        return format!("M {},{} L {},{}", fmt(pts[0].0), fmt(pts[0].1), fmt(pts[1].0), fmt(pts[1].1));
+        return format!(
+            "M {},{} L {},{}",
+            fmt(pts[0].0),
+            fmt(pts[0].1),
+            fmt(pts[1].0),
+            fmt(pts[1].1)
+        );
     }
     let mut d = format!("M {},{}", fmt(pts[0].0), fmt(pts[0].1));
     for i in 1..pts.len() - 1 {
@@ -88,17 +91,23 @@ pub(crate) fn rounded_polyline(pts: &[Pt], r: f64) -> String {
         let ay = y1 - (y1 - y0) / l1 * rr;
         let bx = x1 + (x2 - x1) / l2 * rr;
         let by = y1 + (y2 - y1) / l2 * rr;
-        d.push_str(&format!(" L {},{} Q {},{} {},{}", fmt(ax), fmt(ay), fmt(x1), fmt(y1), fmt(bx), fmt(by)));
+        d.push_str(&format!(
+            " L {},{} Q {},{} {},{}",
+            fmt(ax),
+            fmt(ay),
+            fmt(x1),
+            fmt(y1),
+            fmt(bx),
+            fmt(by)
+        ));
     }
     let last = pts[pts.len() - 1];
     d.push_str(&format!(" L {},{}", fmt(last.0), fmt(last.1)));
     d
 }
 
-/// RDP-simplify, then drop points closer together than 3px (removes sub-pixel grid jogs that become
-/// visible stairstep kinks / zero-length segments in the rounded output). The first and last segments
-/// are kept verbatim: their directions orient the start/end markers, and marker trimming can shrink
-/// them to sub-pixel stubs that plain simplification would flatten into the neighbouring run.
+/// RDP-simplify, then drop points closer than 3px apart (removes sub-pixel stairstep kinks). The
+/// first and last segments are kept verbatim, since their directions orient the start/end markers.
 pub(crate) fn clean_path(pts: &[Pt], tol: f64) -> Vec<Pt> {
     if pts.len() < 4 {
         return pts.to_vec();
@@ -174,7 +183,10 @@ mod tests {
 
     #[test]
     fn xml_escape_works() {
-        assert_eq!(xml_escape("a & b < c > d \"e\""), "a &amp; b &lt; c &gt; d &quot;e&quot;");
+        assert_eq!(
+            xml_escape("a & b < c > d \"e\""),
+            "a &amp; b &lt; c &gt; d &quot;e&quot;"
+        );
     }
 
     #[test]
@@ -183,13 +195,19 @@ mod tests {
         let d = rounded_polyline(&pts, 8.0);
         assert!(d.starts_with("M "));
         assert!(d.contains(" L "));
-        assert!(!d.contains(" Q "), "two-point polyline should not have quadratic curves");
+        assert!(
+            !d.contains(" Q "),
+            "two-point polyline should not have quadratic curves"
+        );
     }
 
     #[test]
     fn rounded_polyline_three_points_has_curve() {
         let pts = vec![(0.0, 0.0), (0.0, 50.0), (50.0, 50.0)];
         let d = rounded_polyline(&pts, 8.0);
-        assert!(d.contains(" Q "), "three-point polyline should round the corner");
+        assert!(
+            d.contains(" Q "),
+            "three-point polyline should round the corner"
+        );
     }
 }

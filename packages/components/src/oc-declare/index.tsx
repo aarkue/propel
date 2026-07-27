@@ -1,29 +1,29 @@
-import { Card, IconButton, Popover, Text } from "@r4pm/components/ui";
+import { Text } from "@r4pm/components/ui";
 import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
-import { useMemo, useRef, useState } from "react";
-import { FaArrowDown, FaArrowRight, FaCog } from "react-icons/fa";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useViewSetting } from "../viewer/view-state";
 import { shadeHex } from "../dfg/util/colors";
-import { Legend } from "./Legend";
 import { OCDeclareViz, type OCDeclareVizHandle } from "./OCDeclareViz";
 import type { DeclareLayoutFn } from "./layout-util";
 import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
-import {
-  type ArcType,
-  collapseEfEpPairs,
-  collectObjectTypes,
-  type ConstraintLabel,
-  type RawConstraint,
-} from "./types";
+import { arcsToModel } from "./model";
 
-// Re-export the layout primitives so a host can supply a custom layout matching the routed-edge
-// output, plus the default Rust engine.
+// Re-export layout primitives so a host can supply a custom layout matching the routed-edge output.
 export { createRustDeclareLayout } from "./rust-declare-layout";
 export type { DeclareLayoutFn } from "./layout-util";
 export { roundedPointsToSvgPath, snapEndpointsToNodeBorders, edgeLabelWidth } from "./layout-util";
 export { ACT_NODE_WIDTH, ACT_NODE_HEIGHT } from "./ActivityNode";
 export type { ConstraintEdgeData } from "./types";
-
-const ALL_ARC_TYPES: ArcType[] = ["AS", "EF", "EP", "DF", "DP"];
+export { OCDeclareViz } from "./OCDeclareViz";
+export type { OCDeclareVizProps } from "./OCDeclareViz";
+export { arcsToModel, toArcs } from "./model";
+export type { DeclareEdge, DeclareEdgeRoute, DeclareFlowModel, DeclareNode, EdgeTemplate } from "./model";
+export type {
+  ActivityStatistics,
+  BinnedEdgeDurationStats,
+  DiscoveryOptions,
+  SupportCtx,
+} from "./edit/edit-context";
 
 // Local view-models mirroring the generated @r4pm/client types.
 export type ObjectTypeAssociation =
@@ -52,63 +52,91 @@ export interface OCDeclareArc {
   counts: [number | null, number | null];
 }
 
-/** Convert backend `OCDeclareArc` (which uses tagged ObjectTypeAssociation) into viz-ready `RawConstraint`. */
-function toRawConstraint(arc: OCDeclareArc): RawConstraint {
-  const normalizeAssoc = (assocs: ObjectTypeAssociation[]) =>
-    assocs.map((a) => {
-      if (a.type === "Simple") return { object_type: a.object_type };
-      // O2O: collapse to the first object type for visualization purposes.
-      return { object_type: a.first };
-    });
-  const label: ConstraintLabel = {
-    each: normalizeAssoc(arc.label.each),
-    any: normalizeAssoc(arc.label.any),
-    all: normalizeAssoc(arc.label.all),
-  };
-  return {
-    from: (arc.from as unknown as string) ?? "",
-    to: (arc.to as unknown as string) ?? "",
-    arc_type: arc.arc_type as ArcType,
-    counts: arc.counts as [number, number | null],
-    label,
-  };
-}
-
-/**
- * Reusable OC-DECLARE viewer: renders discovered object-centric DECLARE
- * behavioral constraints (`OCDeclareArc[]`) as an interactive routed graph,
- * with arc-type / object-type visibility filters, a layout-direction toggle and
- * an explanatory legend.
- */
+/** OC-DECLARE viewer: renders object-centric DECLARE constraints as an interactive routed graph with filters, a layout-direction toggle and a legend. */
 export function OCDeclareViewer(
-  props: ViewerProps<OCDeclareArc[]> & { layoutOverride?: DeclareLayoutFn; renderSvg?: StyledGraphRenderer },
+  props: ViewerProps<OCDeclareArc[]> & {
+    layoutOverride?: DeclareLayoutFn;
+    renderSvg?: StyledGraphRenderer;
+    /** Per-activity object-type involvement counts (min/max per event); drives the node dot strip. */
+    activityInvolvements?: {
+      [activity: string]: { [objectType: string]: { min: number; max: number } | undefined } | undefined;
+    };
+    /** Per-activity event-occurrence counts from the OCEL; drives the frequency selector (sort by
+     *  count + cutoff rail). Absent: the selector falls back to a name-sorted list. */
+    eventTypeCounts?: Record<string, number>;
+    /** Lossless projection onto a subset of activities (rust `project_oc_declare`-style): the removed
+     *  activities' constraints are folded into the kept ones. Absent: a naive drop-touching filter. */
+    onProjectActivities?: (arcs: OCDeclareArc[], activities: string[]) => Promise<OCDeclareArc[]>;
+  },
 ) {
-  const { data, layoutOverride, renderSvg } = props;
+  const { data, layoutOverride, renderSvg, activityInvolvements, eventTypeCounts, onProjectActivities } =
+    props;
   const cfg = useViewerConfig(props);
   const activityColor = (name: string, mode: "normal" | "foreground" | "light" = "normal") =>
     shadeHex(cfg.colorOf?.("activity", name) ?? "#888888", mode);
   const objectTypeColor = (name: string, mode: "normal" | "foreground" | "light" = "normal") =>
     shadeHex(cfg.colorOf?.("objectType", name) ?? "#888888", mode);
   const vizRef = useRef<OCDeclareVizHandle>(null);
-  const [layoutDirection, setLayoutDirection] = useState<"RIGHT" | "DOWN">("RIGHT");
-  const [hiddenArcTypes, setHiddenArcTypes] = useState<Set<string>>(new Set());
-  const [hiddenObjectTypes, setHiddenObjectTypes] = useState<Set<string>>(new Set());
+  const [layoutDirection, setLayoutDirection] = useViewSetting<"RIGHT" | "DOWN">("layoutDirection", "RIGHT");
+  const [showTextLabels, setShowTextLabels] = useViewSetting<boolean>("showTextLabels", false);
+  // Persisted as arrays (JSON-safe); the viz filters work on the derived Sets.
+  const [hiddenArcArr, setHiddenArcArr] = useViewSetting<string[]>("hiddenArcTypes", []);
+  const [hiddenObjectArr, setHiddenObjectArr] = useViewSetting<string[]>("hiddenObjectTypes", []);
+  const [hiddenActivityArr, setHiddenActivityArr] = useViewSetting<string[]>("hiddenActivities", []);
+  const hiddenArcTypes = useMemo(() => new Set(hiddenArcArr), [hiddenArcArr]);
+  const hiddenObjectTypes = useMemo(() => new Set(hiddenObjectArr), [hiddenObjectArr]);
+  const hiddenActivities = useMemo(() => new Set(hiddenActivityArr), [hiddenActivityArr]);
+  const setHiddenArcTypes = (s: Set<string>) => setHiddenArcArr([...s]);
+  const setHiddenObjectTypes = (s: Set<string>) => setHiddenObjectArr([...s]);
+  const setHiddenActivities = (s: Set<string>) => setHiddenActivityArr([...s]);
 
-  // Convert to viz format and merge complementary EF/EP (and DF/DP) pairs.
-  const rawConstraints: RawConstraint[] = useMemo(() => collapseEfEpPairs(data.map(toRawConstraint)), [data]);
-  const objectTypes = useMemo(() => collectObjectTypes(rawConstraints), [rawConstraints]);
+  // Activities present in the data (object endpoints `<init>`/`<exit>` are excluded from the filter).
+  const allActivities = useMemo(() => {
+    const s = new Set<string>();
+    for (const a of data) for (const nm of [a.from, a.to]) if (!nm.startsWith("<")) s.add(nm);
+    return [...s].sort();
+  }, [data]);
 
-  const toggle = (set: Set<string>, value: string, setter: (s: Set<string>) => void) => {
-    const next = new Set(set);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    setter(next);
-  };
+  // Project onto the kept activities when some are hidden: the injected `onProjectActivities` folds
+  // the removed activities' constraints into the survivors (lossless); absent, drop touching arcs.
+  const [projected, setProjected] = useState<OCDeclareArc[] | null>(null);
+  useEffect(() => {
+    if (hiddenActivities.size === 0) {
+      setProjected(null);
+      return;
+    }
+    const kept = allActivities.filter((a) => !hiddenActivities.has(a));
+    if (onProjectActivities) {
+      let cancelled = false;
+      // Synthetic endpoints (<init>/<exit>) are never user-hideable; keep them in the target set so a
+      // projection that drops arcs with an out-of-set endpoint doesn't delete their arcs.
+      const synthetic = new Set<string>();
+      for (const a of data) for (const nm of [a.from, a.to]) if (nm.startsWith("<")) synthetic.add(nm);
+      onProjectActivities(data, [...kept, ...synthetic])
+        .then((r) => !cancelled && setProjected(r))
+        .catch(() => !cancelled && setProjected(null));
+      return () => {
+        cancelled = true;
+      };
+    }
+    setProjected(
+      data.filter(
+        (a) =>
+          (a.from.startsWith("<") || !hiddenActivities.has(a.from)) &&
+          (a.to.startsWith("<") || !hiddenActivities.has(a.to)),
+      ),
+    );
+  }, [data, hiddenActivities, allActivities, onProjectActivities]);
+  const effectiveData = projected ?? data;
 
-  // Root sizes inline so it fills its container; inner layout uses Tailwind from the bundled stylesheet.
+  // One model for the viz (EF/EP collapse is applied there as a display-only transform).
+  const model = useMemo(() => arcsToModel(effectiveData), [effectiveData]);
+
+  // Root sizes inline so it fills its container; all chrome (direction/annotation toggles, filters,
+  // legend) is the viz's own shared ControlsCard, driven here as controlled + view-persisted state.
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 200 }}>
-      {rawConstraints.length === 0 ? (
+      {effectiveData.length === 0 ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
           <Text size="2" color="gray">
             No constraints discovered.
@@ -117,124 +145,27 @@ export function OCDeclareViewer(
       ) : (
         <OCDeclareViz
           ref={vizRef}
-          constraints={rawConstraints}
+          value={model}
           activityColor={activityColor}
           objectTypeColor={objectTypeColor}
           hiddenArcTypes={hiddenArcTypes}
+          onHiddenArcTypesChange={setHiddenArcTypes}
           hiddenObjectTypes={hiddenObjectTypes}
+          onHiddenObjectTypesChange={setHiddenObjectTypes}
+          activities={allActivities}
+          hiddenActivities={hiddenActivities}
+          onHiddenActivitiesChange={setHiddenActivities}
           direction={layoutDirection}
+          onDirectionChange={setLayoutDirection}
+          showTextLabels={showTextLabels}
+          onShowTextLabelsChange={setShowTextLabels}
+          arcsCount={data.length}
+          activityInvolvements={activityInvolvements}
+          eventTypeCounts={eventTypeCounts}
           layoutOverride={layoutOverride ?? cfg.layout?.declare}
           renderSvg={renderSvg ?? cfg.layout?.renderSvg}
         />
       )}
-
-      <div
-        style={{ position: "absolute", top: 4, left: 4, zIndex: 20 }}
-        className="flex flex-col items-end gap-1"
-      >
-        <Card className="bg-(--color-panel-translucent) backdrop-blur-sm shadow-md py-1.5! px-2! w-55">
-          {/* Header row: layout toggles + arc-type filter popover. */}
-          <div className="flex items-center gap-1 mb-2">
-            <div className="flex items-center rounded-md border border-(--gray-6) overflow-hidden">
-              <button
-                type="button"
-                className={`p-1 text-[11px] ${layoutDirection === "RIGHT" ? "bg-(--gray-12) text-(--gray-1)" : "bg-(--color-panel-solid) text-(--gray-9) hover:bg-(--gray-a3)"}`}
-                title="Horizontal layout"
-                onClick={() => setLayoutDirection("RIGHT")}
-              >
-                <FaArrowRight />
-              </button>
-              <button
-                type="button"
-                className={`p-1 text-[11px] ${layoutDirection === "DOWN" ? "bg-[var(--gray-12)] text-[var(--gray-1)]" : "bg-[var(--color-panel-solid)] text-[var(--gray-9)] hover:bg-[var(--gray-a3)]"}`}
-                title="Vertical layout"
-                onClick={() => setLayoutDirection("DOWN")}
-              >
-                <FaArrowDown />
-              </button>
-            </div>
-            <div className="flex-1" />
-            <Popover.Root>
-              <Popover.Trigger>
-                <IconButton size="1" variant="ghost" title="Arc-type filter">
-                  <FaCog />
-                </IconButton>
-              </Popover.Trigger>
-              <Popover.Content width="240px">
-                <Text size="1" color="gray" className="block mb-1">
-                  Hide arc types
-                </Text>
-                <div className="flex gap-1 flex-wrap">
-                  {ALL_ARC_TYPES.map((t) => {
-                    const hidden = hiddenArcTypes.has(t);
-                    return (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => toggle(hiddenArcTypes, t, setHiddenArcTypes)}
-                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors ${
-                          hidden
-                            ? "bg-[var(--gray-3)] text-[var(--gray-8)] border-[var(--gray-6)] line-through"
-                            : "bg-[var(--gray-12)] text-[var(--gray-1)] border-[var(--gray-12)]"
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Popover.Content>
-            </Popover.Root>
-          </div>
-
-          {/* Object types */}
-          {objectTypes.length > 0 && (
-            <div className="mb-2">
-              <Text
-                size="1"
-                color="gray"
-                className="block mb-1 text-[10px] uppercase tracking-wide font-semibold"
-              >
-                Object types
-              </Text>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {objectTypes.map((t) => {
-                  const hidden = hiddenObjectTypes.has(t);
-                  const color = objectTypeColor(t);
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => toggle(hiddenObjectTypes, t, setHiddenObjectTypes)}
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-all ${
-                        hidden ? "line-through" : ""
-                      }`}
-                      style={{
-                        backgroundColor: hidden ? "var(--gray-3)" : `${color}22`,
-                        borderColor: hidden ? "var(--gray-7)" : color,
-                        color: hidden ? "var(--gray-9)" : color,
-                      }}
-                      title={`Toggle ${t}`}
-                    >
-                      {t}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Legend */}
-          <div className="mb-2 pt-1.5 border-t border-[var(--gray-a4)]">
-            <Legend />
-          </div>
-
-          {/* Footer */}
-          <div className="pt-1.5 border-t border-[var(--gray-a4)]">
-            <span className="text-[10px] text-[var(--gray-8)] tabular-nums">{data.length} arcs</span>
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { ViewerProps } from "./viewer/viewer-config";
+import type { StaticViewerProps } from "./viewer/viewer-config";
 import { StatCards } from "./shared/StatCards";
 
 /** Event-log summary counts. Local view-model; structurally assignable to/from the generated
@@ -9,7 +9,7 @@ export interface NumberOfTracesAndEvents {
 }
 
 /** Event-log summary (trace + event counts), from the `get_log_info` binding. */
-export function LogSummary({ data }: ViewerProps<NumberOfTracesAndEvents>) {
+export function LogSummary({ data }: StaticViewerProps<NumberOfTracesAndEvents>) {
   return (
     <div style={{ width: "100%", height: "100%", minHeight: 120, padding: 16, overflow: "auto" }}>
       <StatCards

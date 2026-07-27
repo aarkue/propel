@@ -1,9 +1,20 @@
-import { Badge, Button, Heading, Text } from "@r4pm/components/ui";
+import { Badge, Button, Flex, Heading, Text } from "@r4pm/components/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { PiArrowLeft, PiArrowRight, PiFileArrowUp, PiLightning, PiSparkle } from "react-icons/pi";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import {
+  PiArrowClockwise,
+  PiArrowLeft,
+  PiArrowRight,
+  PiFileArrowUp,
+  PiLightning,
+  PiSparkle,
+} from "react-icons/pi";
 import { backend } from "../backends";
+import { continuePreviousSession, declineRestore, lastSessionInfo } from "../persistence/restore";
 import { loadSample, SAMPLE_DATASETS, type SampleDataset } from "../samples";
+import { withBusy } from "./BusyOverlay";
+import { refreshArtifacts, refreshDatasets } from "./EngineEvents";
 import { ImportButton } from "./ImportButton";
 import { colorForKind, labelForKind } from "./object-colors";
 import { shortcutLabel } from "./platform";
@@ -18,6 +29,43 @@ export function WelcomeScreen({
 }) {
   const queryClient = useQueryClient();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [resume, setResume] = useState<{ name: string; datasets: number } | null>(null);
+  const [resuming, setResuming] = useState(false);
+
+  useEffect(() => {
+    // Only offer to continue on a genuine empty boot, not when the user navigated back to Welcome.
+    if (canReturn) return;
+    let cancelled = false;
+    void lastSessionInfo(backend)
+      .then((info) => {
+        if (!cancelled) setResume(info);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [canReturn]);
+
+  const handleContinue = async () => {
+    if (resuming) return;
+    setResuming(true);
+    try {
+      await withBusy("Restoring session…", async () => {
+        await continuePreviousSession(backend);
+        await Promise.all([refreshDatasets(), refreshArtifacts()]);
+      });
+      await queryClient.invalidateQueries();
+    } catch (e) {
+      toast.error(`Could not restore session: ${String(e)}`);
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  const handleStartFresh = () => {
+    setResume(null);
+    void declineRestore();
+  };
 
   const handleLoadSample = async (sample: SampleDataset) => {
     if (loadingId) return;
@@ -40,6 +88,31 @@ export function WelcomeScreen({
             </Button>
           </div>
         )}
+        {resume && (
+          <div className="mb-6 flex items-center gap-3 rounded-lg border border-[var(--indigo-8)] bg-[var(--indigo-a2)] p-4">
+            <div className="rounded-full bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-2 shrink-0">
+              <PiArrowClockwise size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <Text size="2" weight="medium" as="div">
+                Continue previous session
+              </Text>
+              <Text size="1" color="gray" as="div" className="truncate">
+                {resume.name}
+                {resume.datasets > 0 && ` — ${resume.datasets} dataset${resume.datasets === 1 ? "" : "s"}`}
+              </Text>
+            </div>
+            <Flex gap="2" align="center" className="shrink-0">
+              <Button variant="ghost" color="gray" disabled={resuming} onClick={handleStartFresh}>
+                Start fresh
+              </Button>
+              <Button onClick={handleContinue} disabled={resuming}>
+                {resuming ? "Restoring…" : "Continue"}
+              </Button>
+            </Flex>
+          </div>
+        )}
+
         <div className="text-center mb-8">
           <Heading size={{ initial: "6", sm: "8" }} className="!mb-2">
             Welcome to propel

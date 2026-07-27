@@ -16,11 +16,10 @@ import { useDatasets } from "../stores";
 import { ViewerExportFrame } from "@r4pm/components";
 import { addPanelToDockview, getPanelByType, panelComponents, VISIBLE_PANELS } from "../panels/registry";
 import { backend } from "../backends";
+import { getLiveLayout, markLiveLayoutDirty, scheduleSessionSave } from "../persistence/session";
 import { colorForKind, labelForKind } from "./object-colors";
 import { useThemeMode } from "./theme-context";
 import { WelcomeScreen } from "./WelcomeScreen";
-
-const LAYOUT_KEY = "propel-panels";
 
 export function Dashboard() {
   const { resolved } = useThemeMode();
@@ -48,17 +47,14 @@ export function Dashboard() {
     apiRef.current = event.api;
     setDockviewApi(event.api);
 
-    // Persist the layout on every change so it survives reloads.
+    // Fires on every drag frame: only mark dirty; serialization happens lazily when the layout is read.
     event.api.onDidLayoutChange(() => {
-      try {
-        localStorage.setItem(LAYOUT_KEY, JSON.stringify(event.api.toJSON()));
-      } catch (e) {
-        console.error("error saving layout", e);
-      }
+      markLiveLayoutDirty();
+      scheduleSessionSave();
     });
 
     try {
-      const saved = localStorage.getItem(LAYOUT_KEY);
+      const saved = getLiveLayout();
       if (saved) {
         const layout: SerializedDockview = JSON.parse(saved);
         if (Object.keys(layout.panels).length > 0) {

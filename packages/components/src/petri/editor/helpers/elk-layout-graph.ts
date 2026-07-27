@@ -3,8 +3,7 @@ import { loadElk, type ElkGraph, type ElkPoint } from "../../../elk-layout/elk";
 import type { ArcData, PetriNetNode } from "../Editor";
 import { type ArcRouting, type PetriLayoutFn, nodeSize } from "./layout-graph";
 
-/** ELK layered options for Petri nets. Mirrors the tuning used before the Rust engine landed
- *  (orthogonal routing, left->right, network-simplex placement). */
+/** ELK layered options for Petri nets: orthogonal routing, left->right, network-simplex placement. */
 const PETRI_LAYOUT_OPTIONS: Record<string, string> = {
   "elk.algorithm": "layered",
   "elk.direction": "RIGHT",
@@ -17,16 +16,10 @@ const PETRI_LAYOUT_OPTIONS: Record<string, string> = {
   "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
 };
 
-/**
- * ELK-backed Petri layout. Opt-in alternative to {@link layoutPetriNet}; produces the same
- * center-positioned nodes and bend-point `ArcRouting`, so the editor renders it identically.
- *
- * ELK has no cheap incremental relayout, so a seeded (drag) relayout is a no-op: nodes keep their
- * dragged positions and `edge-geometry` follows the moved endpoints live. Only the Rust engine does
- * stable drag-relayout.
- */
+/** ELK-backed Petri layout, opt-in alternative to {@link layoutPetriNet}. ELK has no cheap incremental
+ *  relayout, so a seeded (drag) relayout is a no-op; only the Rust engine does stable drag-relayout. */
 export const elkLayoutPetriNet: PetriLayoutFn = async (nodes, edges, options) => {
-  if (options?.seed) return { nodes, edges }; // no ELK relayout on drag - see doc above
+  if (options?.seed) return { nodes, edges }; // no ELK relayout on drag
 
   const elk = await loadElk();
   const sizeById = new Map(nodes.map((n) => [n.id, nodeSize(n.type)]));

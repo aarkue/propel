@@ -49,6 +49,8 @@ export interface ObjectCentricPetriNetSimulatorProps extends ViewerProps<ObjectC
   /** When provided, a "Save as OCEL" button appears; called with the current trace so a host
    *  can turn it into an object-centric event log. Kept out of the pure component. */
   onSaveAsLog?: (trace: OcSequenceStep[]) => void;
+  /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
+  exportKey?: string;
 }
 
 function seedMarking(ocpn: ObjectCentricPetriNet, explicit?: Record<string, string[]>): TokenMarking {
@@ -81,7 +83,7 @@ function isVariable(ocpn: ObjectCentricPetriNet, from: string, to: string): bool
  * overridable via the `fire` guard.
  */
 export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimulatorProps) {
-  const { data, fire, initialTokens, renderToken, onSaveAsLog } = props;
+  const { data, fire, initialTokens, renderToken, onSaveAsLog, exportKey } = props;
   const cfg = useViewerConfig(props);
   const colorOf = useCallback(
     (ot: string, mode: "normal" | "foreground" | "light" = "normal") =>
@@ -218,7 +220,7 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
     () => ({ toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges) }),
     [],
   );
-  useRegisterExport("petri-net", exportSource);
+  useRegisterExport(exportKey ?? "ocpn-simulator", exportSource);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 256 }}>

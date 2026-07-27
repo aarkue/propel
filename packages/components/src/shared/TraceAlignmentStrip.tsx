@@ -14,6 +14,7 @@ import {
 import { svgEl, serializeSvg, SVG_NS } from "../dfg/util/svg-export";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { useColorOf } from "../viewer/viewer-config";
+import { isDarkMode } from "../viewer/dark-mode";
 
 export type MoveKind = "sync" | "log" | "model";
 
@@ -104,10 +105,8 @@ function cellColor(
   return colorOf?.(label) ?? colorToHex(MOVE_COLOR[kind]);
 }
 
-// ─── Vector SVG export ────────────────────────────────────────────────────────
-// Standalone, theme-aware SVG (no foreignObject, no external CSS) of the two-row strip. Reuses
-// `layoutActivityPills` for chip width + shape; the top border, kind icons and pill colors are drawn
-// here so they adapt to light/dark (the shared pill renderer bakes light-only colors).
+// Standalone, theme-aware SVG (no foreignObject, no external CSS) of the two-row strip, drawn here
+// rather than via the shared pill renderer, which bakes light-only colors.
 
 interface SvgTheme {
   bg: string;
@@ -115,15 +114,6 @@ interface SvgTheme {
 }
 const SVG_LIGHT: SvgTheme = { bg: "#ffffff", text: "#1c2024" };
 const SVG_DARK: SvgTheme = { bg: "#111113", text: "#edeef0" };
-
-function svgIsDark(): boolean {
-  if (typeof document === "undefined") return false;
-  return (
-    document.documentElement.classList.contains("dark") ||
-    document.documentElement.getAttribute("data-theme") === "dark" ||
-    document.querySelector(".radix-themes")?.classList.contains("dark") === true
-  );
-}
 
 function parseHex(hex: string): [number, number, number] | null {
   if (hex[0] !== "#" || hex.length < 7) return null;
@@ -152,9 +142,7 @@ const SVG_BORDER_GAP = 7; // colored top border -> log chip
 const SVG_ICON_R = 7;
 const CHIP_HALF = SVG_PILL_H / 2;
 
-// Match the DOM `ActivityChip`: a 14px medium Inter label capped at 8rem then ellipsized. Widths are
-// measured against that exact font (via canvas) so exported chips size like the on-screen ones,
-// rather than the coarse character-count estimate that made longer labels drift.
+// Match the DOM `ActivityChip`: measure the 14px Inter label via canvas so exported chips size like on-screen ones.
 const CHIP_FONT_SIZE = 14;
 const CHIP_FONT_WEIGHT = 500;
 const CHIP_FONT = `${CHIP_FONT_WEIGHT} ${CHIP_FONT_SIZE}px Inter, system-ui, -apple-system, sans-serif`;
@@ -235,7 +223,7 @@ export function buildTraceAlignmentSvg(
 ): string | null {
   if (moves.length === 0) return null;
   const { colorOf } = opts;
-  const theme = svgIsDark() ? SVG_DARK : SVG_LIGHT;
+  const theme = isDarkMode() ? SVG_DARK : SVG_LIGHT;
 
   const cells = moves.map((m) => {
     const logActive = m.kind !== "model";
@@ -294,12 +282,8 @@ export function buildTraceAlignmentSvg(
   return serializeSvg(svg);
 }
 
-/**
- * Two-row alignment strip: log moves on top, model moves on bottom.
- *
- * Pass `exportKey` when rendered inside a `ViewerExportFrame` to advertise a true vector SVG of the
- * strip to that frame's export menu.
- * **/
+/** Two-row alignment strip: log moves on top, model moves on bottom. Pass `exportKey` to advertise a
+ *  vector SVG to a surrounding `ViewerExportFrame`. */
 export function TraceAlignmentStrip({
   moves,
   colorOf,

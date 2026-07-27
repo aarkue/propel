@@ -1,7 +1,5 @@
 //! Alignment-based conformance binding: aligns every variant of an event log against a
-//! caller-supplied process model (`net`) and computes fitness, returning ONE structure that
-//! resolves everything the alignment viewers need (the net echoed back for a Petri-net-style
-//! view, and per-variant moves + cost for a list view). The model is the caller's choice.
+//! caller-supplied process model, returning fitness plus per-variant moves+cost in one structure.
 
 use std::collections::HashMap;
 
@@ -86,9 +84,8 @@ fn aggregate(variant_alignments: &[VariantAlignmentResult]) -> AlignmentAggregat
     }
 }
 
-/// Align an event log against a GIVEN process model (`net`) and return the per-variant alignments,
-/// aggregate fitness, and the net itself (echoed for the visualizations). The model is the caller's
-/// choice (a discovered net, an imported PNML, an edited net), NOT something this binding invents.
+/// Align an event log against a given process model and return the per-variant alignments,
+/// aggregate fitness, and the net itself (echoed for the visualizations).
 #[register_binding]
 pub fn align_event_log(event_log: &EventLog, net: PetriNet) -> LogAlignments {
     let projection = EventLogActivityProjection::from(event_log);

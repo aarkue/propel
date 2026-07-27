@@ -2,8 +2,7 @@ import type { DfgLayoutFn } from "../dfg/DfgGraph";
 import { loadElk, type ElkGraph, type ElkPoint } from "./elk";
 import { writeEdgeRouting } from "../dfg/util/edge-routing";
 
-/** ELK layered options for directly-follows graphs. Mirrors the tuning the studio used before the
- *  Rust engine landed (splines, network-simplex placement, model-order-aware crossing reduction). */
+/** ELK layered options for directly-follows graphs (splines, network-simplex placement, model-order-aware crossing reduction). */
 const DFG_LAYOUT_OPTIONS: Record<string, string> = {
   "elk.algorithm": "layered",
   "elk.edgeRouting": "SPLINES",
@@ -16,21 +15,12 @@ const DFG_LAYOUT_OPTIONS: Record<string, string> = {
   "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
 };
 
-/**
- * Shared ELK-backed `DfgLayoutFn` for both the case-centric DFG and the OC-DFG. ELK writes top-left
- * node positions and per-edge polyline routing, matching what `DfgGraph` expects from the Rust
- * engine. Start/end terminals are pinned to the first/last layer via layer constraints.
- *
- * ELK has no cheap incremental relayout, so a re-layout on drag would jump the whole graph. When
- * `DfgGraph` requests a seeded (drag) relayout we no-op: nodes keep their dragged positions and the
- * renderer's live edge fallback follows the moved endpoints. Only the Rust engine does stable
- * drag-relayout.
- */
+/** Shared ELK-backed `DfgLayoutFn` for the case-centric DFG and OC-DFG. ELK has no cheap incremental relayout, so a seeded (drag) relayout request is a no-op; only the Rust engine does stable drag-relayout. */
 function makeElkDfgLayout(defaultDirection: "DOWN" | "RIGHT"): DfgLayoutFn {
   return async (nodes, edges, nodeSize, options) => {
-    if (options?.seed) return; // no ELK relayout on drag - see doc above
+    if (options?.seed) return; // no ELK relayout on drag
 
-    // `options.direction` (from the viewer's toggle) wins over the baked-in default.
+    // viewer's direction toggle wins over the baked-in default
     const direction =
       options?.direction === "LR" ? "RIGHT" : options?.direction === "TB" ? "DOWN" : defaultDirection;
     const elk = await loadElk();

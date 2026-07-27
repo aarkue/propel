@@ -60,10 +60,7 @@ export const TERM_NODE_SIZE = 36;
 export const OCEL_NODE_WIDTH = 150;
 export const OCEL_NODE_HEIGHT = 58;
 
-/** Read-only view of an arc as the graph expects it from the data source.
- *  Multiple arcs with the same `(from, to)` are allowed: they render as
- *  separate parallel edges, each with their own color and label. Callers
- *  must provide a stable `key` per arc (used as the React-Flow edge id). */
+/** Read-only view of an arc; multiple arcs with the same (from, to) render as separate parallel edges. Callers must provide a stable `key`. */
 export interface DfgArc {
   key: string;
   from: string;
@@ -75,11 +72,7 @@ export interface DfgArc {
   title?: string;
   /** Full duration statistics for performance metrics. */
   duration?: DfgArcDuration;
-  /**
-   * Frequency-filter group. When set, the frequency slider computes its
-   * cutoff per-group so arcs from a sparse group are not dominated by arcs
-   * from a dense group. Typically the object type name for OCEL DFGs.
-   */
+  /** Frequency-filter group; when set, cutoff is computed per-group so sparse groups aren't dominated by dense ones. */
   group?: string;
   /** Routed polyline; carried through to the SVG exporter. */
   routing?: {

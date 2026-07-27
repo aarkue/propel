@@ -2,9 +2,8 @@ import type { Edge } from "@xyflow/react";
 import type { ArcData, PetriNetNode } from "../Editor";
 import type { PetriNet } from "../../../petri-net";
 
-/** Collapse ReactFlow editor nodes/edges back to the PetriNet data model.
- *  Positions are intentionally dropped (not part of the data model). Zero-count
- *  marking entries are omitted; an all-zero marking serializes as null. */
+/** Collapse ReactFlow editor nodes/edges back to the PetriNet data model; positions are dropped and
+ *  an all-zero marking serializes as null. */
 export function nodesToPetriNet(nodes: PetriNetNode[], edges: Edge<ArcData>[]): PetriNet {
   const places: PetriNet["places"] = [];
   const transitions: PetriNet["transitions"] = [];

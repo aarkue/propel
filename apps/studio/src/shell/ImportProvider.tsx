@@ -1,71 +1,24 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { EXPERT_IMPORT_FORMATS, EXPERT_IMPORT_KINDS, useDatasets, usePreferences } from "../stores";
+import {
+  EXPERT_IMPORT_FORMATS,
+  EXPERT_IMPORT_KINDS,
+  useArtifacts,
+  useDatasets,
+  usePreferences,
+} from "../stores";
 import type { ItemKindInfo } from "@r4pm/client";
 import { backend } from "../backends";
 import { candidateKinds, formatsForKind, type ImportCandidate, importFileAs } from "../data-import";
 import { IO_KINDS, ioKindByName } from "../io-kinds";
 import { openOutputAsPanel } from "../panels/pipeline-bridge";
+import { loadArtifactCached } from "../persistence/session";
+import { useRelink } from "../stores/relink";
+import { extractPathsFromDataTransfer, filesOf } from "./dnd";
 import { GlobalDropOverlay } from "./GlobalDropOverlay";
 import { ImportContext } from "./import-context";
 import { KindPickerDialog } from "./KindPickerDialog";
-
-/** Convert a `file://` URI (as WebKit puts in drop events) to a native filesystem path. */
-function fileUriToPath(uri: string): string | null {
-  if (!uri.startsWith("file://")) return null;
-  try {
-    const u = new URL(uri);
-    let p = decodeURIComponent(u.pathname);
-    // Windows: `file:///C:/x` -> pathname `/C:/x`; strip the leading slash.
-    if (/^\/[a-zA-Z]:/.test(p)) p = p.slice(1);
-    return p;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Recover native file paths from a drop's DataTransfer.
- * On Tauri's WebKit webview (Linux/macOS) the dropped `File` bytes might be stripped for sandboxing.
- * At least on Linux, the real paths arrive as a `text/uri-list`, or even as `file://` anchors (`<a ...`) embedded in `text/html`.
- */
-function extractPathsFromDataTransfer(dt: DataTransfer | null): string[] {
-  if (!dt) return [];
-  const out: string[] = [];
-  const uriList = dt.getData("text/uri-list");
-  if (uriList) {
-    for (const line of uriList.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const p = fileUriToPath(trimmed);
-      if (p) out.push(p);
-    }
-  }
-  if (out.length === 0) {
-    const html = dt.getData("text/html");
-    if (html) {
-      // WebKitGTK wraps a dropped file as `<a ...>file:///path</a>` (URL as anchor text), so the
-      // match must stop at `<` and `>`, not only `>`.
-      for (const m of html.matchAll(/file:\/\/[^\s"'<>]+/gi)) {
-        const p = fileUriToPath(m[0]);
-        if (p) out.push(p);
-      }
-    }
-  }
-  if (out.length === 0) {
-    // Some WebKitGTK builds might expose the dropped path only as text/plain
-    // (a file:// URI or an absolute path), not as text/uri-list.
-    const plain = dt.getData("text/plain").trim();
-    if (plain.startsWith("file://")) {
-      const p = fileUriToPath(plain);
-      if (p) out.push(p);
-    } else if (plain.startsWith("/") && !plain.includes("\n")) {
-      out.push(plain);
-    }
-  }
-  return out;
-}
 
 /** Slugify a filename into a filesystem-friendly id base. */
 function slugifyFilename(filename: string, fallback: string): string {
@@ -96,13 +49,7 @@ async function uniqueDatasetId(filename: string): Promise<string> {
   return firstFreeId(slugifyFilename(filename, "dataset"), taken);
 }
 
-/**
- * Owns all import surfaces:
- * 1. the hidden file input,
- * 2. the window-wide drop zone (+ overlay),
- * 3. and the disambiguation picker.
- * Import is generic over kinds.
- */
+/** Owns all import surfaces: hidden file input, window-wide drop zone (+ overlay), disambiguation picker. Generic over kinds. */
 export function ImportProvider({ children }: { children: ReactNode }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingKind = useRef<ItemKindInfo | null>(null);
@@ -125,9 +72,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   const importableKinds = useMemo<ItemKindInfo[]>(() => {
     const registry = (kindsQuery.data ?? [])
       .filter((k) => k.import_formats.length > 0)
-      // Hide advanced/internal kinds (raw OCEL, IndexLinkedOCEL, activity projection) unless the
-      // expert toggle is on. This collapses the OCEL/EventLog families to one curated choice each,
-      // removing ambiguous import options everywhere (menu, palette, drop picker).
+      // Hide advanced/internal kinds (raw OCEL, IndexLinkedOCEL, activity projection) unless the expert toggle is on.
       .filter((k) => showExpertKinds || !EXPERT_IMPORT_KINDS.includes(k.kind))
       // Also drop per-kind expert formats (e.g. EventLog's `.json`).
       .map((k) => {
@@ -150,15 +95,14 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     // Import toasts + dataset refresh are driven by the engine's `import-*` / `objects-changed`
     // events (see <EngineEvents />); here we only kick off the load and set an initial label.
     void (async () => {
-      // Artifacts / io-kinds (e.g. PetriNet/PNML) are engine-stored artifacts (not registry items).
-      // Thus, load the bytes into the engine's artifact store, then fetch the value to open it in a viewer.
-      // The `artifacts-changed` event triggers the Artifacts strip update (see <EngineEvents />).
+      // io-kinds (e.g. PetriNet/PNML) are engine-stored artifacts, not registry items: load the
+      // bytes into the artifact store, then fetch the value to open it in a viewer.
       const io = ioKindByName(kind);
       if (io) {
         try {
           const bytes = new Uint8Array(await file.arrayBuffer());
           const id = await uniqueArtifactId(file.name);
-          await backend.loadArtifactBytes(id, io.kind, bytes, ext);
+          await loadArtifactCached(backend, { id, kind: io.kind, format: ext, label: file.name }, bytes);
           const value = await backend.getArtifact(id);
           openOutputAsPanel(io.returnType, value);
         } catch (e) {
@@ -201,12 +145,14 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       if (io) {
         const id = await uniqueArtifactId(filename);
         await backend.loadArtifactPath?.(id, io.kind, path);
+        // Record the path so a project can reference the file (no byte duplication on desktop).
+        useArtifacts.getState().addArtifact({ id, kind: io.kind, label: filename, path });
         const value = await backend.getArtifact(id);
         openOutputAsPanel(io.returnType, value);
       } else {
         const id = await uniqueDatasetId(filename);
         await backend.loadItemPath?.(id, kind, path);
-        useDatasets.getState().addDataset({ id, kind, label: filename });
+        useDatasets.getState().addDataset({ id, kind, label: filename, path });
       }
     } catch (e) {
       toast.error(`Failed to import "${filename}": ${String(e)}`);
@@ -269,11 +215,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let clearTimer: ReturnType<typeof setTimeout> | null = null;
     const onDesktop = !!(backend.loadItemPath || backend.loadArtifactPath);
-    // Show the overlay only for actual file drags. Dockview panel drags carry `text/plain` only, and
-    // in-app HTML5 drags (e.g. reordering events in a trace) carry a `application/x-r4pm-*` type or
-    // nothing at all. Desktop WebKit (Tauri, dragDropEnabled=false) strips the "Files" type and
-    // delivers paths via `text/uri-list` / `text/html`, and can strip ALL types on a native drop -
-    // so empty types count as a file only on desktop; in a browser they mean an internal drag.
+    // Dockview/in-app drags carry text/plain or application/x-r4pm-* (or nothing); desktop WebKit
+    // strips all types on a native file drop, so empty types count as a file only on desktop.
     const looksLikeFile = (dt: DataTransfer | null) => {
       if (!dt) return false;
       const types = Array.from(dt.types);
@@ -285,17 +228,18 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         (onDesktop && types.length === 0)
       );
     };
+    // While the relink dialog is open, its per-row drop zones own the drop; stand down here.
+    const relinkOpen = () => useRelink.getState().missing.length > 0;
     const onEnter = (e: Event) => {
       const dt = (e as DragEvent).dataTransfer;
-      console.log("[dnd] dragenter types=", dt ? Array.from(dt.types) : null);
-      if (!looksLikeFile(dt)) return;
+      if (relinkOpen() || !looksLikeFile(dt)) return;
       e.preventDefault();
       if (clearTimer) clearTimeout(clearTimer);
       setDragging(true);
     };
     const onOver = (e: Event) => {
       const dt = (e as DragEvent).dataTransfer;
-      if (!looksLikeFile(dt)) return;
+      if (relinkOpen() || !looksLikeFile(dt)) return;
       // Required or `drop` never fires; also stops WebKit from navigating to the dropped file://.
       e.preventDefault();
       if (dt) dt.dropEffect = "copy";
@@ -306,20 +250,9 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       if (clearTimer) clearTimeout(clearTimer);
       clearTimer = setTimeout(() => setDragging(false), 120);
     };
-    const filesOf = (dt: DataTransfer | null): File[] => {
-      if (!dt) return [];
-      if (dt.files && dt.files.length > 0) return Array.from(dt.files);
-      if (dt.items)
-        return Array.from(dt.items)
-          .filter((it) => it.kind === "file")
-          .map((it) => it.getAsFile())
-          .filter((f): f is File => f !== null);
-      return [];
-    };
     const onDrop = (e: Event) => {
       const dt = (e as DragEvent).dataTransfer;
-      console.log("[dnd] drop types=", dt ? Array.from(dt.types) : null, "files=", dt?.files?.length ?? 0);
-      if (!looksLikeFile(dt)) return;
+      if (relinkOpen() || !looksLikeFile(dt)) return;
       e.preventDefault();
       setDragging(false);
 
@@ -357,9 +290,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     };
   }, [handleDroppedFile, handleDroppedPath]);
 
-  // OS file association ("Open with propel"): the desktop backend collects the launch path(s); import
-  // them once the kind registry is loaded so classification sees registry + artifact kinds. macOS may
-  // deliver files after startup, so also re-drain on the engine's `initial-files-changed` event.
+  // OS file association: import launch paths once the kind registry is loaded; macOS may deliver
+  // files after startup, so also re-drain on the engine's `initial-files-changed` event.
   const initialFilesDone = useRef(false);
   useEffect(() => {
     if (!kindsQuery.isSuccess || !backend.getInitialFiles) return;

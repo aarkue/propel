@@ -11,8 +11,7 @@ export function nodeSize(type: PetriNetNode["type"]): { width: number; height: n
   return type === "place" ? PLACE_SIZE : TRANSITION_SIZE;
 }
 
-/** Orthogonal bend-point routing captured for an arc. Points are in flow coordinates (graph
- *  top-left origin = flow space, node centers written as center). `srcPos`/`tgtPos` are the source/
+/** Orthogonal bend-point routing for an arc, in flow coordinates; `srcPos`/`tgtPos` are the source/
  *  target node *center* positions at layout time, used to detect a later drag. */
 export type ArcRouting = {
   kind: "polyline";
@@ -21,15 +20,10 @@ export type ArcRouting = {
   tgtPos: { x: number; y: number };
 };
 
-/**
- * Lay out a Petri net with the bundled Rust engine (orthogonal routing, left->right). Nodes are
- * positioned by their *center* (matching the editor's `nodeOrigin=[0.5,0.5]`) and edges carry
- * `type:"custom"` plus bend-point routing in `data.routing`.
- */
+/** Lay out a Petri net with the bundled Rust engine; nodes positioned by center, edges carry bend-point routing. */
 export type PetriLayoutOptions = {
-  /** Stable relayout: seed each node at a centre and hold the un-dragged ones there. Return the
-   *  current centre for every node and set `pinned` on the just-dragged one so it stays exactly
-   *  where dropped. Return `undefined` for a node to leave it unseeded. Omit for a fresh layout. */
+  /** Stable relayout: return each node's current centre (and `pinned` on the just-dragged one) to
+   *  hold it there; `undefined` leaves a node unseeded. Omit for a fresh layout. */
   seed?: (node: PetriNetNode) => { x: number; y: number; pinned?: boolean } | undefined;
   /** On-drop relayout: re-derive the grid from the seeded positions and re-route edges only (nodes
    *  stay exactly where dropped). Requires `seed` to cover every node. Omit for a fresh layout. */
@@ -50,18 +44,14 @@ export function createRustPetriLayout(transport: LayoutTransport): PetriLayoutFn
     edges: Edge<ArcData>[],
     options?: PetriLayoutOptions,
   ): Promise<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }> => {
-    // Feed the engine the SAME canonical node order the Rust SVG export uses (places then transitions,
-    // each sorted by id) so the on-screen layout is byte-identical to the export. Results map back by
-    // id, so the render is unaffected by this ordering. Uniform weights also match the export.
+    // Feed the engine the same canonical node order the Rust SVG export uses, so layout is byte-identical to export.
     const ordered = [...nodes].sort((a, b) => {
       const ra = a.type === "place" ? 0 : 1;
       const rb = b.type === "place" ? 0 : 1;
       if (ra !== rb) return ra - rb;
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
-    // Object-centric nets carry an object type per place; map each distinct type to a stable index so
-    // the engine keeps every type on a consistent lane (crossing-neutral). Plain Petri nets have no
-    // type -> no category -> unchanged layout.
+    // Map each distinct object type to a stable index so the engine keeps it on a consistent lane.
     const objectTypeIndex = new Map<string, number>();
     for (const t of [
       ...new Set(nodes.flatMap((n) => (n.type === "place" && n.data.objectType ? [n.data.objectType] : []))),

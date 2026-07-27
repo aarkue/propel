@@ -24,9 +24,8 @@ export const useLayoutedElements = (layout: PetriLayoutFn = noopPetriLayout) => 
     [layout, fitView, setNodes, setEdges, getNodes, getEdges],
   );
 
-  /** Stable relayout: seed every node at its current centre so un-dragged nodes stay put, pinning
-   *  `pinnedId` (the just-dragged node) so it holds exactly where it was dropped. Only edges (and any
-   *  nodes the drop crowds) move. No fitView - the view shouldn't jump on a nudge. */
+  /** Stable relayout: seed every node at its current centre, pinning `pinnedId` so it holds where
+   *  dropped; only edges/crowded nodes move. No fitView - the view shouldn't jump on a nudge. */
   const relayoutStable = useCallback(
     (pinnedId?: string) => {
       if (pinnedId) pinnedIds.current.add(pinnedId);

@@ -7,8 +7,12 @@ edition = "2021"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "feat/register-binding-downstream", features = ["bindings"]}
+process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "propel", features = ["bindings"]}
 schemars = "1.1.0"
 
 [features]
+default = ["bindings"]
+# Present so the `#[register_binding]` macro's `cfg(feature = "bindings")` gate resolves in this
+# crate (e.g. a test-only binding); process_mining/bindings is already forced by the dependency.
+bindings = ["process_mining/bindings"]
 ocel-sqlite = ["process_mining/ocel-sqlite"]

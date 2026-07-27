@@ -1,13 +1,4 @@
-/**
- * TS mirror of the Rust `StyledGraph` binding types (`engine/app-bindings/src/viz/graph_svg.rs`).
- * A `StyledGraph` is a fully laid-out, fully styled diagram: viewers build one from their own
- * on-screen React Flow geometry, and a renderer (typically the `export_graph_svg` Rust binding,
- * injected by the host so this package stays backend-free) draws it with no further layout
- * decisions - guaranteeing the export matches the screen pixel-for-pixel.
- *
- * Field names/shapes must stay in sync with the generated `@r4pm/client` bindings; they are not
- * imported from there (this package has no backend dependency) but are structurally compatible.
- */
+/** TS mirror of the Rust `StyledGraph` binding types; structurally compatible with `@r4pm/client` bindings but not imported from there (backend-free). */
 
 export type NodeShape = { kind: "box"; radius?: number } | { kind: "ellipse" } | { kind: "circle" };
 
@@ -18,8 +9,15 @@ export interface StyledLabel {
   color?: string;
   /** Vertical offset from the node center, in px. */
   dy?: number;
+  /** Horizontal offset from the node center, in px (e.g. to re-center a text+bullet group). */
+  dx?: number;
   /** Word-wrap to fit the node width (max 2 lines, ellipsized). */
   wrap?: boolean;
+  /** Kind-indicator glyph left of the text (OCEL type graph: square = event, dot = object).
+   *  Ignored on wrapped labels; placement uses an estimated text width. */
+  bullet?: MarkingKind;
+  /** Bullet fill; defaults to the label color. */
+  bullet_color?: string;
 }
 
 export type MarkingKind = "dot" | "square";
@@ -28,6 +26,15 @@ export interface MarkingGroup {
   kind: MarkingKind;
   color?: string;
   count: number;
+  /** Dashed border on each dot (OC-Declare optional involvement, min 0). */
+  dashed?: boolean;
+  /** Fixed dot radius; setting it on any group switches the whole row to exact mode (fixed
+   *  sizes, tight per-group clusters, no fit-to-node scaling / numeral collapse). */
+  radius?: number;
+  /** Center-to-center dot spacing within the group (exact mode; below `2*radius` overlaps). */
+  step?: number;
+  /** Ring stroke around each dot (exact mode). Absent: ring only when `dashed`. */
+  stroke?: string;
 }
 
 export type IconKind = "triangle" | "square";
@@ -51,11 +58,21 @@ export interface StyledNode {
   stroke_dash?: string;
   labels?: StyledLabel[];
   marking?: MarkingGroup[];
+  /** Vertical offset of the marking row from the node center, in px. */
+  marking_dy?: number;
   /** A single decorative glyph (e.g. DFG start/end terminal chrome). */
   icon?: StyledIcon;
 }
 
-export type EdgeMarker = "none" | "arrow" | "ball" | "arrow_ball";
+export type EdgeMarker =
+  | "none"
+  | "arrow"
+  | "arrow_centered"
+  | "ball"
+  | "arrow_ball"
+  | "arrow_bar"
+  | "ball_arrow"
+  | "ball_bar_arrow";
 
 export interface EdgeLabel {
   text: string;
@@ -72,15 +89,29 @@ export interface EdgeDot {
   at: number;
   color: string;
   filled?: boolean;
+  /** Ring stroke (the on-screen `MultiDot` ring). Absent: hollow dots ring in `color`. */
+  stroke?: string;
+}
+
+export interface GradientStop {
+  /** Fraction (0..1) along the gradient axis. */
+  offset: number;
+  color: string;
 }
 
 export interface StyledEdge {
   points: [number, number][];
   color?: string;
+  /** Linear gradient stroke (first -> last point); 2+ stops override `color` on the path. */
+  gradient?: GradientStop[];
   width?: number;
   dash?: string;
   marker_start?: EdgeMarker;
   marker_end?: EdgeMarker;
+  /** Marker fill; defaults to the edge color (OC-Declare uses one neutral gray for all markers). */
+  marker_color?: string;
+  /** Marker base size in px (side of the 12-unit marker viewBox); default scales with `width`. */
+  marker_size?: number;
   labels?: EdgeLabel[];
   dots?: EdgeDot[];
   /** Corner radius (px) for rounding the polyline's interior joins; 0 = straight segments. */
@@ -102,6 +133,8 @@ export interface StyledGraph {
   padding?: number;
   nodes: StyledNode[];
   edges: StyledEdge[];
+  /** Draw edges/markers AFTER nodes so border-centered markers sit on top (OC-Declare). */
+  edges_on_top?: boolean;
   legend?: LegendGroup[];
 }
 

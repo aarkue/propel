@@ -1,7 +1,6 @@
-//! Shared result/argument structs for the event-log and OCEL analysis bindings.
-//!
-//! These derive `serde` + `schemars::JsonSchema` for the registry.
-use std::collections::HashMap;
+//! Shared result/argument structs for the event-log and OCEL analysis bindings, deriving
+//! `serde` + `schemars::JsonSchema` for the registry.
+use std::collections::{HashMap, HashSet};
 
 use process_mining::core::event_data::case_centric::utils::activity_projection::EventLogActivityProjection;
 use schemars::JsonSchema;
@@ -11,6 +10,50 @@ use serde::{Deserialize, Serialize};
 pub struct NumberOfTracesAndEvents {
     pub num_traces: usize,
     pub num_events: usize,
+}
+
+/// Equal-width time bins `[bin_start, bin_start + bin_width_ms)`; empty bins are omitted, so `bin_width_ms` is the authoritative bar width.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct EventTimeHistogram {
+    /// Event counts keyed by bin-start epoch millis (as a string) then by event type / activity.
+    pub events_per_timestamp: HashMap<String, HashMap<String, usize>>,
+    pub activities: Vec<String>,
+    pub bin_width_ms: i64,
+}
+
+impl EventTimeHistogram {
+    /// Empty input yields an empty histogram with `bin_width_ms` 1.
+    pub fn from_events(evs: Vec<(i64, String)>, num_bins: usize) -> Self {
+        if evs.is_empty() {
+            return Self {
+                events_per_timestamp: HashMap::new(),
+                activities: Vec::new(),
+                bin_width_ms: 1,
+            };
+        }
+        let bins = num_bins.max(1) as i64;
+        let min = evs.iter().map(|(t, _)| *t).min().unwrap();
+        let max = evs.iter().map(|(t, _)| *t).max().unwrap();
+        let width = (((max - min).max(1) as f64) / bins as f64).ceil() as i64;
+        let width = width.max(1);
+        let mut per: HashMap<String, HashMap<String, usize>> = HashMap::new();
+        let mut acts: HashSet<String> = HashSet::new();
+        for (t, ty) in evs {
+            let bin_start = min + ((t - min) / width) * width;
+            *per.entry(bin_start.to_string())
+                .or_default()
+                .entry(ty.clone())
+                .or_insert(0) += 1;
+            acts.insert(ty);
+        }
+        let mut activities: Vec<String> = acts.into_iter().collect();
+        activities.sort();
+        Self {
+            events_per_timestamp: per,
+            activities,
+            bin_width_ms: width,
+        }
+    }
 }
 
 /// Activity-trace variants (sorted by frequency).
@@ -194,8 +237,6 @@ pub struct TraceDetail {
     pub case_attributes: HashMap<String, String>,
     pub events: Vec<TraceEventRow>,
 }
-
-// ---- OCEL (object-centric) result/argument structs ----
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct OCELInfo {

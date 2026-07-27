@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import toast from "react-hot-toast";
 import { backend } from "../backends";
+import { armSessionSaves, scheduleSessionSave } from "../persistence/session";
 
 /**
  * Sync the dataset store with the engine's actual object set.
@@ -41,10 +42,14 @@ export function EngineEvents() {
     const subs = [
       reg<unknown>("objects-changed", () => {
         void refreshDatasets();
+        armSessionSaves();
+        scheduleSessionSave();
         queryClient.invalidateQueries({ queryKey: ["loaded-objects"] });
       }),
       reg<unknown>("artifacts-changed", () => {
         void refreshArtifacts();
+        armSessionSaves();
+        scheduleSessionSave();
       }),
       reg<string>("import-started", (id) => {
         toast.loading(`Importing ${id}…`, { id: `import-${id}`, duration: Number.POSITIVE_INFINITY });

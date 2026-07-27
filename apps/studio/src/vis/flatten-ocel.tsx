@@ -3,10 +3,10 @@ import type { BackendContext, EventLogHandle, SlimLinkedOCELHandle } from "@r4pm
 import { Button, Callout, Flex, Heading, Select, Text } from "@r4pm/components/ui";
 import { ErrorState, LoadingState } from "@r4pm/components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { PiShuffle } from "react-icons/pi";
 import { withSelector, datasetEmptyBox } from "./_shared";
 import { useDatasetSelection } from "../panels/active-datasets";
+import { useDatasetScopedState } from "../panels/panel-state";
 import { backend } from "../backends";
 import { definePanel } from "./define-vis";
 import { useDatasets, uniqueDatasetLabel } from "../stores";
@@ -17,21 +17,20 @@ const FLATTEN_OCEL_ON =
 
 export interface FlattenOCELPanelProps {
   backend: BackendContext;
-  /** SlimLinkedOCEL handle (every OCEL binding now operates on this). */
   ocel: SlimLinkedOCELHandle;
-  /** Called with the freshly produced event-log handle after a successful flatten. */
+  objectType?: string;
+  onObjectTypeChange: (ot: string | undefined) => void;
   onFlattened?: (result: { handle: EventLogHandle; label: string }) => void;
 }
 
-/**
- * Flatten an OCEL onto a chosen object type, producing a classic event log. The binding returns
- * a NEW EventLog *handle* (results that are registry objects are stored in the engine and their id
- * returned), so the flattened log immediately becomes a loaded object usable by every event-log
- * panel and by the pipeline.
- */
-export function FlattenOCELPanel({ backend, ocel, onFlattened }: FlattenOCELPanelProps) {
+export function FlattenOCELPanel({
+  backend,
+  ocel,
+  objectType,
+  onObjectTypeChange,
+  onFlattened,
+}: FlattenOCELPanelProps) {
   const queryClient = useQueryClient();
-  const [objectType, setObjectType] = useState<string | undefined>();
 
   const infoQuery = useQuery({
     queryKey: ["ocel-info", ocel],
@@ -70,7 +69,7 @@ export function FlattenOCELPanel({ backend, ocel, onFlattened }: FlattenOCELPane
           <LoadingState label="loading types..." />
         ) : (
           <Flex gap="2" align="center">
-            <Select.Root value={objectType} onValueChange={setObjectType} disabled={!objectTypes.length}>
+            <Select.Root value={objectType} onValueChange={onObjectTypeChange} disabled={!objectTypes.length}>
               <Select.Trigger placeholder="Select object type" />
               <Select.Content>
                 {objectTypes.map((ot) => (
@@ -108,13 +107,24 @@ export function FlattenOCELPanel({ backend, ocel, onFlattened }: FlattenOCELPane
   );
 }
 
-/** Flatten the active OCEL onto an object type, producing a new chainable event-log handle. */
-export function FlattenOcelDockPanel(_props: IDockviewPanelProps) {
-  const { id: ocel, selector } = useDatasetSelection("SlimLinkedOCEL");
+export function FlattenOcelDockPanel(props: IDockviewPanelProps) {
+  const { id: ocel, selector } = useDatasetSelection("SlimLinkedOCEL", props);
+  const [objectType, setObjectType] = useDatasetScopedState<string | undefined>(
+    props,
+    "objectType",
+    ocel ?? "",
+    undefined,
+  );
   if (!ocel) return withSelector(selector, datasetEmptyBox("OCEL"), "flatten-ocel");
   return withSelector(
     selector,
-    <FlattenOCELPanel key={ocel} backend={backend} ocel={ocel as SlimLinkedOCELHandle} />,
+    <FlattenOCELPanel
+      key={ocel}
+      backend={backend}
+      ocel={ocel as SlimLinkedOCELHandle}
+      objectType={objectType}
+      onObjectTypeChange={setObjectType}
+    />,
     "flatten-ocel",
   );
 }

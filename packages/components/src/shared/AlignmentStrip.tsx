@@ -2,12 +2,8 @@ import { useViewerConfig, type AlignmentStyle } from "../viewer/viewer-config";
 import { TraceAlignmentStrip, type ResolvedMove } from "./TraceAlignmentStrip";
 import { DeviationAlignmentStrip } from "./DeviationAlignmentStrip";
 
-/**
- * Alignment strip that auto-switches between the two styles so callers do not choose one. The style
- * comes from the surrounding `ViewerConfigProvider`'s `alignmentStyle` (default "trace"); pass
- * `variant` to force a style regardless of config. `exportKey` is forwarded to whichever strip
- * renders; both advertise a true vector SVG to a surrounding `ViewerExportFrame`.
- */
+/** Alignment strip that auto-switches between the two styles per `ViewerConfigProvider.alignmentStyle`;
+ *  pass `variant` to force a style regardless of config. */
 export function AlignmentStrip({
   moves,
   colorOf,

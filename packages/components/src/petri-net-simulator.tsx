@@ -122,10 +122,12 @@ export interface PetriNetSimulatorProps extends ViewerProps<PetriNet> {
   /** When true, clicking a not-enabled transition force-fires it (token-replay style): the
    *  missing input tokens are counted into the trace and firing proceeds anyway. Default false. */
   allowForcedFiring?: boolean;
+  /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
+  exportKey?: string;
 }
 
 export function PetriNetSimulator(props: PetriNetSimulatorProps) {
-  const { data, onSaveAsLog, allowForcedFiring } = props;
+  const { data, onSaveAsLog, allowForcedFiring, exportKey } = props;
   const cfg = useViewerConfig(props);
   // Accept the client record shape too (studio casts rather than converts).
   const net = useMemo(() => normalizePetriNet(data), [data]);
@@ -298,7 +300,7 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
     () => ({ toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges) }),
     [],
   );
-  useRegisterExport("petri-net", exportSource);
+  useRegisterExport(exportKey ?? "petri-net-simulator", exportSource);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 256 }}>

@@ -1,5 +1,6 @@
 import { Controls, Description, Primary, Stories, Subtitle, Title } from "@storybook/addon-docs/blocks";
 import type { Preview } from "@storybook/react-vite";
+import { themes } from "storybook/theming";
 import type { ReactNode } from "react";
 import { Theme, ViewerConfigProvider, ViewerExportFrame } from "@r4pm/components";
 import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
@@ -55,6 +56,11 @@ function Framed({
   );
 }
 
+// Evaluated per iframe, so non-inline docs stories (toolbar globals don't reach them live) still
+// come up in the right scheme.
+const prefersDark =
+  typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+
 const preview: Preview = {
   globalTypes: {
     colorScheme: {
@@ -63,6 +69,7 @@ const preview: Preview = {
         title: "Scheme",
         icon: "circlehollow",
         items: [
+          { value: "system", title: "System", icon: "mirror" },
           { value: "light", title: "Light", icon: "sun" },
           { value: "dark", title: "Dark", icon: "moon" },
         ],
@@ -71,7 +78,7 @@ const preview: Preview = {
     },
   },
   initialGlobals: {
-    colorScheme: "light",
+    colorScheme: "system",
   },
   // Docs-only sidebar: every component shows a single "Docs" entry (with its live example +
   // props table); the individual story leaves are hidden from the nav ("!dev") but still render
@@ -84,6 +91,7 @@ const preview: Preview = {
     layout: "fullscreen",
     controls: { expanded: true },
     docs: {
+      theme: prefersDark ? themes.dark : themes.light,
       toc: true,
       // Default autodocs template + two generated sections: inline declarations of the types the
       // props table references, and the full copy-paste-runnable story source (see doc-blocks.tsx).
@@ -108,7 +116,10 @@ const preview: Preview = {
   decorators: [
     (Story, ctx) => {
       const frame = (ctx.parameters.frame as Frame) ?? { mode: "pad" };
-      const appearance = ((ctx.globals.colorScheme as string) ?? "light") as "light" | "dark";
+      const scheme = (ctx.globals.colorScheme as string) ?? "system";
+      const appearance = (scheme === "system" ? (prefersDark ? "dark" : "light") : scheme) as
+        | "light"
+        | "dark";
       return (
         <Framed frame={frame} appearance={appearance}>
           <ViewerConfigProvider value={{ layout: wasmLayout }}>

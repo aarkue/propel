@@ -14,13 +14,8 @@ export interface UseVirtualRowsResult {
   scrollToIndex: (index: number) => void;
 }
 
-/**
- * Fixed-height windowing over a scroll container. Markup-agnostic: the caller renders its
- * own rows from `virtualItems` (each `{ index, start, size }`) and sizes its scroll content
- * to `totalSize`. Works for a `<table>` (padding-row technique) or an absolutely-positioned
- * `<div>` list. `scrollMargin` accounts for content above the list; when omitted, keep a
- * generous `overscan` so a scrolled-away header cannot reveal blank space.
- */
+/** Fixed-height windowing over a scroll container; markup-agnostic, the caller renders rows from
+ *  `virtualItems` and sizes its scroll content to `totalSize`. */
 export function useVirtualRows({
   count,
   rowHeight,

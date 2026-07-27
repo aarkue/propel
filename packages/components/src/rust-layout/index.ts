@@ -4,13 +4,7 @@ import { writeEdgeRouting } from "../dfg/util/edge-routing";
 
 export type GraphLayout = { centers: [number, number][]; routes: [number, number][][] };
 
-/**
- * Pluggable layout transport: lays out (or re-routes) a `GraphSpec`, returning node centres + edge
- * routes. A concrete transport is passed explicitly to each `createRust*Layout` factory - there is no
- * global engine. `@r4pm/components/rust-layout/wasm` exports `wasmTransport` (runs the bundled Rust
- * engine in-browser via wasm); a host with a binding channel (the studio backends) supplies one that
- * calls the `layout_graph` / `reroute_graph` bindings so layout runs wherever the backend runs.
- */
+/** Pluggable layout transport: lays out (or re-routes) a `GraphSpec`, returning node centres + edge routes; passed explicitly, no global engine. */
 export interface LayoutTransport {
   layoutGraph(spec: unknown): Promise<GraphLayout>;
   rerouteGraph(spec: unknown): Promise<GraphLayout>;
@@ -21,36 +15,24 @@ export type GraphNodeSpec = {
   height: number;
   ellipse?: boolean;
   pin?: "first" | "last";
-  /** Minimum clearance (px) to keep free right of the node (TB) for caller-drawn decorations the
-   *  layout can't see - e.g. DFG self-loops and their labels. */
+  /** Minimum clearance (px) to keep free right of the node (TB) for caller-drawn decorations, e.g. DFG self-loops. */
   clear_after?: number;
-  /** Optional grouping id (e.g. an object type). Same-category nodes are held in a consistent lane
-   *  across layers as a crossing-neutral tiebreak. Omit for no grouping. */
+  /** Optional grouping id; same-category nodes stay in a consistent lane across layers as a tiebreak. */
   category?: number;
-  /** Optional seed centre `[x, y]` in final space. When any node has a seed, the layout keeps its
-   *  structural layer/order/layer-x but places the cross-axis at the seed - a stable relayout that
-   *  leaves un-dragged nodes put. Omit for classic layout. */
+  /** Optional seed centre `[x, y]`; when set, layout keeps structural layer/order but places the cross-axis at the seed. */
   seed?: [number, number];
-  /** Hard-pin this node's seed cross-coordinate (others yield around it). Use for the just-dragged
-   *  node so it lands exactly where dropped. Only meaningful with `seed`. */
+  /** Hard-pin this node's seed cross-coordinate so it lands exactly where dropped. Only meaningful with `seed`. */
   pinned?: boolean;
 };
 
-/** Result of {@link layoutGraph}: node centers by index/id, and source->target-oriented routed points
- *  per kept edge (undefined for self-loops and edges with unknown endpoints). */
+/** Result of {@link layoutGraph}: node centers by index/id, and source->target-oriented routed points per kept edge. */
 export type LaidOutGraph<E> = {
   centerOfIndex: (i: number) => { x: number; y: number };
   centerOf: (id: string) => { x: number; y: number };
   routeOf: (e: E) => { x: number; y: number }[] | undefined;
 };
 
-/**
- * Shared driver for the generic `layout_graph` engine: builds the numeric node/edge spec from any
- * `{nodes, edges}` (via accessor callbacks), runs the layout, and returns node centers + per-edge
- * routes. Self-loops and edges with unknown endpoints are skipped. `reverse` swaps an edge's
- * endpoints for layering (temporal-backward EP/DP arcs) and un-reverses its returned route, so
- * callers always get source->target orientation.
- */
+/** Shared driver for the generic `layout_graph` engine: builds the numeric spec via accessor callbacks and returns centers + per-edge routes. `reverse` swaps an edge's endpoints for layering but always returns source->target orientation. */
 export async function layoutGraph<N, E>(
   nodes: N[],
   edges: E[],
@@ -64,13 +46,15 @@ export async function layoutGraph<N, E>(
     flowEdges: boolean;
     /** Diagonal (flow) routing instead of orthogonal straight-channel routing. Default `false`. */
     flowDiagonal?: boolean;
+    /** Order-preserving cross-axis compaction (priority method) for dense hub-and-spoke graphs. Default `false`. */
+    compact?: boolean;
     weight?: (e: E) => number;
     labelSize?: (e: E) => [number, number];
     reverse?: (e: E) => boolean;
-    /** On-drop relayout: re-route edges over the node seeds (each `nodeSpec` must return a `seed`)
-     *  instead of computing a fresh layout. Returned centers equal the seeds (nodes stay put); only
-     *  routes change. Requires every node seeded. */
+    /** On-drop relayout: re-route edges over node seeds instead of a fresh layout. Requires every node seeded. */
     reroute?: boolean;
+    /** Lay out as a tidy tree (parents centered over children); input must be a rooted tree, edges come back unrouted. */
+    tree?: boolean;
   },
 ): Promise<LaidOutGraph<E>> {
   const idOf = new Map(nodes.map((n, i) => [opts.id(n), i]));
@@ -87,8 +71,7 @@ export async function layoutGraph<N, E>(
     const reversed = opts.reverse?.(e) ?? false;
     routeIndex.set(e, { index: specEdges.length, reversed });
     specEdges.push(reversed ? [b, a] : [a, b]);
-    // No min-1 clamp: terminal edges intentionally weigh 0.5 (matching the Rust export) so they
-    // yield to the real DF flow.
+    // no min-1 clamp: terminal edges weigh 0.5, matching the Rust export
     if (opts.weight) weights.push(opts.weight(e));
     if (opts.labelSize) labelSizes.push(opts.labelSize(e));
   }
@@ -99,6 +82,8 @@ export async function layoutGraph<N, E>(
     direction: opts.direction,
     flow_edges: opts.flowEdges,
     flow_diagonal: opts.flowDiagonal ?? false,
+    compact: opts.compact ?? false,
+    tree: opts.tree ?? false,
     ...(opts.labelSize ? { edge_label_sizes: labelSizes } : {}),
   };
   const g = await (opts.reroute ? opts.transport.rerouteGraph(spec) : opts.transport.layoutGraph(spec));
@@ -118,14 +103,7 @@ export async function layoutGraph<N, E>(
   };
 }
 
-/** A `DfgLayoutFn` for the object-centric DFG, backed by the generic Rust `layout_graph`. Builds the
- *  graph spec in ONE canonical order - START, END, then activities sorted by name; edges grouped per
- *  sorted object type as sorted starts, sorted ends, then relations sorted by source - with terminal
- *  edges weighted by their true frequency (`1 + ln(count)`, not deprioritized). This is the same
- *  construction the SVG export draws, so screen and export are consistent, and the terminal-heavy
- *  ordering keeps START/END edges short (clean, few crossings). Each OC-DFG edge carries its object
- *  type in `data.group`; parallel object-type arcs stay distinct. Self-loops fall back to the host's
- *  default edge. */
+/** A `DfgLayoutFn` for the object-centric DFG, backed by generic Rust `layout_graph`. Builds the spec in the same canonical node/edge order as the SVG export, so screen and export stay consistent. */
 export function createRustOcdfgLayout(transport: LayoutTransport, flowDiagonal = true): DfgLayoutFn {
   const START = "__START__";
   const END = "__END__";
@@ -134,8 +112,7 @@ export function createRustOcdfgLayout(transport: LayoutTransport, flowDiagonal =
   return async (nodes, edges, nodeSize, options) => {
     type Arc = { ot: string; from: string; to: string; count: number; edge: (typeof edges)[number] };
     const arcs: Arc[] = [];
-    // Self-loops are drawn by the host as a bump right of the node; the layout only needs to
-    // reserve clearance for the bump + its label (mirrors Rust `dfg_self_loops_clearance`).
+    // reserve clearance for the host-drawn self-loop bump + label
     const loopLabels = new Map<string, string[]>();
     for (const e of edges) {
       if (e.source === e.target) {
@@ -162,8 +139,7 @@ export function createRustOcdfgLayout(transport: LayoutTransport, flowDiagonal =
     const nodeIds = [START, END, ...[...actSet].sort()];
     const indexOf = new Map(nodeIds.map((id, i) => [id, i]));
 
-    // Canonical edge order: per sorted object type - sorted starts, sorted ends, then relations
-    // sorted by source.
+    // canonical edge order: per sorted object type, sorted starts/ends, then relations by source
     const types = [...new Set(arcs.map((a) => a.ot))].sort();
     const ordered: Arc[] = [];
     for (const ot of types) {
@@ -209,9 +185,7 @@ export function createRustOcdfgLayout(transport: LayoutTransport, flowDiagonal =
       return typeof sw === "number" ? sw : 2;
     });
 
-    // On drop (`options.reroute`) every node is seeded at its current centre, so `reroute` re-derives
-    // the layer grid from the actual positions and re-routes only - it returns centers equal to the
-    // seeds, which makes the position write below a no-op (nodes stay exactly where dropped).
+    // on drop, every node is seeded at its current centre, so reroute only re-derives routes
     const spec = {
       nodes: specNodes,
       edges: specEdges,
@@ -242,15 +216,10 @@ export function createRustOcdfgLayout(transport: LayoutTransport, flowDiagonal =
   };
 }
 
-/** A `DfgLayoutFn` for the case-centric DFG, backed by the generic Rust `layout_graph`. A plain DFG is
- *  an OC-DFG with a single (implicit) object type, so this is exactly {@link createRustOcdfgLayout}
- *  with no per-type grouping. */
+/** A `DfgLayoutFn` for the case-centric DFG: a plain DFG is an OC-DFG with one implicit object type, so this is just {@link createRustOcdfgLayout}. */
 export const createRustDfgLayout = createRustOcdfgLayout;
 
-/** Engine-agnostic fallback `DfgLayoutFn`: stacks nodes in a single column and leaves edges to the
- *  renderer's straight-line default. The core ships no layout engine; import an engine bundle
- *  (`@r4pm/components/elk-layout` or `@r4pm/components/rust-layout/wasm`) and pass it via
- *  `layoutOverride` or `ViewerConfig.layout` for a real layout. */
+/** Engine-agnostic fallback `DfgLayoutFn`: stacks nodes in a column with straight-line edges. Import a real engine bundle for actual layout. */
 export const noopDfgLayout: DfgLayoutFn = async (nodes, _edges, nodeSize) => {
   let y = 0;
   for (const n of nodes) {

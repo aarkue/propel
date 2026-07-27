@@ -1,6 +1,8 @@
+import type { Provenance } from "@r4pm/client";
 import { Badge, Popover, Separator, Text } from "@r4pm/components/ui";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { PiCaretLeft, PiCaretRight } from "react-icons/pi";
+import { PiCaretLeft, PiCaretRight, PiGitBranch } from "react-icons/pi";
+import { exportLineageAsPipeline } from "./export-lineage";
 import { colorForKind, labelForKind } from "./object-colors";
 
 /**
@@ -117,6 +119,29 @@ export function ChipAction({
       {icon && <span className="text-(--gray-11)">{icon}</span>}
       {children}
     </button>
+  );
+}
+
+export function ExportLineageChipAction({
+  id,
+  provenance,
+  close,
+}: {
+  id: string;
+  provenance?: Provenance | null;
+  close: () => void;
+}) {
+  if (provenance == null) return null;
+  return (
+    <ChipAction
+      icon={<PiGitBranch />}
+      onClick={() => {
+        close();
+        void exportLineageAsPipeline(id);
+      }}
+    >
+      Export as pipeline
+    </ChipAction>
   );
 }
 

@@ -35,11 +35,7 @@ type ElkInstance = { layout: (g: ElkGraph) => Promise<ElkLaidOut> };
 
 let elkPromise: Promise<ElkInstance> | null = null;
 
-/**
- * Lazily load the bundled (synchronous, worker-free) elkjs engine and memoize a single instance.
- * The dynamic import keeps elkjs out of the main chunk - it only lands in an async chunk pulled in
- * when an ELK layout is actually requested, so the Rust default never pays for it.
- */
+/** Lazily load the bundled elkjs engine and memoize a single instance; dynamic import keeps it out of the main chunk. */
 export async function loadElk(): Promise<ElkInstance> {
   if (!elkPromise) {
     elkPromise = import("elkjs/lib/elk.bundled.js").then((mod) => {

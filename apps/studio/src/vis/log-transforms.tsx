@@ -1,14 +1,18 @@
 import type { IDockviewPanelProps } from "dockview";
 import { withSelector, datasetEmptyBox } from "./_shared";
-import { TransformBuilder } from "../transforms";
+import { TransformBuilder, type TransformBuilderValue } from "../transforms";
 import { backend } from "../backends";
 import { useDatasetSelection } from "../panels/active-datasets";
+import { useDatasetScopedState } from "../panels/panel-state";
 import { useDatasets, uniqueDatasetLabel } from "../stores";
 import { PiShuffle } from "react-icons/pi";
 import { definePanel } from "./define-vis";
 
-export function LogTransformsDockPanel(_props: IDockviewPanelProps) {
-  const { id: log, selector } = useDatasetSelection("EventLog");
+const INITIAL_BUILDER: TransformBuilderValue = { transforms: [], outName: "transformed" };
+
+export function LogTransformsDockPanel(props: IDockviewPanelProps) {
+  const { id: log, selector } = useDatasetSelection("EventLog", props);
+  const [builder, setBuilder] = useDatasetScopedState(props, "transformBuilder", log ?? "", INITIAL_BUILDER);
   const addDataset = useDatasets((s) => s.addDataset);
   if (!log) return withSelector(selector, datasetEmptyBox("EventLog"));
   return withSelector(
@@ -19,6 +23,8 @@ export function LogTransformsDockPanel(_props: IDockviewPanelProps) {
         backend={backend}
         datasetName={log}
         objectType="EventLog"
+        value={builder}
+        onChange={setBuilder}
         onResult={(handle, outName) =>
           addDataset({
             id: handle,

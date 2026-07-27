@@ -3,6 +3,8 @@ export { Theme } from "@r4pm/components/ui";
 // Presentation contract: ViewerProps/ViewerConfig + interactivity + the deterministic color
 // utilities. Engine-agnostic; the registry/routing half lives in the host app.
 export * from "./viewer/viewer-config";
+// Persisted viewer display settings: `useViewSetting` (drop-in for useState) + host `ViewStateProvider`.
+export * from "./viewer/view-state";
 export { shadeHex, softBadgeStyle, colorToHex } from "./dfg/util/colors";
 // Plotly-backed viewers (DottedChart, CaseDuration, EventsPerTime, ObjectAttributeChanges,
 // ActivityChart, ThemedPlot) live behind the `@r4pm/components/charts` subpath to keep
@@ -12,6 +14,8 @@ export * from "./viewer/export";
 // Generic pure-draw SVG export: the `StyledGraph` type shared with the `export_graph_svg` Rust
 // binding. Concrete per-viewer builders live alongside each viewer (e.g. `dfg/util/styled-graph.ts`).
 export * from "./graph-svg/styled-graph";
+// Pure-TS `StyledGraph` -> SVG renderer: the backend-free fallback for the ELK layout route.
+export { styledGraphToSvg } from "./graph-svg/styled-graph-svg";
 // Shared async/loading/error/empty UI for viewers and panels.
 export * from "./feedback";
 export * from "./petri-net";
@@ -19,10 +23,19 @@ export * from "./object-centric-petri-net";
 export * from "./petri-net-simulator";
 export * from "./object-centric-petri-net-simulator";
 export * from "./petri-net-workbench";
+export * from "./process-tree";
+export * from "./process-tree-workbench";
 export * from "./object-centric-petri-net-workbench";
 export * from "./log-editor";
 export * from "./dfg/index";
 export * from "./ocel-count-info";
+export * from "./attribute-value-stats";
+export * from "./ocel-type-graph/OcelTypeGraph";
+export * from "./ocel-type-graph/TypeScopeSelector";
+export * from "./ocel-type-graph/OcelTypeGraphViewer";
+export { createRustTypeGraphLayout } from "./ocel-type-graph/rust-layout";
+export { ocelTypeGraphToStyledGraph } from "./ocel-type-graph/styled-graph";
+export * from "./ocel-schema-path/OcelSchemaPath";
 export * from "./log-summary";
 export * from "./fitness";
 export * from "./alignment-list";

@@ -1,4 +1,5 @@
 import { Popover, Spinner } from "@r4pm/components/ui";
+import type { Provenance } from "@r4pm/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -6,8 +7,9 @@ import { PiCaretDown, PiFileArrowDown, PiFlowArrow, PiTrash } from "react-icons/
 import { useDatasets } from "../stores";
 import { exportFormatsFor } from "@r4pm/client";
 import { backend } from "../backends";
+import { unloadDataset } from "../persistence/session";
 import { sendToPipeline } from "../panels/pipeline-bridge";
-import { ChipAction, ChipStrip, EntityChip } from "./chips";
+import { ChipAction, ChipStrip, EntityChip, ExportLineageChipAction } from "./chips";
 
 /**
  * Horizontal strip of loaded-dataset chips. Each chip's popover renames the dataset, exports it
@@ -20,12 +22,24 @@ export function DatasetChipStrip({ variant }: { variant?: "scroll" | "wrap" }) {
       items={datasets}
       emptyText="No datasets loaded yet."
       variant={variant}
-      renderChip={(d) => <DatasetChip key={d.id} id={d.id} label={d.label} kind={d.kind} />}
+      renderChip={(d) => (
+        <DatasetChip key={d.id} id={d.id} label={d.label} kind={d.kind} provenance={d.provenance} />
+      )}
     />
   );
 }
 
-function DatasetChip({ id, label, kind }: { id: string; label: string; kind: string }) {
+function DatasetChip({
+  id,
+  label,
+  kind,
+  provenance,
+}: {
+  id: string;
+  label: string;
+  kind: string;
+  provenance?: Provenance | null;
+}) {
   const queryClient = useQueryClient();
   const renameDataset = useDatasets((s) => s.renameDataset);
   const [formatMenuOpen, setFormatMenuOpen] = useState(false);
@@ -40,8 +54,7 @@ function DatasetChip({ id, label, kind }: { id: string; label: string; kind: str
 
   const handleUnload = async (close: () => void) => {
     close();
-    useDatasets.getState().removeDataset(id);
-    await backend.unloadObject(id);
+    await unloadDataset(backend, id);
     await queryClient.invalidateQueries();
   };
 
@@ -131,6 +144,7 @@ function DatasetChip({ id, label, kind }: { id: string; label: string; kind: str
           >
             Send to pipeline
           </ChipAction>
+          <ExportLineageChipAction id={id} provenance={provenance} close={close} />
           <ChipAction icon={<PiTrash />} danger onClick={() => void handleUnload(close)}>
             Unload
           </ChipAction>

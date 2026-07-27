@@ -1,13 +1,4 @@
-/**
- * Shared self-loop bump geometry for the DFG. Both the on-screen edge (`DfgEdge.tsx`) and the SVG
- * export (`styled-graph.ts`) build the loop from this, so screen and export stay identical.
- *
- * The bump sits on the free cross-axis - the side perpendicular to the layer flow, where no forward
- * edges live. TB (top->bottom flow) puts it on the node's right; LR (left->right flow) puts it on the
- * bottom. This matches the clearance the layout reserves on each node's positive order side (screen
- * right in TB, screen bottom in LR); drawing it on the flow axis instead would collide with the
- * forward edges leaving that side.
- */
+/** Shared self-loop bump geometry for the DFG (on-screen edge + SVG export); bump sits on the free cross-axis (right in TB, bottom in LR) to avoid forward edges. */
 
 export type FlowDirection = "TB" | "LR";
 

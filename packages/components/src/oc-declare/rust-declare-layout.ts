@@ -2,12 +2,15 @@ import type { Edge, Node } from "@xyflow/react";
 import { layoutGraph, type LayoutTransport } from "../rust-layout";
 import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH } from "./ActivityNode";
 import {
+  assignArcLanes,
   type DeclareLayoutFn,
   type DeclareLayoutOptions,
   edgeLabelWidth,
+  fanArcRoute,
   roundedPointsToSvgPath,
   selfLoopPoints,
   snapEndpointsToNodeBorders,
+  straightenClearRoute,
 } from "./layout-util";
 import type { ConstraintEdgeData } from "./types";
 
@@ -15,9 +18,8 @@ const LABEL_H = 16;
 
 type Point = { x: number; y: number };
 
-/** OC-declare layout backed by the Rust `layout_graph` engine (with edge-label spacing), bound to the
- *  given transport. EP/DP constraints are temporal-backward: reversed for layering, then flipped back
- *  so the drawn arrow still points source->target. Self-loops are routed in JS (Rust skips them). */
+/** OC-declare layout backed by the Rust `layout_graph` engine, bound to the given transport. EP/DP
+ *  constraints are reversed for layering then flipped back so the arrow still points source->target. */
 export function createRustDeclareLayout(transport: LayoutTransport): DeclareLayoutFn {
   return async <N extends Node>(
     nodes: N[],
@@ -41,7 +43,7 @@ export function createRustDeclareLayout(transport: LayoutTransport): DeclareLayo
           pinned: s?.pinned,
         };
       },
-      labelSize: (e) => [edgeLabelWidth(e), LABEL_H],
+      labelSize: (e) => [edgeLabelWidth(e, options?.textLabels), LABEL_H],
       reverse: (e) => {
         const at = (e.data as ConstraintEdgeData | undefined)?.arcType;
         return at === "EP" || at === "DP";
@@ -54,6 +56,8 @@ export function createRustDeclareLayout(transport: LayoutTransport): DeclareLayo
       const c = laid.centerOf(id);
       return { x: c.x - halfW, y: c.y - halfH };
     };
+    const centers = nodes.map((n) => ({ id: n.id, c: laid.centerOf(n.id) }));
+    const arcLanes = assignArcLanes(edges);
 
     const layoutedNodes = nodes.map((n): N => ({ ...n, position: topLeftOf(n.id) }));
 
@@ -79,13 +83,18 @@ export function createRustDeclareLayout(transport: LayoutTransport): DeclareLayo
       if (!route || route.length < 2) {
         return { ...edge, data: { ...edge.data, layoutSourcePos: srcTL, layoutTargetPos: tgtTL } };
       }
-      const points = snapEndpointsToNodeBorders(
-        route,
-        laid.centerOf(edge.source),
-        laid.centerOf(edge.target),
-        halfW,
-        halfH,
-      );
+      const srcC = laid.centerOf(edge.source);
+      const tgtC = laid.centerOf(edge.target);
+      const snapped = snapEndpointsToNodeBorders(route, srcC, tgtC, halfW, halfH);
+      // Multi-arc pair: fan each arc into its own lane. Lone arc: straighten a cosmetic jog.
+      const lane = arcLanes.get(edge.id);
+      let points: Point[];
+      if (lane && lane.total > 1) {
+        points = fanArcRoute(srcC, tgtC, lane, edge.source > edge.target, halfW, halfH);
+      } else {
+        const obstacles = centers.filter((n) => n.id !== edge.source && n.id !== edge.target).map((n) => n.c);
+        points = straightenClearRoute(snapped, srcC, tgtC, obstacles, halfW, halfH);
+      }
       return {
         ...edge,
         data: {

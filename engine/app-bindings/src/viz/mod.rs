@@ -1,10 +1,5 @@
-//! Generic graph layout + SVG export bindings.
-//!
-//! Two domain-agnostic bindings: [`layout_graph`] / [`reroute_graph`] lay out an arbitrary directed
-//! graph (node centres + edge polylines), and [`export_graph_svg`] draws a caller-supplied,
-//! already-laid-out, already-styled [`graph_svg::StyledGraph`] to a standalone SVG (pure draw, no
-//! layout). Viewers build both from their own on-screen React Flow state, so the export matches the
-//! screen. The layered engine lives in the `viz_layout` crate (shared with the components wasm).
+//! Generic graph layout + SVG export bindings: [`layout_graph`]/[`reroute_graph`] lay out an
+//! arbitrary directed graph, and [`export_graph_svg`] draws a caller-styled [`graph_svg::StyledGraph`] to SVG with no layout of its own.
 
 /// Petri layout adapter + geometry-quality metrics: test-only scaffolding that exercises the generic
 /// `viz_layout` engine on Petri-shaped inputs. Not compiled into the shipped binary.
@@ -20,9 +15,7 @@ use serde::{Deserialize, Serialize};
 use viz_layout::{render_graph_svg, StyledGraph, SvgPalette};
 
 /// Draw a fully laid-out, fully styled diagram to a standalone SVG string. Pure draw: the caller
-/// (DFG, OC-DFG, OC-Declare, Petri, OCPN viewers) supplies exact on-screen geometry and styling -
-/// this binding performs no layout, so the export is guaranteed to match what's on screen. The
-/// renderer itself lives in the `viz_layout` crate (shared with the components wasm).
+/// supplies exact on-screen geometry and styling, so the export matches what's on screen.
 #[register_binding(stringify_error)]
 pub fn export_graph_svg(graph: StyledGraph, palette: Option<SvgPalette>) -> Result<String, String> {
     let palette = palette.unwrap_or_default();
@@ -45,9 +38,8 @@ pub struct GraphNode {
     /// order across layers as a crossing-neutral tiebreak. Absent means no grouping.
     #[serde(default)]
     pub category: Option<u32>,
-    /// Optional seed centre `[x, y]` in final space. When any node has a seed, the layout keeps the
-    /// structural layer/order but places the cross-axis at the seed (a stable relayout that leaves
-    /// un-dragged nodes put). Absent means classic layout.
+    /// Optional seed centre `[x, y]` in final space. When any node has a seed, the layout keeps
+    /// the structural layer/order but places the cross-axis at the seed (a stable relayout).
     #[serde(default)]
     pub seed: Option<[f64; 2]>,
     /// Hard-pin this node's seed cross-coordinate (others yield around it); use for the just-dragged
@@ -106,15 +98,20 @@ pub struct GraphSpec {
     /// meaningful with `flow_edges`.
     #[serde(default)]
     pub flow_diagonal: bool,
-    /// Optional `[width, height]` in final space of each edge's mid-point label (same length/order
-    /// as `edges`). The layout reserves that space on the edge centre so labels don't overlap other
-    /// edges/nodes. Empty => no reservation.
+    /// Optional `[width, height]` of each edge's mid-point label (same length/order as `edges`);
+    /// the layout reserves that space so labels don't overlap other edges/nodes.
     #[serde(default)]
     pub edge_label_sizes: Vec<[f64; 2]>,
     /// Optional per-edge drawn stroke width (same length/order as `edges`); port spreading keeps
     /// adjacent thick strokes from visually merging. Empty => all 2.0.
     #[serde(default)]
     pub thickness: Vec<f64>,
+    /// Tidy-tree layout instead of layered; input must be a rooted tree/forest, edges come back unrouted.
+    #[serde(default)]
+    pub tree: bool,
+    /// Compact the cross axis after placement (order-preserving); for dense hub-and-spoke graphs like the OCEL type graph. Default `false`.
+    #[serde(default)]
+    pub compact: bool,
 }
 
 impl GraphSpec {
@@ -128,6 +125,8 @@ impl GraphSpec {
             flow_diagonal,
             edge_label_sizes,
             thickness,
+            tree,
+            compact,
         } = self;
         viz_layout::GraphSpec {
             nodes: nodes.into_iter().map(GraphNode::into_engine).collect(),
@@ -138,6 +137,8 @@ impl GraphSpec {
             flow_diagonal,
             edge_label_sizes,
             thickness,
+            tree,
+            compact,
         }
     }
 }
@@ -248,11 +249,8 @@ mod tests {
         assert_eq!(m.node_hits, 0, "no arc may be routed through a node box");
     }
 
-    /// Anti-parallel arcs on a transition's perpendicular (Top/Bottom) border must not cross:
-    /// an input arriving from behind and an output leaving forward share the border, and if the
-    /// ports are ordered by source/target alone (ignoring which node each runs toward) their two
-    /// L-bends cross at the node corner. Reproduces the linear two-object-type "order management"
-    /// OCPN whose "Place Order"/"Archive Order" corners previously crossed.
+    /// Anti-parallel arcs sharing a transition's perpendicular border must not cross: ordering
+    /// ports by source/target alone (ignoring which node each runs toward) makes their L-bends cross at the node corner.
     #[test]
     fn transition_border_ports_do_not_cross() {
         let mut net = PetriNet::new();
@@ -333,10 +331,8 @@ mod tests {
         assert_eq!(routes(&a), routes(&b), "edge routes must be deterministic");
     }
 
-    /// The on-screen Petri layout (studio display) runs the generic `layout_graph` engine; the SVG
-    /// export runs `layout_petri_net`. They must produce byte-identical geometry, or the exported
-    /// image won't match what the user sees. This mirrors the canonical node order / sizes / weights
-    /// the JS `layoutPetriNet` feeds the generic engine (places then transitions, each id-sorted).
+    /// The on-screen Petri layout runs `layout_graph`; the SVG export runs `layout_petri_net`.
+    /// They must produce byte-identical geometry, or the exported image won't match the screen.
     #[test]
     fn display_and_export_layouts_match() {
         use super::{layout_graph, GraphNode, GraphSpec};
@@ -408,6 +404,8 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![],
+            tree: false,
+            compact: false,
         })
         .expect("layout_graph");
 

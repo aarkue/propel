@@ -1,3 +1,4 @@
+import type { Provenance } from "@r4pm/client";
 import { create } from "zustand";
 import { getBackend } from "../shell/backend-singleton";
 
@@ -6,6 +7,14 @@ export interface Dataset {
   /** The engine registry kind this was loaded as (e.g. "EventLog", "OCEL", "SlimLinkedOCEL", ...). */
   kind: string;
   label: string;
+  /** Recorded lineage when this dataset was produced by a binding (transform); absent for imports. */
+  provenance?: Provenance | null;
+  /** Source filesystem path for a native (Tauri) path-import; lets a project reference the file
+   *  instead of duplicating its bytes. Absent for web imports and derived datasets. */
+  path?: string;
+  /** Set when this dataset is a bundled example (see `SAMPLE_DATASETS`); lets a project reference the
+   *  example by id and re-fetch it on restore instead of embedding its bytes. */
+  sampleId?: string;
 }
 
 /** An engine object as reported by `listObjects`: the engine now carries the display label too. */
@@ -13,6 +22,7 @@ interface EngineObject {
   id: string;
   kind: string;
   label?: string | null;
+  provenance?: Provenance | null;
 }
 
 export interface DatasetsState {
@@ -78,7 +88,7 @@ export const useDatasets = create<DatasetsState>((set) => ({
       const known = new Set(s.datasets.map((d) => d.id));
       const added = objects
         .filter((o) => !known.has(o.id))
-        .map((o) => ({ id: o.id, kind: o.kind, label: o.label ?? o.id }));
+        .map((o) => ({ id: o.id, kind: o.kind, label: o.label ?? o.id, provenance: o.provenance ?? null }));
       if (added.length === 0) return s;
       return { datasets: [...s.datasets, ...added] };
     }),
@@ -91,6 +101,10 @@ export const useDatasets = create<DatasetsState>((set) => ({
           id: o.id,
           kind: o.kind,
           label: o.label ?? byId.get(o.id)?.label ?? o.id,
+          provenance: o.provenance ?? byId.get(o.id)?.provenance ?? null,
+          // The engine reports neither the import path nor the sample origin; keep the store's.
+          path: byId.get(o.id)?.path,
+          sampleId: byId.get(o.id)?.sampleId,
         })),
       };
     }),

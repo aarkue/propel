@@ -32,6 +32,7 @@ import type {
 import { definePanel } from "./define-vis";
 import { withSelector, datasetEmptyBox } from "./_shared";
 import { useDatasetSelection } from "../panels/active-datasets";
+import { useDatasetScopedState } from "../panels/panel-state";
 import { backend } from "../backends";
 
 const GET_LOG_TRACES = "app_bindings::event_log::get_log_traces" as const;
@@ -166,6 +167,7 @@ function TraceRowWithDetail({
 }
 
 export interface TraceBrowserPanelProps {
+  props: IDockviewPanelProps;
   backend: BackendContext;
   /** EventLog (case) browser. */
   eventLog?: EventLogHandle;
@@ -187,10 +189,15 @@ export interface TraceBrowserPanelProps {
  * `get_log_traces`, `get_trace_events`, `get_log_globals` (cases) and
  * `get_ocel_objects_page`, `get_object_detail` (objects).
  */
-export function TraceBrowserPanel({ backend, eventLog, ocel }: TraceBrowserPanelProps) {
+export function TraceBrowserPanel({ props, backend, eventLog, ocel }: TraceBrowserPanelProps) {
   const hasEventLog = eventLog != null;
   const hasOCEL = ocel != null;
-  const [mode, setMode] = useState<"EventLog" | "OCEL">(hasEventLog ? "EventLog" : "OCEL");
+  const [mode, setMode] = useDatasetScopedState<"EventLog" | "OCEL">(
+    props,
+    "mode",
+    eventLog ?? ocel ?? "",
+    hasEventLog ? "EventLog" : "OCEL",
+  );
 
   // Keep the selected mode valid as handles change (Cases needs an event log).
   const effectiveMode: "EventLog" | "OCEL" = mode === "EventLog" && !hasEventLog ? "OCEL" : mode;
@@ -219,11 +226,11 @@ export function TraceBrowserPanel({ backend, eventLog, ocel }: TraceBrowserPanel
     ) : null;
 
   if (effectiveMode === "OCEL" && hasOCEL) {
-    return <ObjectBrowserPanel backend={backend} ocel={ocel} headerExtra={toggle} />;
+    return <ObjectBrowserPanel props={props} backend={backend} ocel={ocel} headerExtra={toggle} />;
   }
 
   if (hasEventLog) {
-    return <EventLogTraceBrowser backend={backend} eventLog={eventLog} headerExtra={toggle} />;
+    return <EventLogTraceBrowser props={props} backend={backend} eventLog={eventLog} headerExtra={toggle} />;
   }
 
   return (
@@ -235,6 +242,16 @@ export function TraceBrowserPanel({ backend, eventLog, ocel }: TraceBrowserPanel
   );
 }
 
+interface LogView {
+  page: number;
+  pageSize: number;
+  sortField: TraceSortField;
+  sortAsc: boolean;
+  filter: string;
+}
+
+const INITIAL_LOG_VIEW: LogView = { page: 0, pageSize: 20, sortField: "CaseId", sortAsc: true, filter: "" };
+
 /**
  * EventLog (case) browser: a paged, sortable, filterable trace table with a
  * per-trace event drill-down (case attributes + ordered events) and a
@@ -242,19 +259,18 @@ export function TraceBrowserPanel({ backend, eventLog, ocel }: TraceBrowserPanel
  * `get_trace_events`, and `get_log_globals`.
  */
 function EventLogTraceBrowser({
+  props,
   backend,
   eventLog,
   headerExtra,
 }: {
+  props: IDockviewPanelProps;
   backend: BackendContext;
   eventLog: EventLogHandle;
   headerExtra?: React.ReactNode;
 }) {
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState<number>(20);
-  const [sortField, setSortField] = useState<TraceSortField>("CaseId");
-  const [sortAsc, setSortAsc] = useState(true);
-  const [filter, setFilter] = useState("");
+  const [view, setView] = useDatasetScopedState<LogView>(props, "logView", eventLog, INITIAL_LOG_VIEW);
+  const { page, pageSize, sortField, sortAsc, filter } = view;
   const [expandedCase, setExpandedCase] = useState<number | null>(null);
 
   // Shared activity color from the host (or the deterministic default), HSL hex.
@@ -299,12 +315,10 @@ function EventLogTraceBrowser({
 
   const toggleSort = (field: TraceSortField) => {
     if (sortField === field) {
-      setSortAsc((v) => !v);
+      setView({ ...view, sortAsc: !sortAsc, page: 0 });
     } else {
-      setSortField(field);
-      setSortAsc(true);
+      setView({ ...view, sortField: field, sortAsc: true, page: 0 });
     }
-    setPage(0);
   };
 
   const SortIcon = ({ field }: { field: TraceSortField }) =>
@@ -335,8 +349,7 @@ function EventLogTraceBrowser({
             placeholder="Filter by Case ID..."
             value={filter}
             onChange={(e) => {
-              setFilter(e.currentTarget.value);
-              setPage(0);
+              setView({ ...view, filter: e.currentTarget.value, page: 0 });
             }}
             className="!flex-1 !min-w-[12rem]"
           >
@@ -345,7 +358,12 @@ function EventLogTraceBrowser({
             </TextField.Slot>
             {filter && (
               <TextField.Slot>
-                <IconButton size="1" variant="ghost" color="gray" onClick={() => setFilter("")}>
+                <IconButton
+                  size="1"
+                  variant="ghost"
+                  color="gray"
+                  onClick={() => setView({ ...view, filter: "" })}
+                >
                   <FaTimes />
                 </IconButton>
               </TextField.Slot>
@@ -355,8 +373,7 @@ function EventLogTraceBrowser({
           <Select.Root
             value={String(pageSize)}
             onValueChange={(v) => {
-              setPageSize(Number(v));
-              setPage(0);
+              setView({ ...view, pageSize: Number(v), page: 0 });
             }}
             size="1"
           >
@@ -455,7 +472,7 @@ function EventLogTraceBrowser({
                     variant="soft"
                     color="gray"
                     disabled={page === 0}
-                    onClick={() => setPage((p) => p - 1)}
+                    onClick={() => setView({ ...view, page: page - 1 })}
                   >
                     <FaChevronLeft />
                   </IconButton>
@@ -467,7 +484,7 @@ function EventLogTraceBrowser({
                     variant="soft"
                     color="gray"
                     disabled={page >= totalPages - 1}
-                    onClick={() => setPage((p) => p + 1)}
+                    onClick={() => setView({ ...view, page: page + 1 })}
                   >
                     <FaChevronRight />
                   </IconButton>
@@ -645,7 +662,26 @@ function ObjectRowWithDetail({
   );
 }
 
+interface ObjView {
+  page: number;
+  pageSize: number;
+  sortField: ObjectSortField;
+  sortAsc: boolean;
+  filter: string;
+  typeFilter: string | null;
+}
+
+const INITIAL_OBJ_VIEW: ObjView = {
+  page: 0,
+  pageSize: 20,
+  sortField: "ObjectId",
+  sortAsc: true,
+  filter: "",
+  typeFilter: null,
+};
+
 export interface ObjectBrowserPanelProps {
+  props: IDockviewPanelProps;
   backend: BackendContext;
   ocel: SlimLinkedOCELHandle;
   /** Optional content rendered next to the title (e.g. a mode toggle). */
@@ -659,15 +695,9 @@ export interface ObjectBrowserPanelProps {
  * related objects). Backed by the migrated registry bindings
  * `get_ocel_objects_page` and `get_object_detail`, which operate on the slim OCEL.
  */
-export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowserPanelProps) {
-  const ocelArg = ocel;
-
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState<number>(20);
-  const [sortField, setSortField] = useState<ObjectSortField>("ObjectId");
-  const [sortAsc, setSortAsc] = useState(true);
-  const [filter, setFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+export function ObjectBrowserPanel({ props, backend, ocel, headerExtra }: ObjectBrowserPanelProps) {
+  const [view, setView] = useDatasetScopedState<ObjView>(props, "objView", ocel, INITIAL_OBJ_VIEW);
+  const { page, pageSize, sortField, sortAsc, filter, typeFilter } = view;
   const [expandedObject, setExpandedObject] = useState<string | null>(null);
 
   // Local activity-color cache.
@@ -679,7 +709,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
     queryKey: [ocel, "object-browser", page, pageSize, sortField, sortAsc, filter, typeFilter],
     queryFn: () =>
       backend.callBinding(GET_OCEL_OBJECTS_PAGE, {
-        ocel: ocelArg,
+        ocel,
         offset: page * pageSize,
         limit: pageSize,
         sort_field: sortField,
@@ -694,7 +724,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
     queryKey: [ocel, "object-detail", expandedObject],
     queryFn: () =>
       backend.callBinding(GET_OBJECT_DETAIL, {
-        ocel: ocelArg,
+        ocel,
         object_id: expandedObject!,
       }) as Promise<ObjectDetail>,
     enabled: expandedObject != null,
@@ -710,12 +740,10 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
 
   const toggleSort = (field: ObjectSortField) => {
     if (sortField === field) {
-      setSortAsc((v) => !v);
+      setView({ ...view, sortAsc: !sortAsc, page: 0 });
     } else {
-      setSortField(field);
-      setSortAsc(true);
+      setView({ ...view, sortField: field, sortAsc: true, page: 0 });
     }
-    setPage(0);
   };
 
   const SortIcon = ({ field }: { field: ObjectSortField }) =>
@@ -729,8 +757,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
 
   const navigateToObject = (objectId: string) => {
     setExpandedObject(objectId);
-    setFilter(objectId);
-    setPage(0);
+    setView({ ...view, filter: objectId, page: 0 });
   };
 
   // Structural sizing inline so the panel renders in any host (Tailwind-agnostic).
@@ -750,8 +777,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
             placeholder="Filter by Object ID..."
             value={filter}
             onChange={(e) => {
-              setFilter(e.currentTarget.value);
-              setPage(0);
+              setView({ ...view, filter: e.currentTarget.value, page: 0 });
             }}
             className="!flex-1 !min-w-[12rem]"
           >
@@ -760,7 +786,12 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
             </TextField.Slot>
             {filter && (
               <TextField.Slot>
-                <IconButton size="1" variant="ghost" color="gray" onClick={() => setFilter("")}>
+                <IconButton
+                  size="1"
+                  variant="ghost"
+                  color="gray"
+                  onClick={() => setView({ ...view, filter: "" })}
+                >
                   <FaTimes />
                 </IconButton>
               </TextField.Slot>
@@ -771,8 +802,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
             <Select.Root
               value={typeFilter ?? "__all__"}
               onValueChange={(v) => {
-                setTypeFilter(v === "__all__" ? null : v);
-                setPage(0);
+                setView({ ...view, typeFilter: v === "__all__" ? null : v, page: 0 });
               }}
               size="1"
             >
@@ -791,8 +821,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
           <Select.Root
             value={String(pageSize)}
             onValueChange={(v) => {
-              setPageSize(Number(v));
-              setPage(0);
+              setView({ ...view, pageSize: Number(v), page: 0 });
             }}
             size="1"
           >
@@ -893,7 +922,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
                     variant="soft"
                     color="gray"
                     disabled={page === 0}
-                    onClick={() => setPage((p) => p - 1)}
+                    onClick={() => setView({ ...view, page: page - 1 })}
                   >
                     <FaChevronLeft />
                   </IconButton>
@@ -905,7 +934,7 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
                     variant="soft"
                     color="gray"
                     disabled={page >= totalPages - 1}
-                    onClick={() => setPage((p) => p + 1)}
+                    onClick={() => setView({ ...view, page: page + 1 })}
                   >
                     <FaChevronRight />
                   </IconButton>
@@ -920,12 +949,12 @@ export function ObjectBrowserPanel({ backend, ocel, headerExtra }: ObjectBrowser
 }
 
 /** Interactive trace browser for the active event log. */
-export function TraceBrowserDockPanel(_props: IDockviewPanelProps) {
-  const { id: log, selector } = useDatasetSelection("EventLog");
+export function TraceBrowserDockPanel(props: IDockviewPanelProps) {
+  const { id: log, selector } = useDatasetSelection("EventLog", props);
   if (!log) return withSelector(selector, datasetEmptyBox("EventLog"), "trace-browser");
   return withSelector(
     selector,
-    <TraceBrowserPanel key={log} backend={backend} eventLog={log as EventLogHandle} />,
+    <TraceBrowserPanel key={log} props={props} backend={backend} eventLog={log as EventLogHandle} />,
     "trace-browser",
   );
 }

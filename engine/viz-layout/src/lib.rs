@@ -3,6 +3,7 @@
 pub mod graph_svg;
 pub mod layout;
 mod svg_util;
+pub mod tree;
 
 pub use graph_svg::{render_graph_svg, StyledGraph};
 pub use svg_util::SvgPalette;
@@ -20,13 +21,11 @@ pub struct GraphNode {
     #[serde(default)]
     pub pin: Option<String>,
     /// Optional grouping id (e.g. an object type). Same-category nodes are held in a consistent
-    /// order across layers as a crossing-neutral tiebreak, so each category reads as a straight
-    /// lane. `null`/absent => no grouping.
+    /// order across layers as a crossing-neutral tiebreak, so each category reads as a straight lane.
     #[serde(default)]
     pub category: Option<u32>,
     /// Optional seed centre `[x, y]` in final space. When any node has a seed, the cross-axis
-    /// coordinate is placed at the seed instead of the straightness-optimal spot - a stable
-    /// relayout that keeps un-dragged nodes put (layer/order stay structural). `null` => none.
+    /// coordinate is placed at the seed instead of the straightness-optimal spot (a stable relayout).
     #[serde(default)]
     pub seed: Option<[f64; 2]>,
     /// Hard-pin this node's seed cross-coordinate (others yield around it). Only meaningful with
@@ -59,6 +58,13 @@ pub struct GraphSpec {
     /// thick strokes from visually merging. Empty => all 2.0.
     #[serde(default)]
     pub thickness: Vec<f64>,
+    /// Lay out as a tidy tree (parents centred over their children) instead of a layered graph;
+    /// input must be a rooted tree/forest. See [`tree::layout_tree`].
+    #[serde(default)]
+    pub tree: bool,
+    /// Compact the cross axis after placement (order-preserving); for dense hub-and-spoke graphs like the OCEL type graph. Default `false`.
+    #[serde(default)]
+    pub compact: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,14 +73,15 @@ pub struct GraphLayout {
     pub routes: Vec<Vec<[f64; 2]>>,
 }
 
-/// Build the engine's `LayeredInput` from a `GraphSpec`, validating edge indices. Shared by
-/// [`layout_graph`] and [`reroute_graph`] so the two entry points differ only in which layout pass
-/// they run.
+/// Build the engine's `LayeredInput` from a `GraphSpec`, validating edge indices; shared by
+/// [`layout_graph`] and [`reroute_graph`], which differ only in which layout pass they run.
 fn spec_to_input(spec: GraphSpec) -> Result<LayeredInput, String> {
     let n = spec.nodes.len();
     for &(a, b) in &spec.edges {
         if a >= n || b >= n {
-            return Err(format!("edge ({a},{b}) references a node index outside 0..{n}"));
+            return Err(format!(
+                "edge ({a},{b}) references a node index outside 0..{n}"
+            ));
         }
     }
     let nodes: Vec<LayeredInputNode> = spec
@@ -83,7 +90,11 @@ fn spec_to_input(spec: GraphSpec) -> Result<LayeredInput, String> {
         .map(|nd| LayeredInputNode {
             width: nd.width,
             height: nd.height,
-            shape: if nd.ellipse { NodeShape::Ellipse } else { NodeShape::Box },
+            shape: if nd.ellipse {
+                NodeShape::Ellipse
+            } else {
+                NodeShape::Box
+            },
             constraint: match nd.pin.as_deref() {
                 Some("first") => Some(LayerConstraint::First),
                 Some("last") => Some(LayerConstraint::Last),
@@ -97,9 +108,21 @@ fn spec_to_input(spec: GraphSpec) -> Result<LayeredInput, String> {
         Some(d) if d.eq_ignore_ascii_case("LR") => Direction::LeftRight,
         _ => Direction::TopBottom,
     };
-    let weights = if spec.weights.len() == spec.edges.len() { spec.weights } else { vec![] };
-    let thickness = if spec.thickness.len() == spec.edges.len() { spec.thickness } else { vec![] };
-    let seed = spec.nodes.iter().map(|nd| nd.seed.map(|[x, y]| (x, y))).collect();
+    let weights = if spec.weights.len() == spec.edges.len() {
+        spec.weights
+    } else {
+        vec![]
+    };
+    let thickness = if spec.thickness.len() == spec.edges.len() {
+        spec.thickness
+    } else {
+        vec![]
+    };
+    let seed = spec
+        .nodes
+        .iter()
+        .map(|nd| nd.seed.map(|[x, y]| (x, y)))
+        .collect();
     let pinned = spec.nodes.iter().map(|nd| nd.pinned).collect();
     Ok(LayeredInput {
         nodes,
@@ -112,38 +135,50 @@ fn spec_to_input(spec: GraphSpec) -> Result<LayeredInput, String> {
         edge_label_sizes: spec.edge_label_sizes.iter().map(|&[w, h]| (w, h)).collect(),
         seed,
         pinned,
+        compact: spec.compact,
     })
 }
 
 fn to_graph_layout(out: &layout::LayeredOutput) -> GraphLayout {
     GraphLayout {
         centers: out.centers.iter().map(|&(x, y)| [x, y]).collect(),
-        routes: out.routes.iter().map(|r| r.iter().map(|&(x, y)| [x, y]).collect()).collect(),
+        routes: out
+            .routes
+            .iter()
+            .map(|r| r.iter().map(|&(x, y)| [x, y]).collect())
+            .collect(),
     }
 }
 
 /// Lay out an arbitrary directed graph -> node centres + edge polylines.
 pub fn layout_graph(spec: GraphSpec) -> Result<GraphLayout, String> {
-    Ok(to_graph_layout(&layout::layout_layered(&spec_to_input(spec)?)))
+    if spec.tree {
+        return tree::layout_tree(&spec);
+    }
+    Ok(to_graph_layout(&layout::layout_layered(&spec_to_input(
+        spec,
+    )?)))
 }
 
-/// On-drop relayout: re-route edges over the caller's final node positions (each node's `seed` is its
-/// current centre) without recomputing a layout. The grid is derived from the positions, so a dragged
-/// node's edges route cleanly against where it was actually dropped. Node centres come back unchanged.
-/// See [`layout::reroute_from_positions`].
+/// On-drop relayout: re-route edges over the caller's final node positions without recomputing a
+/// layout, so a dragged node's edges route cleanly against where it was dropped.
 pub fn reroute_graph(spec: GraphSpec) -> Result<GraphLayout, String> {
-    Ok(to_graph_layout(&layout::reroute_from_positions(&spec_to_input(spec)?)))
+    if spec.tree {
+        // A tree's layout is derived wholly from its structure, so there are no dropped positions
+        // to re-route against.
+        return Err("reroute is not supported for tree layout".into());
+    }
+    Ok(to_graph_layout(&layout::reroute_from_positions(
+        &spec_to_input(spec)?,
+    )))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Two parallel object-type lanes (physical lane A = node indices 0,3,7,10; lane B = 1,4,8,11)
-    /// run through shared, uncategorized transitions. `lane_a_category` is the category id given to
-    /// lane A; lane B gets the other. The crossing-neutral consistency pass must always order each
-    /// column ascending by category (cat0 above cat1), so which physical lane ends up on top is
-    /// dictated purely by the category assignment.
+    /// Two parallel object-type lanes through shared, uncategorized transitions. The
+    /// crossing-neutral consistency pass must always order each column ascending by category.
     fn two_lane_spec(lane_a_category: u32) -> GraphSpec {
         // 0 A_start,1 B_start | 2 T | 3 A1,4 B1 | 5 T,6 T | 7 A2,8 B2 | 9 T | 10 A_end,11 B_end
         let other = 1 - lane_a_category;
@@ -169,14 +204,32 @@ mod tests {
         };
         let (a, b) = (lane_a_category, other);
         let nodes = vec![
-            place(a), place(b), trans(),
-            place(a), place(b), trans(), trans(),
-            place(a), place(b), trans(),
-            place(a), place(b),
+            place(a),
+            place(b),
+            trans(),
+            place(a),
+            place(b),
+            trans(),
+            trans(),
+            place(a),
+            place(b),
+            trans(),
+            place(a),
+            place(b),
         ];
         let edges = vec![
-            (0, 2), (1, 2), (2, 3), (2, 4), (3, 5), (4, 6),
-            (5, 7), (6, 8), (7, 9), (8, 9), (9, 10), (9, 11),
+            (0, 2),
+            (1, 2),
+            (2, 3),
+            (2, 4),
+            (3, 5),
+            (4, 6),
+            (5, 7),
+            (6, 8),
+            (7, 9),
+            (8, 9),
+            (9, 10),
+            (9, 11),
         ];
         GraphSpec {
             nodes,
@@ -187,6 +240,8 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![],
+            tree: false,
+            compact: false,
         }
     }
 
@@ -198,12 +253,23 @@ mod tests {
         for (i, nd) in spec.nodes.iter().enumerate() {
             if let Some(c) = nd.category {
                 let x = layout.centers[i][0].round() as i64;
-                columns.entry(x).or_default().push((c, layout.centers[i][1]));
+                columns
+                    .entry(x)
+                    .or_default()
+                    .push((c, layout.centers[i][1]));
             }
         }
         for col in columns.values() {
-            let max0 = col.iter().filter(|(c, _)| *c == 0).map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
-            let min1 = col.iter().filter(|(c, _)| *c == 1).map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
+            let max0 = col
+                .iter()
+                .filter(|(c, _)| *c == 0)
+                .map(|(_, y)| *y)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let min1 = col
+                .iter()
+                .filter(|(c, _)| *c == 1)
+                .map(|(_, y)| *y)
+                .fold(f64::INFINITY, f64::min);
             if max0.is_finite() && min1.is_finite() && max0 >= min1 {
                 return false;
             }
@@ -232,13 +298,13 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![],
+            tree: false,
+            compact: false,
         }
     }
 
-    /// Seeding every node at its current centre and dragging one (pinned) must move *only* that node:
-    /// the layout is deterministic so layer/order/layer-x are unchanged, and the seeded coordinate
-    /// pass keeps every other node exactly where it was (each is alone in its layer -> no separation
-    /// pressure). The dragged node holds its drop position exactly.
+    /// Seeding every node at its current centre and dragging one (pinned) must move only that
+    /// node: every other node stays exactly put, and the dragged node holds its drop position.
     #[test]
     fn seeded_relayout_keeps_undragged_nodes_put() {
         let base = line_spec(5);
@@ -253,8 +319,14 @@ mod tests {
         seeded.nodes[2].pinned = true;
         let o1 = layout_graph(seeded).unwrap();
 
-        assert!((o1.centers[2][1] - target_y).abs() < 1e-6, "pinned node must hold its drop y");
-        assert!((o1.centers[2][0] - o0.centers[2][0]).abs() < 1e-6, "layer-x is structural, unchanged");
+        assert!(
+            (o1.centers[2][1] - target_y).abs() < 1e-6,
+            "pinned node must hold its drop y"
+        );
+        assert!(
+            (o1.centers[2][0] - o0.centers[2][0]).abs() < 1e-6,
+            "layer-x is structural, unchanged"
+        );
         for i in [0usize, 1, 3, 4] {
             assert!(
                 (o1.centers[i][0] - o0.centers[i][0]).abs() < 1e-6
@@ -264,9 +336,8 @@ mod tests {
         }
     }
 
-    /// A pinned node must hold its dropped position on the *layer* axis too (the axis a node is
-    /// dragged across to change layers), not just the cross axis - it floats off its structural
-    /// column to exactly where it was dropped.
+    /// A pinned node must hold its dropped position on the layer axis too, not just the cross
+    /// axis, floating off its structural column to exactly where it was dropped.
     #[test]
     fn seeded_pin_holds_layer_axis() {
         let base = line_spec(5);
@@ -286,7 +357,10 @@ mod tests {
         );
         // Un-pinned neighbours keep their layer columns.
         for i in [0usize, 1, 3, 4] {
-            assert!((o1.centers[i][0] - o0.centers[i][0]).abs() < 1e-6, "node {i} column must not move");
+            assert!(
+                (o1.centers[i][0] - o0.centers[i][0]).abs() < 1e-6,
+                "node {i} column must not move"
+            );
         }
     }
 
@@ -314,10 +388,16 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![],
+            tree: false,
+            compact: false,
         };
         let o0 = layout_graph(spec.clone()).unwrap();
         // Which of 1/2 is upper vs lower is structural; drag the lower one up onto the upper one.
-        let (upper, lower) = if o0.centers[1][1] < o0.centers[2][1] { (1, 2) } else { (2, 1) };
+        let (upper, lower) = if o0.centers[1][1] < o0.centers[2][1] {
+            (1, 2)
+        } else {
+            (2, 1)
+        };
         let mut seeded = spec;
         for (i, nd) in seeded.nodes.iter_mut().enumerate() {
             nd.seed = Some(o0.centers[i]);
@@ -336,11 +416,8 @@ mod tests {
         );
     }
 
-    /// The dominant flow must read as ONE straight vertical spine, even when a rare-path node sits
-    /// in the layer a heavy skip-edge passes through. Mirrors the order-management OC-DFG:
-    /// send package ->(5,917)-> package delivered skips over failed delivery (214-path). The heavy
-    /// edge's channel must claim the spine (source and target centred on it); the light node is
-    /// the one pushed aside - not the other way around.
+    /// The dominant flow must read as one straight vertical spine even when a rare-path node sits
+    /// in the layer a heavy skip-edge passes through: the heavy edge's channel claims the spine, and the light node yields.
     #[test]
     fn flow_node_centers_between_predecessors() {
         let act = || GraphNode {
@@ -368,14 +445,13 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![7.7, 7.2, 4.1, 4.1],
+            tree: false,
+            compact: false,
         };
         let o = layout_graph(spec).unwrap();
         let x = |i: usize| o.centers[i][0];
-        // Flow graphs favour centred edge->node attachment over dead-straight heavy trunks
-        // (`favor_centered`, mirroring ELK). The 0->1 heavy forward edge still aligns, but the heavy
-        // skip 1->3 no longer *pins* node 3 dead-straight under node 1: node 3 yields off the spine so
-        // its incident edges meet it nearer centre. (Under the old weighted priority-straightness the
-        // chain was pinned straight - x3 == x1 - and the light node exiled to one side.)
+        // Flow graphs favour centred edge->node attachment over dead-straight heavy trunks: the
+        // heavy skip edge no longer pins node 3 dead-straight under node 1, since it yields off the spine.
         assert!(
             (x(0) - x(1)).abs() < 1.0,
             "heavy forward edge 0->1 still aligns: got {:.1} / {:.1}",
@@ -396,9 +472,8 @@ mod tests {
         );
     }
 
-    /// A second, lighter parallel skip-edge (the 914-packages arc) has to detour around the
-    /// off-spine node - but its route must still END by entering the target's border with a
-    /// proper final approach, not stop on a horizontal run floating next to / above the node.
+    /// A second, lighter parallel skip-edge detouring around the off-spine node must still enter
+    /// the target's border with a proper final approach, not stop on a floating horizontal run.
     #[test]
     fn detour_skip_edge_enters_target_border() {
         let act = || GraphNode {
@@ -426,6 +501,8 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![7.7, 7.2, 7.3, 4.1, 4.1],
+            tree: false,
+            compact: false,
         };
         let o = layout_graph(spec).unwrap();
         let (cx3, cy3) = (o.centers[3][0], o.centers[3][1]);
@@ -433,7 +510,9 @@ mod tests {
         assert!(detour.len() >= 2, "detour must have a route");
         let end = detour[detour.len() - 1];
         let on_border = (end[1] - (cy3 - 29.0)).abs() < 1.0 && (end[0] - cx3).abs() <= 76.0
-            || (end[0] - cx3).abs() >= 74.0 && (end[0] - cx3).abs() <= 76.0 && (end[1] - cy3).abs() <= 30.0;
+            || (end[0] - cx3).abs() >= 74.0
+                && (end[0] - cx3).abs() <= 76.0
+                && (end[1] - cy3).abs() <= 30.0;
         assert!(
             on_border,
             "detour end {end:?} must lie ON the target border (target centre ({cx3:.1},{cy3:.1}))"
@@ -450,9 +529,8 @@ mod tests {
         }
     }
 
-    /// Parallel same-(from,to) arcs (one per object type in an OC-DFG) must ride ONE corridor:
-    /// identical route shape, laterally offset lanes, every lane still anchored on the node
-    /// borders. Independently routed they scatter over different ports and channels.
+    /// Parallel same-(from,to) arcs must ride one corridor: identical route shape, laterally
+    /// offset lanes, all anchored on the node borders.
     #[test]
     fn parallel_arcs_ride_one_corridor() {
         let act = || GraphNode {
@@ -474,6 +552,8 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![8.0, 7.0, 4.0],
+            tree: false,
+            compact: false,
         };
         let o = layout_graph(spec).unwrap();
         assert_eq!(o.routes.len(), 3);
@@ -484,11 +564,15 @@ mod tests {
         }
         // Lanes are parallel: the lateral delta between two lanes is the same at every point.
         for pair in [(0usize, 1usize), (1, 2)] {
-            let d0 = (o.routes[pair.1][0][0] - o.routes[pair.0][0][0],
-                      o.routes[pair.1][0][1] - o.routes[pair.0][0][1]);
+            let d0 = (
+                o.routes[pair.1][0][0] - o.routes[pair.0][0][0],
+                o.routes[pair.1][0][1] - o.routes[pair.0][0][1],
+            );
             for k in 0..len0 {
-                let dk = (o.routes[pair.1][k][0] - o.routes[pair.0][k][0],
-                          o.routes[pair.1][k][1] - o.routes[pair.0][k][1]);
+                let dk = (
+                    o.routes[pair.1][k][0] - o.routes[pair.0][k][0],
+                    o.routes[pair.1][k][1] - o.routes[pair.0][k][1],
+                );
                 assert!(
                     (dk.0 - d0.0).abs() < 0.6 && (dk.1 - d0.1).abs() < 0.6,
                     "lane {pair:?} not parallel at point {k}: {dk:?} vs {d0:?}"
@@ -503,7 +587,11 @@ mod tests {
         // Every lane still starts on the source's bottom border and ends on the target's top.
         let (sy, ty) = (o.centers[0][1] + 29.0, o.centers[1][1] - 29.0);
         for r in &o.routes {
-            assert!((r[0][1] - sy).abs() < 0.6, "lane start off the source border: {:?}", r[0]);
+            assert!(
+                (r[0][1] - sy).abs() < 0.6,
+                "lane start off the source border: {:?}",
+                r[0]
+            );
             assert!(
                 (r[r.len() - 1][1] - ty).abs() < 0.6,
                 "lane end off the target border: {:?}",
@@ -517,15 +605,20 @@ mod tests {
         // Lane A = cat0 -> lane A sits on top and stays there in every column.
         let s0 = two_lane_spec(0);
         let o0 = layout_graph(s0.clone()).unwrap();
-        assert!(lanes_consistent(&s0, &o0), "cat0 lane must stay above cat1 in every column");
+        assert!(
+            lanes_consistent(&s0, &o0),
+            "cat0 lane must stay above cat1 in every column"
+        );
         let a_above_b_0 = o0.centers[0][1] < o0.centers[1][1];
 
-        // Swap the categories -> the *same* physical lanes, but now lane B is cat0, so lane B must
-        // rise above lane A. Both layouts are internally consistent; the flip proves the category
-        // (not node index or structure) dictates the order.
+        // Swap the categories: same physical lanes, but lane B is now cat0, so it must rise above
+        // lane A, proving category (not node index or structure) dictates the order.
         let s1 = two_lane_spec(1);
         let o1 = layout_graph(s1.clone()).unwrap();
-        assert!(lanes_consistent(&s1, &o1), "cat0 lane must stay above cat1 after the swap too");
+        assert!(
+            lanes_consistent(&s1, &o1),
+            "cat0 lane must stay above cat1 after the swap too"
+        );
         let a_above_b_1 = o1.centers[0][1] < o1.centers[1][1];
 
         assert_ne!(
@@ -538,7 +631,12 @@ mod tests {
     /// `c` with half-extents `hw`,`hh`?
     fn seg_hits_box(p: [f64; 2], q: [f64; 2], c: [f64; 2], hw: f64, hh: f64) -> bool {
         let inset = 2.0;
-        let (l, r, t, b) = (c[0] - hw + inset, c[0] + hw - inset, c[1] - hh + inset, c[1] + hh - inset);
+        let (l, r, t, b) = (
+            c[0] - hw + inset,
+            c[0] + hw - inset,
+            c[1] - hh + inset,
+            c[1] + hh - inset,
+        );
         for k in 0..=64 {
             let f = k as f64 / 64.0;
             let (x, y) = (p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f);
@@ -549,11 +647,8 @@ mod tests {
         false
     }
 
-    /// The on-drop reroute must keep every node exactly where dropped AND route the dragged node's
-    /// edge cleanly around the boxes. Reproduces the reported bug: `send package -> package delivered`
-    /// where delivered is dragged up-and-right of send - the old seeded relayout raked the arc
-    /// straight through the send box (stale topological chain); rerouting from the actual positions
-    /// must not.
+    /// The on-drop reroute must keep every node exactly where dropped and route the dragged
+    /// node's edge cleanly around the boxes, not rake through them like the old seeded relayout did.
     #[test]
     fn reroute_dragged_node_edge_clears_boxes() {
         let act = || GraphNode {
@@ -576,6 +671,8 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![7.2],
+            tree: false,
+            compact: false,
         };
         let base = layout_graph(spec.clone()).unwrap();
         let send = base.centers[0];
@@ -589,11 +686,13 @@ mod tests {
         let out = reroute_graph(drag).unwrap();
 
         assert!(
-            (out.centers[0][0] - send[0]).abs() < 1e-6 && (out.centers[0][1] - send[1]).abs() < 1e-6,
+            (out.centers[0][0] - send[0]).abs() < 1e-6
+                && (out.centers[0][1] - send[1]).abs() < 1e-6,
             "send must stay exactly put"
         );
         assert!(
-            (out.centers[1][0] - dropped[0]).abs() < 1e-6 && (out.centers[1][1] - dropped[1]).abs() < 1e-6,
+            (out.centers[1][0] - dropped[0]).abs() < 1e-6
+                && (out.centers[1][1] - dropped[1]).abs() < 1e-6,
             "delivered must hold its drop position exactly"
         );
 
@@ -612,12 +711,8 @@ mod tests {
         }
     }
 
-    /// Regression: an identity reroute (every node seeded at its fresh centre, nothing actually
-    /// dragged) must reproduce the fresh routes and never re-derive a multi-layer edge's waypoints
-    /// onto the nodes its chain skips. A vertical chain 0->1->2->3->4 with a long skip 0->4 (3 dummies) is
-    /// the trap: naive straight-line dummy placement dropped the skip straight down the chain column
-    /// and raked nodes 1..3; the coordinate machinery must lane it aside exactly like the fresh
-    /// layout does.
+    /// Regression: an identity reroute (nothing actually dragged) must reproduce the fresh routes
+    /// and never re-derive a multi-layer edge's waypoints onto the nodes its chain skips.
     #[test]
     fn reroute_identity_reproduces_fresh_and_clears_boxes() {
         let act = || GraphNode {
@@ -639,6 +734,8 @@ mod tests {
             flow_diagonal: false,
             edge_label_sizes: vec![],
             thickness: vec![],
+            tree: false,
+            compact: false,
         };
         let fresh = layout_graph(spec.clone()).unwrap();
         let mut seeded = spec;
@@ -649,7 +746,11 @@ mod tests {
         let re = reroute_graph(seeded).unwrap();
 
         for (i, r) in re.routes.iter().enumerate() {
-            assert_eq!(r.len(), fresh.routes[i].len(), "edge {i} route length changed on identity reroute");
+            assert_eq!(
+                r.len(),
+                fresh.routes[i].len(),
+                "edge {i} route length changed on identity reroute"
+            );
             for (a, b) in r.iter().zip(&fresh.routes[i]) {
                 assert!(
                     (a[0] - b[0]).abs() < 1e-6 && (a[1] - b[1]).abs() < 1e-6,
@@ -673,10 +774,8 @@ mod tests {
         }
     }
 
-    /// The guarded orthogonal end-approach relief. In a dragged OC-DFG where `create` and `failed`
-    /// share a row (same Y), the `send -> failed` feedback arc would otherwise enter `failed` through a
-    /// side run raking `create`. The relief must re-attach the arrowhead to a perpendicular border so
-    /// no route rakes a non-endpoint box - in orthogonal mode, where the columnar router can't see it.
+    /// The guarded orthogonal end-approach relief must re-attach the arrowhead to a perpendicular
+    /// border so no route rakes a non-endpoint box, in orthogonal mode where the columnar router can't see it.
     #[test]
     fn reroute_orthogonal_end_approach_clears_boxes() {
         let act = |x: f64, y: f64| GraphNode {
@@ -704,9 +803,14 @@ mod tests {
             flow_diagonal: false, // orthogonal - the mode the relief targets
             edge_label_sizes: vec![],
             thickness: vec![7.7, 7.2, 4.1, 4.1],
+            tree: false,
+            compact: false,
         };
         let out = reroute_graph(spec).unwrap();
-        for (ei, &(s, t)) in [(0usize, 1usize), (1, 2), (1, 3), (3, 2)].iter().enumerate() {
+        for (ei, &(s, t)) in [(0usize, 1usize), (1, 2), (1, 3), (3, 2)]
+            .iter()
+            .enumerate()
+        {
             for w in out.routes[ei].windows(2) {
                 for ni in 0..4 {
                     if ni == s || ni == t {
@@ -721,18 +825,23 @@ mod tests {
         }
     }
 
-    /// A dragged OC-DFG (ocdfg(23)): `start -> create package` is a long edge whose straight channel
-    /// crosses `place order` (x=0) and `pick item` (dragged to x=92). Per-layer dummy separation put
-    /// its waypoints on opposite sides; the emitter averaged them into a channel raking both boxes.
-    /// The single-clear-lane pass must route the whole chain to one side - no route may rake a
-    /// non-endpoint box, in either routing mode.
+    /// A long edge whose straight channel crosses two nodes with waypoints on opposite sides must
+    /// have the single-clear-lane pass route the whole chain to one side; no route may rake a non-endpoint box.
     #[test]
     fn reroute_long_edge_single_lane_clears_boxes() {
         // ocdfg(23) positions: [x, y, terminal]
         let pos: [(f64, f64, bool); 11] = [
-            (0.0, 18.0, true), (0.0, 129.0, false), (120.75, 495.0, false), (120.75, 617.0, false),
-            (180.35, 861.0, false), (92.91, 229.34, false), (-164.6, 251.0, false), (-164.6, 1105.0, false),
-            (-59.6, 983.0, false), (61.15, 739.0, false), (-164.6, 1216.0, true),
+            (0.0, 18.0, true),
+            (0.0, 129.0, false),
+            (120.75, 495.0, false),
+            (120.75, 617.0, false),
+            (180.35, 861.0, false),
+            (92.91, 229.34, false),
+            (-164.6, 251.0, false),
+            (-164.6, 1105.0, false),
+            (-59.6, 983.0, false),
+            (61.15, 739.0, false),
+            (-164.6, 1216.0, true),
         ];
         let nodes: Vec<GraphNode> = pos
             .iter()
@@ -748,10 +857,32 @@ mod tests {
             })
             .collect();
         let e: [(usize, usize, f64); 26] = [
-            (0,1,7659.0),(2,3,7100.0),(3,4,5917.0),(5,2,5290.0),(1,6,5232.0),(7,10,4278.0),(6,5,3528.0),
-            (4,7,3381.0),(4,8,2562.0),(1,5,1915.0),(8,7,1669.0),(4,8,1606.0),(5,6,1495.0),(6,7,1363.0),
-            (0,1,2000.0),(7,10,2000.0),(1,6,2000.0),(6,7,1557.0),(6,8,443.0),(8,7,443.0),
-            (0,2,1128.0),(2,3,1128.0),(4,7,1128.0),(3,4,914.0),(9,4,214.0),(3,9,214.0),
+            (0, 1, 7659.0),
+            (2, 3, 7100.0),
+            (3, 4, 5917.0),
+            (5, 2, 5290.0),
+            (1, 6, 5232.0),
+            (7, 10, 4278.0),
+            (6, 5, 3528.0),
+            (4, 7, 3381.0),
+            (4, 8, 2562.0),
+            (1, 5, 1915.0),
+            (8, 7, 1669.0),
+            (4, 8, 1606.0),
+            (5, 6, 1495.0),
+            (6, 7, 1363.0),
+            (0, 1, 2000.0),
+            (7, 10, 2000.0),
+            (1, 6, 2000.0),
+            (6, 7, 1557.0),
+            (6, 8, 443.0),
+            (8, 7, 443.0),
+            (0, 2, 1128.0),
+            (2, 3, 1128.0),
+            (4, 7, 1128.0),
+            (3, 4, 914.0),
+            (9, 4, 214.0),
+            (3, 9, 214.0),
         ];
         let edges: Vec<(usize, usize)> = e.iter().map(|&(a, b, _)| (a, b)).collect();
         for flow_diagonal in [false, true] {
@@ -763,7 +894,12 @@ mod tests {
                 flow_edges: true,
                 flow_diagonal,
                 edge_label_sizes: vec![],
-                thickness: e.iter().map(|&(_, _, c)| 1.0 + 7.0 * (c / 7659.0).sqrt()).collect(),
+                thickness: e
+                    .iter()
+                    .map(|&(_, _, c)| 1.0 + 7.0 * (c / 7659.0).sqrt())
+                    .collect(),
+                tree: false,
+                compact: false,
             };
             let out = reroute_graph(spec).unwrap();
             for (ei, &(s, t)) in edges.iter().enumerate() {
@@ -783,9 +919,8 @@ mod tests {
         }
     }
 
-    /// Anti-parallel edges between two same-row nodes (a 2-cycle - e.g. `confirm order <-> pick item`
-    /// after a drag) must ride parallel lanes, not cross. The port uncross pass handles the
-    /// swapped-endpoint case (a's source shares a node with b's target).
+    /// Anti-parallel edges between two same-row nodes (a 2-cycle) must ride parallel lanes, not
+    /// cross; the port uncross pass handles the swapped-endpoint case.
     #[test]
     fn reroute_antiparallel_same_row_no_cross() {
         let act = |x: f64, y: f64| GraphNode {
@@ -808,6 +943,8 @@ mod tests {
             flow_diagonal: true, // diagonal is where the X appeared
             edge_label_sizes: vec![],
             thickness: vec![5.75, 4.1],
+            tree: false,
+            compact: false,
         };
         let out = reroute_graph(spec).unwrap();
         let (ab, ba) = (&out.routes[0], &out.routes[1]);

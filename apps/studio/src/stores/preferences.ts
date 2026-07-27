@@ -13,20 +13,11 @@ export type LayoutEngine = "rust" | "elk";
  *  `orthogonal` is straight vertical channels with L-bends (ELK-like). */
 export type DfgRouting = "orthogonal" | "diagonal";
 
-/**
- * Cross-cutting display preferences consumed by every viewer (via the shell's `ViewerConfigProvider`):
- * a stable, optionally user-overridden color per domain key (activity / object type), and value
- * formatting. Persisted to localStorage. The studio builds `colorOf` / `format` from this store.
- */
+/** Cross-cutting display preferences consumed by every viewer via the shell's `ViewerConfigProvider`; persisted to localStorage. */
 export interface PreferencesState {
   /** User overrides keyed `"scope:key"` -> CSS color (e.g. "activity:pay" -> "#4f46e5"). */
   colorOverrides: Record<string, string>;
-  /**
-   * Every `(scope, key)` a viewer has resolved a color for this session, keyed `"scope:key"`. Lets
-   * the preferences editor list all encountered activities / object types (with their current
-   * auto-assigned or overridden color), not only the overridden ones. In-memory only (NOT persisted)
-   * so it cannot grow unbounded across many loaded datasets; only `colorOverrides` is saved.
-   */
+  /** Every `(scope, key)` a viewer has resolved a color for this session, keyed `"scope:key"`. In-memory only, not persisted. */
   knownColorKeys: Record<string, true>;
   durationStyle: DurationStyle;
   /** Which alignment strip style the alignment viewers render (trace strip vs deviation strip). */
@@ -35,12 +26,10 @@ export interface PreferencesState {
   layoutEngine: LayoutEngine;
   /** DFG / OC-DFG edge routing style (Rust engine only). */
   dfgRouting: DfgRouting;
-  /**
-   * Surface advanced/internal import kinds (e.g. raw OCEL, IndexLinkedOCEL, activity projections).
-   * Off by default: most users should import the curated representation (SlimLinkedOCEL / EventLog),
-   * which keeps the import menu and ambiguity picker simple and hard to misuse.
-   */
+  /** Surface advanced/internal import kinds (raw OCEL, IndexLinkedOCEL, activity projections). Off by default to keep the import menu simple. */
   showExpertKinds: boolean;
+  /** Max size (MB) of an imported dataset to cache in the browser (wasm) for session restore; larger ones relink from file instead. 0 = unlimited. */
+  cacheMaxMb: number;
   setColor: (scope: string, key: string, color: string) => void;
   clearColor: (scope: string, key: string) => void;
   setDurationStyle: (s: DurationStyle) => void;
@@ -48,15 +37,26 @@ export interface PreferencesState {
   setLayoutEngine: (e: LayoutEngine) => void;
   setDfgRouting: (r: DfgRouting) => void;
   setShowExpertKinds: (v: boolean) => void;
+  setCacheMaxMb: (mb: number) => void;
   /** Merge a batch of seen `(scope, key)` pairs into `knownColorKeys` (no-op if all already known). */
   mergeKnownColorKeys: (pairs: ReadonlyArray<[string, string]>) => void;
 }
 
 const STORAGE_KEY = "propel-preferences";
 
+/** Default dataset cache cap (MB): big datasets relink on restore rather than gzipping into idb and
+ *  risking an OOM spike / quota eviction. 0 (user-set) still means unlimited. */
+const DEFAULT_CACHE_MAX_MB = 300;
+
 function load(): Pick<
   PreferencesState,
-  "colorOverrides" | "durationStyle" | "alignmentStyle" | "layoutEngine" | "dfgRouting" | "showExpertKinds"
+  | "colorOverrides"
+  | "durationStyle"
+  | "alignmentStyle"
+  | "layoutEngine"
+  | "dfgRouting"
+  | "showExpertKinds"
+  | "cacheMaxMb"
 > {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -67,6 +67,8 @@ function load(): Pick<
       layoutEngine: raw.layoutEngine === "elk" ? "elk" : "rust",
       dfgRouting: raw.dfgRouting === "orthogonal" ? "orthogonal" : "diagonal",
       showExpertKinds: raw.showExpertKinds === true,
+      cacheMaxMb:
+        typeof raw.cacheMaxMb === "number" && raw.cacheMaxMb >= 0 ? raw.cacheMaxMb : DEFAULT_CACHE_MAX_MB,
     };
   } catch {
     return {
@@ -76,6 +78,7 @@ function load(): Pick<
       layoutEngine: "rust",
       dfgRouting: "diagonal",
       showExpertKinds: false,
+      cacheMaxMb: DEFAULT_CACHE_MAX_MB,
     };
   }
 }
@@ -91,6 +94,7 @@ function persist(s: PreferencesState): void {
         layoutEngine: s.layoutEngine,
         dfgRouting: s.dfgRouting,
         showExpertKinds: s.showExpertKinds,
+        cacheMaxMb: s.cacheMaxMb,
       }),
     );
   } catch {
@@ -133,6 +137,10 @@ export const usePreferences = create<PreferencesState>((set, get) => ({
     set({ showExpertKinds });
     persist(get());
   },
+  setCacheMaxMb: (cacheMaxMb) => {
+    set({ cacheMaxMb: Math.max(0, cacheMaxMb) });
+    persist(get());
+  },
   mergeKnownColorKeys: (pairs) => {
     let changed = false;
     const next = { ...get().knownColorKeys };
@@ -166,22 +174,14 @@ export function registerColorKey(scope: string, key: string): void {
   });
 }
 
-/**
- * Advanced/internal import kinds hidden unless `showExpertKinds` is on. The curated alternatives
- * (SlimLinkedOCEL for OCEL data, EventLog for logs) cover these, so hiding them removes ambiguous
- * import choices without losing capability.
- */
+/** Advanced/internal import kinds hidden unless `showExpertKinds` is on; curated alternatives (SlimLinkedOCEL, EventLog) cover these. */
 export const EXPERT_IMPORT_KINDS: readonly string[] = [
   "OCEL",
   "IndexLinkedOCEL",
   "EventLogActivityProjection",
 ];
 
-/**
- * Per-kind import formats hidden unless `showExpertKinds` is on, so each extension maps to one
- * curated kind. `.json` is OCEL data (-> SlimLinkedOCEL), not the rarely-used EventLog JSON
- * serialization; keep EventLog to its XES formats. Ideally also removed upstream in the engine.
- */
+/** Per-kind import formats hidden unless `showExpertKinds` is on. `.json` is OCEL data (-> SlimLinkedOCEL), not the EventLog JSON serialization. */
 export const EXPERT_IMPORT_FORMATS: Record<string, readonly string[]> = {
   EventLog: ["json"],
 };

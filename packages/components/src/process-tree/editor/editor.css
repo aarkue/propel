@@ -1,0 +1,341 @@
+/* Standalone light/dark defaults so this CSS works without @r4pm/ui.
+   When @r4pm/ui/styles.css is also loaded its .radix-themes block takes over automatically. */
+:root {
+  --r4pm-node-bg: #ffffff;
+  --r4pm-node-border: #1f2937;
+  --r4pm-node-text: #111827;
+  --r4pm-control-bg: #ffffff;
+  --r4pm-control-hover-bg: #f3f4f6;
+  --r4pm-control-text: #374151;
+  --r4pm-border-subtle: rgba(15, 23, 42, 0.08);
+  --r4pm-shadow: rgba(15, 23, 42, 0.12);
+}
+
+.dark,
+[data-theme="dark"] {
+  --r4pm-node-bg: #19191b;
+  --r4pm-node-border: #5e5e6e;
+  --r4pm-node-text: #ededef;
+  --r4pm-control-bg: #19191b;
+  --r4pm-control-hover-bg: #232325;
+  --r4pm-control-text: #b0b0b8;
+  --r4pm-border-subtle: rgba(255, 255, 255, 0.08);
+  --r4pm-shadow: rgba(0, 0, 0, 0.4);
+}
+
+.process-tree-editor {
+  position: relative;
+  background-color: var(--r4pm-export-bg);
+  --xy-edge-label-background-color: var(--r4pm-node-bg);
+}
+
+/* Floating toolbar for a multi-selection, centred over the canvas. */
+.process-tree-editor .pt-multi-toolbar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+  z-index: 30;
+}
+
+.process-tree-editor .pt-multi-label {
+  font-size: 12px;
+  color: var(--r4pm-control-text);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.process-tree-editor .pt-multi-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.process-tree-editor .node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  color: var(--r4pm-node-text);
+  background-color: var(--r4pm-node-bg);
+  box-shadow: 0 1px 2px var(--r4pm-shadow);
+}
+
+.process-tree-editor .operator-node {
+  border: 1.75px solid var(--r4pm-node-border);
+  border-radius: 50%;
+}
+
+.process-tree-editor .leaf-node {
+  border: 1.75px solid var(--r4pm-node-border);
+  border-radius: 4px;
+}
+
+.process-tree-editor .node.selected {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.process-tree-editor .operator-symbol {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.process-tree-editor .tau-symbol {
+  font-size: 16px;
+  font-style: italic;
+}
+
+/* A silent leaf reads as "no observable activity": filled, like an invisible transition. */
+.process-tree-editor .leaf-node.tau {
+  background-color: var(--r4pm-node-text);
+  color: var(--r4pm-node-bg);
+}
+
+.process-tree-editor .leaf-label {
+  font-size: 14px;
+  color: inherit;
+  font-weight: 500;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-tree-editor .leaf-input {
+  width: 100%;
+  margin: 0 8px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.process-tree-editor .leaf-input::placeholder {
+  color: inherit;
+  opacity: 0.55;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.process-tree-editor .node.invalid {
+  border-color: #dc2626;
+}
+
+.process-tree-editor .invalid-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.process-tree-editor .pt-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid var(--r4pm-border-subtle);
+  background: var(--r4pm-control-bg);
+  box-shadow: 0 2px 10px var(--r4pm-shadow);
+}
+
+.process-tree-editor .pt-toolbar button {
+  border: 1px solid var(--r4pm-border-subtle);
+  border-radius: 4px;
+  background: var(--r4pm-control-bg);
+  color: var(--r4pm-control-text);
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.process-tree-editor .pt-toolbar button:hover {
+  background: var(--r4pm-control-hover-bg);
+}
+
+.process-tree-editor .pt-segmented {
+  display: flex;
+  border: 1px solid var(--r4pm-border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.process-tree-editor .pt-segmented button {
+  border: none;
+  border-radius: 0;
+  font-size: 14px;
+  line-height: 1;
+  width: 32px;
+  padding: 3px 0;
+  text-align: center;
+}
+
+.process-tree-editor .pt-segmented button + button {
+  border-left: 1px solid var(--r4pm-border-subtle);
+}
+
+.process-tree-editor .pt-segmented button.active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.process-tree-editor .pt-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.process-tree-editor .pt-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid var(--r4pm-border-subtle);
+  background: var(--r4pm-control-bg);
+  box-shadow: 0 2px 10px var(--r4pm-shadow);
+  z-index: 20;
+}
+
+.process-tree-editor .pt-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--r4pm-control-text);
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.process-tree-editor .pt-menu button:hover {
+  background: var(--r4pm-control-hover-bg);
+}
+
+.process-tree-editor .pt-menu-heading {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--r4pm-control-text);
+  opacity: 0.7;
+  padding: 5px 8px 2px;
+  white-space: nowrap;
+}
+
+.process-tree-editor .pt-menu-heading:not(:first-child) {
+  margin-top: 3px;
+  border-top: 1px solid var(--r4pm-border-subtle);
+}
+
+.process-tree-editor .pt-menu-symbol {
+  display: inline-flex;
+  width: 16px;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* Add-child "+", shown on operator hover/selection. Overlaps the node's corner so the
+   pointer never crosses a dead gap on the way over. */
+.process-tree-editor .pt-add-slot {
+  position: absolute;
+  left: calc(100% - 17px);
+  top: calc(100% - 17px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.process-tree-editor .operator-node:hover .pt-add-slot,
+.process-tree-editor .operator-node.selected .pt-add-slot,
+.process-tree-editor .pt-add-slot.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.process-tree-editor .pt-add-slot > button {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--r4pm-border-subtle);
+  background: var(--r4pm-control-bg);
+  color: var(--r4pm-control-text);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 4px var(--r4pm-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.process-tree-editor .pt-add-slot > button:hover,
+.process-tree-editor .pt-add-slot.open > button {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.process-tree-editor .pt-danger:hover {
+  background: #dc2626 !important;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+/* Operator hovered by a dragged subtree. */
+.process-tree-editor .node.drop-target {
+  outline: 2px dashed #3b82f6;
+  outline-offset: 3px;
+}
+
+.process-tree-editor.pt-copy-drag .node.drop-target {
+  outline-color: #16a34a;
+}
+
+.process-tree-editor.pt-copy-drag .react-flow__node.dragging {
+  cursor: copy;
+}
+
+/* A hovered node (or one with an open + menu) must not sit under its later siblings. */
+.process-tree-editor .react-flow__node:hover,
+.process-tree-editor .react-flow__node:has(.pt-menu-wrap.open) {
+  z-index: 10 !important;
+}
+
+/* The tree's edges are structural, so they must not read as interactive. */
+.process-tree-editor .react-flow__edge {
+  pointer-events: none;
+}
+
+.process-tree-editor .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.process-tree-editor .react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px var(--r4pm-shadow);
+  border: 1px solid var(--r4pm-border-subtle);
+}

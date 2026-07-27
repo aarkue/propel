@@ -1,6 +1,5 @@
-//! Propel-side, engine-stored values that are NOT in the upstream `process_mining` registry
-//! (which is a closed enum). Artifacts cross the binding boundary by value, never as a handle.
-//! Backed by each value type's existing `Importable`/`Exportable` impls.
+//! Propel-side, engine-stored values not in the upstream `process_mining` registry (a closed
+//! enum). Artifacts cross the binding boundary by value, never as a handle.
 
 use process_mining::core::io::{Exportable, ExtensionWithMime, Importable};
 use process_mining::PetriNet;

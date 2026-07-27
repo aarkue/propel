@@ -1,15 +1,11 @@
-//! Generic pure-draw SVG renderer.
-//!
-//! This module does no layout: it draws exactly the geometry it is given. Callers (DFG, OC-DFG,
-//! OC-Declare, Petri, OCPN) build a [`StyledGraph`] from their own already-laid-out, already-styled
-//! on-screen state (React Flow node positions + routed edge points), so the export is guaranteed to
-//! match the screen pixel-for-pixel: there is no second layout pass that could diverge from the first.
+//! Generic pure-draw SVG renderer: does no layout, only draws exactly the geometry it's given.
+//! Callers build a [`StyledGraph`] from their own already-laid-out, already-styled on-screen state, so the export matches the screen pixel-for-pixel.
 
 use serde::{Deserialize, Serialize};
 
 use crate::svg_util::{
-    clean_path, fmt, marker_size_for, polyline_point_at, rounded_polyline, shorten_end,
-    xml_escape, SvgPalette,
+    clean_path, fmt, marker_size_for, polyline_point_at, rounded_polyline, shorten_end, xml_escape,
+    SvgPalette,
 };
 
 fn default_true() -> bool {
@@ -65,10 +61,20 @@ pub struct StyledLabel {
     /// Vertical offset from the node center, in px.
     #[serde(default)]
     pub dy: f64,
+    /// Horizontal offset from the node center, in px (e.g. to re-center a text+bullet group).
+    #[serde(default)]
+    pub dx: f64,
     /// Word-wrap to fit the node width (max 2 lines, ellipsized). Off by default: pass one
     /// `StyledLabel` per pre-wrapped line instead when the caller already knows the split.
     #[serde(default)]
     pub wrap: bool,
+    /// Small kind-indicator glyph drawn just left of the text (OCEL type graph: square = event
+    /// type, dot = object type); ignored on wrapped labels.
+    #[serde(default)]
+    pub bullet: Option<MarkingKind>,
+    /// Bullet fill; defaults to the label color.
+    #[serde(default)]
+    pub bullet_color: Option<String>,
 }
 
 /// Shape of one token-marking glyph.
@@ -82,9 +88,8 @@ pub enum MarkingKind {
     Square,
 }
 
-/// A group of same-kind tokens drawn inside a node (e.g. Petri place markings). Groups are drawn
-/// left-to-right in a single row; if the total count across all groups doesn't fit the node's
-/// width, the renderer collapses the whole row to a single numeral instead.
+/// A group of same-kind tokens drawn inside a node (e.g. Petri place markings), left-to-right in
+/// a single row; if the total count doesn't fit the node's width, the row collapses to a numeral.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct MarkingGroup {
@@ -92,6 +97,21 @@ pub struct MarkingGroup {
     #[serde(default)]
     pub color: Option<String>,
     pub count: u64,
+    /// Draw a dashed border on each dot (OC-Declare optional involvement, min 0).
+    #[serde(default)]
+    pub dashed: bool,
+    /// Fixed dot radius. When any group sets it, the whole row renders in exact mode: fixed
+    /// sizes, tight per-group clusters, no fit-to-node scaling or numeral collapse.
+    #[serde(default)]
+    pub radius: Option<f64>,
+    /// Center-to-center spacing between this group's dots (exact mode; below `2*radius`
+    /// overlaps them into a cluster). Defaults to a non-overlapping `2*radius + 2`.
+    #[serde(default)]
+    pub step: Option<f64>,
+    /// Ring stroke around each dot (exact mode). Absent: ring only when `dashed`, in the
+    /// node's stroke color.
+    #[serde(default)]
+    pub stroke: Option<String>,
 }
 
 /// A single decorative glyph drawn centered in a node (e.g. the start/end terminal chrome on a
@@ -107,7 +127,6 @@ pub enum IconKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct StyledIcon {
     pub kind: IconKind,
@@ -145,6 +164,10 @@ pub struct StyledNode {
     pub labels: Vec<StyledLabel>,
     #[serde(default)]
     pub marking: Vec<MarkingGroup>,
+    /// Vertical offset of the marking row from the node center, in px (e.g. OC-Declare draws
+    /// its involvement dots below the label).
+    #[serde(default)]
+    pub marking_dy: f64,
     #[serde(default)]
     pub icon: Option<StyledIcon>,
 }
@@ -153,7 +176,8 @@ fn default_box_shape() -> NodeShape {
     NodeShape::Box { radius: 4.0 }
 }
 
-/// End-of-edge marker glyph.
+/// End-of-edge marker glyph. The ball-bearing kinds mirror the on-screen OC-Declare markers:
+/// the ball is centered exactly on the path endpoint (the node border).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
@@ -161,9 +185,19 @@ pub enum EdgeMarker {
     #[default]
     None,
     Arrow,
+    /// Arrowhead anchored at its center on the endpoint, tip half-embedded into the node
+    /// (OC-Declare EF end; the plain `Arrow` pulls the path back so the tip lands ON the border).
+    ArrowCentered,
+    /// Filled circle centered on the endpoint (OC-Declare EF/AS start).
     Ball,
-    /// Arrow with a trailing dot behind it (OC-Declare "EFEP" combined marker).
+    /// Arrowhead whose tip sits at a ball centered on the endpoint (OC-Declare "EFEP" end).
     ArrowBall,
+    /// `ArrowCentered` with the perpendicular "direct" bar behind the tail (OC-Declare DF end).
+    ArrowBar,
+    /// Ball on the endpoint plus an arrowhead pointing back into the node (OC-Declare EP start).
+    BallArrow,
+    /// `BallArrow` with the "direct" bar behind the arrow tail (OC-Declare DP start).
+    BallBarArrow,
 }
 
 /// A text label anchored at a fraction along the edge's polyline.
@@ -193,6 +227,19 @@ pub struct EdgeDot {
     pub color: String,
     #[serde(default = "default_true")]
     pub filled: bool,
+    /// Ring stroke around the dot (the on-screen `MultiDot` ring: color mixed toward
+    /// CanvasText). Absent: filled dots draw ringless, hollow ones ring in `color`.
+    #[serde(default)]
+    pub stroke: Option<String>,
+}
+
+/// One stop of a [`StyledEdge::gradient`] stroke.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+pub struct GradientStop {
+    /// Fraction (0..1) along the gradient axis.
+    pub offset: f64,
+    pub color: String,
 }
 
 /// One edge in a [`StyledGraph`]: an already-routed polyline plus its own styling.
@@ -203,6 +250,10 @@ pub struct StyledEdge {
     pub points: Vec<[f64; 2]>,
     #[serde(default)]
     pub color: Option<String>,
+    /// Linear gradient stroke from the first to the last polyline point, used by OC-Declare
+    /// multi-object-type arcs; two or more stops override `color` on the path.
+    #[serde(default)]
+    pub gradient: Vec<GradientStop>,
     #[serde(default = "default_edge_width")]
     pub width: f64,
     #[serde(default)]
@@ -211,6 +262,14 @@ pub struct StyledEdge {
     pub marker_start: EdgeMarker,
     #[serde(default)]
     pub marker_end: EdgeMarker,
+    /// Marker fill; defaults to the edge color (OC-Declare draws all markers in one neutral
+    /// gray so the object-type color stays on the path itself).
+    #[serde(default)]
+    pub marker_color: Option<String>,
+    /// Marker base size in px (the side of the 12-unit marker viewBox); defaults to
+    /// `marker_size_for(width)`. OC-Declare passes 6 to match its small on-screen markers.
+    #[serde(default)]
+    pub marker_size: Option<f64>,
     #[serde(default)]
     pub labels: Vec<EdgeLabel>,
     #[serde(default)]
@@ -249,6 +308,10 @@ pub struct StyledGraph {
     pub padding: f64,
     pub nodes: Vec<StyledNode>,
     pub edges: Vec<StyledEdge>,
+    /// Draw edges (and their markers/dots) AFTER nodes, so border-centered markers sit on top
+    /// of node borders (OC-Declare). Default: edges underneath, like React Flow's default.
+    #[serde(default)]
+    pub edges_on_top: bool,
     #[serde(default)]
     pub legend: Vec<LegendGroup>,
 }
@@ -280,12 +343,14 @@ fn node_path(shape: &NodeShape, cx: f64, cy: f64, w: f64, h: f64) -> String {
             ry = fmt(h / 2.0)
         ),
         NodeShape::Box { radius } => format!(
+            // Clamp like CSS border-radius: SVG clamps rx to w/2 and ry to h/2 independently,
+            // so an oversized radius (e.g. 999 for a pill) would render as an ellipse.
             r#"<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}""#,
             x = fmt(cx - w / 2.0),
             y = fmt(cy - h / 2.0),
             w = fmt(w),
             h = fmt(h),
-            r = fmt(*radius)
+            r = fmt(radius.min(w / 2.0).min(h / 2.0))
         ),
     }
 }
@@ -316,7 +381,11 @@ fn wrap_label(label: &str, max_chars: usize, max_lines: usize) -> Vec<String> {
     let mut lines: Vec<String> = vec![];
     let mut cur = String::new();
     for w in &words {
-        let next = if cur.is_empty() { w.clone() } else { format!("{} {}", cur, w) };
+        let next = if cur.is_empty() {
+            w.clone()
+        } else {
+            format!("{} {}", cur, w)
+        };
         if next.len() > max_chars && !cur.is_empty() {
             lines.push(cur.clone());
             cur = w.clone();
@@ -413,11 +482,39 @@ fn render_node(node: &StyledNode, palette: &SvgPalette, out: &mut String) {
                 ));
             }
         } else if !label.text.is_empty() {
+            let lx = node.cx + label.dx;
+            let ly = node.cy + label.dy;
+            if let Some(kind) = label.bullet {
+                // Estimated text width (~0.56em per char, matching the wrap heuristic's 7px at
+                // size 12.5); the 7px glyph sits 4px left of the text's estimated left edge.
+                let est_w = label.text.chars().count() as f64 * label.size * 0.56;
+                let bx = lx - est_w / 2.0 - 4.0 - 3.5;
+                let bc = label
+                    .bullet_color
+                    .clone()
+                    .unwrap_or_else(|| text_color(&label.color));
+                match kind {
+                    MarkingKind::Square => out.push_str(&format!(
+                        r#"<rect x="{x}" y="{y}" width="7" height="7" rx="1" fill="{col}"/>
+"#,
+                        x = fmt(bx - 3.5),
+                        y = fmt(ly - 3.5),
+                        col = xml_escape(&bc),
+                    )),
+                    MarkingKind::Dot => out.push_str(&format!(
+                        r#"<circle cx="{cx}" cy="{cy}" r="3.5" fill="{col}"/>
+"#,
+                        cx = fmt(bx),
+                        cy = fmt(ly),
+                        col = xml_escape(&bc),
+                    )),
+                }
+            }
             out.push_str(&format!(
                 r#"<text x="{x}" y="{y}" text-anchor="middle" dominant-baseline="central" font-size="{fs}" font-weight="{fw}" fill="{col}">{text}</text>
 "#,
-                x = fmt(node.cx),
-                y = fmt(node.cy + label.dy),
+                x = fmt(lx),
+                y = fmt(ly),
                 fs = fmt(label.size),
                 fw = fmt(label.weight),
                 col = xml_escape(&text_color(&label.color)),
@@ -433,16 +530,69 @@ fn render_node(node: &StyledNode, palette: &SvgPalette, out: &mut String) {
     if total == 0 {
         return;
     }
+    let my = node.cy + node.marking_dy;
+    let default_col = text_color(&None);
+    if node.marking.iter().any(|m| m.radius.is_some()) {
+        // Exact mode: fixed-size per-group clusters in a row separated by a fixed gap; within a
+        // group, dots are drawn right-to-left so the leftmost ends up on top when overlapping.
+        const GROUP_GAP: f64 = 6.0;
+        let dims: Vec<(f64, f64)> = node
+            .marking
+            .iter()
+            .map(|g| {
+                let r = g.radius.unwrap_or(4.33);
+                (r, g.step.unwrap_or(r * 2.0 + 2.0))
+            })
+            .collect();
+        let widths: Vec<f64> = node
+            .marking
+            .iter()
+            .zip(&dims)
+            .map(|(g, (r, step))| 2.0 * r + step * g.count.saturating_sub(1) as f64)
+            .collect();
+        let total_w: f64 =
+            widths.iter().sum::<f64>() + GROUP_GAP * widths.len().saturating_sub(1) as f64;
+        let mut gx = node.cx - total_w / 2.0;
+        for (gi, group) in node.marking.iter().enumerate() {
+            let (r, step) = dims[gi];
+            let col = group.color.clone().unwrap_or_else(|| default_col.clone());
+            let ring = group
+                .stroke
+                .clone()
+                .or_else(|| group.dashed.then(|| stroke.to_string()));
+            for i in (0..group.count).rev() {
+                let cx = gx + r + i as f64 * step;
+                let ring_attr = match &ring {
+                    Some(rc) if group.dashed => format!(
+                        r#" stroke="{}" stroke-width="1.3" stroke-dasharray="2.2 1.6""#,
+                        xml_escape(rc)
+                    ),
+                    Some(rc) => format!(r#" stroke="{}" stroke-width="1""#, xml_escape(rc)),
+                    None => String::new(),
+                };
+                out.push_str(&format!(
+                    r#"<circle cx="{cx}" cy="{cy}" r="{r}" fill="{col}"{ring}/>
+"#,
+                    cx = fmt(cx),
+                    cy = fmt(my),
+                    r = fmt(r),
+                    col = xml_escape(&col),
+                    ring = ring_attr,
+                ));
+            }
+            gx += widths[gi] + GROUP_GAP;
+        }
+        return;
+    }
     let sw = node.stroke_width;
     let inner = node.w - 4.0 * sw;
     let max_dots = (inner / 6.0).floor().max(1.0) as u64;
-    let default_col = text_color(&None);
     if total > max_dots {
         out.push_str(&format!(
             r#"<text x="{cx}" y="{cy}" text-anchor="middle" dominant-baseline="central" font-size="{fs}" font-weight="600" fill="{col}">{n}</text>
 "#,
             cx = fmt(node.cx),
-            cy = fmt(node.cy),
+            cy = fmt(my),
             fs = fmt(node.w * 0.4),
             col = xml_escape(&default_col),
             n = total,
@@ -461,10 +611,20 @@ fn render_node(node: &StyledNode, palette: &SvgPalette, out: &mut String) {
                         r#"<circle cx="{cx}" cy="{cy}" r="{r}" fill="{col}"/>
 "#,
                         cx = fmt(dx),
-                        cy = fmt(node.cy),
+                        cy = fmt(my),
                         r = fmt(dot_d / 2.0),
                         col = xml_escape(&col),
                     ));
+                    if group.dashed {
+                        out.push_str(&format!(
+                            r#"<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{stroke}" stroke-width="1" stroke-dasharray="2 1.4"/>
+"#,
+                            cx = fmt(dx),
+                            cy = fmt(my),
+                            r = fmt(dot_d / 2.0),
+                            stroke = xml_escape(stroke),
+                        ));
+                    }
                 }
                 MarkingKind::Square => {
                     let sq = dot_d * 0.9;
@@ -472,7 +632,7 @@ fn render_node(node: &StyledNode, palette: &SvgPalette, out: &mut String) {
                         r#"<rect x="{x}" y="{y}" width="{w}" height="{w}" rx="2" fill="{col}" opacity="0.2"/>
 "#,
                         x = fmt(dx - sq / 2.0),
-                        y = fmt(node.cy - sq / 2.0),
+                        y = fmt(my - sq / 2.0),
                         w = fmt(sq),
                         col = xml_escape(&col),
                     ));
@@ -483,13 +643,13 @@ fn render_node(node: &StyledNode, palette: &SvgPalette, out: &mut String) {
     }
 }
 
-/// Registers a `<marker>` for `kind`/`color`/`stroke_width` (if not `None`) and returns its id
-/// plus how far the path end must be pulled back from the node border so the marker's visible
-/// tip lands on the border (marker `refX` anchors at its back, so the glyph spans the gap).
+/// Registers a `<marker>` for `kind`/`color`/`stroke_width` and returns its id plus how far the
+/// path end must be pulled back so the marker's visible tip lands on the border.
 fn ensure_marker(
     kind: EdgeMarker,
     color: &str,
     stroke_width: f64,
+    size: Option<f64>,
     idx: usize,
     end: &str,
     defs: &mut String,
@@ -497,40 +657,69 @@ fn ensure_marker(
     if kind == EdgeMarker::None {
         return None;
     }
-    let ms = marker_size_for(stroke_width);
+    let ms = size.unwrap_or_else(|| marker_size_for(stroke_width));
     let scale = ms / 12.0;
     let id = format!("gsvg-mk-{idx}-{end}");
-    // (ref_x, tip_x) in viewBox units: the marker is anchored at ref_x on the path end, and its
-    // frontmost visible point is tip_x. gap = (tip_x - ref_x) * scale.
-    let (body, ref_x, tip_x) = match kind {
+    let col = xml_escape(color);
+    // (body, ref_x, tip_x, vb_w) in viewBox units (height fixed 12): gap = (tip_x - ref_x) * scale.
+    // Ball-bearing kinds anchor the ball center on the endpoint (ref_x = tip_x, gap 0).
+    let (body, ref_x, tip_x, vb_w) = match kind {
         EdgeMarker::Arrow => (
             format!(
-                r#"<path d="M 1,1 L 11,6 L 1,11 Z" fill="{col}" stroke="{col}" stroke-linejoin="round"/>"#,
-                col = xml_escape(color)
+                r#"<path d="M 1,1 L 11,6 L 1,11 Z" fill="{col}" stroke="{col}" stroke-linejoin="round"/>"#
             ),
             1.0,
             11.0,
+            12.0,
         ),
-        EdgeMarker::Ball => (
-            format!(r#"<circle cx="6" cy="6" r="4" fill="{col}"/>"#, col = xml_escape(color)),
+        EdgeMarker::ArrowCentered => (
+            format!(r#"<path d="M 1,1 L 11,6 L 1,11 Z" fill="{col}"/>"#),
             6.0,
-            10.0,
+            6.0,
+            12.0,
         ),
+        EdgeMarker::Ball => (format!(r#"<circle cx="6" cy="6" r="5" fill="{col}"/>"#), 6.0, 6.0, 12.0),
         EdgeMarker::ArrowBall => (
             format!(
-                r#"<circle cx="1.5" cy="6" r="1.5" fill="{col}"/><path d="M 5,1 L 11,6 L 5,11 Z" fill="{col}" stroke="{col}" stroke-linejoin="round"/>"#,
-                col = xml_escape(color)
+                r#"<path d="M 2,1 L 12,6 L 2,11 Z" fill="{col}"/><circle cx="12" cy="6" r="5" fill="{col}"/>"#
             ),
-            1.0,
-            11.0,
+            12.0,
+            12.0,
+            18.0,
+        ),
+        EdgeMarker::ArrowBar => (
+            format!(
+                r#"<rect x="1.5" y="1" width="1.5" height="10" fill="{col}"/><path d="M 4,1 L 14,6 L 4,11 Z" fill="{col}"/>"#
+            ),
+            9.0,
+            9.0,
+            16.0,
+        ),
+        EdgeMarker::BallArrow => (
+            format!(
+                r#"<circle cx="5" cy="6" r="5" fill="{col}"/><path d="M 20,1 L 10,6 L 20,11 Z" fill="{col}"/>"#
+            ),
+            5.0,
+            5.0,
+            20.0,
+        ),
+        EdgeMarker::BallBarArrow => (
+            format!(
+                r#"<circle cx="5" cy="6" r="5" fill="{col}"/><rect x="21" y="1" width="1.5" height="10" fill="{col}"/><path d="M 20,1 L 10,6 L 20,11 Z" fill="{col}"/>"#
+            ),
+            5.0,
+            5.0,
+            23.0,
         ),
         EdgeMarker::None => unreachable!(),
     };
     defs.push_str(&format!(
-        r#"<marker id="{id}" markerWidth="{ms}" markerHeight="{ms}" viewBox="0 0 12 12" orient="auto" refX="{rx}" refY="6" markerUnits="userSpaceOnUse">{body}</marker>
+        r#"<marker id="{id}" markerWidth="{mw}" markerHeight="{ms}" viewBox="0 0 {vw} 12" orient="auto" refX="{rx}" refY="6" markerUnits="userSpaceOnUse">{body}</marker>
 "#,
         id = id,
+        mw = fmt(ms * vb_w / 12.0),
         ms = fmt(ms),
+        vw = fmt(vb_w),
         rx = fmt(ref_x),
         body = body,
     ));
@@ -540,19 +729,70 @@ fn ensure_marker(
     Some((id, gap))
 }
 
-fn render_edge(edge: &StyledEdge, palette: &SvgPalette, idx: usize, out: &mut String, defs: &mut String) {
+fn render_edge(
+    edge: &StyledEdge,
+    palette: &SvgPalette,
+    idx: usize,
+    out: &mut String,
+    defs: &mut String,
+) {
     if edge.points.len() < 2 {
         return;
     }
-    let color = edge.color.clone().unwrap_or_else(|| palette.arc_color.clone());
+    let color = edge
+        .color
+        .clone()
+        .unwrap_or_else(|| palette.arc_color.clone());
     let mut pts: Vec<Pt> = edge.points.iter().map(|p| (p[0], p[1])).collect();
 
-    let start_marker = ensure_marker(edge.marker_start, &color, edge.width, idx, "s", defs);
-    let end_marker = ensure_marker(edge.marker_end, &color, edge.width, idx, "e", defs);
+    // Gradient stroke: axis runs from the first to the last routed point, mirroring the
+    // on-screen source-center -> target-center linearGradient.
+    let stroke_paint = if edge.gradient.len() >= 2 {
+        let id = format!("gsvg-gr-{idx}");
+        let first = pts[0];
+        let last = pts[pts.len() - 1];
+        defs.push_str(&format!(
+            r#"<linearGradient id="{id}" gradientUnits="userSpaceOnUse" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}">"#,
+            x1 = fmt(first.0),
+            y1 = fmt(first.1),
+            x2 = fmt(last.0),
+            y2 = fmt(last.1),
+        ));
+        for stop in &edge.gradient {
+            defs.push_str(&format!(
+                r#"<stop offset="{off}%" stop-color="{col}"/>"#,
+                off = fmt(stop.offset * 100.0),
+                col = xml_escape(&stop.color),
+            ));
+        }
+        defs.push_str("</linearGradient>\n");
+        format!("url(#{id})")
+    } else {
+        color.clone()
+    };
 
-    // Simplify BEFORE trimming for the markers: trimming can leave a sub-pixel stub of the final
-    // segment (its direction orients the arrowhead), which a later clean pass would flatten away -
-    // swinging the arrow off the node it points into.
+    let marker_color = edge.marker_color.clone().unwrap_or_else(|| color.clone());
+    let start_marker = ensure_marker(
+        edge.marker_start,
+        &marker_color,
+        edge.width,
+        edge.marker_size,
+        idx,
+        "s",
+        defs,
+    );
+    let end_marker = ensure_marker(
+        edge.marker_end,
+        &marker_color,
+        edge.width,
+        edge.marker_size,
+        idx,
+        "e",
+        defs,
+    );
+
+    // Simplify before trimming for the markers: trimming can leave a sub-pixel stub whose
+    // direction orients the arrowhead, which a later clean pass would flatten and swing off the node.
     if edge.rounded > 0.0 {
         pts = clean_path(&pts, 3.0);
     }
@@ -565,7 +805,11 @@ fn render_edge(edge: &StyledEdge, palette: &SvgPalette, idx: usize, out: &mut St
         pts = rev.into_iter().rev().collect();
     }
 
-    let raw_points = edge.points.iter().map(|p| (p[0], p[1])).collect::<Vec<Pt>>();
+    let raw_points = edge
+        .points
+        .iter()
+        .map(|p| (p[0], p[1]))
+        .collect::<Vec<Pt>>();
     let path_d = if edge.rounded > 0.0 {
         rounded_polyline(&pts, edge.rounded)
     } else {
@@ -594,32 +838,45 @@ fn render_edge(edge: &StyledEdge, palette: &SvgPalette, idx: usize, out: &mut St
         r#"<path d="{d}" fill="none" stroke="{col}" stroke-width="{sw}" stroke-linecap="butt"{dash}{ms}{me}/>
 "#,
         d = xml_escape(&path_d),
-        col = xml_escape(&color),
+        col = xml_escape(&stroke_paint),
         sw = fmt(edge.width),
         dash = dash_attr,
         ms = marker_start_attr,
         me = marker_end_attr,
     ));
 
-    for dot in &edge.dots {
-        let (x, y) = polyline_point_at(&raw_points, dot.at);
-        if dot.filled {
-            out.push_str(&format!(
-                r#"<circle cx="{cx}" cy="{cy}" r="4.33" fill="{col}"/>
+    // Match the on-screen `MultiDot` stacking where a cluster overlaps: hollow dots first,
+    // filled on top; within a pass draw right-to-left, so the leftmost dot wins.
+    let mut ordered: Vec<&EdgeDot> = edge.dots.iter().collect();
+    ordered.sort_by(|a, b| b.at.total_cmp(&a.at));
+    for pass_filled in [false, true] {
+        for dot in ordered.iter().filter(|d| d.filled == pass_filled) {
+            let (x, y) = polyline_point_at(&raw_points, dot.at);
+            if dot.filled {
+                let ring = dot
+                    .stroke
+                    .as_ref()
+                    .map(|s| format!(r#" stroke="{}" stroke-width="1""#, xml_escape(s)))
+                    .unwrap_or_default();
+                out.push_str(&format!(
+                    r#"<circle cx="{cx}" cy="{cy}" r="4.33" fill="{col}"{ring}/>
 "#,
-                cx = fmt(x),
-                cy = fmt(y),
-                col = xml_escape(&dot.color),
-            ));
-        } else {
-            out.push_str(&format!(
-                r#"<circle cx="{cx}" cy="{cy}" r="4.33" fill="{bg}" stroke="{col}" stroke-width="1.5"/>
+                    cx = fmt(x),
+                    cy = fmt(y),
+                    col = xml_escape(&dot.color),
+                    ring = ring,
+                ));
+            } else {
+                let ring = dot.stroke.as_deref().unwrap_or(&dot.color);
+                out.push_str(&format!(
+                    r#"<circle cx="{cx}" cy="{cy}" r="4.33" fill="{bg}" stroke="{col}" stroke-width="1"/>
 "#,
-                cx = fmt(x),
-                cy = fmt(y),
-                bg = xml_escape(&palette.export_bg),
-                col = xml_escape(&dot.color),
-            ));
+                    cx = fmt(x),
+                    cy = fmt(y),
+                    bg = xml_escape(&palette.export_bg),
+                    col = xml_escape(ring),
+                ));
+            }
         }
     }
 
@@ -627,10 +884,12 @@ fn render_edge(edge: &StyledEdge, palette: &SvgPalette, idx: usize, out: &mut St
         let (mut mx, mut my) = polyline_point_at(&raw_points, label.at);
         mx += label.dx;
         my += label.dy;
-        // Glyph-hugging halo (a background-colored stroke drawn under the fill via paint-order)
-        // instead of a filled chip: keeps the number legible over arcs without a hard box, and stays
-        // opaque (SVG alpha is unevenly supported by consumers). Mirrors the on-screen text-shadow halo.
-        let halo = label.bg.clone().unwrap_or_else(|| palette.arc_label_bg.clone());
+        // Glyph-hugging halo (background-colored stroke under the fill via paint-order) instead
+        // of a filled chip: legible over arcs without a hard box, and stays opaque since SVG alpha support varies.
+        let halo = label
+            .bg
+            .clone()
+            .unwrap_or_else(|| palette.arc_label_bg.clone());
         let col = label.color.clone().unwrap_or_else(|| color.clone());
         out.push_str(&format!(
             r#"<text x="{lx}" y="{ly}" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="600" paint-order="stroke" stroke="{halo}" stroke-width="2.5" stroke-linejoin="round" fill="{col}">{label}</text>
@@ -679,8 +938,7 @@ fn render_legend(groups: &[LegendGroup], palette: &SvgPalette, x: f64, y: f64, o
 }
 
 /// Draw a [`StyledGraph`] to a standalone SVG string. Pure draw: no layout decisions beyond
-/// token-marking overflow (dots -> a single numeral when they wouldn't fit the node) and label
-/// word-wrap (only when a label opts in via `wrap`).
+/// token-marking overflow and label word-wrap (only when a label opts in via `wrap`).
 pub fn render_graph_svg(graph: &StyledGraph, palette: &SvgPalette) -> String {
     let pad = graph.padding;
     let mut min_x = f64::INFINITY;
@@ -737,10 +995,10 @@ pub fn render_graph_svg(graph: &StyledGraph, palette: &SvgPalette) -> String {
 <defs>
 {defs}</defs>
 <rect x="{vb_x}" y="{vb_y}" width="{w}" height="{h}" fill="{bg}"/>
-<g id="edges">
-{edges}</g>
-<g id="nodes">
-{nodes}</g>
+<g id="{g1_id}">
+{g1}</g>
+<g id="{g2_id}">
+{g2}</g>
 <g id="legend">
 {legend}</g>
 </svg>"#,
@@ -750,8 +1008,10 @@ pub fn render_graph_svg(graph: &StyledGraph, palette: &SvgPalette) -> String {
         h = fmt(height),
         defs = defs,
         bg = xml_escape(bg_color),
-        edges = edges_svg,
-        nodes = nodes_svg,
+        g1_id = if graph.edges_on_top { "nodes" } else { "edges" },
+        g1 = if graph.edges_on_top { &nodes_svg } else { &edges_svg },
+        g2_id = if graph.edges_on_top { "edges" } else { "nodes" },
+        g2 = if graph.edges_on_top { &edges_svg } else { &nodes_svg },
         legend = legend_svg,
     )
 }
@@ -764,6 +1024,7 @@ mod tests {
         StyledGraph {
             background: None,
             padding: 36.0,
+            edges_on_top: false,
             nodes: vec![
                 StyledNode {
                     cx: 100.0,
@@ -776,7 +1037,16 @@ mod tests {
                     stroke_width: 1.75,
                     stroke_dash: None,
                     labels: vec![],
-                    marking: vec![MarkingGroup { kind: MarkingKind::Dot, color: None, count: 1 }],
+                    marking: vec![MarkingGroup {
+                        kind: MarkingKind::Dot,
+                        color: None,
+                        count: 1,
+                        dashed: false,
+                        radius: None,
+                        step: None,
+                        stroke: None,
+                    }],
+                    marking_dy: 0.0,
                     icon: None,
                 },
                 StyledNode {
@@ -795,26 +1065,43 @@ mod tests {
                         weight: 500.0,
                         color: None,
                         dy: 0.0,
+                        dx: 0.0,
                         wrap: true,
+                        bullet: None,
+                        bullet_color: None,
                     }],
                     marking: vec![],
+                    marking_dy: 0.0,
                     icon: None,
                 },
             ],
             edges: vec![StyledEdge {
                 points: vec![[126.0, 100.0], [190.0, 100.0]],
                 color: None,
+                gradient: vec![],
                 width: 2.0,
                 dash: None,
                 marker_start: EdgeMarker::None,
                 marker_end: EdgeMarker::Arrow,
-                labels: vec![EdgeLabel { text: "3".into(), at: 0.5, dx: 0.0, dy: 0.0, bg: None, color: None }],
+                marker_color: None,
+                marker_size: None,
+                labels: vec![EdgeLabel {
+                    text: "3".into(),
+                    at: 0.5,
+                    dx: 0.0,
+                    dy: 0.0,
+                    bg: None,
+                    color: None,
+                }],
                 dots: vec![],
                 rounded: 0.0,
             }],
             legend: vec![LegendGroup {
                 title: Some("Object types".into()),
-                items: vec![LegendItem { label: "orders".into(), color: Some("#3b82f6".into()) }],
+                items: vec![LegendItem {
+                    label: "orders".into(),
+                    color: Some("#3b82f6".into()),
+                }],
             }],
         }
     }
@@ -824,7 +1111,10 @@ mod tests {
         let svg = render_graph_svg(&simple_graph(), &SvgPalette::default());
         assert!(svg.contains("<svg"));
         assert!(svg.contains("</svg>"));
-        assert!(svg.contains("<circle"), "must draw the circle node + its dot marking");
+        assert!(
+            svg.contains("<circle"),
+            "must draw the circle node + its dot marking"
+        );
         assert!(svg.contains("<rect"), "must draw the box node");
         assert!(svg.contains("<path"), "must draw the edge");
         assert!(svg.contains("<marker"), "must draw the arrow marker def");
@@ -843,7 +1133,15 @@ mod tests {
     #[test]
     fn overflowing_marking_collapses_to_number() {
         let mut g = simple_graph();
-        g.nodes[0].marking = vec![MarkingGroup { kind: MarkingKind::Dot, color: None, count: 50 }];
+        g.nodes[0].marking = vec![MarkingGroup {
+            kind: MarkingKind::Dot,
+            color: None,
+            count: 50,
+            dashed: false,
+            radius: None,
+            step: None,
+            stroke: None,
+        }];
         let svg = render_graph_svg(&g, &SvgPalette::default());
         assert!(svg.contains(">50<"), "50 tokens must collapse to a numeral");
     }
@@ -851,27 +1149,37 @@ mod tests {
     #[test]
     fn node_icon_draws_triangle_or_square() {
         let mut g = simple_graph();
-        g.nodes[0].icon = Some(StyledIcon { kind: IconKind::Triangle, color: None, scale: 0.3 });
+        g.nodes[0].icon = Some(StyledIcon {
+            kind: IconKind::Triangle,
+            color: None,
+            scale: 0.3,
+        });
         let svg = render_graph_svg(&g, &SvgPalette::default());
-        assert!(svg.contains("<polygon"), "triangle icon must draw a polygon");
+        assert!(
+            svg.contains("<polygon"),
+            "triangle icon must draw a polygon"
+        );
     }
 
     #[test]
     fn arrow_tip_lands_on_node_border() {
-        // Edge ends at the target's border x=190 (box cx=250, w=120). Stroke 2 -> marker size 12,
-        // scale 1, back-anchored arrow (refX=1, tip at 11) spans 10; tuck = sw/2 = 1. The path
-        // must therefore stop at 190 - (10 - 1) = 181 so the tip sits at 191 = border + tuck.
+        // Edge ends at target border x=190 (box cx=250, w=120); stroke 2 -> marker size 12, tuck = 1.
+        // Path must stop at 190 - (10 - 1) = 181 so the tip sits at 191 = border + tuck.
         let svg = render_graph_svg(&simple_graph(), &SvgPalette::default());
-        assert!(svg.contains(r#"refX="1.00""#), "arrow marker must anchor at its back");
-        assert!(svg.contains("L 181.00,100.00"), "path must stop one marker-span before the border");
+        assert!(
+            svg.contains(r#"refX="1.00""#),
+            "arrow marker must anchor at its back"
+        );
+        assert!(
+            svg.contains("L 181.00,100.00"),
+            "path must stop one marker-span before the border"
+        );
     }
 
     #[test]
     fn short_last_segment_keeps_entry_direction() {
-        // Last segment is only 4 long - shorter than the 9-unit arrow gap. The trim must NOT
-        // walk back across the corner (that would orient the marker along the horizontal run,
-        // leaving a floating sideways arrowhead); instead a stub of the final segment survives
-        // so the arrow keeps pointing into the node, tucking slightly inside it.
+        // Last segment is only 4 long, shorter than the 9-unit arrow gap; the trim must not walk
+        // back across the corner (leaving a floating sideways arrowhead), so a stub survives instead.
         let mut g = simple_graph();
         g.edges[0].points = vec![[126.0, 100.0], [186.0, 100.0], [186.0, 104.0]];
         let svg = render_graph_svg(&g, &SvgPalette::default());
@@ -883,7 +1191,14 @@ mod tests {
 
     #[test]
     fn empty_graph_still_produces_valid_svg() {
-        let g = StyledGraph { background: None, padding: 36.0, nodes: vec![], edges: vec![], legend: vec![] };
+        let g = StyledGraph {
+            background: None,
+            padding: 36.0,
+            nodes: vec![],
+            edges: vec![],
+            edges_on_top: false,
+            legend: vec![],
+        };
         let svg = render_graph_svg(&g, &SvgPalette::default());
         assert!(svg.contains("<svg") && svg.contains("</svg>"));
     }

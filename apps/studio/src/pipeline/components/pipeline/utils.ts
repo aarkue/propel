@@ -22,7 +22,6 @@ export const REGISTRY_COLORS: Record<string, string> = {
 export function getTypeColor(schema: { type?: string | string[]; "x-registry-ref"?: string }): string {
   if (schema["x-registry-ref"]) {
     const ref = schema["x-registry-ref"];
-    // Simple hash to color if not in registry
     if (REGISTRY_COLORS[ref]) {
       return REGISTRY_COLORS[ref];
     }
@@ -84,6 +83,24 @@ export function isCompatible(
   }
 
   return true;
+}
+
+/** One-line summary of a by-value config arg for read-only display on a node. Arrays of tagged
+ *  variants (e.g. a `transforms` list) show their `type` tags; other values show compact JSON. */
+export function summarizePreset(v: unknown): string {
+  if (v === null || v === undefined) return String(v);
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "[]";
+    const tags = v.map((it) =>
+      it && typeof it === "object" && "type" in it ? String((it as { type: unknown }).type) : typeof it,
+    );
+    return `[${tags.join(", ")}]`;
+  }
+  if (typeof v === "object") {
+    if ("type" in (v as object)) return String((v as { type: unknown }).type);
+    return JSON.stringify(v);
+  }
+  return String(v);
 }
 
 export function getDefaultValue(schema: ExtendedJSONSchema): any {

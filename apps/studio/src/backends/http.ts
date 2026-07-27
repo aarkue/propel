@@ -19,10 +19,42 @@ export function createHttpBackend(base = "/api"): BackendContext {
 
   // One shared SSE connection for engine events (objects-changed, import-*), opened lazily on the
   // first registerListener so the backend holds no connection until something subscribes.
+  // Subscriptions are tracked so a reconnect can re-attach the same listeners to a fresh stream.
   let es: EventSource | undefined;
-  const eventSource = (): EventSource => {
-    es ??= new EventSource(`${root}/events`);
-    return es;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  const subs = new Set<{ event: string; handler: EventListener }>();
+
+  const BACKOFF_BASE_MS = 1000;
+  const BACKOFF_CAP_MS = 30000;
+  let backoffMs = BACKOFF_BASE_MS;
+
+  const openStream = (): void => {
+    const next = new EventSource(`${root}/events`);
+    es = next;
+    next.onopen = () => {
+      backoffMs = BACKOFF_BASE_MS;
+    };
+    next.onerror = () => {
+      // Native EventSource retry can stall in CLOSED; take over. Ignore errors from a replaced stream.
+      if (es === next) scheduleReconnect();
+    };
+    for (const sub of subs) next.addEventListener(sub.event, sub.handler);
+  };
+
+  const scheduleReconnect = (): void => {
+    if (reconnectTimer !== undefined) return;
+    es?.close();
+    es = undefined;
+    const delay = backoffMs + Math.random() * 250;
+    backoffMs = Math.min(backoffMs * 2, BACKOFF_CAP_MS);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = undefined;
+      openStream();
+    }, delay);
+  };
+
+  const ensureStream = (): void => {
+    if (es === undefined && reconnectTimer === undefined) openStream();
   };
 
   async function fail(res: Response): Promise<never> {
@@ -111,9 +143,16 @@ export function createHttpBackend(base = "/api"): BackendContext {
       URL.revokeObjectURL(url);
     },
     async registerListener<T>(event: string, listener: (data: T) => void) {
-      const handler = (e: MessageEvent) => listener(JSON.parse(e.data) as T);
-      eventSource().addEventListener(event, handler as EventListener);
-      return () => es?.removeEventListener(event, handler as EventListener);
+      const handler = ((e: MessageEvent) => listener(JSON.parse(e.data) as T)) as EventListener;
+      const sub = { event, handler };
+      subs.add(sub);
+      // openStream attaches every sub, including this one.
+      if (es !== undefined) es.addEventListener(event, handler);
+      else ensureStream();
+      return () => {
+        subs.delete(sub);
+        es?.removeEventListener(event, handler);
+      };
     },
   };
 }

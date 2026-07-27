@@ -1,16 +1,18 @@
 import { useDatasets } from "../stores";
 import { DatasetSelector } from "@r4pm/components";
 import { Flex, Text } from "@r4pm/components/ui";
-import { type ReactNode, useState } from "react";
+import type { IDockviewPanelProps } from "dockview";
+import type { ReactNode } from "react";
+import { usePanelState } from "./panel-state";
 
-/**
- * Per-panel dataset selection.
- * Returns the chosen id plus a selector bar the panel renders above its content.
- */
-export function useDatasetSelection(kind: string): { id: string | undefined; selector: ReactNode } {
+// Selection lives in dockview `params` so it persists with the layout.
+export function useDatasetSelection(
+  kind: string,
+  props: IDockviewPanelProps,
+): { id: string | undefined; selector: ReactNode } {
   const datasets = useDatasets((s) => s.datasets);
   const ofKind = datasets.filter((d) => d.kind === kind);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = usePanelState<string | null>(props, "datasetId", null);
   const id = selectedId && ofKind.some((d) => d.id === selectedId) ? selectedId : ofKind[0]?.id;
   const selector: ReactNode = (
     <Flex

@@ -11,23 +11,16 @@ import {
 } from "react";
 import { toJpeg, toPng } from "html-to-image";
 import { Button, DropdownMenu, Text } from "@r4pm/components/ui";
+import { downloadBlob } from "../dfg/util/svg-export";
+import { isDarkMode } from "./dark-mode";
 
-/**
- * One export control for every viewer.
- *
- * A viewer wrapped in `<ViewerExportFrame>` advertises a vector rendering of itself via
- * `useRegisterExport` (real `<svg>`, not a DOM snapshot); the frame turns that one source into the
- * SVG / PNG / JPEG menu entries (PNG/JPEG are the SVG rasterized client-side, honoring a scale
- * factor). A viewer that registers nothing still exports: the frame falls back to an html-to-image
- * snapshot of its content. Saving goes through the optional `onSave` (so a host can route it to a
- * native save dialog); the default is a browser download (no host wiring needed).
- */
+/** One export control for every viewer: a viewer registers a vector `<svg>` source via
+ *  `useRegisterExport`, or the frame falls back to an html-to-image snapshot of its content. */
 
 /** A viewer's self-contained vector rendering of its current state. */
 export interface VectorExportSource {
-  /** Build the current view as a standalone SVG string, or null when not ready. Reads live state
-   *  at call time (not cached), so async renderers (e.g. a Rust-engine binding) see the exact
-   *  on-screen geometry as of the export click, drag included. */
+  /** Build the current view as a standalone SVG string, or null when not ready; reads live state at
+   *  call time (not cached), so async renderers see exact on-screen geometry as of the export click. */
   toSvg: () => string | null | Promise<string | null>;
   /** Optional extra menu content (e.g. a per-viewer row-limit picker). */
   menuExtras?: ReactNode;
@@ -53,11 +46,8 @@ interface ExportRegistry {
 
 const ExportContext = createContext<ExportRegistry | null>(null);
 
-/**
- * Viewer-side: advertise a vector rendering to the surrounding `<ViewerExportFrame>`. No-ops when
- * the viewer is mounted without a frame. Pass a stable (memoized or ref-backed) `source` so the
- * registration does not churn every render.
- */
+/** Viewer-side: advertise a vector rendering to the surrounding `<ViewerExportFrame>`; no-ops without
+ *  one. Pass a stable (memoized or ref-backed) `source` so registration doesn't churn every render. */
 export function useRegisterExport(key: string, source: VectorExportSource | null | undefined): void {
   const ctx = useContext(ExportContext);
   useEffect(() => {
@@ -68,12 +58,7 @@ export function useRegisterExport(key: string, source: VectorExportSource | null
 }
 
 async function browserDownload(data: Uint8Array, filename: string, mime: string): Promise<void> {
-  const url = URL.createObjectURL(new Blob([data as BlobPart], { type: mime }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([data as BlobPart], { type: mime }), filename);
 }
 
 /** Background color for opaque (JPEG) raster output, read from the active theme. */
@@ -81,10 +66,7 @@ function themeBackground(): string {
   const probe = document.querySelector(".radix-themes") ?? document.documentElement;
   const fromVar = getComputedStyle(probe).getPropertyValue("--color-background").trim();
   if (fromVar) return fromVar;
-  const dark =
-    document.documentElement.classList.contains("dark") ||
-    document.documentElement.getAttribute("data-theme") === "dark" ||
-    document.querySelector(".radix-themes")?.classList.contains("dark") === true;
+  const dark = isDarkMode();
   return dark ? "#111113" : "#ffffff";
 }
 
@@ -159,9 +141,8 @@ export function ViewerExportFrame({
 
   const save = onSave ?? browserDownload;
 
-  /** The subtree to snapshot when no vector source is registered: the marked content if present,
-   *  else the whole frame. Marking `[data-export-root]` keeps surrounding chrome (selectors,
-   *  toolbars) out of the image. */
+  /** The subtree to snapshot when no vector source is registered; `[data-export-root]` marks it to
+   *  keep surrounding chrome out of the image. */
   const captureNode = useCallback(
     () => wrapRef.current?.querySelector<HTMLElement>("[data-export-root]") ?? wrapRef.current,
     [],

@@ -1,3 +1,4 @@
+import type { Provenance } from "@r4pm/client";
 import { create } from "zustand";
 import { persistLabel, uniqueName } from "./datasets";
 
@@ -6,6 +7,10 @@ export interface Artifact {
   /** Propel artifact kind (e.g. "PetriNet"). Not a registry kind. */
   kind: string;
   label: string;
+  /** Recorded lineage when this artifact was produced by a binding (e.g. discovery); absent for imports. */
+  provenance?: Provenance | null;
+  /** Source filesystem path for a native (Tauri) path-import; absent for web imports and derived. */
+  path?: string;
 }
 
 /** An engine artifact as reported by `listArtifacts`: the engine now carries the display label too. */
@@ -13,6 +18,7 @@ interface EngineArtifact {
   id: string;
   kind: string;
   label?: string | null;
+  provenance?: Provenance | null;
 }
 
 export interface ArtifactsState {
@@ -52,6 +58,8 @@ export const useArtifacts = create<ArtifactsState>((set) => ({
           id: o.id,
           kind: o.kind,
           label: o.label ?? byId.get(o.id)?.label ?? o.id,
+          provenance: o.provenance ?? byId.get(o.id)?.provenance ?? null,
+          path: byId.get(o.id)?.path,
         })),
       };
     }),

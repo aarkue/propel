@@ -1,11 +1,6 @@
 import type { LegendGroup, StyledEdge, StyledGraph, StyledNode } from "./styled-graph";
 
-/**
- * Shared skeleton for the per-domain `StyledGraph` builders (DFG, OC-DFG, OC-Declare, Petri): index
- * nodes by id, map each to a `StyledNode`, and walk edges into `StyledEdge`s (dropping any whose
- * endpoints are missing, or whose `edgeToStyled` returns null). Each domain supplies only its
- * `nodeToStyled` / `edgeToStyled` mappers and the frame metadata; all the shared plumbing lives here.
- */
+/** Shared skeleton for per-domain `StyledGraph` builders: indexes nodes, maps to `StyledNode`/`StyledEdge`, drops edges with missing endpoints. */
 export function buildStyledGraph<N, E>(
   nodes: N[],
   edges: E[],

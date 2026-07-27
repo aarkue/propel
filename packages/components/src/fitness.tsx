@@ -1,5 +1,5 @@
 import { Heading } from "@r4pm/components/ui";
-import type { ViewerProps } from "./viewer/viewer-config";
+import type { StaticViewerProps } from "./viewer/viewer-config";
 import { StatCards } from "./shared/StatCards";
 
 /** Conformance fitness summary. Local view-model; structurally assignable to/from the generated
@@ -13,7 +13,7 @@ export interface FitnessResult {
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
-export function FitnessView({ data }: ViewerProps<FitnessResult>) {
+export function FitnessView({ data }: StaticViewerProps<FitnessResult>) {
   return (
     <div style={{ width: "100%", height: "100%", overflow: "auto", padding: 16 }}>
       <Heading size="3" mb="3">

@@ -14,8 +14,8 @@ import {
   type FreqItem,
   filterByQuery,
   normalizeItems,
-  selectTopN,
   sortByCountDesc,
+  sortByName,
   toggle,
 } from "./selection";
 import { SelectionActions } from "./SelectionActions";
@@ -49,6 +49,11 @@ export interface FrequencyPickerProps {
   showBars?: boolean;
   /** Show the draggable top-N cutoff rail. Turn off when items have no meaningful frequency. */
   showCutoff?: boolean;
+  /** Show the per-row count number. Turn off for count-less items (name-only entities). */
+  showCounts?: boolean;
+  /** Row order. "count" (default) sorts by frequency desc; "name" sorts alphabetically -- use the
+   *  latter for count-less items, where a frequency order (and the cutoff rail) is meaningless. */
+  sort?: "count" | "name";
   /** Scope passed to the shared colorOf resolver (e.g. "activity", "objectType"). */
   scope?: string;
   /** Override the color resolver; defaults to the shared ViewerConfig colorOf. */
@@ -67,6 +72,8 @@ export function FrequencyPicker({
   searchable = true,
   showBars = true,
   showCutoff = true,
+  showCounts = true,
+  sort = "count",
   scope = "activity",
   colorOf,
   emptyText = "No items available",
@@ -77,6 +84,7 @@ export function FrequencyPicker({
 
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
+  const [focused, setFocused] = useState(false);
   const [dragging, setDragging] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -89,7 +97,10 @@ export function FrequencyPicker({
     raf: null,
   });
 
-  const sorted = useMemo(() => sortByCountDesc(normalizeItems(items)), [items]);
+  const sorted = useMemo(() => {
+    const norm = normalizeItems(items);
+    return sort === "name" ? sortByName(norm) : sortByCountDesc(norm);
+  }, [items, sort]);
   const shown = useMemo(() => filterByQuery(sorted, query), [sorted, query]);
   const maxCount = useMemo(() => Math.max(1, ...sorted.map((i) => i.count)), [sorted]);
   const total = useMemo(() => sorted.reduce((s, i) => s + i.count, 0), [sorted]);
@@ -97,6 +108,8 @@ export function FrequencyPicker({
   const cutoff = selectedPrefix(sorted, value);
   const cutoffPct =
     total > 0 ? Math.round((100 * sorted.slice(0, cutoff).reduce((s, i) => s + i.count, 0)) / total) : 0;
+  // The rail keeps a prefix of the current order (top-N by count, or first-N alphabetically when there
+  // are no counts) -- convenient either way, so it stays available regardless of `sort`.
   const showHandle = showCutoff && mode === "multi" && query.trim() === "" && sorted.length > 0;
 
   const pick = (key: string) => {
@@ -107,6 +120,9 @@ export function FrequencyPicker({
   // Combobox keyboard model: focus stays in the search box; arrows move a highlighted row,
   // Enter toggles it. So you can always keep typing + never get "stuck" in the list.
   const hi = Math.min(highlight, Math.max(0, shown.length - 1));
+  // Only surface the keyboard-highlight row while the search box is focused; otherwise an idle
+  // picker renders its first row looking pre-selected.
+  const activeHi = focused ? hi : -1;
   const onSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -139,7 +155,8 @@ export function FrequencyPicker({
     if (!el) return;
     const y = clientY - el.getBoundingClientRect().top - PAD;
     const n = Math.max(0, Math.min(sorted.length, Math.round(y / ROW_H)));
-    onChange(selectTopN(sorted, n));
+    // Prefix of the CURRENT order, so the rail follows name-sort as well as count-sort.
+    onChange(new Set(sorted.slice(0, n).map((i) => i.key)));
   };
 
   const tick = () => {
@@ -195,8 +212,10 @@ export function FrequencyPicker({
             setHighlight(0);
           }}
           onKeyDown={onSearchKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           aria-controls={listId}
-          aria-activedescendant={shown.length ? rowId(hi) : undefined}
+          aria-activedescendant={focused && shown.length ? rowId(hi) : undefined}
         >
           <TextField.Slot>
             <PiMagnifyingGlass />
@@ -207,7 +226,7 @@ export function FrequencyPicker({
       <div className="flex items-center justify-between" style={{ fontSize: 12 }}>
         <Text size="1" className="text-(--gray-9)">
           {value.size} of {sorted.length} selected
-          {showHandle && cutoff > 0 ? ` (${cutoffPct}%)` : ""}
+          {showHandle && cutoff > 0 && total > 0 ? ` (${cutoffPct}%)` : ""}
         </Text>
         {mode === "multi" && (
           <SelectionActions allKeys={sorted.map((i) => i.key)} value={value} onChange={onChange} />
@@ -248,7 +267,7 @@ export function FrequencyPicker({
                   // Keep focus in the search box so the keyboard combobox flow never breaks.
                   e.preventDefault();
                 }}
-                title={`${item.key} (${item.count.toLocaleString("en")})`}
+                title={showCounts ? `${item.key} (${item.count.toLocaleString("en")})` : item.key}
                 style={{
                   position: "relative",
                   display: "flex",
@@ -259,8 +278,8 @@ export function FrequencyPicker({
                   padding: "0 10px",
                   border: "none",
                   borderRadius: 6,
-                  background: i === hi ? "var(--accent-a4)" : sel ? "var(--gray-a3)" : "transparent",
-                  boxShadow: i === hi ? "inset 0 0 0 2px var(--accent-8)" : undefined,
+                  background: i === activeHi ? "var(--accent-a4)" : sel ? "var(--gray-a3)" : "transparent",
+                  boxShadow: i === activeHi ? "inset 0 0 0 2px var(--accent-8)" : undefined,
                   cursor: "pointer",
                   textAlign: "left",
                 }}
@@ -309,12 +328,14 @@ export function FrequencyPicker({
                 >
                   {item.key}
                 </span>
-                <span
-                  className="tabular-nums"
-                  style={{ position: "relative", fontSize: 12, color: "var(--gray-11)", flex: "0 0 auto" }}
-                >
-                  {item.count.toLocaleString("en")}
-                </span>
+                {showCounts && (
+                  <span
+                    className="tabular-nums"
+                    style={{ position: "relative", fontSize: 12, color: "var(--gray-11)", flex: "0 0 auto" }}
+                  >
+                    {item.count.toLocaleString("en")}
+                  </span>
+                )}
               </button>
             );
           })}

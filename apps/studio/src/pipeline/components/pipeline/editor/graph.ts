@@ -1,5 +1,5 @@
 import type { Edge } from "@xyflow/react";
-import type { AppNode } from "./types";
+import { nodeValueRole, type AppNode } from "./types";
 
 /**
  * Compute one node's output value from its incoming edges' upstream results. Pure (no React / no
@@ -29,6 +29,10 @@ export async function computeNodeOutput(
     }
     return inputs;
   };
+
+  if (nodeValueRole[node.type as keyof typeof nodeValueRole] === "embedded-input") {
+    return (node.data as { value?: unknown }).value;
+  }
 
   switch (node.type) {
     case "primitive":
@@ -63,10 +67,6 @@ export async function computeNodeOutput(
       const e = edges.find((x) => x.target === node.id);
       return e ? results.get(e.source) : undefined;
     }
-    case "artifact":
-      return node.data.value;
-    case "fileImport":
-      return node.data.value;
     default:
       return undefined;
   }

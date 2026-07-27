@@ -2,12 +2,15 @@ import type { Edge, Node } from "@xyflow/react";
 import { loadElk, type ElkGraph } from "../elk-layout/elk";
 import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH } from "./ActivityNode";
 import {
+  assignArcLanes,
   type DeclareLayoutFn,
   type DeclareLayoutOptions,
   edgeLabelWidth,
+  fanArcRoute,
   roundedPointsToSvgPath,
   selfLoopPoints,
   snapEndpointsToNodeBorders,
+  straightenClearRoute,
 } from "./layout-util";
 import type { ConstraintEdgeData } from "./types";
 
@@ -20,12 +23,12 @@ type Point = { x: number; y: number };
 const DECLARE_LAYOUT_OPTIONS: Record<string, string> = {
   "elk.algorithm": "layered",
   "elk.edgeRouting": "SPLINES",
-  "elk.spacing.nodeNode": "25",
-  "elk.layered.spacing.nodeNodeBetweenLayers": "20",
-  "elk.spacing.edgeNode": "20",
+  "elk.spacing.nodeNode": "50",
+  "elk.layered.spacing.nodeNodeBetweenLayers": "110",
+  "elk.spacing.edgeNode": "35",
   "elk.spacing.edgeEdge": "25",
   "elk.layered.spacing.edgeEdgeBetweenLayers": "12",
-  "elk.layered.spacing.edgeNodeBetweenLayers": "18",
+  "elk.layered.spacing.edgeNodeBetweenLayers": "30",
   "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
   "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
 };
@@ -36,12 +39,8 @@ function isReversed(e: Edge): boolean {
   return at === "EP" || at === "DP";
 }
 
-/**
- * ELK-backed OC-declare layout. Opt-in alternative to {@link rustDeclareLayout}; produces the same
- * routed-edge data shape (`routedPath`/`routedPoints`/`layoutSourcePos`/`layoutTargetPos`) and reuses
- * the same border-snapping + rounding geometry, so `ConstraintEdge` renders it identically. Drag is
- * handled live by the edge component (`deformPoints`), not by re-running layout - same as Rust.
- */
+/** ELK-backed OC-declare layout, opt-in alternative to {@link rustDeclareLayout}; produces the same
+ *  routed-edge data shape so `ConstraintEdge` renders it identically. Drag deforms live, not via re-layout. */
 export const elkDeclareLayout: DeclareLayoutFn = async <N extends Node>(
   nodes: N[],
   edges: Edge[],
@@ -65,7 +64,7 @@ export const elkDeclareLayout: DeclareLayoutFn = async <N extends Node>(
           targets: [rev ? e.source : e.target],
           labels: [
             {
-              width: edgeLabelWidth(e),
+              width: edgeLabelWidth(e, options?.textLabels),
               height: LABEL_H,
               layoutOptions: { "elk.edgeLabels.placement": "CENTER" },
             },
@@ -94,6 +93,8 @@ export const elkDeclareLayout: DeclareLayoutFn = async <N extends Node>(
   };
 
   const layoutedNodes = nodes.map((n): N => ({ ...n, position: topLeftOf(n.id) }));
+  const centers = nodes.map((n) => ({ id: n.id, c: centerOf(n.id) }));
+  const arcLanes = assignArcLanes(edges);
 
   const layoutedEdges = edges.map((edge): Edge => {
     const srcTL = topLeftOf(edge.source);
@@ -117,13 +118,18 @@ export const elkDeclareLayout: DeclareLayoutFn = async <N extends Node>(
     if (!route || route.length < 2) {
       return { ...edge, data: { ...edge.data, layoutSourcePos: srcTL, layoutTargetPos: tgtTL } };
     }
-    const points = snapEndpointsToNodeBorders(
-      route,
-      centerOf(edge.source),
-      centerOf(edge.target),
-      halfW,
-      halfH,
-    );
+    const srcC = centerOf(edge.source);
+    const tgtC = centerOf(edge.target);
+    const snapped = snapEndpointsToNodeBorders(route, srcC, tgtC, halfW, halfH);
+    // Multi-arc pair: fan each arc into its own lane. Lone arc: straighten a cosmetic jog.
+    const lane = arcLanes.get(edge.id);
+    let points: Point[];
+    if (lane && lane.total > 1) {
+      points = fanArcRoute(srcC, tgtC, lane, edge.source > edge.target, halfW, halfH);
+    } else {
+      const obstacles = centers.filter((n) => n.id !== edge.source && n.id !== edge.target).map((n) => n.c);
+      points = straightenClearRoute(snapped, srcC, tgtC, obstacles, halfW, halfH);
+    }
     return {
       ...edge,
       data: {

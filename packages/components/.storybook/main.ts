@@ -1,15 +1,16 @@
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { StorybookConfig } from "@storybook/react-vite";
 import remarkGfm from "remark-gfm";
 
 const config: StorybookConfig = {
-  framework: "@storybook/react-vite",
+  framework: getAbsolutePath("@storybook/react-vite"),
   stories: ["../src/**/*.mdx", "../src/**/*.stories.@(ts|tsx)"],
   // GFM tables/strikethrough are opt-in in Storybook's MDX pipeline; enable remark-gfm so the
-  // generated Data Types page (and any MDX tables) render as tables instead of literal `| … |` text.
+  // generated Data Types page (and any MDX tables) render as tables instead of literal `| ... |` text.
   addons: [
     {
-      name: "@storybook/addon-docs",
+      name: getAbsolutePath("@storybook/addon-docs"),
       options: { mdxPluginOptions: { mdxCompileOptions: { remarkPlugins: [remarkGfm] } } },
     },
   ],
@@ -48,3 +49,7 @@ const config: StorybookConfig = {
 };
 
 export default config;
+
+function getAbsolutePath(value: string): any {
+  return dirname(fileURLToPath(import.meta.resolve(`${value}/package.json`)));
+}

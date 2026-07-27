@@ -1,7 +1,5 @@
-//! Event-log analysis bindings.
-//!
-//! Each binding takes `&EventLog` directly; the `#[register_binding]` macro maps that to an
-//! `EventLogHandle` and resolves it from the object store at dispatch time.
+//! Event-log analysis bindings. Each binding takes `&EventLog` directly; the
+//! `#[register_binding]` macro maps that to an `EventLogHandle` resolved from the object store at dispatch time.
 use std::collections::{HashMap, HashSet};
 
 use process_mining::bindings::register_binding;
@@ -17,16 +15,13 @@ use serde::{Deserialize, Serialize};
 use crate::types::{
     AttributeCatalogEntry, AttributeInfo, AttributeKind, AttributeLevel, AttributeScope,
     AttributeSummary, AttributeValues, CaseDurations, DfArcDuration, DfPerformance, DfgCounts,
-    LogClassifierInfo, LogExtensionInfo, LogGlobals, NumberOfTracesAndEvents, NumericStats,
-    TraceBrowserPage, TraceBrowserRow, TraceDetail, TraceEventRow, TraceSortField, TraceVariants,
-    ATTR_VALUES_CAP,
+    EventTimeHistogram, LogClassifierInfo, LogExtensionInfo, LogGlobals, NumberOfTracesAndEvents,
+    NumericStats, TraceBrowserPage, TraceBrowserRow, TraceDetail, TraceEventRow, TraceSortField,
+    TraceVariants, ATTR_VALUES_CAP,
 };
 
 /// Build an event log from one or more simulated traces: one case per trace, one event per
-/// activity name, timestamps spaced 1 minute apart from a fixed base (restarting each trace).
-/// The caller is expected to have already removed silent/tau transitions. The returned
-/// `EventLog` is auto-stored by the registry under a fresh handle, so the frontend gets a
-/// dataset handle back.
+/// activity name, timestamps spaced 1 minute apart. Caller is expected to have already removed silent/tau transitions.
 #[register_binding]
 pub fn event_log_from_activities(traces: Vec<Vec<String>>) -> EventLog {
     const BASE_MS: i64 = 1_577_836_800_000; // 2020-01-01T00:00:00Z
@@ -131,9 +126,8 @@ fn xes_value_type_and_string(v: &AttributeValue) -> Option<(&'static str, String
     }
 }
 
-/// Build an event log from the editor's structured JSON: one trace per case (`concept:name`), one
-/// event per row (`concept:name` + `time:timestamp`), typed custom attributes preserved. The result
-/// is auto-stored under a fresh handle, so the frontend gets a dataset handle back.
+/// Build an event log from the editor's structured JSON: one trace per case, one event per row,
+/// typed custom attributes preserved.
 #[register_binding]
 pub fn event_log_from_json(log: EventLogInput) -> EventLog {
     let mut out = EventLog::new();
@@ -290,6 +284,21 @@ fn get_event_time_ms(event: &Event) -> Option<i64> {
             AttributeValue::Date(d) => Some(d.timestamp_millis()),
             _ => None,
         })
+}
+
+/// Time histogram of events, split per activity (`concept:name`).
+#[register_binding]
+pub fn get_event_log_timestamps(event_log: &EventLog, num_bins: usize) -> EventTimeHistogram {
+    let evs: Vec<(i64, String)> = event_log
+        .traces
+        .iter()
+        .flat_map(|t| t.events.iter())
+        .filter_map(|e| {
+            let ts = get_event_time_ms(e)?;
+            Some((ts, get_event_activity(e).unwrap_or("UNKNOWN").to_string()))
+        })
+        .collect();
+    EventTimeHistogram::from_events(evs, num_bins)
 }
 
 /// Case-centric DFG counts. Activities interned via `&str` to avoid per-event `String` alloc;
@@ -814,9 +823,8 @@ pub fn get_attribute_summary(
     }
 }
 
-/// All distinct categorical values (with counts, most-frequent first) for one attribute -
-/// the full list the attribute filter's value picker searches. Numeric values are ignored.
-/// Capped at `ATTR_VALUES_CAP`; `total_distinct` reports the true count before truncation.
+/// All distinct categorical values (with counts, most-frequent first) for one attribute, capped
+/// at `ATTR_VALUES_CAP`; `total_distinct` reports the true count before truncation.
 #[register_binding]
 pub fn get_attribute_values(
     event_log: &EventLog,
@@ -1038,10 +1046,8 @@ pub fn get_log_traces(
     TraceBrowserPage { rows: page, total }
 }
 
-/// Events and case-level attributes for a single trace.
-///
-/// On an out-of-bounds `case_index` returns an empty `TraceDetail`; the registry binding is
-/// infallible, so we yield empty rather than panic.
+/// Events and case-level attributes for a single trace. On an out-of-bounds `case_index`
+/// returns an empty `TraceDetail`, since the registry binding is infallible.
 #[register_binding]
 pub fn get_trace_events(event_log: &EventLog, case_index: usize) -> TraceDetail {
     let Some(trace) = event_log.traces.get(case_index) else {

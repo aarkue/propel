@@ -1,14 +1,13 @@
-// The ONLY module that imports the viz-layout wasm (`./pkg/*`). Import it explicitly - one of the
-// pre-bound `wasm*Layout` fns, `wasmTransport`, or `wasmRenderStyledGraph` - to run the bundled Rust
-// layout/SVG engine in-browser. Consumers that never import this file bundle no wasm.
+// only module that imports the viz-layout wasm; consumers that never import this file bundle no wasm
 import { createRustDeclareLayout } from "../oc-declare/rust-declare-layout";
 import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
+import { createRustTypeGraphLayout } from "../ocel-type-graph/rust-layout";
 import { createRustPetriLayout } from "../petri/editor/helpers/layout-graph";
+import { createRustProcessTreeLayout } from "../process-tree/editor/helpers/layout-graph";
 import type { LayoutEngine } from "../viewer/viewer-config";
 import { createRustDfgLayout, createRustOcdfgLayout, type LayoutTransport } from "./index";
 
-// Lazy wasm loader: the ~460KB layout engine is only instantiated when a Rust layout is actually
-// requested (dynamic import gives it its own chunk, tree-shaken away for consumers that never call it).
+// lazy wasm loader: the ~460KB engine only loads when a Rust layout is actually requested
 type WasmMod = typeof import("./pkg/viz_layout_wasm.js");
 let modPromise: Promise<WasmMod> | null = null;
 
@@ -24,19 +23,7 @@ export type RustLayoutWasmSource =
 
 let wasmSourceOverride: RustLayoutWasmSource | undefined;
 
-/**
- * Override where the viz-layout wasm is loaded from. By default the wasm is embedded (base64) in the
- * JS, so this module works in any bundler or runtime (Vite, webpack, esbuild, Node, Deno, Workers)
- * with zero asset-resolution config.
- *
- * Bundle-size-conscious consumers can instead ship the wasm as a separate, cacheable asset and point
- * this at it, e.g. in a Vite app:
- * ```ts
- * import wasmUrl from "@r4pm/components/rust-layout/viz_layout_wasm_bg.wasm?url";
- * setRustLayoutWasm(wasmUrl);
- * ```
- * or with raw bytes / a precompiled `WebAssembly.Module`. Must be called before the first layout.
- */
+/** Override where the viz-layout wasm loads from (default: embedded base64). Must be called before the first layout. */
 export function setRustLayoutWasm(source: RustLayoutWasmSource): void {
   if (modPromise) {
     throw new Error("setRustLayoutWasm() must be called before the first Rust layout request.");
@@ -44,8 +31,7 @@ export function setRustLayoutWasm(source: RustLayoutWasmSource): void {
   wasmSourceOverride = source;
 }
 
-/** Decode the embedded base64 wasm into bytes. Uses `atob` (browsers, Node 16+, Deno, Workers) with a
- *  `Buffer` fallback for exotic runtimes. Imported lazily so it only lands in the async chunk. */
+/** Decode the embedded base64 wasm into bytes, via `atob` with a `Buffer` fallback for exotic runtimes. */
 async function embeddedWasmBytes(): Promise<Uint8Array> {
   const { wasmBase64 } = await import("./pkg/wasm-inline.js");
   const g = globalThis as {
@@ -88,26 +74,27 @@ export const wasmTransport: LayoutTransport = {
   },
 };
 
-/** Draws a laid-out, styled `StyledGraph` to SVG via the bundled wasm `export_graph_svg` (the SAME
- *  renderer as the backend binding). Pass as a viewer's `renderSvg` for standalone SVG export. */
+/** Draws a laid-out, styled `StyledGraph` to SVG via the bundled wasm `export_graph_svg`; pass as a viewer's `renderSvg`. */
 export const wasmRenderStyledGraph: StyledGraphRenderer = async (graph) => {
   const mod = await loadWasm();
   return mod.export_graph_svg(JSON.stringify(graph), "");
 };
 
-// DFG / OC-DFG / declare / Petri layout fns pre-bound to `wasmTransport`. Lazy: the wasm loads on the
-// first call, so importing one you don't invoke costs nothing at runtime.
+// layout fns pre-bound to wasmTransport; lazy, so importing one you don't invoke costs nothing
 export const wasmDfgLayout = createRustDfgLayout(wasmTransport);
 export const wasmOcdfgLayout = createRustOcdfgLayout(wasmTransport);
 export const wasmDeclareLayout = createRustDeclareLayout(wasmTransport);
 export const wasmPetriLayout = createRustPetriLayout(wasmTransport);
+export const wasmProcessTreeLayout = createRustProcessTreeLayout(wasmTransport);
+export const wasmTypeGraphLayout = createRustTypeGraphLayout(wasmTransport);
 
-/** Ready wasm `LayoutEngine` covering every graph surface plus the SVG renderer. Pass through
- *  `ViewerConfigProvider value={{ layout: wasmLayout }}`. The wasm loads lazily on first layout. */
+/** Ready wasm `LayoutEngine` covering every graph surface plus the SVG renderer; pass via `ViewerConfigProvider`. */
 export const wasmLayout: LayoutEngine = {
   dfg: wasmDfgLayout,
   ocdfg: wasmOcdfgLayout,
   declare: wasmDeclareLayout,
   petri: wasmPetriLayout,
+  processTree: wasmProcessTreeLayout,
+  typeGraph: wasmTypeGraphLayout,
   renderSvg: wasmRenderStyledGraph,
 };

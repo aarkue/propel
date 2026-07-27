@@ -1,5 +1,5 @@
 import type { IDockviewPanelProps } from "dockview";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PiArrowLeft, PiTable } from "react-icons/pi";
 import type { PlotParams } from "react-plotly.js";
@@ -16,6 +16,7 @@ import type {
 } from "@r4pm/client";
 import { withSelector, datasetEmptyBox } from "./_shared";
 import { useDatasetSelection } from "../panels/active-datasets";
+import { useDatasetScopedState } from "../panels/panel-state";
 import { backend } from "../backends";
 import { definePanel } from "./define-vis";
 
@@ -245,27 +246,28 @@ function AttributeList({
   );
 }
 
+export type SelectedAttribute = { name: string; level: AttributeLevel } | null;
+
 export interface AttributeAnalysisPanelProps {
   backend: BackendContext;
   eventLog: EventLogHandle;
-  /** Optional callback when an attribute is selected (e.g. send-to-transforms). */
+  selected: SelectedAttribute;
+  onSelectedChange: (next: SelectedAttribute) => void;
   onSelect?: (attr: AttributeInfo) => void;
 }
 
-/**
- * Interactive attribute-analysis panel.
- * Lists an event log's attributes and drills into per-attribute summary/stats
- * (numeric histogram + stats, or categorical top-values bar chart) via the
- * migrated `get_attribute_names` / `get_attribute_summary` registry bindings.
- */
-export function AttributeAnalysisPanel({ backend, eventLog, onSelect }: AttributeAnalysisPanelProps) {
+export function AttributeAnalysisPanel({
+  backend,
+  eventLog,
+  selected,
+  onSelectedChange,
+  onSelect,
+}: AttributeAnalysisPanelProps) {
   const namesQuery = useQuery({
     queryKey: ["attribute-names", eventLog],
     queryFn: () =>
       backend.callBinding(GET_ATTRIBUTE_NAMES, { event_log: eventLog }) as Promise<AttributeInfo[]>,
   });
-
-  const [selected, setSelected] = useState<{ name: string; level: AttributeLevel } | null>(null);
 
   const summaryQuery = useQuery({
     queryKey: ["attribute-summary", eventLog, selected?.name, selected?.level],
@@ -301,7 +303,7 @@ export function AttributeAnalysisPanel({ backend, eventLog, onSelect }: Attribut
             <AttributeList
               attributes={namesQuery.data}
               onSelect={(attr) => {
-                setSelected({ name: attr.name, level: attr.level });
+                onSelectedChange({ name: attr.name, level: attr.level });
                 onSelect?.(attr);
               }}
             />
@@ -317,10 +319,10 @@ export function AttributeAnalysisPanel({ backend, eventLog, onSelect }: Attribut
                 />
               )}
               {summaryQuery.data && (
-                <AttributeDetail summary={summaryQuery.data} onBack={() => setSelected(null)} />
+                <AttributeDetail summary={summaryQuery.data} onBack={() => onSelectedChange(null)} />
               )}
               {!summaryQuery.data && !summaryQuery.isLoading && !summaryQuery.error && (
-                <Button variant="surface" className="w-fit" size="1" onClick={() => setSelected(null)}>
+                <Button variant="surface" className="w-fit" size="1" onClick={() => onSelectedChange(null)}>
                   <PiArrowLeft /> Back
                 </Button>
               )}
@@ -332,13 +334,24 @@ export function AttributeAnalysisPanel({ backend, eventLog, onSelect }: Attribut
   );
 }
 
-/** Interactive attribute analysis for the active event log. */
-export function AttributeAnalysisDockPanel(_props: IDockviewPanelProps) {
-  const { id: log, selector } = useDatasetSelection("EventLog");
+export function AttributeAnalysisDockPanel(props: IDockviewPanelProps) {
+  const { id: log, selector } = useDatasetSelection("EventLog", props);
+  const [selected, setSelected] = useDatasetScopedState<SelectedAttribute>(
+    props,
+    "selected",
+    log ?? "",
+    null,
+  );
   if (!log) return withSelector(selector, datasetEmptyBox("EventLog"), "attribute-analysis");
   return withSelector(
     selector,
-    <AttributeAnalysisPanel key={log} backend={backend} eventLog={log as EventLogHandle} />,
+    <AttributeAnalysisPanel
+      key={log}
+      backend={backend}
+      eventLog={log as EventLogHandle}
+      selected={selected}
+      onSelectedChange={setSelected}
+    />,
     "attribute-analysis",
   );
 }

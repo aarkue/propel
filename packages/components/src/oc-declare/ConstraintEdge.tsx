@@ -4,19 +4,22 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH } from "./ActivityNode";
 import { describeConstraintRich } from "./constraintText";
+import type { OCDeclareArcLabel, ObjectTypeAssociation } from "./index";
 import { deformPoints, roundedPointsToSvgPath, snapEndpointsToNodeBorders } from "./layout-util";
 import { type DotInfo, MultiDot } from "./MultiDot";
-import type { ConstraintEdgeData, RenderArcType } from "./types";
-import { useVizContext } from "./VizContext";
+import type { ActivityNodeData, ConstraintEdgeData, RenderArcType } from "./types";
+import { type ColorResolver, useVizContext } from "./VizContext";
+import { useEditContext } from "./edit/edit-context";
+import { EdgeEditControl, MergedEdgeEditControl } from "./edit/EdgeEditControl";
+import { cardinalitySugar, type EdgeTemplate, TEMPLATE_TO_ARC } from "./model";
 
 type ConstraintEdgeType = Edge<ConstraintEdgeData, "constraint">;
 type Point = { x: number; y: number };
 
-// Neutral marker color (same for all arcs so the object-type color stays on the path itself).
-const MARKER_COLOR = "#4b5563";
+// Neutral marker color, same for all arcs so the object-type color stays on the path itself.
+export const MARKER_COLOR = "#4b5563";
 
-/** Point + tangent angle at arc-length parameter t∈[0,1], with optional pixel offset. `points` are
- *  the routed polyline vertices (Rust engine). */
+/** Point + tangent angle at arc-length parameter t in [0,1], with optional pixel offset. */
 function getPlacementOnCurve(points: Point[], t: number, offsetPx = 0) {
   const sampled = points;
   if (sampled.length < 2) return { x: sampled[0]?.x ?? 0, y: sampled[0]?.y ?? 0, angle: 0 };
@@ -65,18 +68,34 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   const { id: rawId, source, target, data } = edge;
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
-  // Per-render-instance unique id for all <defs> (gradient + markers): the same
-  // graph rendered twice (pipeline preview + panel) must not emit colliding ids,
-  // or `url(#id)` resolves across compositing layers to the first one: the
-  // gradient stroke ref then fails and the whole arc line disappears.
+  // Per-render-instance unique id for all <defs>: the same graph rendered twice must not emit colliding ids, or `url(#id)` resolves to the first one and the gradient stroke fails.
   const id = `${useId().replace(/[^\w-]/g, "")}-${rawId}`;
-  const { activityColor, objectTypeColor, hiddenArcTypes, hiddenObjectTypes, focusedNodeId, hoveredNodeId } =
-    useVizContext();
+  const {
+    activityColor,
+    objectTypeColor,
+    hiddenArcTypes,
+    hiddenObjectTypes,
+    focusedNodeId,
+    hoveredNodeId,
+    showTextLabels,
+  } = useVizContext();
 
+  const edit = useEditContext();
   // Context-menu state: position in viewport pixels (not flow coords).
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const [edgeHovered, setEdgeHovered] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onEdgeEnter = useCallback(() => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setEdgeHovered(true);
+  }, []);
+  const onEdgeLeave = useCallback(() => {
+    hoverTimer.current = setTimeout(() => setEdgeHovered(false), 80);
+  }, []);
+
+  // Right-click always shows the read-only description card; editing is a separate affordance (hover pencil -> edit popover).
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -87,8 +106,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   useEffect(() => {
     if (!menuPos) return;
     const close = () => setMenuPos(null);
-    // Use capture + requestAnimationFrame so the opening right-click
-    // doesn't immediately trigger the close listener.
+    // Capture + rAF so the opening right-click doesn't immediately trigger the close listener.
     let armed = false;
     const raf = requestAnimationFrame(() => {
       armed = true;
@@ -117,6 +135,20 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
 
   if (!data || !sourceNode || !targetNode) return null;
 
+  // `source`/`target` are node IDs; resolve display names from node data so the card never shows raw ids.
+  const sourceLabel = (sourceNode.data as ActivityNodeData | undefined)?.label ?? source;
+  const targetLabel = (targetNode.data as ActivityNodeData | undefined)?.label ?? target;
+
+  // Editing extras carried on edge data (present in edit mode): cardinality label, negation, violation.
+  const template = data.template as EdgeTemplate | undefined;
+  const negated = template ? TEMPLATE_TO_ARC[template].negated : false;
+  const cardText = cardinalitySugar(data.cardinality as [number | null, number | null] | undefined);
+  const violationPct = typeof data.violation === "number" ? data.violation * 100 : null;
+  // A collapsed EFEP/DFDP arc shows both directions' violations; a plain arc shows one value at the midpoint.
+  const isMerged = !!data.pair;
+  const backwardViolationPct =
+    isMerged && typeof data.pairViolation?.backward === "number" ? data.pairViolation.backward * 100 : null;
+
   // Visibility filters.
   if (hiddenArcTypes.has(data.arcType)) return null;
   const involvedTypes = new Set<string>();
@@ -133,8 +165,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   const incidentHover = hoveredNodeId === null || hoveredNodeId === source || hoveredNodeId === target;
   const opacity = !incidentFocus ? 0.1 : !incidentHover ? 0.25 : 1;
 
-  // Arc-type classification. EFEP / DFDP are synthetic "both-ended" arcs
-  // produced by collapsing an EF A->B with its matching EP B->A.
+  // EFEP / DFDP are synthetic "both-ended" arcs from collapsing an EF A->B with its matching EP B->A.
   const isEFEP = data.arcType === "EFEP" || data.arcType === "DFDP";
   const isEF = isEFEP || data.arcType === "EF" || data.arcType === "DF";
   const isEP = isEFEP || data.arcType === "EP" || data.arcType === "DP";
@@ -177,8 +208,15 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
       })),
   ];
 
-  // Weighted gradient along the path: each object type gets a stop proportional to
-  // its total weight (each/all = 4, any = 1). Matches the reference implementation.
+  // Edit model stashes the O2O-lossless `rawLabel`; read-only viewer falls back to Simple refs.
+  const rawLabel = data.rawLabel as OCDeclareArcLabel | undefined;
+  const textLabel: OCDeclareArcLabel = rawLabel ?? {
+    each: data.label.each.map((r) => ({ type: "Simple", object_type: r.object_type })),
+    all: data.label.all.map((r) => ({ type: "Simple", object_type: r.object_type })),
+    any: data.label.any.map((r) => ({ type: "Simple", object_type: r.object_type })),
+  };
+
+  // Weighted gradient: each object type gets a stop proportional to its total weight (each/all = 4, any = 1).
   const colorEntries: { key: string; color: string; weight: number }[] = [];
   for (const dot of dots) {
     const weight = dot.quantifier === "any" ? 1 : 4;
@@ -202,6 +240,10 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   // Compute path + label placements.
   let path: string;
   let displacements: { x: number; y: number; angle: number }[] = [];
+  // Midpoint anchor for the edit control (default center-to-center; refined per branch below).
+  let mid: Point = { x: (srcCenterX + tgtCenterX) / 2, y: (srcCenterY + tgtCenterY) / 2 };
+  // The drawn polyline, for placing per-direction badges on collapsed arcs.
+  let curvePoints: Point[] = [];
 
   if (data.routedPoints && data.layoutSourcePos && data.layoutTargetPos) {
     const sourceDelta = {
@@ -230,6 +272,9 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
       points = data.routedPoints;
       path = data.routedPath ?? toPath(points);
     }
+    curvePoints = points;
+    const midPlace = getPlacementOnCurve(points, T, 0);
+    mid = { x: midPlace.x, y: midPlace.y };
     let currentOffset = startOffset;
     displacements = labelItems.map((item) => {
       const d = getPlacementOnCurve(points, T, currentOffset + item.width / 2);
@@ -237,15 +282,20 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
       return d;
     });
   } else {
-    // Fallback: direct line center-to-center.
-    path = `M${srcCenterX},${srcCenterY} L${tgtCenterX},${tgtCenterY}`;
-    const dx = tgtCenterX - srcCenterX;
-    const dy = tgtCenterY - srcCenterY;
+    // Fallback for an un-routed edge: snap to each node's border, not center-to-center, or the line runs on top of the nodes.
+    const srcCenter = { x: srcCenterX, y: srcCenterY };
+    const tgtCenter = { x: tgtCenterX, y: tgtCenterY };
+    const [p0, p1] = snapEndpointsToNodeBorders([srcCenter, tgtCenter], srcCenter, tgtCenter, sw / 2, sh / 2);
+    curvePoints = [p0, p1];
+    path = `M${p0.x},${p0.y} L${p1.x},${p1.y}`;
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
     const len = Math.sqrt(dx * dx + dy * dy);
     const ux = len > 0 ? dx / len : 0;
     const uy = len > 0 ? dy / len : 0;
-    const cx = srcCenterX + dx * T;
-    const cy = srcCenterY + dy * T;
+    const cx = p0.x + dx * T;
+    const cy = p0.y + dy * T;
+    mid = { x: cx, y: cy };
     const angle = Math.atan2(dy, dx) * (180 / Math.PI);
     let currentOffset = startOffset;
     displacements = labelItems.map((item) => {
@@ -331,8 +381,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
           <path d="M0,0 L20,9.5 L20,10 L20,10.5 L0,20 Z" fill={MARKER_COLOR} />
         </marker>
 
-        {/* EP start marker: circle centered on border + filled arrow
-                    pointing INTO source from outside. */}
+        {/* EP start marker: circle centered on border + filled arrow pointing into source. */}
         <marker
           id={`ep-start-${id}`}
           markerWidth="15"
@@ -370,6 +419,8 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
         stroke="transparent"
         strokeWidth={20}
         onContextMenu={handleContextMenu as unknown as React.SVGProps<SVGPathElement>["onContextMenu"]}
+        onMouseEnter={onEdgeEnter}
+        onMouseLeave={onEdgeLeave}
       />
 
       {/* Visible path: also handles right-click since it sits on top. */}
@@ -402,31 +453,178 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
       />
 
       <EdgeLabelRenderer>
-        {dots.map((dot, i) => {
-          const { x, y, angle } = displacements[i];
-          return (
-            <div
-              key={`${dot.quantifier}-${dot.objectType}-${i}`}
-              onContextMenu={handleContextMenu}
-              style={{
-                position: "absolute",
-                transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${angle}deg)`,
-                pointerEvents: "all",
-                opacity,
-                zIndex: 10,
-                display: "flex",
-                alignItems: "center",
-                cursor: "context-menu",
-              }}
-            >
-              <MultiDot dot={dot} />
-            </div>
-          );
-        })}
+        {edit && (
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${mid.x}px, ${mid.y - 10}px)`,
+              pointerEvents: "all",
+              opacity,
+              zIndex: 11,
+            }}
+            className="nodrag nopan"
+            onMouseEnter={onEdgeEnter}
+            onMouseLeave={onEdgeLeave}
+          >
+            {data.pair ? (
+              <MergedEdgeEditControl pair={data.pair} showPencil={edgeHovered} />
+            ) : (
+              <EdgeEditControl edgeId={rawId} showPencil={edgeHovered} />
+            )}
+          </div>
+        )}
+        {(negated || cardText || (violationPct != null && !isMerged)) && (
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${mid.x}px, ${mid.y + 16}px)`,
+              pointerEvents: "none",
+              opacity,
+              zIndex: 9,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 10,
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {negated && (
+              <span
+                style={{
+                  color: "#fff",
+                  background: "#dc2626",
+                  borderRadius: 4,
+                  padding: "0 4px",
+                  lineHeight: "15px",
+                }}
+                title="Negated constraint"
+              >
+                ¬
+              </span>
+            )}
+            {cardText && (
+              <span
+                style={{
+                  color: "var(--gray-12)",
+                  background: "var(--color-panel-solid, #fff)",
+                  border: "1px solid var(--gray-6)",
+                  borderRadius: 4,
+                  padding: "0 4px",
+                  lineHeight: "15px",
+                }}
+              >
+                {cardText}
+              </span>
+            )}
+            {violationPct != null && !isMerged && (
+              <span
+                style={{
+                  color: "#fff",
+                  background: violationPct < 10 ? "#16a34a" : violationPct < 50 ? "#d97706" : "#dc2626",
+                  borderRadius: 4,
+                  padding: "0 4px",
+                  lineHeight: "15px",
+                }}
+                title="Violation fraction"
+              >
+                {violationPct.toFixed(0)}%
+              </span>
+            )}
+          </div>
+        )}
+        {isMerged &&
+          [
+            { pct: violationPct, t: 0.8, key: "viol-fwd", title: "Forward (EF/DF) violation fraction" },
+            {
+              pct: backwardViolationPct,
+              t: 0.2,
+              key: "viol-bwd",
+              title: "Backward (EP/DP) violation fraction",
+            },
+          ].map(({ pct, t, key, title }) => {
+            if (pct == null) return null;
+            const place = getPlacementOnCurve(curvePoints, t, 0);
+            return (
+              <div
+                key={key}
+                style={{
+                  position: "absolute",
+                  transform: `translate(-50%, -50%) translate(${place.x}px, ${place.y + 16}px)`,
+                  pointerEvents: "none",
+                  opacity,
+                  zIndex: 9,
+                  fontSize: 10,
+                  fontWeight: 700,
+                }}
+              >
+                <span
+                  style={{
+                    color: "#fff",
+                    background: pct < 10 ? "#16a34a" : pct < 50 ? "#d97706" : "#dc2626",
+                    borderRadius: 4,
+                    padding: "0 4px",
+                    lineHeight: "15px",
+                  }}
+                  title={title}
+                >
+                  {pct.toFixed(0)}%
+                </span>
+              </div>
+            );
+          })}
+        {!showTextLabels &&
+          dots.map((dot, i) => {
+            const { x, y, angle } = displacements[i];
+            return (
+              <div
+                key={`${dot.quantifier}-${dot.objectType}-${i}`}
+                onContextMenu={handleContextMenu}
+                style={{
+                  position: "absolute",
+                  transform: `translate(-50%, -50%) translate(${x}px, ${y}px) rotate(${angle}deg)`,
+                  pointerEvents: "all",
+                  opacity,
+                  zIndex: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  cursor: "context-menu",
+                }}
+              >
+                <MultiDot dot={dot} />
+              </div>
+            );
+          })}
+        {showTextLabels && dots.length > 0 && (
+          <div
+            onContextMenu={handleContextMenu}
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${mid.x}px, ${mid.y}px)`,
+              pointerEvents: "all",
+              opacity,
+              zIndex: 10,
+              cursor: "context-menu",
+              fontSize: 10,
+              fontWeight: 600,
+              lineHeight: "15px",
+              whiteSpace: "nowrap",
+              padding: "0 4px",
+              borderRadius: 4,
+              background: "var(--color-panel-solid, #fff)",
+              border: "1px solid var(--gray-6)",
+            }}
+          >
+            <ObjectTextNotation
+              label={textLabel}
+              objectTypeColor={objectTypeColor}
+              hiddenObjectTypes={hiddenObjectTypes}
+            />
+          </div>
+        )}
       </EdgeLabelRenderer>
 
-      {/* Floating context card: portaled to document body so it's not
-                affected by ReactFlow's viewport transform. */}
+      {/* Floating context card: portaled to document body so ReactFlow's viewport transform doesn't affect it. */}
       {menuPos &&
         createPortal(
           <div
@@ -443,9 +641,9 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
           >
             {/* Header: source -> target */}
             <div className="flex items-center gap-1 mb-1.5 text-[12px] font-semibold">
-              <span style={{ color: activityColor(source) }}>{source}</span>
+              <span style={{ color: activityColor(sourceLabel) }}>{sourceLabel}</span>
               <span className="text-[var(--gray-8)]">→</span>
-              <span style={{ color: activityColor(target) }}>{target}</span>
+              <span style={{ color: activityColor(targetLabel) }}>{targetLabel}</span>
             </div>
 
             {/* Arc type badge */}
@@ -461,8 +659,8 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
             {/* Natural language description */}
             <p className="text-[var(--gray-10)] mb-1.5">
               {describeConstraintRich(
-                source,
-                target,
+                sourceLabel,
+                targetLabel,
                 data.arcType,
                 data.label,
                 activityColor,
@@ -496,5 +694,61 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
           document.body,
         )}
     </>
+  );
+}
+
+/** OCPQ-style text notation: `∀ each ALL(all) ANY(any)`, O2O rendered lossless as `first>second`/`first<second`. */
+function ObjectTextNotation({
+  label,
+  objectTypeColor,
+  hiddenObjectTypes,
+}: {
+  label: OCDeclareArcLabel;
+  objectTypeColor: ColorResolver;
+  hiddenObjectTypes: Set<string>;
+}) {
+  const assoc = (a: ObjectTypeAssociation, i: number) => {
+    if (a.type === "Simple") {
+      return (
+        <span key={`s-${a.object_type}-${i}`} style={{ color: objectTypeColor(a.object_type) }}>
+          {a.object_type}
+        </span>
+      );
+    }
+    return (
+      <span key={`o-${a.first}-${a.second}-${i}`}>
+        <span style={{ color: objectTypeColor(a.first) }}>{a.first}</span>
+        {a.reversed ? "<" : ">"}
+        <span style={{ color: objectTypeColor(a.second) }}>{a.second}</span>
+      </span>
+    );
+  };
+  const list = (as: ObjectTypeAssociation[]) =>
+    as
+      .filter((a) => a.type !== "Simple" || !hiddenObjectTypes.has(a.object_type))
+      .flatMap((a, i) => (i === 0 ? [assoc(a, i)] : [", ", assoc(a, i)]));
+
+  const each = list(label.each);
+  const all = list(label.all);
+  const any = list(label.any);
+
+  return (
+    <span className="flex items-center gap-1">
+      {each.length > 0 && <span>∀ {each}</span>}
+      {all.length > 0 && (
+        <span>
+          <span className="font-semibold">ALL(</span>
+          {all}
+          <span className="font-semibold">)</span>
+        </span>
+      )}
+      {any.length > 0 && (
+        <span>
+          <span className="font-semibold">ANY(</span>
+          {any}
+          <span className="font-semibold">)</span>
+        </span>
+      )}
+    </span>
   );
 }

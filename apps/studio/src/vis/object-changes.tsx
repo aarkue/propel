@@ -2,16 +2,16 @@ import type { IDockviewPanelProps } from "dockview";
 import { lazy, Suspense, useState } from "react";
 import { ErrorState, LoadingState } from "@r4pm/components";
 import { Button, Card, Text } from "@r4pm/components/ui";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { BackendContext, ObjectAttributeChanges, SlimLinkedOCELHandle } from "@r4pm/client";
 import { PiWaveSine } from "react-icons/pi";
 import { definePanel } from "./define-vis";
 import { withSelector, datasetEmptyBox } from "./_shared";
 import { useDatasetSelection } from "../panels/active-datasets";
+import { useDatasetScopedState } from "../panels/panel-state";
 import { backend } from "../backends";
 
-// Lazy so the `@r4pm/components/charts` -> Plotly import stays out of the initial load graph and only
-// loads when this panel is first opened.
+// Lazy: keep Plotly out of the initial bundle.
 const ObjectAttributeChangesChart = lazy(() =>
   import("@r4pm/components/charts").then((m) => ({ default: m.ObjectAttributeChangesChart })),
 );
@@ -22,12 +22,17 @@ const GET_OBJECT_ATTRIBUTE_CHANGES =
 
 export interface ObjectAttributeChangesPanelProps {
   backend: BackendContext;
-  /** SlimLinkedOCEL handle (every OCEL binding operates on this). */
   ocel: SlimLinkedOCELHandle;
+  committedId: string;
+  onCommit: (id: string) => void;
 }
 
-export function ObjectAttributeChangesPanel({ backend, ocel }: ObjectAttributeChangesPanelProps) {
-  const queryClient = useQueryClient();
+export function ObjectAttributeChangesPanel({
+  backend,
+  ocel,
+  committedId,
+  onCommit,
+}: ObjectAttributeChangesPanelProps) {
   const objectIdsQuery = useQuery({
     queryKey: ["ocel-object-ids", ocel],
     queryFn: async () => {
@@ -36,8 +41,17 @@ export function ObjectAttributeChangesPanel({ backend, ocel }: ObjectAttributeCh
     },
   });
 
-  const [objectID, setObjectID] = useState("");
-  const [result, setResult] = useState<{ data: ObjectAttributeChanges; objectID: string } | null>(null);
+  // Ephemeral input; committedId drives the fetch and persists.
+  const [objectID, setObjectID] = useState(committedId);
+  const changesQuery = useQuery({
+    queryKey: ["ocel-object-changes", ocel, committedId],
+    queryFn: () =>
+      backend.callBinding(GET_OBJECT_ATTRIBUTE_CHANGES, {
+        ocel,
+        object_id: committedId,
+      }) as Promise<ObjectAttributeChanges>,
+    enabled: !!committedId,
+  });
   const listId = `object-ids-${ocel}`;
 
   return (
@@ -61,33 +75,29 @@ export function ObjectAttributeChangesPanel({ backend, ocel }: ObjectAttributeCh
               <div className="flex w-fit items-center">
                 <input
                   placeholder="Object ID"
-                  style={{ border: "1px solid #d6d3d1", padding: 2, margin: 4 }}
+                  style={{
+                    border: "1px solid var(--gray-7)",
+                    background: "var(--color-surface)",
+                    color: "var(--gray-12)",
+                    borderRadius: "var(--radius-2)",
+                    padding: 2,
+                    margin: 4,
+                  }}
                   value={objectID}
                   onChange={(ev) => setObjectID(ev.currentTarget.value)}
+                  onKeyDown={(ev) => ev.key === "Enter" && onCommit(objectID)}
                   list={listId}
                 />
-                <Button
-                  onClick={() => {
-                    const objectIDCopy = objectID;
-                    queryClient
-                      .fetchQuery({
-                        queryKey: ["ocel-object-changes", ocel, objectIDCopy],
-                        queryFn: () =>
-                          backend.callBinding(GET_OBJECT_ATTRIBUTE_CHANGES, {
-                            ocel,
-                            object_id: objectIDCopy,
-                          }),
-                      })
-                      .then((data) => setResult({ data, objectID: objectIDCopy }));
-                  }}
-                >
-                  Go
-                </Button>
+                <Button onClick={() => onCommit(objectID)}>Go</Button>
               </div>
               <div className="grow" style={{ minHeight: 0 }}>
-                {result && (
+                {changesQuery.error && (
+                  <ErrorState error={changesQuery.error} onRetry={() => changesQuery.refetch()} />
+                )}
+                {committedId && changesQuery.isPending && <LoadingState label="loading chart" />}
+                {changesQuery.data && (
                   <Suspense fallback={<LoadingState label="loading chart" />}>
-                    <ObjectAttributeChangesChart data={result.data} objectID={result.objectID} />
+                    <ObjectAttributeChangesChart data={changesQuery.data} objectID={committedId} />
                   </Suspense>
                 )}
               </div>
@@ -99,14 +109,20 @@ export function ObjectAttributeChangesPanel({ backend, ocel }: ObjectAttributeCh
   );
 }
 
-/** Object attribute changes over time for the active OCEL. */
-export function ObjectChangesDockPanel(_props: IDockviewPanelProps) {
-  const { id: ocel, selector } = useDatasetSelection("SlimLinkedOCEL");
+export function ObjectChangesDockPanel(props: IDockviewPanelProps) {
+  const { id: ocel, selector } = useDatasetSelection("SlimLinkedOCEL", props);
+  const [committedId, setCommittedId] = useDatasetScopedState(props, "objectID", ocel ?? "", "");
   if (!ocel) return withSelector(selector, datasetEmptyBox("OCEL"), "object-changes");
   return withSelector(
     selector,
     <Suspense fallback={<LoadingState label="loading object changes" />}>
-      <ObjectAttributeChangesPanel key={ocel} backend={backend} ocel={ocel as SlimLinkedOCELHandle} />
+      <ObjectAttributeChangesPanel
+        key={ocel}
+        backend={backend}
+        ocel={ocel as SlimLinkedOCELHandle}
+        committedId={committedId}
+        onCommit={setCommittedId}
+      />
     </Suspense>,
     "object-changes",
   );

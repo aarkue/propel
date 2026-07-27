@@ -1,30 +1,11 @@
-import {
-  Badge,
-  Button,
-  Flex,
-  IconButton,
-  SegmentedControl,
-  Select,
-  Text,
-  TextField,
-} from "@r4pm/components/ui";
-import { lazy, Suspense, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { PiCircle, PiCircleFill, PiCircleHalfFill } from "react-icons/pi";
-import { FaChevronDown, FaChevronRight, FaPlus, FaTrash } from "react-icons/fa";
 import type {
   AttributeCatalogEntry,
   AttributeInfo,
-  AttributeKind,
-  AttributeLevel,
   AttributeScope,
-  AttributeValues,
   BackendContext,
-  Condition,
   EventLogHandle,
   KeepOrRemove,
   OcelAttributeInfo,
-  OcelAttributeLevel,
   RelabelRule,
   RequiredOrForbidden,
   SlimLinkedOCELHandle,
@@ -32,24 +13,36 @@ import type {
   Transform,
 } from "@r4pm/client";
 import { colorForSeed, FrequencyPicker, LogVariants, softBadgeStyle } from "@r4pm/components";
-import { ConditionEditor, ConditionSummary } from "./condition-editor";
 import {
-  buildCategoricalCondition,
-  buildNumericCondition,
+  Badge,
+  Button,
+  Callout,
+  Flex,
+  IconButton,
+  SegmentedControl,
+  Select,
+  Text,
+  TextField,
+} from "@r4pm/components/ui";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { FaChevronDown, FaChevronRight, FaPlus, FaTrash } from "react-icons/fa";
+import { PiCircle, PiCircleFill, PiCircleHalfFill, PiFunnel } from "react-icons/pi";
+import {
+  DURATION_UNITS,
   groupEntries,
   keyToScope,
   localInputToRfc,
-  parseCategoricalValues,
-  parseNumericBounds,
   rfcToLocalInput,
   scopeToKey,
 } from "./condition";
-
-// Lazy so `@r4pm/components/charts` -> Plotly stays out of the initial load graph; the transform
-// editors (eagerly globbed via the transform panel kinds) would otherwise drag Plotly in at startup.
-const ThemedPlot = lazy(() => import("@r4pm/components/charts").then((m) => ({ default: m.ThemedPlot })));
-
-// ─── Main dispatcher ─────────────────────────────────────────────────────────
+import {
+  type CondEnv,
+  ConditionEditor,
+  ConditionEnvProvider,
+  ConditionSummary,
+  EventTimeRangePicker,
+} from "./condition-editor";
 
 export function TransformEditor({
   transform,
@@ -63,6 +56,7 @@ export function TransformEditor({
   objectTypeCounts,
   backend,
   datasetName,
+  enabledPrefix,
 }: {
   transform: Transform;
   onChange: (t: Transform) => void;
@@ -75,6 +69,8 @@ export function TransformEditor({
   objectTypeCounts?: Record<string, number>;
   backend: BackendContext;
   datasetName: string;
+  /** Enabled upstream transforms (before this step), for on-demand variant reconstruction. */
+  enabledPrefix: Transform[];
 }) {
   switch (transform.type) {
     case "FilterActivities":
@@ -116,12 +112,21 @@ export function TransformEditor({
           objectType={objectType}
           backend={backend}
           datasetName={datasetName}
+          enabledPrefix={enabledPrefix}
           totalTraces={totalTraces}
           totalEvents={totalEvents}
         />
       );
     case "FilterTimeRange":
-      return <FilterTimeRangeEditor transform={transform} onChange={onChange} />;
+      return (
+        <FilterTimeRangeEditor
+          transform={transform}
+          onChange={onChange}
+          objectType={objectType}
+          backend={backend}
+          datasetName={datasetName}
+        />
+      );
     case "FilterObjectTypes":
       return (
         <FilterObjectTypesEditor
@@ -182,6 +187,10 @@ export function TransformEditor({
           transform={transform}
           onChange={onChange}
           objectType={objectType}
+          activities={activities}
+          objectTypes={objectTypes ?? []}
+          activityCounts={activityCounts}
+          objectTypeCounts={objectTypeCounts}
           backend={backend}
           datasetName={datasetName}
         />
@@ -190,8 +199,6 @@ export function TransformEditor({
       return <Text color="red">Unknown transform type</Text>;
   }
 }
-
-// ─── Reusable: Item checkbox list ────────────────────────────────────────────
 
 function ItemCheckboxList({
   allItems,
@@ -220,8 +227,6 @@ function ItemCheckboxList({
     />
   );
 }
-
-// ─── Reusable: Relabel table ────────────────────────────────────────────────
 
 function RelabelTable({
   items,
@@ -484,8 +489,6 @@ function RelabelRuleCard({
   );
 }
 
-// ─── Transform Editors ──────────────────────────────────────────────────────
-
 function FilterActivitiesEditor({
   transform,
   onChange,
@@ -651,9 +654,15 @@ function FilterTraceContainsEditor({
 function FilterTimeRangeEditor({
   transform,
   onChange,
+  objectType,
+  backend,
+  datasetName,
 }: {
   transform: Extract<Transform, { type: "FilterTimeRange" }>;
   onChange: (t: Transform) => void;
+  objectType: "EventLog" | "OCEL";
+  backend: BackendContext;
+  datasetName: string;
 }) {
   return (
     <Flex direction="column" gap="3">
@@ -708,7 +717,23 @@ function FilterTimeRangeEditor({
             onChange={(e) => onChange({ ...transform, end: localInputToRfc(e.currentTarget.value) })}
           />
         </div>
+        <Badge
+          color="gray"
+          variant="soft"
+          style={{ alignSelf: "end" }}
+          title="Times are interpreted as UTC, matching the event data."
+        >
+          UTC
+        </Badge>
       </Flex>
+      <EventTimeRangePicker
+        backend={backend}
+        datasetName={datasetName}
+        objectType={objectType}
+        start={transform.start}
+        end={transform.end}
+        onRangeChange={(start, end) => onChange({ ...transform, start, end })}
+      />
     </Flex>
   );
 }
@@ -723,6 +748,7 @@ function FilterVariantsEditor({
   objectType,
   backend,
   datasetName,
+  enabledPrefix,
   totalTraces,
   totalEvents,
 }: {
@@ -731,6 +757,7 @@ function FilterVariantsEditor({
   objectType: "EventLog" | "OCEL";
   backend: BackendContext;
   datasetName: string;
+  enabledPrefix: Transform[];
   totalTraces?: number;
   totalEvents?: number;
 }) {
@@ -742,7 +769,34 @@ function FilterVariantsEditor({
       }) as Promise<TraceVariants>,
     enabled: !!datasetName && objectType === "EventLog",
   });
-  const data = variantsQuery.data;
+
+  // Upstream event/trace filters re-form variants, which set-math can't derive; on demand, apply the
+  // enabled prefix to a hidden temp handle, read its variants, and unload the handle.
+  const hasUpstream = enabledPrefix.length > 0 && objectType === "EventLog";
+  const [useFiltered, setUseFiltered] = useState(false);
+  const showFiltered = useFiltered && hasUpstream;
+  const prefixSig = JSON.stringify(enabledPrefix);
+  const filteredQuery = useQuery<TraceVariants>({
+    queryKey: [datasetName, "filter-variants-filtered", prefixSig],
+    enabled: showFiltered && !!datasetName,
+    queryFn: async () => {
+      const handle = (await backend.callBinding(
+        "app_bindings::transforms::apply_event_log_transforms",
+        { event_log: datasetName as EventLogHandle, transforms: enabledPrefix },
+        { outputName: `variant-preview-${datasetName}` },
+      )) as string;
+      try {
+        return (await backend.callBinding("app_bindings::event_log::get_log_trace_variants", {
+          event_log: handle as EventLogHandle,
+        })) as TraceVariants;
+      } finally {
+        await backend.unloadObject(handle).catch(() => {});
+      }
+    },
+  });
+
+  const activeQuery = showFiltered ? filteredQuery : variantsQuery;
+  const data = activeQuery.data;
 
   // The transform stores activity-label sequences; LogVariants speaks variant
   // indices. These two maps bridge the gap in both directions.
@@ -784,22 +838,52 @@ function FilterVariantsEditor({
           : `${transform.mode === "Keep" ? "Keeping" : "Removing"} traces matching ${transform.variants.length} variant${transform.variants.length === 1 ? "" : "s"}.`}
       </Text>
 
+      {hasUpstream && (
+        <Callout.Root size="1" color={showFiltered ? "violet" : "amber"}>
+          <Callout.Icon>
+            <PiFunnel />
+          </Callout.Icon>
+          <Callout.Text>
+            <Flex align="center" justify="between" gap="3" wrap="wrap">
+              <span>
+                {showFiltered
+                  ? `Variants of the log after ${enabledPrefix.length} upstream step${enabledPrefix.length === 1 ? "" : "s"}.`
+                  : `Variants of the full log — the ${enabledPrefix.length} upstream step${enabledPrefix.length === 1 ? "" : "s"} above ${enabledPrefix.length === 1 ? "isn't" : "aren't"} applied here.`}
+              </span>
+              <Button
+                size="1"
+                variant={showFiltered ? "soft" : "solid"}
+                color="violet"
+                disabled={filteredQuery.isFetching}
+                onClick={() => setUseFiltered((v) => !v)}
+              >
+                {filteredQuery.isFetching
+                  ? "Computing…"
+                  : showFiltered
+                    ? "Show full log"
+                    : "Recompute for filtered log"}
+              </Button>
+            </Flex>
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
       {objectType !== "EventLog" ? (
         <Text size="1" color="gray">
           Variant filtering applies to event logs only.
         </Text>
-      ) : variantsQuery.isLoading ? (
+      ) : activeQuery.isLoading ? (
         <Text size="1" color="gray">
           Loading variants…
         </Text>
-      ) : variantsQuery.error ? (
+      ) : activeQuery.error ? (
         <Text size="1" color="red">
-          {String(variantsQuery.error)}
+          {String(activeQuery.error)}
         </Text>
       ) : data ? (
         <div className="w-full" style={{ height: 520 }}>
           <LogVariants
-            key={datasetName}
+            key={showFiltered ? `filtered-${prefixSig}` : datasetName}
             variants={data}
             numTraces={totalTraces ?? 0}
             numEvents={totalEvents ?? 0}
@@ -1172,14 +1256,7 @@ function SampleEditor({
   );
 }
 
-const DURATION_UNITS = [
-  { label: "seconds", ms: 1_000 },
-  { label: "minutes", ms: 60_000 },
-  { label: "hours", ms: 3_600_000 },
-  { label: "days", ms: 86_400_000 },
-] as const;
-
-type DurationUnitLabel = (typeof DURATION_UNITS)[number]["label"];
+type DurationUnitLabel = (typeof DURATION_UNITS)[number]["long"];
 
 function DurationInput({
   label,
@@ -1196,8 +1273,8 @@ function DurationInput({
       ? ([...DURATION_UNITS].reverse().find((u) => valueMs >= u.ms && valueMs % u.ms === 0) ??
         DURATION_UNITS[0])
       : DURATION_UNITS[1]; // default to minutes
-  const [unit, setUnit] = useState<DurationUnitLabel>(bestUnit.label);
-  const unitMs = DURATION_UNITS.find((u) => u.label === unit)?.ms ?? 1_000;
+  const [unit, setUnit] = useState<DurationUnitLabel>(bestUnit.long);
+  const unitMs = DURATION_UNITS.find((u) => u.long === unit)?.ms ?? 1_000;
   const displayVal = valueMs != null ? valueMs / unitMs : "";
 
   return (
@@ -1233,8 +1310,8 @@ function DurationInput({
           <Select.Trigger variant="soft" />
           <Select.Content>
             {DURATION_UNITS.map((u) => (
-              <Select.Item key={u.label} value={u.label}>
-                {u.label}
+              <Select.Item key={u.long} value={u.long}>
+                {u.long}
               </Select.Item>
             ))}
           </Select.Content>
@@ -1306,6 +1383,14 @@ function RescaleTimeframeEditor({
             }}
           />
         </div>
+        <Badge
+          color="gray"
+          variant="soft"
+          style={{ alignSelf: "end", marginBottom: 6 }}
+          title="Target dates are interpreted as UTC (00:00:00 to 23:59:59), matching the event data."
+        >
+          UTC
+        </Badge>
       </Flex>
 
       {/* Gap constraints */}
@@ -1354,458 +1439,34 @@ function RescaleTimeframeEditor({
   );
 }
 
-// ─── Attribute Filter Editor ────────────────────────────────────────────────
-
-/** Shared summary type for the distribution panel */
-type AttrSummaryData = {
-  name?: string;
-  kind: AttributeKind;
-  total: number;
-  missing: number;
-  top_values: [string, number][];
-  hist_bin_edges: number[];
-  hist_counts: number[];
-  numeric_stats: { min: number; max: number; mean: number; median: number; stddev: number } | null;
-};
-
-/** Distinct-value count at or below which the categorical filter uses the clickable bar
- *  chart; above it the chart squishes/overflows, so a searchable checklist is used instead. */
-const CATEGORICAL_CHART_MAX = 10;
-
-/** Searchable, virtualized value picker for categorical attributes with many distinct values.
- *  Uses the full distinct list from the server (`fullValues`); falls back to the summary's
- *  top values while that is loading or if it errors. */
-function CategoricalValuePicker({
-  summary,
-  attrName,
-  selectedValues,
-  onChange,
-  fullValues,
-  valuesLoading,
-  valuesError,
-}: {
-  summary: AttrSummaryData;
-  attrName: string;
-  selectedValues: Set<string>;
-  onChange: (c: Condition) => void;
-  fullValues: AttributeValues | null;
-  valuesLoading: boolean;
-  valuesError: boolean;
-}) {
-  const items = fullValues?.values ?? summary.top_values;
-  const counts: Record<string, number> = {};
-  for (const [v, c] of items) counts[v] = c;
-  const allValues = items.map(([v]) => v);
-
-  const capped = fullValues != null && fullValues.total_distinct > fullValues.values.length;
-  const usingFallback = fullValues == null;
-
-  return (
-    <div
-      className="rounded-lg p-3"
-      style={{ background: "var(--gray-2)", border: "1px solid var(--gray-5)" }}
-    >
-      <Flex align="center" gap="2" mb="1">
-        <Text size="2" weight="bold" className="font-mono">
-          {summary.name ?? attrName}
-        </Text>
-        <Badge size="1" color="orange" variant="soft">
-          {summary.kind}
-        </Badge>
-        {selectedValues.size > 0 && (
-          <Badge size="1" color="iris" variant="soft">
-            {selectedValues.size} selected
-          </Badge>
-        )}
-      </Flex>
-      <Text size="1" color="gray" as="div" mb="1">
-        {summary.total - summary.missing} present, {summary.missing} missing (search and check values)
-      </Text>
-
-      {valuesLoading && usingFallback ? (
-        <Text size="1" color="gray">
-          Loading values…
-        </Text>
-      ) : (
-        <ItemCheckboxList
-          allItems={allValues}
-          selectedItems={allValues.filter((v) => selectedValues.has(v))}
-          onSelectionChange={(vals) => onChange(buildCategoricalCondition(attrName, vals))}
-          useActivityColors={false}
-          counts={counts}
-        />
-      )}
-
-      {capped && (
-        <Text size="1" color="gray" as="div" mt="1">
-          Showing top {fullValues.values.length.toLocaleString()} of{" "}
-          {fullValues.total_distinct.toLocaleString()} values.
-        </Text>
-      )}
-      {(valuesError || (usingFallback && !valuesLoading)) && (
-        <Text size="1" color="gray" as="div" mt="1">
-          Showing top {items.length.toLocaleString()} values.
-        </Text>
-      )}
-    </div>
-  );
-}
-
-/** Interactive distribution panel using Plotly for selection */
-function FilterDistributionPanel({
-  summary,
-  attrName,
-  condition,
-  onChange,
-  fullValues,
-  valuesLoading,
-  valuesError,
-}: {
-  summary: AttrSummaryData;
-  attrName: string;
-  condition: Condition;
-  onChange: (c: Condition) => void;
-  fullValues: AttributeValues | null;
-  valuesLoading: boolean;
-  valuesError: boolean;
-}) {
-  const bounds = parseNumericBounds(condition, attrName);
-  const selectedValues = useMemo(
-    () => new Set(parseCategoricalValues(condition, attrName)),
-    [condition, attrName],
-  );
-
-  // ── Numeric: interactive histogram ──
-  if (summary.kind === "Numeric" && summary.hist_bin_edges.length > 1) {
-    const edges = summary.hist_bin_edges;
-    const binCenters = edges.slice(0, -1).map((e, i) => (e + edges[i + 1]) / 2);
-    const binWidths = edges.slice(0, -1).map((e, i) => edges[i + 1] - e);
-
-    // Color bars based on whether they're in the selected range
-    const barColors = binCenters.map((_, i) => {
-      const binStart = edges[i];
-      const binEnd = edges[i + 1];
-      const inRange =
-        (bounds.min == null || binEnd > bounds.min) && (bounds.max == null || binStart < bounds.max);
-      return inRange ? "#6e56cf" : "#888";
-    });
-
-    // Build range shapes (vertical lines at min/max bounds)
-    const shapes: Partial<Plotly.Shape>[] = [];
-    if (bounds.min != null) {
-      shapes.push({
-        type: "line",
-        x0: bounds.min,
-        x1: bounds.min,
-        y0: 0,
-        y1: 1,
-        yref: "paper",
-        line: { color: "#e5484d", width: 2, dash: "dot" },
-      });
-    }
-    if (bounds.max != null) {
-      shapes.push({
-        type: "line",
-        x0: bounds.max,
-        x1: bounds.max,
-        y0: 0,
-        y1: 1,
-        yref: "paper",
-        line: { color: "#e5484d", width: 2, dash: "dot" },
-      });
-    }
-
-    return (
-      <div
-        className="rounded-lg p-3"
-        style={{ background: "var(--gray-2)", border: "1px solid var(--gray-5)" }}
-      >
-        <Flex align="center" gap="2" mb="1">
-          <Text size="2" weight="bold" className="font-mono">
-            {summary.name ?? attrName}
-          </Text>
-          <Badge size="1" color="blue" variant="soft">
-            {summary.kind}
-          </Badge>
-        </Flex>
-
-        {/* Stats row */}
-        {summary.numeric_stats && (
-          <div className="flex flex-wrap gap-2 mb-1">
-            <Badge size="1" color="blue">
-              min {summary.numeric_stats.min.toLocaleString()}
-            </Badge>
-            <Badge size="1" color="blue">
-              max {summary.numeric_stats.max.toLocaleString()}
-            </Badge>
-            <Badge size="1" color="iris">
-              mean {summary.numeric_stats.mean.toFixed(2)}
-            </Badge>
-            <Badge size="1" color="iris">
-              median {summary.numeric_stats.median.toFixed(2)}
-            </Badge>
-            <Badge size="1" color="violet">
-              σ {summary.numeric_stats.stddev.toFixed(2)}
-            </Badge>
-          </div>
-        )}
-        <Text size="1" color="gray" as="div" mb="1">
-          {summary.total - summary.missing} present, {summary.missing} missing (zoom x-axis to set filter)
-          range
-        </Text>
-
-        {/* Plotly histogram */}
-        <div style={{ height: 180, position: "relative", overflow: "hidden" }}>
-          <Suspense fallback={<div style={{ height: "100%" }} />}>
-            <ThemedPlot
-              data={[
-                {
-                  type: "bar",
-                  x: binCenters,
-                  y: summary.hist_counts,
-                  width: binWidths,
-                  marker: { color: barColors },
-                  hovertemplate: "%{x:.4g}: %{y}<extra></extra>",
-                },
-              ]}
-              layout={{
-                margin: { t: 8, b: 36, l: 44, r: 8 },
-                bargap: 0.02,
-                xaxis: {
-                  title: { text: attrName, font: { size: 10 } },
-                  fixedrange: false,
-                  rangeslider: undefined,
-                },
-                yaxis: {
-                  title: { text: "Count", font: { size: 10 } },
-                  fixedrange: true,
-                },
-                shapes,
-                dragmode: "zoom",
-              }}
-              config={{
-                displaylogo: false,
-                displayModeBar: false,
-                responsive: true,
-              }}
-              onRelayout={(e: Record<string, unknown>) => {
-                // Plotly fires onRelayout when user zooms the x-axis
-                const x0 = e["xaxis.range[0]"] as number | undefined;
-                const x1 = e["xaxis.range[1]"] as number | undefined;
-                if (x0 !== undefined && x1 !== undefined) {
-                  // Round to 4 significant digits so UI shows clean numbers.
-                  const round4 = (v: number) => Number(v.toPrecision(4));
-                  onChange(buildNumericCondition(attrName, round4(x0), round4(x1)));
-                }
-                // Double-click resets -> "xaxis.autorange": true
-                if (e["xaxis.autorange"]) {
-                  onChange({ type: "And", conditions: [] });
-                }
-              }}
-            />
-          </Suspense>
-        </div>
-
-        {/* Min/Max text inputs */}
-        <Flex gap="2" align="end" mt="2">
-          <div className="flex-1">
-            <Text size="1" color="gray" as="div">
-              Min
-            </Text>
-            <TextField.Root
-              size="1"
-              type="number"
-              placeholder="—"
-              value={bounds.min != null ? String(bounds.min) : ""}
-              onChange={(e) => {
-                const v = e.currentTarget.value;
-                onChange(buildNumericCondition(attrName, v === "" ? null : parseFloat(v), bounds.max));
-              }}
-            />
-          </div>
-          <div className="flex-1">
-            <Text size="1" color="gray" as="div">
-              Max
-            </Text>
-            <TextField.Root
-              size="1"
-              type="number"
-              placeholder="—"
-              value={bounds.max != null ? String(bounds.max) : ""}
-              onChange={(e) => {
-                const v = e.currentTarget.value;
-                onChange(buildNumericCondition(attrName, bounds.min, v === "" ? null : parseFloat(v)));
-              }}
-            />
-          </div>
-          {(bounds.min != null || bounds.max != null) && (
-            <Button
-              size="1"
-              variant="soft"
-              color="gray"
-              onClick={() => onChange({ type: "And", conditions: [] })}
-            >
-              Reset
-            </Button>
-          )}
-        </Flex>
-      </div>
-    );
-  }
-
-  // ── Categorical: clickable bar chart ──
-  if (
-    (summary.kind === "Categorical" || summary.kind === "Other" || summary.kind === "Date") &&
-    summary.top_values.length > 0
-  ) {
-    // Many distinct values squish the bar chart; use a searchable checklist instead.
-    if (summary.top_values.length > CATEGORICAL_CHART_MAX) {
-      return (
-        <CategoricalValuePicker
-          summary={summary}
-          attrName={attrName}
-          selectedValues={selectedValues}
-          onChange={onChange}
-          fullValues={fullValues}
-          valuesLoading={valuesLoading}
-          valuesError={valuesError}
-        />
-      );
-    }
-    const labels = summary.top_values.map(([v]) => v);
-    const counts = summary.top_values.map(([, c]) => c);
-    const barColors = labels.map((v) => (selectedValues.has(v) ? "#6e56cf" : "#888"));
-
-    return (
-      <div
-        className="rounded-lg p-3"
-        style={{ background: "var(--gray-2)", border: "1px solid var(--gray-5)" }}
-      >
-        <Flex align="center" gap="2" mb="1">
-          <Text size="2" weight="bold" className="font-mono">
-            {summary.name ?? attrName}
-          </Text>
-          <Badge size="1" color="orange" variant="soft">
-            {summary.kind}
-          </Badge>
-          {selectedValues.size > 0 && (
-            <Badge size="1" color="iris" variant="soft">
-              {selectedValues.size} selected
-            </Badge>
-          )}
-        </Flex>
-        <Text size="1" color="gray" as="div" mb="1">
-          {summary.total - summary.missing} present, {summary.missing} missing (click bars to select values)
-        </Text>
-
-        {/* Plotly horizontal bar chart */}
-        <div
-          style={{
-            height: Math.max(120, Math.min(300, labels.length * 22 + 60)),
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <Suspense fallback={<div style={{ height: "100%" }} />}>
-            <ThemedPlot
-              data={[
-                {
-                  type: "bar",
-                  y: labels,
-                  x: counts,
-                  orientation: "h",
-                  marker: { color: barColors },
-                  hovertemplate: "%{y}: %{x}<extra></extra>",
-                },
-              ]}
-              layout={{
-                margin: {
-                  t: 8,
-                  b: 36,
-                  l: Math.min(180, Math.max(60, Math.max(...labels.map((l) => l.length)) * 6.5)),
-                  r: 8,
-                },
-                xaxis: { title: { text: "Count", font: { size: 10 } }, fixedrange: true },
-                yaxis: {
-                  autorange: "reversed",
-                  fixedrange: true,
-                  automargin: true,
-                },
-                bargap: 0.08,
-              }}
-              config={{
-                displaylogo: false,
-                displayModeBar: false,
-                responsive: true,
-              }}
-              onClick={(e: { points?: { pointIndex?: number }[] }) => {
-                const idx = e.points?.[0]?.pointIndex;
-                if (idx == null || idx < 0 || idx >= labels.length) return;
-                const clickedVal = labels[idx];
-                const next = new Set(selectedValues);
-                if (next.has(clickedVal)) next.delete(clickedVal);
-                else next.add(clickedVal);
-                onChange(buildCategoricalCondition(attrName, Array.from(next)));
-              }}
-            />
-          </Suspense>
-        </div>
-
-        {/* Selection controls */}
-        <Flex gap="2" mt="1" wrap="wrap">
-          <Button
-            size="1"
-            variant="soft"
-            color="gray"
-            onClick={() => onChange(buildCategoricalCondition(attrName, labels))}
-          >
-            Select All
-          </Button>
-          <Button
-            size="1"
-            variant="soft"
-            color="gray"
-            onClick={() => onChange({ type: "And", conditions: [] })}
-          >
-            Clear
-          </Button>
-        </Flex>
-      </div>
-    );
-  }
-
-  // Fallback for unsupported kind
-  return (
-    <div
-      className="rounded-lg p-3"
-      style={{ background: "var(--gray-2)", border: "1px solid var(--gray-5)" }}
-    >
-      <Text size="1" color="gray">
-        No distribution data available for this attribute.
-      </Text>
-    </div>
-  );
-}
+const EMPTY_ATTRS: (AttributeInfo | OcelAttributeInfo)[] = [];
 
 function FilterAttributesEditor({
   transform,
   onChange,
   objectType,
+  activities,
+  objectTypes,
+  activityCounts,
+  objectTypeCounts,
   backend,
   datasetName,
 }: {
   transform: Extract<Transform, { type: "FilterAttributes" }>;
   onChange: (t: Transform) => void;
   objectType: "EventLog" | "OCEL";
+  activities: string[];
+  objectTypes: string[];
+  activityCounts?: Record<string, number>;
+  objectTypeCounts?: Record<string, number>;
   backend: BackendContext;
   datasetName: string;
 }) {
-  const [selectedAttr, setSelectedAttr] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const scope = transform.scope;
 
-  // Fetch attribute catalog
+  // One catalog query serves every scope: names carry their level, so we filter client-side.
   const attrListQuery = useQuery<(AttributeInfo | OcelAttributeInfo)[]>({
-    queryKey: [objectType, datasetName, "filter-attr-list"],
+    queryKey: [objectType, datasetName, "cond-attr-names"],
     queryFn: () =>
       objectType === "EventLog"
         ? (backend.callBinding("app_bindings::event_log::get_attribute_names", {
@@ -1816,140 +1477,89 @@ function FilterAttributesEditor({
           }) as Promise<(AttributeInfo | OcelAttributeInfo)[]>),
     enabled: !!datasetName,
   });
+  const catalog = attrListQuery.data ?? EMPTY_ATTRS;
 
-  // For XES: AttributeInfo[]; For OCEL: OcelAttributeInfo[]
-  const allAttrs = attrListQuery.data ?? [];
-
-  // Map scope to filterable attribute entries
-  const currentScope = transform.scope;
-  const filteredAttrs = allAttrs.filter((a: AttributeInfo | OcelAttributeInfo) => {
-    if (objectType === "EventLog") {
-      const xesAttr = a as AttributeInfo;
-      if (currentScope.type === "Event") return xesAttr.level === "Event";
-      if (currentScope.type === "Object") return xesAttr.level === "Case";
-      return false;
-    }
-    // OCEL
-    const ocelAttr = a as OcelAttributeInfo;
-    if (currentScope.type === "Event") return ocelAttr.level === "Event";
-    if (currentScope.type === "Object") {
-      if (typeof ocelAttr.level === "object" && "Object" in ocelAttr.level) {
-        if (currentScope.object_type) return ocelAttr.level.Object.object_type === currentScope.object_type;
-        return true;
+  const attrNamesForScope = useMemo(() => {
+    return (s: AttributeScope): string[] => {
+      const names: string[] = [];
+      for (const a of catalog) {
+        if (objectType === "EventLog") {
+          const lvl = (a as AttributeInfo).level;
+          if (s.type === "Event" && lvl === "Event") names.push(a.name);
+          else if (s.type === "Object" && lvl === "Case") names.push(a.name);
+        } else {
+          const lvl = (a as OcelAttributeInfo).level;
+          if (s.type === "Event" && lvl === "Event") names.push(a.name);
+          else if (s.type === "Object" && typeof lvl === "object" && "Object" in lvl) {
+            if (!s.object_type || lvl.Object.object_type === s.object_type) names.push(a.name);
+          }
+        }
       }
-      return false;
-    }
-    return false;
-  });
+      return Array.from(new Set(names)).sort();
+    };
+  }, [catalog, objectType]);
 
-  // Fetch summary for selected attribute
-  const summaryQuery = useQuery<AttrSummaryData>({
-    queryKey: [objectType, datasetName, "attr-summary", selectedAttr, JSON.stringify(currentScope)],
-    queryFn: async () => {
-      if (objectType === "EventLog") {
-        const level: AttributeLevel = currentScope.type === "Event" ? "Event" : "Case";
-        return backend.callBinding("app_bindings::event_log::get_attribute_summary", {
-          event_log: datasetName as EventLogHandle,
-          attr_name: selectedAttr!,
-          level,
-        }) as Promise<AttrSummaryData>;
-      }
-      const level: OcelAttributeLevel =
-        currentScope.type === "Event"
-          ? "Event"
-          : {
-              Object: { object_type: currentScope.type === "Object" ? (currentScope.object_type ?? "") : "" },
-            };
-      return backend.callBinding("app_bindings::ocel::get_ocel_attribute_summary", {
-        ocel: datasetName as SlimLinkedOCELHandle,
-        attr_name: selectedAttr!,
-        level,
-      }) as Promise<AttrSummaryData>;
-    },
-    enabled: !!datasetName && !!selectedAttr,
-  });
+  const env: CondEnv = useMemo(
+    () => ({
+      objectType,
+      activities,
+      objectTypes,
+      activityCounts,
+      objectTypeCounts,
+      attrNamesForScope,
+      backend,
+      datasetName,
+    }),
+    [
+      objectType,
+      activities,
+      objectTypes,
+      activityCounts,
+      objectTypeCounts,
+      attrNamesForScope,
+      backend,
+      datasetName,
+    ],
+  );
 
-  const summary = summaryQuery.data ?? null;
-
-  // Full distinct value list (no 100-cap) for the searchable picker; only fetched when the
-  // attribute is categorical with more values than the bar chart can show.
-  const needsValues =
-    !!summary &&
-    (summary.kind === "Categorical" || summary.kind === "Other" || summary.kind === "Date") &&
-    summary.top_values.length > CATEGORICAL_CHART_MAX;
-
-  const valuesQuery = useQuery<AttributeValues>({
-    queryKey: [objectType, datasetName, "attr-values", selectedAttr, JSON.stringify(currentScope)],
-    queryFn: async () => {
-      if (objectType === "EventLog") {
-        const level: AttributeLevel = currentScope.type === "Event" ? "Event" : "Case";
-        return backend.callBinding("app_bindings::event_log::get_attribute_values", {
-          event_log: datasetName as EventLogHandle,
-          attr_name: selectedAttr!,
-          level,
-        }) as Promise<AttributeValues>;
-      }
-      const level: OcelAttributeLevel =
-        currentScope.type === "Event"
-          ? "Event"
-          : {
-              Object: { object_type: currentScope.type === "Object" ? (currentScope.object_type ?? "") : "" },
-            };
-      return backend.callBinding("app_bindings::ocel::get_ocel_attribute_values", {
-        ocel: datasetName as SlimLinkedOCELHandle,
-        attr_name: selectedAttr!,
-        level,
-      }) as Promise<AttributeValues>;
-    },
-    enabled: !!datasetName && !!selectedAttr && needsValues,
-  });
-
-  // OCEL: need object types for scope selector
-  const ocelInfoQuery = useQuery({
-    queryKey: [datasetName, "ocel-info-for-filter"],
-    queryFn: () =>
-      backend.callBinding("app_bindings::ocel::get_ocel_info", { ocel: datasetName as SlimLinkedOCELHandle }),
-    enabled: !!datasetName && objectType === "OCEL",
-  });
-
-  // Build scope options
-  const scopeOptions: { key: string; label: string; scope: AttributeScope }[] = [];
+  const scopeOptions: { key: string; label: string; scope: AttributeScope }[] = [
+    { key: "Event", label: "Each event", scope: { type: "Event", activity: null } },
+  ];
   if (objectType === "EventLog") {
-    scopeOptions.push({ key: "Event", label: "Event attributes", scope: { type: "Event", activity: null } });
     scopeOptions.push({
       key: "Object:__all__",
-      label: "Case attributes",
+      label: "Each case",
       scope: { type: "Object", object_type: null },
     });
   } else {
-    scopeOptions.push({ key: "Event", label: "Event attributes", scope: { type: "Event", activity: null } });
-    const objTypes = ocelInfoQuery.data?.object_types ?? [];
-    for (const ot of objTypes) {
+    for (const ot of objectTypes) {
       scopeOptions.push({
         key: `Object:${ot}`,
-        label: `Object: ${ot}`,
+        label: `Each ${ot} object`,
         scope: { type: "Object", object_type: ot },
       });
     }
-    if (objTypes.length === 0) {
+    if (objectTypes.length === 0) {
       scopeOptions.push({
         key: "Object:__all__",
-        label: "Object attributes",
+        label: "Each object",
         scope: { type: "Object", object_type: null },
       });
     }
   }
+  const currentScopeKey = scope.type === "Object" ? `Object:${scope.object_type ?? "__all__"}` : "Event";
 
-  const currentScopeKey =
-    currentScope.type === "Event"
-      ? "Event"
-      : currentScope.type === "Object"
-        ? `Object:${currentScope.object_type ?? "__all__"}`
-        : "LogGlobal";
+  const noun =
+    scope.type === "Event"
+      ? "each event"
+      : scope.type === "Object" && scope.object_type
+        ? `each ${scope.object_type} object`
+        : objectType === "EventLog"
+          ? "each case"
+          : "each object";
 
   return (
-    <Flex direction="column" gap="2">
-      {/* Mode toggle */}
+    <Flex direction="column" gap="3">
       <Flex align="center" gap="3">
         <Text size="2" weight="medium">
           Mode
@@ -1964,19 +1574,17 @@ function FilterAttributesEditor({
         </SegmentedControl.Root>
       </Flex>
 
-      {/* Scope selector */}
       <div>
         <Text size="1" color="gray" as="div" mb="1">
-          Scope
+          Filter target
         </Text>
         <Select.Root
           value={currentScopeKey}
           onValueChange={(v) => {
             const opt = scopeOptions.find((o) => o.key === v);
-            if (opt) {
-              onChange({ ...transform, scope: opt.scope, condition: { type: "And", conditions: [] } });
-              setSelectedAttr(null);
-            }
+            // Predicates can be scope-specific (e.g. duration), so start the condition fresh
+            // when the target changes rather than leaving now-invalid predicates behind.
+            if (opt) onChange({ ...transform, scope: opt.scope, condition: { type: "And", conditions: [] } });
           }}
         >
           <Select.Trigger variant="soft" />
@@ -1988,94 +1596,22 @@ function FilterAttributesEditor({
             ))}
           </Select.Content>
         </Select.Root>
-      </div>
-
-      {/* Attribute list */}
-      <div>
-        <Text size="1" color="gray" as="div" mb="1">
-          Select an attribute to explore and filter
+        <Text size="1" color="gray" as="div" mt="1">
+          {transform.mode === "Keep" ? "Keeps" : "Removes"} {noun} that matches the condition below.
+          {scope.type === "Event" &&
+            " Switch to a case or object target to filter by duration or related events."}
         </Text>
-        <div className="flex flex-col gap-0.5 max-h-40 overflow-y-auto">
-          {filteredAttrs.length === 0 && (
-            <Text size="1" color="gray">
-              No attributes found in this scope.
-            </Text>
-          )}
-          {filteredAttrs.map((a) => {
-            const isSelected = selectedAttr === a.name;
-            return (
-              <button
-                key={a.name}
-                type="button"
-                onClick={() => setSelectedAttr(isSelected ? null : a.name)}
-                className="flex items-center gap-2 px-2 py-1 rounded text-left text-[12px] cursor-pointer transition-colors"
-                style={{
-                  background: isSelected ? "var(--accent-3)" : "transparent",
-                  border: isSelected ? "1px solid var(--accent-7)" : "1px solid transparent",
-                  color: "var(--gray-12)",
-                }}
-              >
-                <span className="font-mono flex-1 truncate">{a.name}</span>
-                <Badge
-                  size="1"
-                  color={a.kind === "Numeric" ? "blue" : a.kind === "Categorical" ? "orange" : "gray"}
-                  variant="soft"
-                >
-                  {a.kind}
-                </Badge>
-                <Badge size="1" color="gray" variant="soft" title="Occurrence count">
-                  {a.total_count.toLocaleString()}
-                </Badge>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
-      {/* Distribution panel */}
-      {selectedAttr && summary && (
-        <FilterDistributionPanel
-          summary={summary}
-          attrName={selectedAttr}
+      <ConditionEnvProvider value={env}>
+        <ConditionEditor
           condition={transform.condition}
+          scope={scope}
           onChange={(c) => onChange({ ...transform, condition: c })}
-          fullValues={valuesQuery.data ?? null}
-          valuesLoading={valuesQuery.isLoading}
-          valuesError={valuesQuery.isError}
         />
-      )}
+      </ConditionEnvProvider>
 
-      {selectedAttr && summaryQuery.isLoading && (
-        <Text size="1" color="gray">
-          Loading distribution…
-        </Text>
-      )}
-
-      {/* Advanced condition editor toggle */}
-      <button
-        type="button"
-        className="flex items-center gap-1.5"
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "var(--gray-9)",
-          fontSize: 12,
-        }}
-        onClick={() => setShowAdvanced(!showAdvanced)}
-      >
-        {showAdvanced ? <FaChevronDown size={8} /> : <FaChevronRight size={8} />}
-        {showAdvanced ? "Hide condition editor" : "Show condition editor"}
-      </button>
-      {showAdvanced && (
-        <>
-          <ConditionEditor
-            condition={transform.condition}
-            onChange={(c) => onChange({ ...transform, condition: c })}
-          />
-          <ConditionSummary condition={transform.condition} />
-        </>
-      )}
+      <ConditionSummary condition={transform.condition} />
     </Flex>
   );
 }

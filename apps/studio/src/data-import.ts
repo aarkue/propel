@@ -1,4 +1,5 @@
 import type { BackendContext, ItemKindInfo } from "@r4pm/client";
+import { loadItemCached } from "./persistence/session";
 
 /** A registry kind that can load a given file, with the import format (extension) that matched. */
 export interface ImportCandidate {
@@ -70,7 +71,7 @@ export async function importFileAs(
 ): Promise<ImportedDataset> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const id = await uniqueId(backend, sanitizeId(file.name));
-  await backend.loadItem(id, kind, bytes, ext);
+  await loadItemCached(backend, { id, kind, format: ext, label: file.name }, bytes);
   return { id, kind, label: file.name };
 }
 

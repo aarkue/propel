@@ -3,12 +3,23 @@ export * from "./formats";
 import type { CallBinding } from "./bindings.generated";
 import type { JSONSchema7 } from "json-schema";
 
+/** `{fn,args}`, a `"convert:<Kind>"` string, or a legacy escaped-JSON string; `parseOp` normalizes all three. */
+export type ProvenanceOp = { fn: string; args: Record<string, unknown> } | string;
+
+/** Lineage of an object produced by a binding call; absent for imports. */
+export interface Provenance {
+  sources: string[];
+  op: ProvenanceOp;
+  source_gen: number;
+}
+
 /** A loaded registry object, referenced by handle id. */
 export interface LoadedObject {
   id: string;
   kind: string;
   /** User-facing display label; absent/null means the UI falls back to the id. */
   label?: string | null;
+  provenance?: Provenance | null;
 }
 
 /**
@@ -58,6 +69,7 @@ export interface ArtifactInfo {
   kind: string;
   /** User-facing display label; absent/null means the UI falls back to the id. */
   label?: string | null;
+  provenance?: Provenance | null;
 }
 
 /** Which transport an active backend speaks. */
@@ -76,20 +88,17 @@ export interface BackendContext {
   /** Resolves once the backend can accept calls (wasm module init, etc). */
   readonly ready: Promise<void>;
 
-  // --- binding / registry surface ---
   callBinding: CallBinding;
   listObjects(): Promise<LoadedObject[]>;
   listFunctions(): Promise<FunctionMeta[]>;
   listItemKinds(): Promise<ItemKindInfo[]>;
 
-  // --- IO (the engine owns parsing/serialization for every format) ---
   loadItem(id: string, kind: string, data: Uint8Array, format: string): Promise<void>;
   exportObject(name: string, format: string): Promise<Uint8Array>;
   unloadObject(name: string): Promise<void>;
   /** Set (or, with an empty string, clear) an object's user-facing display label; persists engine-side. */
   setLabel(id: string, label: string): Promise<void>;
 
-  // --- artifacts (engine-owned, non-registry values, e.g. Petri nets) ---
   loadArtifactBytes(id: string, kind: string, data: Uint8Array, format: string): Promise<void>;
   listArtifacts(): Promise<ArtifactInfo[]>;
   getArtifact(id: string): Promise<unknown>;
@@ -110,7 +119,6 @@ export interface BackendContext {
    */
   getInitialFiles?(): Promise<string[]>;
 
-  // --- platform ---
   /** Save bytes to the user's disk (browser anchor-download or native save dialog). */
   saveBytes(data: Uint8Array, filename: string, mime?: string): Promise<void>;
   /**

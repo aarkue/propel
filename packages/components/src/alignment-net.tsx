@@ -1,5 +1,6 @@
 import { Badge, SegmentedControl, Text } from "@r4pm/components/ui";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useViewSetting } from "./viewer/view-state";
 import { resolveMove } from "./shared/TraceAlignmentStrip";
 import { AlignmentStrip } from "./shared/AlignmentStrip";
 import { useVirtualRows } from "./shared/useVirtualRows";
@@ -166,8 +167,6 @@ function buildVariantOverlay(net: PetriNet, fired: FiredTransition[]): PetriNetO
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
-// ─── Section label ────────────────────────────────────────────────────────────
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
@@ -184,8 +183,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     </p>
   );
 }
-
-// ─── Custom deviation bar row ─────────────────────────────────────────────────
 
 function DeviationBarRow({
   label,
@@ -269,8 +266,6 @@ function DeviationBarRow({
   );
 }
 
-// ─── Aggregated panel ─────────────────────────────────────────────────────────
-
 function AggregatedPanel({ data }: { data: LogAlignments }) {
   const rows = useMemo(() => deviationRows(data.net, data.aggregated), [data.net, data.aggregated]);
   const logMoves = useMemo(
@@ -328,8 +323,6 @@ function AggregatedPanel({ data }: { data: LogAlignments }) {
     </div>
   );
 }
-
-// ─── Variant panel ────────────────────────────────────────────────────────────
 
 interface VariantPanelProps {
   data: LogAlignments;
@@ -484,21 +477,11 @@ function VariantPanel({ data, selectedIdx, onSelect, variantsByFreq }: VariantPa
   );
 }
 
-// ─── Main viewer ──────────────────────────────────────────────────────────────
-
 type Mode = "aggregated" | "variant";
 
-/**
- * Alignment viewer: Petri net on the left, analysis sidebar on the right.
- *
- * Aggregated mode colors every transition by deviation rate (green = conforming,
- * red = always model-only) and lists transitions + log-only activities ranked by
- * deviation. Variant mode lets you pick any trace variant and inspect its
- * alignment path on the net (sync = green, model-only = violet, numbered in
- * firing order).
- */
+/** Petri net + analysis sidebar; aggregated mode colors transitions by deviation rate, variant mode replays one trace's alignment path. */
 export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
-  const [mode, setMode] = useState<Mode>("aggregated");
+  const [mode, setMode] = useViewSetting<Mode>("mode", "aggregated");
 
   const aggregateOverlay = useMemo(
     () => buildAggregateOverlay(data.net, data.aggregated),
@@ -513,7 +496,7 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
     [data.variant_alignments],
   );
 
-  const [variantIdx, setVariantIdx] = useState<number>(() => variantsByFreq[0]?.idx ?? 0);
+  const [variantIdx, setVariantIdx] = useViewSetting<number>("variantIdx", variantsByFreq[0]?.idx ?? 0);
   const selectedVariant = data.variant_alignments[variantIdx];
   const fired = useMemo(
     () => (selectedVariant ? firedTransitions(selectedVariant, data.net) : []),
@@ -525,12 +508,10 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
 
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", minHeight: 256 }}>
-      {/* Net */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <PetriNetViewer data={data.net} overlay={overlay} />
       </div>
 
-      {/* Sidebar */}
       <div
         className="w-1/3"
         style={{
@@ -541,7 +522,6 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
           overflow: "hidden",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "8px 12px",
@@ -560,7 +540,6 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
           </SegmentedControl.Root>
         </div>
 
-        {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 12px 16px" }}>
           {mode === "aggregated" ? (
             <AggregatedPanel data={data} />

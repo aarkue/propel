@@ -1,10 +1,12 @@
+import type { Provenance } from "@r4pm/client";
 import toast from "react-hot-toast";
 import { PiFileArrowDown, PiFlowArrow, PiTrash } from "react-icons/pi";
 import { useArtifacts } from "../stores";
 import { backend } from "../backends";
+import { unloadArtifact } from "../persistence/session";
 import { ioKindByName } from "../io-kinds";
 import { openOutputAsPanel, sendArtifactToPipeline } from "../panels/pipeline-bridge";
-import { ChipAction, ChipStrip, EntityChip } from "./chips";
+import { ChipAction, ChipStrip, EntityChip, ExportLineageChipAction } from "./chips";
 
 /**
  * Horizontal strip of loaded-artifact chips (engine-stored, non-registry values, e.g. Petri nets).
@@ -18,12 +20,24 @@ export function ArtifactChipStrip({ variant }: { variant?: "scroll" | "wrap" }) 
       items={artifacts}
       emptyText="No artifacts loaded yet."
       variant={variant}
-      renderChip={(a) => <ArtifactChip key={a.id} id={a.id} label={a.label} kind={a.kind} />}
+      renderChip={(a) => (
+        <ArtifactChip key={a.id} id={a.id} label={a.label} kind={a.kind} provenance={a.provenance} />
+      )}
     />
   );
 }
 
-function ArtifactChip({ id, label, kind }: { id: string; label: string; kind: string }) {
+function ArtifactChip({
+  id,
+  label,
+  kind,
+  provenance,
+}: {
+  id: string;
+  label: string;
+  kind: string;
+  provenance?: Provenance | null;
+}) {
   const renameArtifact = useArtifacts((s) => s.renameArtifact);
   const formats = ioKindByName(kind)?.export_formats ?? [];
 
@@ -47,8 +61,7 @@ function ArtifactChip({ id, label, kind }: { id: string; label: string; kind: st
   };
   const remove = async (close: () => void) => {
     close();
-    useArtifacts.getState().removeArtifact(id);
-    await backend.unloadArtifact(id);
+    await unloadArtifact(backend, id);
   };
 
   return (
@@ -71,6 +84,7 @@ function ArtifactChip({ id, label, kind }: { id: string; label: string; kind: st
           >
             Send to pipeline
           </ChipAction>
+          <ExportLineageChipAction id={id} provenance={provenance} close={close} />
           {formats.map((f) => (
             <ChipAction
               key={`export-${f.extension}`}

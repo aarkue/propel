@@ -14,7 +14,7 @@ name = "file-assoc"
 path = "src/bin/file-assoc.rs"
 
 [dependencies]
-process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "feat/register-binding-downstream", features = ["bindings"]}
+process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "propel", features = ["bindings"]}
 app-bindings = { path = "../app-bindings" }
 backend-shared = { path = "../backend-shared", features = ["ocel-sqlite"] }
 # preserve_order so rewriting tauri.conf.json (file-assoc bin) keeps its key order instead of

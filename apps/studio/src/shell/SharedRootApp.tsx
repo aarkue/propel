@@ -5,8 +5,12 @@ import toast, { Toaster } from "react-hot-toast";
 import { backend } from "../backends";
 import { AppViewerConfig } from "./AppViewerConfig";
 import { BackendReactContext } from "./backend-context";
+import { bootToDefault, getLastProject } from "../persistence/session";
+import { migrateLegacyPipelines } from "../stores/pipelines";
+import { BusyOverlay } from "./BusyOverlay";
+import { RelinkDialog } from "./RelinkDialog";
 import { Dashboard } from "./Dashboard";
-import { EngineEvents, refreshArtifacts, refreshDatasets } from "./EngineEvents";
+import { EngineEvents } from "./EngineEvents";
 import { ImportProvider } from "./ImportProvider";
 import { ThemeProvider, useThemeMode } from "./theme-context";
 import { TopBar } from "./TopBar";
@@ -36,6 +40,7 @@ export function SharedRootApp() {
           <QueryClientProvider client={queryClient}>
             <BackendReadyGate>
               <EngineEvents />
+              <RelinkDialog />
               <ImportProvider>
                 <AppViewerConfig>
                   <TopBar>
@@ -60,14 +65,13 @@ function ThemedBody({ children }: { children: ReactNode }) {
       grayColor="slate"
       scaling="100%"
       radius="small"
-      // Solid panels: translucent (default) puts `backdrop-filter: blur(64px)` on every Card/panel
-      // surface. WebKitGTK (Linux Tauri webview) renders the whole composited region behind such a
-      // panel blurry -> a single radix Card in a pipeline viewer node blurs the entire flow. Solid
-      // drops the backdrop-filter entirely (also cheaper to paint).
+      // Translucent (default) backdrop-filter makes WebKitGTK (Linux Tauri webview) blur the whole
+      // composited region behind a panel, not just the panel; solid avoids that (and is cheaper).
       panelBackground="solid"
     >
       <Toaster position="bottom-right" />
       {children}
+      <BusyOverlay />
     </Theme>
   );
 }
@@ -80,9 +84,11 @@ function BackendReadyGate({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       await backend.ready;
-      // Initial reconcile of the dataset + artifact stores; live updates handled by <EngineEvents />.
-      // The engine keeps state across a webview reload (tauri/webserver), so rehydrate both here.
-      await Promise.all([refreshDatasets(), refreshArtifacts()]);
+      // No store reconcile here: would auto-show a live tauri/webserver engine. EngineEvents handles live updates after.
+      bootToDefault();
+      await migrateLegacyPipelines(getLastProject()).catch((e) =>
+        console.error("persistence: pipeline migration failed", e),
+      );
       if (!cancelled) setStatus("ready");
     })().catch((e) => {
       if (cancelled) return;

@@ -5,7 +5,7 @@ import pkg from "../package.json";
 addons.setConfig({
   enableShortcuts: false,
   theme: create({
-    base: "light",
+    base: window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light",
     brandTitle: `@r4pm/components v${pkg.version}`,
     colorPrimary: "#654dc4",
     colorSecondary: "#2b9a66",

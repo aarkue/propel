@@ -5,13 +5,14 @@ import type { IconType } from "react-icons";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { BackendContext, BindingId, Bindings, ReturnTypeShape, ReturnTypeTitle } from "@r4pm/client";
 import { BINDING_RETURN_TYPE } from "@r4pm/client";
-import { EmptyState, ErrorState, LoadingState, type ViewerProps } from "@r4pm/components";
+import { EmptyState, ErrorState, LoadingState, ViewStateProvider, type ViewerProps } from "@r4pm/components";
 import { Button, Flex, Text } from "@r4pm/components/ui";
 import { PiArrowsClockwise } from "react-icons/pi";
 import type { PanelCategory, PanelDefinition } from "../panels/types";
 import type { ViewerDef, ViewerRenderProps } from "../viewers";
 import { backend } from "../backends";
 import { useDatasetSelection } from "../panels/active-datasets";
+import { usePanelState } from "../panels/panel-state";
 
 /**
  * Single source of truth for a visualization. ONE `defineVis(...)` emits both a dockview
@@ -187,6 +188,9 @@ function sameInputs(a: RunInputs | null, b: RunInputs | null): boolean {
 
 const barsRowStyle = { display: "flex", flexWrap: "wrap", alignItems: "stretch" } as const;
 
+// Stable empty default so an unset view-state doesn't churn the provider value each render.
+const EMPTY_VIEW_STATE: Record<string, unknown> = {};
+
 function makeDataPanelComponent(
   spec: AnyVis,
   source: NonNullable<AnySource>,
@@ -194,9 +198,10 @@ function makeDataPanelComponent(
   const Inner = spec.component;
   const { transform, controls, panelControlsBar, panelActions, extraProps, deferred } = spec;
   const isBinding = "binding" in source;
-  return function VisPanel(_props: IDockviewPanelProps) {
-    const { id, selector } = useDatasetSelection(source.needs);
-    const [c, setC] = useState(controls?.initial);
+  return function VisPanel(props: IDockviewPanelProps) {
+    const { id, selector } = useDatasetSelection(source.needs, props);
+    const [c, setC] = usePanelState(props, "controls", controls?.initial);
+    const [viewState, setViewState] = usePanelState(props, "viewState", EMPTY_VIEW_STATE);
     // Committed inputs that actually ran (deferred only). For non-deferred panels the live inputs
     // ARE the committed inputs, so the source runs immediately as before.
     const [ran, setRan] = useState<RunInputs | null>(null);
@@ -317,7 +322,9 @@ function makeDataPanelComponent(
           }}
         >
           <Suspense fallback={<LoadingState label="loading" />}>
-            <Inner data={data} handle={active!.id} {...ctrl} {...(extra.data ?? {})} />
+            <ViewStateProvider viewState={viewState} onViewStateChange={setViewState}>
+              <Inner data={data} handle={active!.id} {...ctrl} {...(extra.data ?? {})} />
+            </ViewStateProvider>
           </Suspense>
         </div>
       );

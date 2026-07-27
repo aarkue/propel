@@ -36,7 +36,8 @@ export interface ObjectCentricPetriNet {
   place_in_out_mult?: Record<string, [Record<string, boolean>, Record<string, boolean>]>;
 }
 
-const NEUTRAL = "#1f2937";
+/** Border/token color for a place with no object type; a theme token since it's not derived from data. */
+const NEUTRAL = "var(--gray-12)";
 
 /** Object-type color resolver: object type -> a hex color, optionally shaded. */
 type OtColor = (ot: string, mode?: "normal" | "foreground" | "light") => string;
@@ -438,11 +439,13 @@ function OcpnEditor({
   otColor,
   onChange,
   renderSvg,
+  exportKey,
 }: {
   data: ObjectCentricPetriNet;
   otColor: OtColor;
   onChange?: (ocpn: ObjectCentricPetriNet) => void;
   renderSvg?: StyledGraphRenderer;
+  exportKey?: string;
 }) {
   const [seed, setSeed] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] } | null>(null);
   const [objectTypes, setObjectTypes] = useState<string[]>(() => placeTypes(ocpnToElements(data).nodes));
@@ -546,7 +549,7 @@ function OcpnEditor({
     }),
     [placeOverlay, arcStroke, renderSvg, styledLegend],
   );
-  useRegisterExport("petri-net", exportSource);
+  useRegisterExport(exportKey ?? "ocpn", exportSource);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 256 }}>
@@ -579,10 +582,12 @@ export interface ObjectCentricPetriNetViewerProps extends ViewerProps<ObjectCent
   /** Draw the exact on-screen graph through a host-supplied renderer (typically the
    *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. */
   renderSvg?: StyledGraphRenderer;
+  /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
+  exportKey?: string;
 }
 
 export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerProps) {
-  const { data, editable, onChange, renderSvg } = props;
+  const { data, editable, onChange, renderSvg, exportKey } = props;
   const cfg = useViewerConfig(props);
   const otColor = useCallback<OtColor>(
     (ot, mode = "normal") => shadeHex(cfg.colorOf?.("objectType", ot) ?? "#888888", mode),
@@ -592,7 +597,16 @@ export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerPr
   const placeTypes = data.place_object_type;
   const categoryOf = useCallback((placeId: string) => placeTypes[placeId], [placeTypes]);
 
-  if (editable) return <OcpnEditor data={data} otColor={otColor} onChange={onChange} renderSvg={renderSvg} />;
+  if (editable)
+    return (
+      <OcpnEditor
+        data={data}
+        otColor={otColor}
+        onChange={onChange}
+        renderSvg={renderSvg}
+        exportKey={exportKey}
+      />
+    );
 
   const normNet = normalizePetriNet(data.petri_net);
   const overlay = buildStaticOverlay({ ...data, petri_net: normNet }, otColor);

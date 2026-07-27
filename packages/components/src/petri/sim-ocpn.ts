@@ -1,5 +1,5 @@
 import type { ObjectCentricPetriNet } from "../object-centric-petri-net";
-import { uid } from "./id";
+import { uid } from "../shared/id";
 
 export type TokenMarking = Record<string, string[]>;
 
@@ -67,9 +67,8 @@ function arcsOf(
   return { inputs, outputs };
 }
 
-/** Default: variable input consumes all its tokens, normal input the first `weight`;
- *  outputs carry over consumed ids of the matching object type (objects continue),
- *  minting fresh ids when no input supplies that type. */
+/** Default: variable input consumes all tokens, normal input the first `weight`; outputs carry over
+ *  consumed ids of the matching object type, minting fresh ids when none supply that type. */
 function defaultGuard(args: OcpnFireGuardArgs): OcpnFiring | false {
   const consume: Record<string, string[]> = {};
   const produce: Record<string, string[]> = {};

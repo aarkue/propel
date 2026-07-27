@@ -1,4 +1,7 @@
+import type { IDockviewPanelProps } from "dockview";
+import { useState } from "react";
 import { ObjectCentricPetriNetWorkbench, type ObjectCentricPetriNet } from "@r4pm/components";
+import { readPanelParam, usePanelDraft } from "../../panels/panel-state";
 import { renderGraphSvg } from "./render-graph-svg";
 import { saveOcTraceAsOcel } from "./save-oc-trace";
 
@@ -8,14 +11,15 @@ const EMPTY_OCPN: ObjectCentricPetriNet = {
   place_in_out_mult: {},
 };
 
-/** Standalone "create new OCPN" panel: blank OC net, edit in place, simulate, and save the trace
- *  as an OCEL. Image export via the surrounding frame. PNML/save-artifact for OC nets is not
- *  implemented yet. */
-export function OcpnEditorPanel() {
+/** The workbench re-seeds its editor on every `data` change, so seed once and write edits back via `onNetChange` only. */
+export function OcpnEditorPanel(props: IDockviewPanelProps) {
+  const [seed] = useState<ObjectCentricPetriNet>(() => readPanelParam(props.params, "net", EMPTY_OCPN));
+  const [, persist] = usePanelDraft<ObjectCentricPetriNet>(props, "net", EMPTY_OCPN);
   return (
     <ObjectCentricPetriNetWorkbench
-      data={EMPTY_OCPN}
+      data={seed}
       initialMode="edit"
+      onNetChange={persist}
       onSaveTraceAsLog={saveOcTraceAsOcel}
       renderSvg={renderGraphSvg}
     />

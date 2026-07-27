@@ -2,6 +2,8 @@ import { getDockviewApi } from "../shell/dockviewApi";
 import type { PipelineHandle } from "../pipeline";
 import { backend } from "../backends";
 import { ioKindByName } from "../io-kinds";
+import type { AppNode } from "../pipeline/components/pipeline/editor/types";
+import type { Edge } from "@xyflow/react";
 // Shared imperative hooks between panels and the pipeline.
 
 /** Imperative handle to the pipeline panel, for the send-to-pipeline bridge. */
@@ -52,6 +54,11 @@ export async function sendArtifactToPipeline(a: { id: string; kind: string; labe
   const returnType = ioKindByName(a.kind)?.returnType ?? a.kind;
   openOrFocusPipeline();
   applyOrQueue((h) => h.addArtifactNode({ value, returnType, label: a.label }));
+}
+
+export function sendGraphToPipeline(nodes: AppNode[], edges: Edge[]) {
+  openOrFocusPipeline();
+  applyOrQueue((h) => h.loadGraph(nodes, edges));
 }
 
 /** Open a pipeline node's output as a standalone viewer panel in the dock. */

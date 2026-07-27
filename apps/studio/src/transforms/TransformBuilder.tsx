@@ -1,6 +1,6 @@
 import { Button, Checkbox, Flex, IconButton, Popover, Text, TextField } from "@r4pm/components/ui";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { FaArrowDown, FaArrowUp, FaPlus } from "react-icons/fa";
 import { TiDelete } from "react-icons/ti";
 import {
@@ -20,16 +20,26 @@ import {
 } from "react-icons/lu";
 import toast from "react-hot-toast";
 import type { BackendContext, EventLogHandle, SlimLinkedOCELHandle, Transform } from "@r4pm/client";
+import { defaultTimeframeCondition } from "./condition";
 import { TransformEditor } from "./TransformEditors";
 
-type TransformWithID = {
+export type TransformWithID = {
   id: string;
   value: Transform;
   enabled: boolean;
 };
 
+export interface TransformBuilderValue {
+  transforms: TransformWithID[];
+  outName: string;
+}
+
+// Synthetic palette key: a "Timeframe Filter" step is stored as a `FilterAttributes`
+// whose condition is a lone `Timeframe`, so it composes with attribute predicates.
+type PaletteType = Transform["type"] | "FilterTimeframe";
+
 const TRANSFORM_META: {
-  type: Transform["type"];
+  type: PaletteType;
   label: string;
   description: string;
   icon: React.ComponentType<{ size?: number }>;
@@ -101,6 +111,14 @@ const TRANSFORM_META: {
     ocelOnly: false,
   },
   {
+    type: "FilterTimeframe",
+    label: "Timeframe Filter",
+    description:
+      "Keep or remove events, cases, or objects by when they happened (within / starts / ends / ...)",
+    icon: LuClock,
+    ocelOnly: false,
+  },
+  {
     type: "RescaleTimeframe",
     label: "Rescale Time",
     description: "Rescale all timestamps to a new timeframe",
@@ -123,8 +141,8 @@ const TRANSFORM_META: {
   },
   {
     type: "FilterAttributes",
-    label: "Attribute Filter",
-    description: "Filter by attribute values with distribution view",
+    label: "Condition Filter",
+    description: "Combine any predicates (event type, time, attributes, duration) with AND / OR / NOT",
     icon: LuSlidersHorizontal,
     ocelOnly: false,
   },
@@ -137,9 +155,15 @@ const TRANSFORM_META: {
   },
 ];
 
-/** Produce RFC 3339 strings for the start and end of the current year. Used
- *  as generic defaults for time-range / rescale transforms when there is no
- *  dataset-specific range to anchor to. */
+const TRANSFORM_GROUPS = ["Filter", "Relabel", "Attributes", "Time", "Sample"] as const;
+function transformGroup(type: PaletteType): (typeof TRANSFORM_GROUPS)[number] {
+  if (type === "RelabelActivities" || type === "RelabelObjectTypes") return "Relabel";
+  if (type === "RemoveAttributes") return "Attributes";
+  if (type === "FilterTimeRange" || type === "RescaleTimeframe" || type === "FilterTimeframe") return "Time";
+  if (type === "Sample") return "Sample";
+  return "Filter";
+}
+
 function defaultYearRangeRfc(): { start: string; end: string } {
   const year = new Date().getFullYear();
   return {
@@ -148,8 +172,15 @@ function defaultYearRangeRfc(): { start: string; end: string } {
   };
 }
 
-function defaultTransformForType(type: Transform["type"]): Transform {
+function defaultTransformForType(type: PaletteType): Transform {
   switch (type) {
+    case "FilterTimeframe":
+      return {
+        type: "FilterAttributes",
+        scope: { type: "Event", activity: null },
+        condition: defaultTimeframeCondition(),
+        mode: "Keep",
+      };
     case "FilterActivities":
       return { type: "FilterActivities", activities: [], mode: "Keep" };
     case "RelabelActivities":
@@ -207,15 +238,21 @@ function generateId(): string {
   return `t-${++_idCounter}-${Date.now()}`;
 }
 
-function getTransformMeta(type: Transform["type"]) {
+function getTransformMeta(type: PaletteType) {
   return TRANSFORM_META.find((m) => m.type === type);
 }
 
-function getTransformLabel(type: Transform["type"]): string {
+function getTransformLabel(type: PaletteType): string {
   return getTransformMeta(type)?.label ?? type;
 }
 
-/** Format a millisecond duration into a human-readable string (e.g. "2h 30m") */
+/** Map a stored transform to its palette identity, recognizing the synthetic
+ * "Timeframe Filter" (a `FilterAttributes` carrying a lone `Timeframe` condition). */
+function stepPaletteType(t: Transform): PaletteType {
+  if (t.type === "FilterAttributes" && t.condition.type === "Timeframe") return "FilterTimeframe";
+  return t.type;
+}
+
 function formatDurationMs(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const s = ms / 1000;
@@ -228,7 +265,6 @@ function formatDurationMs(ms: number): string {
   return `${Math.round(d * 10) / 10}d`;
 }
 
-/** Compact summary text for a transform */
 function summarizeTransform(t: Transform): string {
   switch (t.type) {
     case "FilterActivities":
@@ -318,24 +354,43 @@ export function TransformBuilder({
   datasetName,
   objectType,
   onResult,
+  value,
+  onChange,
 }: {
   backend: BackendContext;
   datasetName: string;
   objectType: "EventLog" | "OCEL";
-  /** Called with the freshly produced dataset handle after a successful apply. */
   onResult?: (handle: string, outName: string) => void;
+  /** Controlled config; provide with `onChange` to lift state out for persistence. Omit both for uncontrolled use. */
+  value?: TransformBuilderValue;
+  onChange?: (next: TransformBuilderValue) => void;
 }) {
-  const name = datasetName;
-  const logHandle = name as EventLogHandle;
-  const ocelHandle = name as SlimLinkedOCELHandle;
+  const logHandle = datasetName as EventLogHandle;
+  const ocelHandle = datasetName as SlimLinkedOCELHandle;
 
-  const [transforms, setTransforms] = useState<TransformWithID[]>([]);
-  const [outName, setOutName] = useState("transformed");
+  const [innerTransforms, setInnerTransforms] = useState<TransformWithID[]>([]);
+  const [innerOutName, setInnerOutName] = useState("transformed");
+  const controlled = value !== undefined && onChange !== undefined;
+  const transforms = controlled ? value.transforms : innerTransforms;
+  const outName = controlled ? value.outName : innerOutName;
+  const setTransforms = (next: TransformWithID[] | ((prev: TransformWithID[]) => TransformWithID[])) => {
+    if (value && onChange) {
+      const resolved = typeof next === "function" ? next(value.transforms) : next;
+      onChange({ transforms: resolved, outName: value.outName });
+    } else {
+      setInnerTransforms(next);
+    }
+  };
+  const setOutName = (next: string) => {
+    if (value && onChange) onChange({ transforms: value.transforms, outName: next });
+    else setInnerOutName(next);
+  };
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addPopoverOpen, setAddPopoverOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
 
   const activitiesQuery = useQuery({
-    queryKey: [name, "transform-activities", objectType],
+    queryKey: [datasetName, "transform-activities", objectType],
     queryFn: () =>
       objectType === "EventLog"
         ? backend
@@ -344,46 +399,44 @@ export function TransformBuilder({
         : backend
             .callBinding("app_bindings::ocel::get_ocel_info", { ocel: ocelHandle })
             .then((i) => i.event_types.sort()),
-    enabled: !!name,
+    enabled: !!datasetName,
   });
 
   const objectTypesQuery = useQuery({
-    queryKey: [name, "transform-object-types"],
+    queryKey: [datasetName, "transform-object-types"],
     queryFn: () =>
       backend
         .callBinding("app_bindings::ocel::get_ocel_info", { ocel: ocelHandle })
         .then((i) => i.object_types.sort()),
-    enabled: !!name && objectType === "OCEL",
+    enabled: !!datasetName && objectType === "OCEL",
   });
 
   const allActivities = activitiesQuery.data ?? [];
   const allObjTypes = objectTypesQuery.data;
 
-  // Per-item frequencies for the activity/object-type pickers.
   const activityCountsQuery = useQuery({
-    queryKey: [name, "transform-activity-counts", objectType],
+    queryKey: [datasetName, "transform-activity-counts", objectType],
     queryFn: () =>
       objectType === "EventLog"
         ? backend.callBinding("app_bindings::event_log::get_activity_counts", { event_log: logHandle })
         : backend
             .callBinding("process_mining::bindings::ocel_type_stats", { ocel: ocelHandle })
             .then((s) => s.event_type_counts),
-    enabled: !!name,
+    enabled: !!datasetName,
   });
   const objectTypeCountsQuery = useQuery({
-    queryKey: [name, "transform-objtype-counts"],
+    queryKey: [datasetName, "transform-objtype-counts"],
     queryFn: () =>
       backend
         .callBinding("process_mining::bindings::ocel_type_stats", { ocel: ocelHandle })
         .then((s) => s.object_type_counts),
-    enabled: !!name && objectType === "OCEL",
+    enabled: !!datasetName && objectType === "OCEL",
   });
   const activityCounts = activityCountsQuery.data ?? {};
   const objectTypeCounts = objectTypeCountsQuery.data ?? {};
 
-  // Total counts for percentage-based sampling
   const countsQuery = useQuery({
-    queryKey: [name, "transform-counts", objectType],
+    queryKey: [datasetName, "transform-counts", objectType],
     queryFn: () =>
       objectType === "EventLog"
         ? backend
@@ -392,13 +445,12 @@ export function TransformBuilder({
         : backend
             .callBinding("app_bindings::ocel::get_ocel_info", { ocel: ocelHandle })
             .then((i) => ({ traces: i.num_objects, events: i.num_events })),
-    enabled: !!name,
+    enabled: !!datasetName,
   });
   const totalTraces = countsQuery.data?.traces;
   const totalEvents = countsQuery.data?.events;
 
-  /** Compute the effective activities/objectTypes visible at a given pipeline index,
-   *  accounting for simple FilterActivities/FilterObjectTypes Keep/Remove transforms above. */
+  /** Effective activities/object-types at a pipeline index, after upstream Keep/Remove + relabel transforms. */
   function effectiveItemsAt(index: number): { activities: string[]; objectTypes?: string[] } {
     let acts = [...allActivities];
     let ots = allObjTypes ? [...allObjTypes] : undefined;
@@ -459,11 +511,31 @@ export function TransformBuilder({
     return !m.ocelOnly;
   });
 
-  const addTransform = useCallback((type: Transform["type"]) => {
+  const pickerQuery = pickerSearch.trim().toLowerCase();
+  const pickerGroups = TRANSFORM_GROUPS.map((group) => ({
+    group,
+    items: availableTypes.filter(
+      (m) =>
+        transformGroup(m.type) === group &&
+        (!pickerQuery ||
+          m.label.toLowerCase().includes(pickerQuery) ||
+          m.description.toLowerCase().includes(pickerQuery)),
+    ),
+  })).filter((g) => g.items.length > 0);
+
+  const quickStartTypes: Transform["type"][] =
+    objectType === "EventLog"
+      ? ["FilterActivities", "FilterVariants", "FilterAttributes", "Sample"]
+      : ["FilterObjectTypes", "FilterActivities", "FilterAttributes", "Sample"];
+  const quickStart = quickStartTypes
+    .map((tp) => availableTypes.find((m) => m.type === tp))
+    .filter((m): m is (typeof availableTypes)[number] => !!m);
+
+  const addTransform = (type: PaletteType) => {
     const item: TransformWithID = { id: generateId(), enabled: true, value: defaultTransformForType(type) };
     setTransforms((prev) => [...prev, item]);
     setExpandedId(item.id);
-  }, []);
+  };
 
   const moveTransform = (index: number, dir: -1 | 1) => {
     setTransforms((prev) => {
@@ -483,11 +555,6 @@ export function TransformBuilder({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /**
-   * Serialize the pipeline to a portable JSON file: version, target object kind,
-   * and the ordered list of transforms with their enabled flag, enough to
-   * round-trip through `handleImport` below.
-   */
   const handleExport = () => {
     const payload = {
       version: 1 as const,
@@ -554,16 +621,38 @@ export function TransformBuilder({
           {objectType === "EventLog" ? "Log" : "OCEL"} Transforms
         </Text>
         <Text size="2" color="gray" className="truncate">
-          {name}
+          {datasetName}
         </Text>
       </Flex>
 
-      {/* Pipeline */}
       <div className="flex flex-col gap-2 w-full">
         {transforms.length === 0 && (
-          <Text size="2" color="gray" className="py-6 text-center">
-            No transforms yet. Add one below.
-          </Text>
+          <div
+            className="flex flex-col items-center gap-3 py-9 px-4 text-center rounded-xl"
+            style={{ border: "1px dashed var(--gray-6)" }}
+          >
+            <LuSlidersHorizontal size={26} style={{ color: "var(--gray-8)" }} />
+            <div>
+              <Text as="div" size="3" weight="medium">
+                Build a transform pipeline
+              </Text>
+              <Text as="div" size="2" color="gray" style={{ maxWidth: 340 }}>
+                Chain filters, relabels, and sampling into a new derived{" "}
+                {objectType === "EventLog" ? "log" : "OCEL"}. Start with one:
+              </Text>
+            </div>
+            <Flex gap="2" wrap="wrap" justify="center">
+              {quickStart.map((m) => {
+                const Icon = m.icon;
+                return (
+                  <Button key={m.type} size="2" variant="soft" onClick={() => addTransform(m.type)}>
+                    <Icon size={14} />
+                    {m.label}
+                  </Button>
+                );
+              })}
+            </Flex>
+          </div>
         )}
 
         {transforms.map((t, i) => {
@@ -578,7 +667,6 @@ export function TransformBuilder({
                 opacity: t.enabled ? 1 : 0.5,
               }}
             >
-              {/* Header */}
               <button
                 type="button"
                 className="flex items-center gap-2.5 w-full text-left cursor-pointer hover:bg-[var(--gray-a3)] transition-colors"
@@ -602,10 +690,10 @@ export function TransformBuilder({
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold truncate flex items-center gap-1.5">
                     {(() => {
-                      const Icon = getTransformMeta(t.value.type)?.icon;
+                      const Icon = getTransformMeta(stepPaletteType(t.value))?.icon;
                       return Icon ? <Icon size={13} /> : null;
                     })()}
-                    {getTransformLabel(t.value.type)}
+                    {getTransformLabel(stepPaletteType(t.value))}
                   </div>
                   <div className="text-xs truncate" style={{ color: "var(--gray-9)" }}>
                     {summarizeTransform(t.value)}
@@ -655,10 +743,13 @@ export function TransformBuilder({
                 </IconButton>
               </button>
 
-              {/* Expanded editor */}
               {isExpanded &&
                 (() => {
                   const eff = effectiveItemsAt(i);
+                  const enabledPrefix = transforms
+                    .slice(0, i)
+                    .filter((x) => x.enabled)
+                    .map((x) => x.value);
                   return (
                     <div style={{ padding: "14px 14px 14px 50px" }}>
                       <TransformEditor
@@ -671,7 +762,8 @@ export function TransformBuilder({
                         activityCounts={activityCounts}
                         objectTypeCounts={objectTypeCounts}
                         backend={backend}
-                        datasetName={name}
+                        datasetName={datasetName}
+                        enabledPrefix={enabledPrefix}
                         onChange={(updated) => updateTransform(t.id, updated)}
                       />
                     </div>
@@ -681,8 +773,13 @@ export function TransformBuilder({
           );
         })}
 
-        {/* Add button */}
-        <Popover.Root open={addPopoverOpen} onOpenChange={setAddPopoverOpen}>
+        <Popover.Root
+          open={addPopoverOpen}
+          onOpenChange={(o) => {
+            setAddPopoverOpen(o);
+            if (!o) setPickerSearch("");
+          }}
+        >
           <Popover.Trigger>
             <button
               type="button"
@@ -692,7 +789,7 @@ export function TransformBuilder({
                 border: "1px dashed var(--gray-7)",
                 color: "var(--gray-10)",
               }}
-              disabled={!name}
+              disabled={!datasetName}
             >
               <FaPlus size={10} className="inline mr-1.5" style={{ verticalAlign: -1 }} />
               Add Transform
@@ -702,39 +799,66 @@ export function TransformBuilder({
             side="top"
             align="start"
             className="!p-2"
-            style={{ width: 420, maxHeight: "unset" }}
+            style={{ width: 440, maxHeight: 460, display: "flex", flexDirection: "column" }}
           >
-            <div className="grid grid-cols-2 gap-1.5">
-              {availableTypes.map((m) => {
-                const Icon = m.icon;
-                return (
-                  <button
-                    key={m.type}
-                    type="button"
-                    onClick={() => {
-                      addTransform(m.type);
-                      setAddPopoverOpen(false);
-                    }}
-                    className="flex items-start gap-2 p-2.5 rounded-md border border-[var(--gray-a5)] hover:border-[var(--indigo-8)] hover:bg-[var(--indigo-a2)] transition-colors cursor-pointer text-left"
-                  >
-                    <div className="rounded bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-1 shrink-0">
-                      <Icon size={14} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium text-[var(--gray-12)] truncate">{m.label}</div>
-                      <div className="text-[11px] text-[var(--gray-11)] leading-tight line-clamp-2">
-                        {m.description}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+            <TextField.Root
+              size="2"
+              autoFocus
+              placeholder="Search transforms…"
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.currentTarget.value)}
+              className="mb-2 shrink-0"
+            >
+              <TextField.Slot>
+                <LuSearch size={14} />
+              </TextField.Slot>
+            </TextField.Root>
+            <div className="overflow-auto flex flex-col gap-3" style={{ minHeight: 0 }}>
+              {pickerGroups.length === 0 && (
+                <Text size="2" color="gray" className="py-4 text-center">
+                  No transforms match “{pickerSearch}”.
+                </Text>
+              )}
+              {pickerGroups.map(({ group, items }) => (
+                <div key={group} className="flex flex-col gap-1.5">
+                  <Text size="1" weight="medium" color="gray" className="uppercase tracking-wide px-0.5">
+                    {group}
+                  </Text>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {items.map((m) => {
+                      const Icon = m.icon;
+                      return (
+                        <button
+                          key={m.type}
+                          type="button"
+                          onClick={() => {
+                            addTransform(m.type);
+                            setAddPopoverOpen(false);
+                          }}
+                          className="flex items-start gap-2 p-2.5 rounded-md border border-[var(--gray-a5)] hover:border-[var(--indigo-8)] hover:bg-[var(--indigo-a2)] transition-colors cursor-pointer text-left"
+                        >
+                          <div className="rounded bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-1 shrink-0">
+                            <Icon size={14} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] font-medium text-[var(--gray-12)] truncate">
+                              {m.label}
+                            </div>
+                            <div className="text-[11px] text-[var(--gray-11)] leading-tight line-clamp-2">
+                              {m.description}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </Popover.Content>
         </Popover.Root>
       </div>
 
-      {/* Bottom bar */}
       <div className="flex items-center gap-2 pt-3 border-t flex-wrap w-full">
         <Text size="2" color="gray" className="shrink-0">
           Output:
@@ -780,7 +904,7 @@ export function TransformBuilder({
         <div className="flex-1" />
         <Button
           size="3"
-          disabled={!name || enabledCount === 0 || !outName.trim()}
+          disabled={!datasetName || enabledCount === 0 || !outName.trim()}
           onClick={async () => {
             const enabled = transforms.filter((t) => t.enabled).map((t) => t.value);
             const call: Promise<string> =
@@ -797,8 +921,7 @@ export function TransformBuilder({
                       transforms: enabled,
                     })
                     .then((h) => h as string);
-            // The apply binding returns a NEW handle (registry results are stored in the engine and
-            // their id returned), loading the transformed log.
+            // Binding returns a new registry handle for the transformed log.
             const handle = await toast.promise(call, {
               loading: "Applying transforms...",
               success: "Transforms applied!",

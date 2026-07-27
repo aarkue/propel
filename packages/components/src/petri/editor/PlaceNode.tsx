@@ -29,9 +29,25 @@ export default function PlaceNode({ id, selected, data: liveData }: NodeProps<No
       ),
     );
 
+  // Keyboard/screen-reader affordance only when a consumer wires a click action.
+  const buttonProps: React.HTMLAttributes<HTMLDivElement> = data.onClick
+    ? {
+        role: "button",
+        tabIndex: 0,
+        "aria-label": data.label,
+        onKeyDown: (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            if (e.key === " ") e.preventDefault();
+            data.onClick?.(e as unknown as React.MouseEvent);
+          }
+        },
+      }
+    : {};
+
   return (
     <div
       title={data.label}
+      {...buttonProps}
       className={`node place-node flex flex-wrap gap-0.5 place-content-center items-center justify-center ${selected ? "selected" : ""} ${data.className ?? ""}`}
       style={{
         width: PLACE_SIZE.width,

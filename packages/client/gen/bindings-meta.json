@@ -7,7 +7,7 @@
     ],
     "module": "app_bindings",
     "source_path": "app-bindings/src/lib.rs",
-    "source_line": 24,
+    "source_line": 25,
     "args": [],
     "required_args": [],
     "return_type": {
@@ -791,7 +791,7 @@
     "docs": [],
     "module": "app_bindings",
     "source_path": "app-bindings/src/lib.rs",
-    "source_line": 29,
+    "source_line": 30,
     "args": [
       [
         "log_proj",
@@ -994,7 +994,7 @@
     ],
     "module": "app_bindings",
     "source_path": "app-bindings/src/lib.rs",
-    "source_line": 18,
+    "source_line": 19,
     "args": [],
     "required_args": [],
     "return_type": {
@@ -1013,7 +1013,7 @@
     ],
     "module": "app_bindings",
     "source_path": "app-bindings/src/lib.rs",
-    "source_line": 39,
+    "source_line": 40,
     "args": [
       [
         "event_log",
@@ -1512,7 +1512,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 601,
+    "source_line": 622,
     "args": [
       [
         "event_log",
@@ -1599,7 +1599,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 680,
+    "source_line": 701,
     "args": [
       [
         "event_log",
@@ -1780,7 +1780,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 814,
+    "source_line": 835,
     "args": [
       [
         "event_log",
@@ -1863,7 +1863,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 417,
+    "source_line": 438,
     "args": [
       [
         "event_log",
@@ -1977,7 +1977,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 297,
+    "source_line": 312,
     "args": [
       [
         "event_log",
@@ -2068,7 +2068,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 355,
+    "source_line": 376,
     "args": [
       [
         "event_log",
@@ -2151,6 +2151,76 @@
     }
   },
   {
+    "id": "app_bindings::event_log::get_event_log_timestamps",
+    "name": "get_event_log_timestamps",
+    "docs": [
+      "Time histogram of events, split per activity (`concept:name`)."
+    ],
+    "module": "app_bindings::event_log",
+    "source_path": "app-bindings/src/event_log.rs",
+    "source_line": 296,
+    "args": [
+      [
+        "event_log",
+        {
+          "type": "string",
+          "title": "EventLog",
+          "x-registry-ref": "EventLog",
+          "x-widget": "entity-selector"
+        }
+      ],
+      [
+        "num_bins",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "uint",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      ]
+    ],
+    "required_args": [
+      "event_log",
+      "num_bins"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "EventTimeHistogram",
+      "description": "Equal-width time bins `[bin_start, bin_start + bin_width_ms)`; empty bins are omitted, so `bin_width_ms` is the authoritative bar width.",
+      "type": "object",
+      "properties": {
+        "events_per_timestamp": {
+          "description": "Event counts keyed by bin-start epoch millis (as a string) then by event type / activity.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          }
+        },
+        "activities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bin_width_ms": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "events_per_timestamp",
+        "activities",
+        "bin_width_ms"
+      ]
+    }
+  },
+  {
     "id": "app_bindings::event_log::get_log_globals",
     "name": "get_log_globals",
     "docs": [
@@ -2158,7 +2228,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 546,
+    "source_line": 567,
     "args": [
       [
         "event_log",
@@ -2387,7 +2457,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 947,
+    "source_line": 968,
     "args": [
       [
         "event_log",
@@ -2532,7 +2602,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 857,
+    "source_line": 878,
     "args": [
       [
         "event_log",
@@ -2654,7 +2724,7 @@
     ],
     "module": "app_bindings::event_log",
     "source_path": "app-bindings/src/event_log.rs",
-    "source_line": 1039,
+    "source_line": 1060,
     "args": [
       [
         "event_log",
@@ -2740,7 +2810,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 574,
+    "source_line": 586,
     "args": [
       [
         "ocel",
@@ -2861,7 +2931,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 931,
+    "source_line": 946,
     "args": [
       [
         "ocel",
@@ -2918,7 +2988,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 645,
+    "source_line": 657,
     "args": [
       [
         "ocel",
@@ -3028,7 +3098,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 717,
+    "source_line": 729,
     "args": [
       [
         "ocel",
@@ -3252,7 +3322,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 834,
+    "source_line": 846,
     "args": [
       [
         "ocel",
@@ -3360,7 +3430,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 961,
+    "source_line": 976,
     "args": [
       [
         "ocel",
@@ -3476,7 +3546,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 1034,
+    "source_line": 1162,
     "args": [
       [
         "ocel",
@@ -3562,6 +3632,76 @@
     }
   },
   {
+    "id": "app_bindings::ocel::get_ocel_event_timestamps",
+    "name": "get_ocel_event_timestamps",
+    "docs": [
+      "Time histogram of events, split per event type."
+    ],
+    "module": "app_bindings::ocel",
+    "source_path": "app-bindings/src/ocel.rs",
+    "source_line": 452,
+    "args": [
+      [
+        "ocel",
+        {
+          "type": "string",
+          "title": "SlimLinkedOCEL",
+          "x-registry-ref": "SlimLinkedOCEL",
+          "x-widget": "entity-selector"
+        }
+      ],
+      [
+        "num_bins",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "uint",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      ]
+    ],
+    "required_args": [
+      "ocel",
+      "num_bins"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "EventTimeHistogram",
+      "description": "Equal-width time bins `[bin_start, bin_start + bin_width_ms)`; empty bins are omitted, so `bin_width_ms` is the authoritative bar width.",
+      "type": "object",
+      "properties": {
+        "events_per_timestamp": {
+          "description": "Event counts keyed by bin-start epoch millis (as a string) then by event type / activity.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          }
+        },
+        "activities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bin_width_ms": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "events_per_timestamp",
+        "activities",
+        "bin_width_ms"
+      ]
+    }
+  },
+  {
     "id": "app_bindings::ocel::get_ocel_info",
     "name": "get_ocel_info",
     "docs": [
@@ -3569,7 +3709,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 443,
+    "source_line": 441,
     "args": [
       [
         "ocel",
@@ -3628,7 +3768,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 464,
+    "source_line": 476,
     "args": [
       [
         "ocel",
@@ -3690,7 +3830,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 454,
+    "source_line": 467,
     "args": [
       [
         "ocel",
@@ -3722,7 +3862,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 493,
+    "source_line": 505,
     "args": [
       [
         "ocel",
@@ -3870,6 +4010,131 @@
     }
   },
   {
+    "id": "app_bindings::ocel::get_ocel_type_relations",
+    "name": "get_ocel_type_relations",
+    "docs": [
+      "Type-level E2O/O2O relations. `max_qualifiers_per_pair` caller-controls the itemized-qualifier",
+      "cap (0 = pair totals only) - some OCELs have near-unique qualifiers per instance, so this can't",
+      "be sent unbounded."
+    ],
+    "module": "app_bindings::ocel",
+    "source_path": "app-bindings/src/ocel.rs",
+    "source_line": 1124,
+    "args": [
+      [
+        "ocel",
+        {
+          "type": "string",
+          "title": "SlimLinkedOCEL",
+          "x-registry-ref": "SlimLinkedOCEL",
+          "x-widget": "entity-selector"
+        }
+      ],
+      [
+        "max_qualifiers_per_pair",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "uint",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      ]
+    ],
+    "required_args": [
+      "ocel",
+      "max_qualifiers_per_pair"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "OcelTypeRelations",
+      "type": "object",
+      "properties": {
+        "e2o_type_relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OcelTypePairRelation"
+          }
+        },
+        "o2o_type_relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OcelTypePairRelation"
+          }
+        }
+      },
+      "required": [
+        "e2o_type_relations",
+        "o2o_type_relations"
+      ],
+      "$defs": {
+        "OcelTypePairRelation": {
+          "description": "Aggregated relation between two types (event->object for E2O, object->object for O2O).",
+          "type": "object",
+          "properties": {
+            "source_type": {
+              "type": "string"
+            },
+            "target_type": {
+              "type": "string"
+            },
+            "count": {
+              "description": "Real total across all qualifiers, independent of the `qualifiers` cap below.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "qualifiers": {
+              "description": "Top qualifiers by count, capped at `max_qualifiers_per_pair`.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OcelTypeQualifierCount"
+              }
+            },
+            "other_qualifier_count": {
+              "description": "Sum of counts of qualifiers omitted from `qualifiers`.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "distinct_qualifiers": {
+              "description": "Real number of distinct qualifiers (may exceed `qualifiers.len()`).",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "source_type",
+            "target_type",
+            "count",
+            "qualifiers",
+            "other_qualifier_count",
+            "distinct_qualifiers"
+          ]
+        },
+        "OcelTypeQualifierCount": {
+          "description": "A qualifier and its instance count.",
+          "type": "object",
+          "properties": {
+            "qualifier": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "qualifier",
+            "count"
+          ]
+        }
+      }
+    }
+  },
+  {
     "id": "app_bindings::ocel::get_removable_attributes_ocel",
     "name": "get_removable_attributes_ocel",
     "docs": [
@@ -3878,7 +4143,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 877,
+    "source_line": 892,
     "args": [
       [
         "ocel",
@@ -4721,7 +4986,7 @@
     ],
     "module": "app_bindings::transforms",
     "source_path": "app-bindings/src/transforms.rs",
-    "source_line": 1222,
+    "source_line": 2105,
     "args": [
       [
         "event_log",
@@ -5293,6 +5558,136 @@
                   ]
                 },
                 {
+                  "description": "Match on the entity's event timestamps relative to the half-open window\n`[start, end)`. Composes with the other conditions via `And`/`Or`/`Not`.",
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "description": "Inclusive window start (RFC 3339, e.g. \"2025-01-01T00:00:00+00:00\").",
+                      "type": "string"
+                    },
+                    "end": {
+                      "description": "Exclusive window end (RFC 3339).",
+                      "type": "string"
+                    },
+                    "mode": {
+                      "$ref": "#/$defs/TimeframeMode"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "Timeframe"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "start",
+                    "end",
+                    "mode"
+                  ]
+                },
+                {
+                  "description": "True if the entity carries the attribute `key` at all (any value).",
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "AttributeExists"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "key"
+                  ]
+                },
+                {
+                  "description": "True if the entity's own type matches: event activity, or object type.",
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "EntityType"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ]
+                },
+                {
+                  "description": "True if the entity's `[first event, last event]` span duration (ms) is within\n`[min_ms, max_ms]` (either bound optional). Atomic events have zero-length spans.",
+                  "type": "object",
+                  "properties": {
+                    "min_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "int64"
+                    },
+                    "max_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "int64"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "Duration"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                },
+                {
+                  "description": "(OCEL object / XES case scope) Evaluate the sub-condition against the entity's related\nevents (their activity, attributes, timestamp) with the given quantifier.",
+                  "type": "object",
+                  "properties": {
+                    "quantifier": {
+                      "$ref": "#/$defs/MatchQuantifier"
+                    },
+                    "condition": {
+                      "$ref": "#/$defs/Condition"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "EventMatch"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "quantifier",
+                    "condition"
+                  ]
+                },
+                {
+                  "description": "Evaluate the sub-condition against related objects: at event scope over E2O-linked\nobjects (\"events with a matching object\"), at object scope over O2O-linked objects.",
+                  "type": "object",
+                  "properties": {
+                    "quantifier": {
+                      "$ref": "#/$defs/MatchQuantifier"
+                    },
+                    "condition": {
+                      "$ref": "#/$defs/Condition"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "ObjectMatch"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "quantifier",
+                    "condition"
+                  ]
+                },
+                {
                   "type": "object",
                   "properties": {
                     "conditions": {
@@ -5345,6 +5740,81 @@
                     "type",
                     "condition"
                   ]
+                }
+              ]
+            },
+            "TimeframeMode": {
+              "description": "How an entity's temporal footprint must relate to a window `[start, end)`.\nFor an event the footprint is its single timestamp, so span-based modes collapse\nto point-in-window. For a trace (XES case) or an OCEL object the footprint is the\nset of its (related) event timestamps and `span` means `[first, last]`.",
+              "oneOf": [
+                {
+                  "description": "At least one event falls inside the window.",
+                  "type": "string",
+                  "const": "AnyEvent"
+                },
+                {
+                  "description": "Every event falls inside the window.",
+                  "type": "string",
+                  "const": "AllEvents"
+                },
+                {
+                  "description": "The whole span lies inside the window (`first >= start`, `last < end`).",
+                  "type": "string",
+                  "const": "SpanWithin"
+                },
+                {
+                  "description": "The span covers the whole window (`first <= start`, `last >= end`).",
+                  "type": "string",
+                  "const": "SpanEncloses"
+                },
+                {
+                  "description": "The span's first event falls inside the window.",
+                  "type": "string",
+                  "const": "StartsWithin"
+                },
+                {
+                  "description": "The span's last event falls inside the window.",
+                  "type": "string",
+                  "const": "EndsWithin"
+                },
+                {
+                  "description": "The span overlaps the window at all.",
+                  "type": "string",
+                  "const": "Overlaps"
+                },
+                {
+                  "description": "The span ends before the window starts.",
+                  "type": "string",
+                  "const": "Before"
+                },
+                {
+                  "description": "The span starts at or after the window ends.",
+                  "type": "string",
+                  "const": "After"
+                }
+              ]
+            },
+            "MatchQuantifier": {
+              "description": "How related entities (events / objects) must satisfy a sub-condition in an\n`EventMatch` / `ObjectMatch` predicate.",
+              "oneOf": [
+                {
+                  "description": "At least one related entity matches.",
+                  "type": "string",
+                  "const": "Any"
+                },
+                {
+                  "description": "Every related entity matches (false if there are none).",
+                  "type": "string",
+                  "const": "All"
+                },
+                {
+                  "description": "The earliest related event matches (events are time-sorted; for objects = first).",
+                  "type": "string",
+                  "const": "First"
+                },
+                {
+                  "description": "The latest related event matches (for objects = last in relation order).",
+                  "type": "string",
+                  "const": "Last"
                 }
               ]
             },
@@ -5486,15 +5956,14 @@
     "docs": [
       "Apply a pipeline of transforms to an OCEL. Contract is canonical `SlimLinkedOCEL` in and out, so",
       "the result is directly usable by every OCEL panel and chainable into further transforms.",
-      "TODO(slim-native): internally this still round-trips through a plain `OCEL`",
-      "(`construct_ocel` -> mutate -> `from_ocel`). The slim structure is index-linked and read-optimized",
-      "with no projection/removal primitive, so filtering it natively means a full rebuild-via-builder.",
-      "Once upstream `process_mining` grows a slim filter/projection API, drop the round-trip and mutate",
-      "the slim log directly."
+      "Slim-native: each transform folds into one `Overlay` over the source (keep-masks, type",
+      "remaps, time overrides, attribute strips -- see `slim_project::fold_transform`), and a single",
+      "`build_slim` materializes the whole pipeline's net effect at the end. No per-transform (or",
+      "per-pipeline) `construct_ocel`/`from_ocel` round-trip through a plain `OCEL`."
     ],
     "module": "app_bindings::transforms",
     "source_path": "app-bindings/src/transforms.rs",
-    "source_line": 1237,
+    "source_line": 2119,
     "args": [
       [
         "ocel",
@@ -6066,6 +6535,136 @@
                   ]
                 },
                 {
+                  "description": "Match on the entity's event timestamps relative to the half-open window\n`[start, end)`. Composes with the other conditions via `And`/`Or`/`Not`.",
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "description": "Inclusive window start (RFC 3339, e.g. \"2025-01-01T00:00:00+00:00\").",
+                      "type": "string"
+                    },
+                    "end": {
+                      "description": "Exclusive window end (RFC 3339).",
+                      "type": "string"
+                    },
+                    "mode": {
+                      "$ref": "#/$defs/TimeframeMode"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "Timeframe"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "start",
+                    "end",
+                    "mode"
+                  ]
+                },
+                {
+                  "description": "True if the entity carries the attribute `key` at all (any value).",
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "AttributeExists"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "key"
+                  ]
+                },
+                {
+                  "description": "True if the entity's own type matches: event activity, or object type.",
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "EntityType"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ]
+                },
+                {
+                  "description": "True if the entity's `[first event, last event]` span duration (ms) is within\n`[min_ms, max_ms]` (either bound optional). Atomic events have zero-length spans.",
+                  "type": "object",
+                  "properties": {
+                    "min_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "int64"
+                    },
+                    "max_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "int64"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "Duration"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                },
+                {
+                  "description": "(OCEL object / XES case scope) Evaluate the sub-condition against the entity's related\nevents (their activity, attributes, timestamp) with the given quantifier.",
+                  "type": "object",
+                  "properties": {
+                    "quantifier": {
+                      "$ref": "#/$defs/MatchQuantifier"
+                    },
+                    "condition": {
+                      "$ref": "#/$defs/Condition"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "EventMatch"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "quantifier",
+                    "condition"
+                  ]
+                },
+                {
+                  "description": "Evaluate the sub-condition against related objects: at event scope over E2O-linked\nobjects (\"events with a matching object\"), at object scope over O2O-linked objects.",
+                  "type": "object",
+                  "properties": {
+                    "quantifier": {
+                      "$ref": "#/$defs/MatchQuantifier"
+                    },
+                    "condition": {
+                      "$ref": "#/$defs/Condition"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "ObjectMatch"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "quantifier",
+                    "condition"
+                  ]
+                },
+                {
                   "type": "object",
                   "properties": {
                     "conditions": {
@@ -6118,6 +6717,81 @@
                     "type",
                     "condition"
                   ]
+                }
+              ]
+            },
+            "TimeframeMode": {
+              "description": "How an entity's temporal footprint must relate to a window `[start, end)`.\nFor an event the footprint is its single timestamp, so span-based modes collapse\nto point-in-window. For a trace (XES case) or an OCEL object the footprint is the\nset of its (related) event timestamps and `span` means `[first, last]`.",
+              "oneOf": [
+                {
+                  "description": "At least one event falls inside the window.",
+                  "type": "string",
+                  "const": "AnyEvent"
+                },
+                {
+                  "description": "Every event falls inside the window.",
+                  "type": "string",
+                  "const": "AllEvents"
+                },
+                {
+                  "description": "The whole span lies inside the window (`first >= start`, `last < end`).",
+                  "type": "string",
+                  "const": "SpanWithin"
+                },
+                {
+                  "description": "The span covers the whole window (`first <= start`, `last >= end`).",
+                  "type": "string",
+                  "const": "SpanEncloses"
+                },
+                {
+                  "description": "The span's first event falls inside the window.",
+                  "type": "string",
+                  "const": "StartsWithin"
+                },
+                {
+                  "description": "The span's last event falls inside the window.",
+                  "type": "string",
+                  "const": "EndsWithin"
+                },
+                {
+                  "description": "The span overlaps the window at all.",
+                  "type": "string",
+                  "const": "Overlaps"
+                },
+                {
+                  "description": "The span ends before the window starts.",
+                  "type": "string",
+                  "const": "Before"
+                },
+                {
+                  "description": "The span starts at or after the window ends.",
+                  "type": "string",
+                  "const": "After"
+                }
+              ]
+            },
+            "MatchQuantifier": {
+              "description": "How related entities (events / objects) must satisfy a sub-condition in an\n`EventMatch` / `ObjectMatch` predicate.",
+              "oneOf": [
+                {
+                  "description": "At least one related entity matches.",
+                  "type": "string",
+                  "const": "Any"
+                },
+                {
+                  "description": "Every related entity matches (false if there are none).",
+                  "type": "string",
+                  "const": "All"
+                },
+                {
+                  "description": "The earliest related event matches (events are time-sorted; for objects = first).",
+                  "type": "string",
+                  "const": "First"
+                },
+                {
+                  "description": "The latest related event matches (for objects = last in relation order).",
+                  "type": "string",
+                  "const": "Last"
                 }
               ]
             },
@@ -6298,6 +6972,11 @@
                 "$ref": "#/$defs/StyledEdge"
               }
             },
+            "edges_on_top": {
+              "description": "Draw edges (and their markers/dots) AFTER nodes, so border-centered markers sit on top\nof node borders (OC-Declare). Default: edges underneath, like React Flow's default.",
+              "type": "boolean",
+              "default": false
+            },
             "legend": {
               "type": "array",
               "items": {
@@ -6377,6 +7056,12 @@
                     "$ref": "#/$defs/MarkingGroup"
                   },
                   "default": []
+                },
+                "marking_dy": {
+                  "description": "Vertical offset of the marking row from the node center, in px (e.g. OC-Declare draws\nits involvement dots below the label).",
+                  "type": "number",
+                  "format": "double",
+                  "default": 0.0
                 },
                 "icon": {
                   "anyOf": [
@@ -6476,14 +7161,55 @@
                   "format": "double",
                   "default": 0.0
                 },
+                "dx": {
+                  "description": "Horizontal offset from the node center, in px (e.g. to re-center a text+bullet group).",
+                  "type": "number",
+                  "format": "double",
+                  "default": 0.0
+                },
                 "wrap": {
                   "description": "Word-wrap to fit the node width (max 2 lines, ellipsized). Off by default: pass one\n`StyledLabel` per pre-wrapped line instead when the caller already knows the split.",
                   "type": "boolean",
                   "default": false
+                },
+                "bullet": {
+                  "description": "Small kind-indicator glyph drawn just left of the text (OCEL type graph: square = event\ntype, dot = object type). Ignored on wrapped labels. Text width is estimated (no text\nmeasurement in the renderer), so placement is approximate.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MarkingKind"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "bullet_color": {
+                  "description": "Bullet fill; defaults to the label color.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
                 }
               },
               "required": [
                 "text"
+              ]
+            },
+            "MarkingKind": {
+              "description": "Shape of one token-marking glyph.",
+              "oneOf": [
+                {
+                  "description": "Filled circle (e.g. initial-marking token).",
+                  "type": "string",
+                  "const": "dot"
+                },
+                {
+                  "description": "Faded square (e.g. final-marking token).",
+                  "type": "string",
+                  "const": "square"
+                }
               ]
             },
             "MarkingGroup": {
@@ -6504,26 +7230,42 @@
                   "type": "integer",
                   "format": "uint64",
                   "minimum": 0
+                },
+                "dashed": {
+                  "description": "Draw a dashed border on each dot (OC-Declare optional involvement, min 0).",
+                  "type": "boolean",
+                  "default": false
+                },
+                "radius": {
+                  "description": "Fixed dot radius. When any group sets it, the whole row renders in exact mode: fixed\nsizes, tight per-group clusters, no fit-to-node scaling and no numeral collapse\n(OC-Declare involvement dots, mirroring the on-screen `MultiDot`).",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "format": "double",
+                  "default": null
+                },
+                "step": {
+                  "description": "Center-to-center spacing between this group's dots (exact mode; below `2*radius`\noverlaps them into a cluster). Defaults to a non-overlapping `2*radius + 2`.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "format": "double",
+                  "default": null
+                },
+                "stroke": {
+                  "description": "Ring stroke around each dot (exact mode). Absent: ring only when `dashed`, in the\nnode's stroke color.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
                 }
               },
               "required": [
                 "kind",
                 "count"
-              ]
-            },
-            "MarkingKind": {
-              "description": "Shape of one token-marking glyph.",
-              "oneOf": [
-                {
-                  "description": "Filled circle (e.g. initial-marking token).",
-                  "type": "string",
-                  "const": "dot"
-                },
-                {
-                  "description": "Faded square (e.g. final-marking token).",
-                  "type": "string",
-                  "const": "square"
-                }
               ]
             },
             "StyledIcon": {
@@ -6589,6 +7331,14 @@
                   ],
                   "default": null
                 },
+                "gradient": {
+                  "description": "Linear gradient stroke from the first to the last polyline point (userSpaceOnUse), used by\nOC-Declare multi-object-type arcs. Two or more stops override `color` on the path; `color`\nstays the fallback for consumers of single-color fields (dots/labels defaults).",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/GradientStop"
+                  },
+                  "default": []
+                },
                 "width": {
                   "type": "number",
                   "format": "double",
@@ -6608,6 +7358,23 @@
                 "marker_end": {
                   "$ref": "#/$defs/EdgeMarker",
                   "default": "none"
+                },
+                "marker_color": {
+                  "description": "Marker fill; defaults to the edge color (OC-Declare draws all markers in one neutral\ngray so the object-type color stays on the path itself).",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "marker_size": {
+                  "description": "Marker base size in px (the side of the 12-unit marker viewBox); defaults to\n`marker_size_for(width)`. OC-Declare passes 6 to match its small on-screen markers.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "format": "double",
+                  "default": null
                 },
                 "labels": {
                   "type": "array",
@@ -6634,21 +7401,63 @@
                 "points"
               ]
             },
+            "GradientStop": {
+              "description": "One stop of a [`StyledEdge::gradient`] stroke.",
+              "type": "object",
+              "properties": {
+                "offset": {
+                  "description": "Fraction (0..1) along the gradient axis.",
+                  "type": "number",
+                  "format": "double"
+                },
+                "color": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "offset",
+                "color"
+              ]
+            },
             "EdgeMarker": {
-              "description": "End-of-edge marker glyph.",
+              "description": "End-of-edge marker glyph. The ball-bearing kinds mirror the on-screen OC-Declare markers:\nthe ball is centered exactly on the path endpoint (the node border).",
               "oneOf": [
                 {
                   "type": "string",
                   "enum": [
                     "none",
-                    "arrow",
-                    "ball"
+                    "arrow"
                   ]
                 },
                 {
-                  "description": "Arrow with a trailing dot behind it (OC-Declare \"EFEP\" combined marker).",
+                  "description": "Arrowhead anchored at its center on the endpoint, tip half-embedded into the node\n(OC-Declare EF end; the plain `Arrow` pulls the path back so the tip lands ON the border).",
+                  "type": "string",
+                  "const": "arrow_centered"
+                },
+                {
+                  "description": "Filled circle centered on the endpoint (OC-Declare EF/AS start).",
+                  "type": "string",
+                  "const": "ball"
+                },
+                {
+                  "description": "Arrowhead whose tip sits at a ball centered on the endpoint (OC-Declare \"EFEP\" end).",
                   "type": "string",
                   "const": "arrow_ball"
+                },
+                {
+                  "description": "`ArrowCentered` with the perpendicular \"direct\" bar behind the tail (OC-Declare DF end).",
+                  "type": "string",
+                  "const": "arrow_bar"
+                },
+                {
+                  "description": "Ball on the endpoint plus an arrowhead pointing back into the node (OC-Declare EP start).",
+                  "type": "string",
+                  "const": "ball_arrow"
+                },
+                {
+                  "description": "`BallArrow` with the \"direct\" bar behind the arrow tail (OC-Declare DP start).",
+                  "type": "string",
+                  "const": "ball_bar_arrow"
                 }
               ]
             },
@@ -6709,6 +7518,14 @@
                 "filled": {
                   "type": "boolean",
                   "default": true
+                },
+                "stroke": {
+                  "description": "Ring stroke around the dot (the on-screen `MultiDot` ring: color mixed toward\nCanvasText). Absent: filled dots draw ringless, hollow ones ring in `color`.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
                 }
               },
               "required": [
@@ -6829,7 +7646,7 @@
     ],
     "module": "app_bindings::viz",
     "source_path": "app-bindings/src/viz/mod.rs",
-    "source_line": 136,
+    "source_line": 177,
     "args": [
       [
         "spec",
@@ -6915,6 +7732,16 @@
                 "format": "double"
               },
               "default": []
+            },
+            "tree": {
+              "description": "Tidy-tree layout instead of layered; input must be a rooted tree/forest, edges come back unrouted.",
+              "type": "boolean",
+              "default": false
+            },
+            "compact": {
+              "description": "Compact the cross axis after placement (priority method): pull weakly-linked clusters together\nand straighten long-edge lanes onto their endpoints, removing the slack Brandes-Kopf leaves.\nOrder-preserving (crossings unchanged). For dense hub-and-spoke graphs like the OCEL type\ngraph; the flow surfaces (DFG/Petri) leave it off. Default `false`.",
+              "type": "boolean",
+              "default": false
             }
           },
           "required": [
@@ -7044,7 +7871,7 @@
     ],
     "module": "app_bindings::viz",
     "source_path": "app-bindings/src/viz/mod.rs",
-    "source_line": 143,
+    "source_line": 184,
     "args": [
       [
         "spec",
@@ -7130,6 +7957,16 @@
                 "format": "double"
               },
               "default": []
+            },
+            "tree": {
+              "description": "Tidy-tree layout instead of layered; input must be a rooted tree/forest, edges come back unrouted.",
+              "type": "boolean",
+              "default": false
+            },
+            "compact": {
+              "description": "Compact the cross axis after placement (priority method): pull weakly-linked clusters together\nand straighten long-edge lanes onto their endpoints, removing the slack Brandes-Kopf leaves.\nOrder-preserving (crossings unchanged). For dense hub-and-spoke graphs like the OCEL type\ngraph; the flow surfaces (DFG/Petri) leave it off. Default `false`.",
+              "type": "boolean",
+              "default": false
             }
           },
           "required": [
@@ -7259,7 +8096,7 @@
       "produces one dot with coordinates determined by the configured axes."
     ],
     "module": "process_mining::analysis::case_centric::dotted_chart",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/analysis/case_centric/dotted_chart.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/analysis/case_centric/dotted_chart.rs",
     "source_line": 199,
     "args": [
       [
@@ -7487,8 +8324,8 @@
       "activity are counted under `\"UNKNOWN\"`."
     ],
     "module": "process_mining::analysis::case_centric::event_timestamp_histogram",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/analysis/case_centric/event_timestamp_histogram.rs",
-    "source_line": 53,
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/analysis/case_centric/event_timestamp_histogram.rs",
+    "source_line": 58,
     "args": [
       [
         "log",
@@ -7560,11 +8397,17 @@
           "items": {
             "type": "string"
           }
+        },
+        "bin_width_ms": {
+          "description": "Width of each equal-width bin, in milliseconds.\nEach bin has their center as key, so a bar then spans\n`[center - bin_width_ms / 2, center + bin_width_ms / 2)`.\nEmpty bins might be omitted.",
+          "type": "integer",
+          "format": "int64"
         }
       },
       "required": [
         "events_per_timestamp",
-        "activities"
+        "activities",
+        "bin_width_ms"
       ]
     }
   },
@@ -7578,7 +8421,7 @@
       "is not found."
     ],
     "module": "process_mining::analysis::object_centric::object_attribute_changes",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/analysis/object_centric/object_attribute_changes.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/analysis/object_centric/object_attribute_changes.rs",
     "source_line": 37,
     "args": [
       [
@@ -7690,7 +8533,7 @@
       "ascending event id, sorted descending. `None` returns every qualifying event."
     ],
     "module": "process_mining::analysis::object_centric::oc_performance",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/analysis/object_centric/oc_performance.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/analysis/object_centric/oc_performance.rs",
     "source_line": 120,
     "args": [
       [
@@ -7753,7 +8596,7 @@
       "ascending event id, sorted descending. `None` returns every qualifying event."
     ],
     "module": "process_mining::analysis::object_centric::oc_performance",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/analysis/object_centric/oc_performance.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/analysis/object_centric/oc_performance.rs",
     "source_line": 59,
     "args": [
       [
@@ -7815,7 +8658,7 @@
       "if no `source_type` objects exist."
     ],
     "module": "process_mining::analysis::object_centric::oc_statistics",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/analysis/object_centric/oc_statistics.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/analysis/object_centric/oc_statistics.rs",
     "source_line": 45,
     "args": [
       [
@@ -7875,7 +8718,7 @@
       "Result row order is unspecified."
     ],
     "module": "process_mining::analysis::object_centric::oc_statistics",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/analysis/object_centric/oc_statistics.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/analysis/object_centric/oc_statistics.rs",
     "source_line": 18,
     "args": [
       [
@@ -7921,7 +8764,7 @@
       "Convert an [`OCEL`] to an [`IndexLinkedOCEL`]"
     ],
     "module": "process_mining::bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/mod.rs",
     "source_line": 613,
     "args": [
       [
@@ -7951,7 +8794,7 @@
       "Get the number of events in an [`OCEL`]"
     ],
     "module": "process_mining::bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/mod.rs",
     "source_line": 583,
     "args": [
       [
@@ -7982,7 +8825,7 @@
       "Get the number of objects in an [`OCEL`]"
     ],
     "module": "process_mining::bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/mod.rs",
     "source_line": 578,
     "args": [
       [
@@ -8013,7 +8856,7 @@
       "Compute statistics on object/event types in the OCEL"
     ],
     "module": "process_mining::bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/mod.rs",
     "source_line": 597,
     "args": [
       [
@@ -8067,7 +8910,7 @@
       "Convert an [`OCEL`] to an [`SlimLinkedOCEL`]"
     ],
     "module": "process_mining::bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/mod.rs",
     "source_line": 619,
     "args": [
       [
@@ -8095,7 +8938,7 @@
     "name": "get_e2o_ids",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 342,
     "args": [
       [
@@ -8137,7 +8980,7 @@
     "name": "get_e2o_rev_ids",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 333,
     "args": [
       [
@@ -8179,7 +9022,7 @@
     "name": "get_event_ids_of_type",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 320,
     "args": [
       [
@@ -8218,7 +9061,7 @@
     "name": "get_event_timestamp_of_id",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 366,
     "args": [
       [
@@ -8257,7 +9100,7 @@
     "name": "get_event_type_of_id",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 360,
     "args": [
       [
@@ -8296,7 +9139,7 @@
     "name": "get_o2o_ids",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 351,
     "args": [
       [
@@ -8340,7 +9183,7 @@
       "Get the activity trace of an object (i.e., the sequence of event types connected to the object, ordered by event timestamp)"
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 240,
     "args": [
       [
@@ -8382,7 +9225,7 @@
     "name": "get_object_ids_of_type",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 313,
     "args": [
       [
@@ -8421,7 +9264,7 @@
     "name": "get_object_type_of_id",
     "docs": [],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 327,
     "args": [
       [
@@ -8465,7 +9308,7 @@
       "either index is out of bounds (with a stderr warning)."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 102,
     "args": [
       [
@@ -8532,7 +9375,7 @@
       "`relationships`: E2O relationships as `(qualifier, object_index)` pairs (can also be added later via [`locel_add_e2o`])."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 64,
     "args": [
       [
@@ -8681,7 +9524,7 @@
       "No-op if the event type already exists."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 33,
     "args": [
       [
@@ -8753,7 +9596,7 @@
       "either index is out of bounds (with a stderr warning)."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 117,
     "args": [
       [
@@ -8820,7 +9663,7 @@
       "`relationships`: Outgoing O2O relationships as `(qualifier, object_index)` pairs (can also be added later via [`locel_add_o2o`])."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 84,
     "args": [
       [
@@ -8973,7 +9816,7 @@
       "No-op if the object type already exists."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 45,
     "args": [
       [
@@ -9042,7 +9885,7 @@
       "Reconstruct a full [`OCEL`] from a [`SlimLinkedOCEL`]. Can be expensive for large logs."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 308,
     "args": [
       [
@@ -9073,7 +9916,7 @@
       "Returns `true` on success, `false` if either index is out of bounds (with a stderr warning)."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 130,
     "args": [
       [
@@ -9127,7 +9970,7 @@
       "Returns `true` on success, `false` if either index is out of bounds (with a stderr warning)."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 138,
     "args": [
       [
@@ -9180,7 +10023,7 @@
       "Get the E2O relationships of an event as `(qualifier, object_index)` pairs."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 224,
     "args": [
       [
@@ -9242,7 +10085,7 @@
       "Get the reverse E2O relationships of an object (events relating to it) as `(qualifier, event_index)` pairs."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 232,
     "args": [
       [
@@ -9305,7 +10148,7 @@
       "Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 284,
     "args": [
       [
@@ -9396,7 +10239,7 @@
       "Look up an event by its ID string. `None` if not found."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 182,
     "args": [
       [
@@ -9449,7 +10292,7 @@
       "Get the ID string of an event. Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 194,
     "args": [
       [
@@ -9490,7 +10333,7 @@
       "Get the timestamp of an event. Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 218,
     "args": [
       [
@@ -9532,7 +10375,7 @@
       "Get the event type specification (name + attributes), or `None` if unknown."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 158,
     "args": [
       [
@@ -9618,7 +10461,7 @@
       "Get the event type (activity) of an event. Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 206,
     "args": [
       [
@@ -9659,7 +10502,7 @@
       "Get all declared event type names, in declaration order."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 146,
     "args": [
       [
@@ -9691,7 +10534,7 @@
       "Get all event indices of the given event type. Empty if unknown."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 170,
     "args": [
       [
@@ -9742,7 +10585,7 @@
       "Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 267,
     "args": [
       [
@@ -9892,7 +10735,7 @@
       "Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 276,
     "args": [
       [
@@ -10040,7 +10883,7 @@
       "Get the outgoing O2O relationships of an object as `(qualifier, object_index)` pairs."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 248,
     "args": [
       [
@@ -10102,7 +10945,7 @@
       "Get the reverse O2O relationships of an object (objects with an O2O to it) as `(qualifier, object_index)` pairs."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 256,
     "args": [
       [
@@ -10165,7 +11008,7 @@
       "Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 296,
     "args": [
       [
@@ -10263,7 +11106,7 @@
       "Look up an object by its ID string. `None` if not found."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 188,
     "args": [
       [
@@ -10316,7 +11159,7 @@
       "Get the ID string of an object. Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 200,
     "args": [
       [
@@ -10357,7 +11200,7 @@
       "Get the object type specification (name + attributes), or `None` if unknown."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 164,
     "args": [
       [
@@ -10443,7 +11286,7 @@
       "Get the object type of an object. Panics if the index is out of bounds."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 212,
     "args": [
       [
@@ -10484,7 +11327,7 @@
       "Get all declared object type names, in declaration order."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 152,
     "args": [
       [
@@ -10516,7 +11359,7 @@
       "Get all object indices of the given object type. Empty if unknown."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 176,
     "args": [
       [
@@ -10569,7 +11412,7 @@
       "declared beforehand with an ordered list of attributes."
     ],
     "module": "process_mining::bindings::slim_ocel_bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/slim_ocel_bindings.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/slim_ocel_bindings.rs",
     "source_line": 23,
     "args": [],
     "required_args": [],
@@ -10588,7 +11431,7 @@
       "**This should be bold**, *this is italic*, `and this code`."
     ],
     "module": "process_mining::bindings",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/bindings/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/bindings/mod.rs",
     "source_line": 624,
     "args": [
       [
@@ -10658,7 +11501,7 @@
       "Permits at most 255 ([`petri_net::TokenCount::MAX`]) tokens in each place."
     ],
     "module": "process_mining::conformance::case_centric::alignments",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/conformance/case_centric/alignments/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/conformance/case_centric/alignments/mod.rs",
     "source_line": 174,
     "args": [
       [
@@ -11040,7 +11883,7 @@
       "Permits at most 255 ([`petri_net::TokenCount::MAX`]) tokens in each place."
     ],
     "module": "process_mining::conformance::case_centric::alignments",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/conformance/case_centric/alignments/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/conformance/case_centric/alignments/mod.rs",
     "source_line": 160,
     "args": [
       [
@@ -11434,7 +12277,7 @@
       "Permits at most 255 ([`petri_net::TokenCount::MAX`]) tokens in each place."
     ],
     "module": "process_mining::conformance::case_centric::alignments",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/conformance/case_centric/alignments/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/conformance/case_centric/alignments/mod.rs",
     "source_line": 101,
     "args": [
       [
@@ -11970,7 +12813,7 @@
       "Also constructs the empty-trace alignment (shortest path through model)"
     ],
     "module": "process_mining::conformance::case_centric::alignments",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/conformance/case_centric/alignments/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/conformance/case_centric/alignments/mod.rs",
     "source_line": 204,
     "args": [
       [
@@ -12535,7 +13378,7 @@
       "Returns a value from 0.0 (all source events violate this constraint) to 1.0 (all source events satisfy this constraint)"
     ],
     "module": "process_mining::conformance::object_centric::oc_declare",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/conformance/object_centric/oc_declare.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/conformance/object_centric/oc_declare.rs",
     "source_line": 286,
     "args": [
       [
@@ -12743,7 +13586,7 @@
       "Get the total number of cases in the projection"
     ],
     "module": "process_mining::core::event_data::case_centric::utils::activity_projection",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
     "source_line": 199,
     "args": [
       [
@@ -12774,7 +13617,7 @@
       "Get the number of distinct trace variants in the projection"
     ],
     "module": "process_mining::core::event_data::case_centric::utils::activity_projection",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
     "source_line": 193,
     "args": [
       [
@@ -12805,7 +13648,7 @@
       "Get the list of all activity names in the projection"
     ],
     "module": "process_mining::core::event_data::case_centric::utils::activity_projection",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
     "source_line": 205,
     "args": [
       [
@@ -12842,7 +13685,7 @@
       "constructors."
     ],
     "module": "process_mining::core::event_data::case_centric::utils::activity_projection",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
     "source_line": 246,
     "args": [
       [
@@ -12919,7 +13762,7 @@
       "constructors."
     ],
     "module": "process_mining::core::event_data::case_centric::utils::activity_projection",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
     "source_line": 235,
     "args": [
       [
@@ -12984,7 +13827,7 @@
       "This effectively constructs all trace variants, with their count."
     ],
     "module": "process_mining::core::event_data::case_centric::utils::activity_projection",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/case_centric/utils/activity_projection.rs",
     "source_line": 95,
     "args": [
       [
@@ -13016,7 +13859,7 @@
       "ordered by their timestamp."
     ],
     "module": "process_mining::core::event_data::object_centric::utils::flatten",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/object_centric/utils/flatten.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/object_centric/utils/flatten.rs",
     "source_line": 14,
     "args": [
       [
@@ -13060,7 +13903,7 @@
       "This function remains, as it might be useful for other applications."
     ],
     "module": "process_mining::core::event_data::object_centric::utils::init_exit_events",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/event_data/object_centric/utils/init_exit_events.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/event_data/object_centric/utils/init_exit_events.rs",
     "source_line": 31,
     "args": [
       [
@@ -13333,7 +14176,7 @@
       "Construct an [`OCDirectlyFollowsGraph`] from an OCEL"
     ],
     "module": "process_mining::core::process_models::object_centric::ocdfg::object_centric_dfg_struct",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/core/process_models/object_centric/ocdfg/object_centric_dfg_struct.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/core/process_models/object_centric/ocdfg/object_centric_dfg_struct.rs",
     "source_line": 50,
     "args": [
       [
@@ -13443,7 +14286,7 @@
       "Discover a [`PetriNet`] using the Alpha+++ Process Discovery algorithm"
     ],
     "module": "process_mining::discovery::case_centric::alphappp::full",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/discovery/case_centric/alphappp/full.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/discovery/case_centric/alphappp/full.rs",
     "source_line": 109,
     "args": [
       [
@@ -13702,7 +14545,7 @@
       "Discover [`DirectlyFollowsGraph`] with default classifier"
     ],
     "module": "process_mining::discovery::case_centric::dfg",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/discovery/case_centric/dfg.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/discovery/case_centric/dfg.rs",
     "source_line": 41,
     "args": [
       [
@@ -13797,7 +14640,7 @@
       "`(from_activity, to_activity)`."
     ],
     "module": "process_mining::discovery::object_centric::dfg",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/discovery/object_centric/dfg.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/discovery/object_centric/dfg.rs",
     "source_line": 19,
     "args": [
       [
@@ -13860,7 +14703,7 @@
       "Discover behavioral OC-DECLARE constraints from the given OCEL"
     ],
     "module": "process_mining::discovery::object_centric::oc_declare",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/discovery/object_centric/oc_declare/mod.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/discovery/object_centric/oc_declare/mod.rs",
     "source_line": 92,
     "args": [
       [
@@ -14238,6 +15081,411 @@
     }
   },
   {
+    "id": "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart",
+    "name": "project_oc_declare_arcs",
+    "docs": [
+      "Project OC-DECLARE arcs onto a subset of activities, preserving constraints",
+      "that reach a target via a chain through eliminated activities.",
+      "BFSs from every target activity through non-target intermediaries, composing",
+      "arc types and labels along the way; whenever the search reaches another target,",
+      "the composed arc is emitted. Dominated duplicates are pruned and the result is",
+      "passed through transitive reduction."
+    ],
+    "module": "process_mining::discovery::object_centric::oc_declare",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/discovery/object_centric/oc_declare/mod.rs",
+    "source_line": 762,
+    "args": [
+      [
+        "arcs",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "Array_of_OCDeclareArc",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OCDeclareArc"
+          },
+          "$defs": {
+            "OCDeclareArc": {
+              "description": "OC-DECLARE Constraint arc/edge between two nodes (i.e., activities)",
+              "type": "object",
+              "properties": {
+                "from": {
+                  "description": "Source node (e.g., triggering activity)",
+                  "$ref": "#/$defs/OCDeclareNode"
+                },
+                "to": {
+                  "description": "Target node (e.g., target activity)",
+                  "$ref": "#/$defs/OCDeclareNode"
+                },
+                "arc_type": {
+                  "description": "Arc type, modeling temporal relation",
+                  "$ref": "#/$defs/OCDeclareArcType"
+                },
+                "label": {
+                  "description": "Arc label specifying object involvement criteria",
+                  "$ref": "#/$defs/OCDeclareArcLabel"
+                },
+                "counts": {
+                  "description": "First tuple element: min count (optional), Second: max count (optional)",
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint",
+                      "minimum": 0
+                    },
+                    {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "format": "uint",
+                      "minimum": 0
+                    }
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "arc_type",
+                "label",
+                "counts"
+              ]
+            },
+            "OCDeclareNode": {
+              "description": "OC-DECLARE node (Activity or Object Init/Exit)",
+              "type": "string"
+            },
+            "OCDeclareArcType": {
+              "description": "OC-DECLARE Arc Direction/Type\n\nModels temporal relationships",
+              "oneOf": [
+                {
+                  "description": "Association: No temporal restrictions",
+                  "type": "string",
+                  "const": "AS"
+                },
+                {
+                  "description": "Eventually-Follows: Target must occur after source event",
+                  "type": "string",
+                  "const": "EF"
+                },
+                {
+                  "description": "Eventually-Precedes: Target must occur before source event",
+                  "type": "string",
+                  "const": "EP"
+                },
+                {
+                  "description": "Directly-Follows: Target must occur directly after source event (considering events that involve all required objects)",
+                  "type": "string",
+                  "const": "DF"
+                },
+                {
+                  "description": "Directly-Precedes: Target must occur directly before source event (considering events that involve all required objects)",
+                  "type": "string",
+                  "const": "DP"
+                }
+              ]
+            },
+            "OCDeclareArcLabel": {
+              "description": "Object Involvement Label of an OC-DECLARE arc",
+              "type": "object",
+              "properties": {
+                "each": {
+                  "description": "Each (for each object of that type separately, there must be the specified number of relevant target events)",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ObjectTypeAssociation"
+                  }
+                },
+                "any": {
+                  "description": "Any (there must be the specified number of relevant target events involving at least one of the objects of this type involved in the source event)",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ObjectTypeAssociation"
+                  }
+                },
+                "all": {
+                  "description": "All (there must be the specified number of relevant target events involving all of the objects of this type involved in the source event)",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ObjectTypeAssociation"
+                  }
+                }
+              },
+              "required": [
+                "each",
+                "any",
+                "all"
+              ]
+            },
+            "ObjectTypeAssociation": {
+              "description": "Object Type Association: Direct or O2O Object Types",
+              "oneOf": [
+                {
+                  "description": "Simple: Direct Object Types involved with an Activity",
+                  "type": "object",
+                  "properties": {
+                    "object_type": {
+                      "description": "The object type",
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "Simple"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "object_type"
+                  ]
+                },
+                {
+                  "description": "Indirect: Object Association through an O2O relationship",
+                  "type": "object",
+                  "properties": {
+                    "first": {
+                      "description": "First object type (for source event)",
+                      "type": "string"
+                    },
+                    "second": {
+                      "description": "Second object type (for target event)",
+                      "type": "string"
+                    },
+                    "reversed": {
+                      "description": "Specifies the direction of the O2O relationship.\n\nIf reversed is `False`, `(first,second)` is considered",
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "O2O"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "first",
+                    "second",
+                    "reversed"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      [
+        "activities",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "Set_of_string",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      ],
+      [
+        "lossless_reduction",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "boolean",
+          "type": "boolean"
+        }
+      ]
+    ],
+    "required_args": [
+      "arcs",
+      "activities",
+      "lossless_reduction"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "Array_of_OCDeclareArc",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/OCDeclareArc"
+      },
+      "$defs": {
+        "OCDeclareArc": {
+          "description": "OC-DECLARE Constraint arc/edge between two nodes (i.e., activities)",
+          "type": "object",
+          "properties": {
+            "from": {
+              "description": "Source node (e.g., triggering activity)",
+              "$ref": "#/$defs/OCDeclareNode"
+            },
+            "to": {
+              "description": "Target node (e.g., target activity)",
+              "$ref": "#/$defs/OCDeclareNode"
+            },
+            "arc_type": {
+              "description": "Arc type, modeling temporal relation",
+              "$ref": "#/$defs/OCDeclareArcType"
+            },
+            "label": {
+              "description": "Arc label specifying object involvement criteria",
+              "$ref": "#/$defs/OCDeclareArcLabel"
+            },
+            "counts": {
+              "description": "First tuple element: min count (optional), Second: max count (optional)",
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "uint",
+                  "minimum": 0
+                },
+                {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "uint",
+                  "minimum": 0
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "from",
+            "to",
+            "arc_type",
+            "label",
+            "counts"
+          ]
+        },
+        "OCDeclareNode": {
+          "description": "OC-DECLARE node (Activity or Object Init/Exit)",
+          "type": "string"
+        },
+        "OCDeclareArcType": {
+          "description": "OC-DECLARE Arc Direction/Type\n\nModels temporal relationships",
+          "oneOf": [
+            {
+              "description": "Association: No temporal restrictions",
+              "type": "string",
+              "const": "AS"
+            },
+            {
+              "description": "Eventually-Follows: Target must occur after source event",
+              "type": "string",
+              "const": "EF"
+            },
+            {
+              "description": "Eventually-Precedes: Target must occur before source event",
+              "type": "string",
+              "const": "EP"
+            },
+            {
+              "description": "Directly-Follows: Target must occur directly after source event (considering events that involve all required objects)",
+              "type": "string",
+              "const": "DF"
+            },
+            {
+              "description": "Directly-Precedes: Target must occur directly before source event (considering events that involve all required objects)",
+              "type": "string",
+              "const": "DP"
+            }
+          ]
+        },
+        "OCDeclareArcLabel": {
+          "description": "Object Involvement Label of an OC-DECLARE arc",
+          "type": "object",
+          "properties": {
+            "each": {
+              "description": "Each (for each object of that type separately, there must be the specified number of relevant target events)",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObjectTypeAssociation"
+              }
+            },
+            "any": {
+              "description": "Any (there must be the specified number of relevant target events involving at least one of the objects of this type involved in the source event)",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObjectTypeAssociation"
+              }
+            },
+            "all": {
+              "description": "All (there must be the specified number of relevant target events involving all of the objects of this type involved in the source event)",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ObjectTypeAssociation"
+              }
+            }
+          },
+          "required": [
+            "each",
+            "any",
+            "all"
+          ]
+        },
+        "ObjectTypeAssociation": {
+          "description": "Object Type Association: Direct or O2O Object Types",
+          "oneOf": [
+            {
+              "description": "Simple: Direct Object Types involved with an Activity",
+              "type": "object",
+              "properties": {
+                "object_type": {
+                  "description": "The object type",
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "Simple"
+                }
+              },
+              "required": [
+                "type",
+                "object_type"
+              ]
+            },
+            {
+              "description": "Indirect: Object Association through an O2O relationship",
+              "type": "object",
+              "properties": {
+                "first": {
+                  "description": "First object type (for source event)",
+                  "type": "string"
+                },
+                "second": {
+                  "description": "Second object type (for target event)",
+                  "type": "string"
+                },
+                "reversed": {
+                  "description": "Specifies the direction of the O2O relationship.\n\nIf reversed is `False`, `(first,second)` is considered",
+                  "type": "boolean"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "O2O"
+                }
+              },
+              "required": [
+                "type",
+                "first",
+                "second",
+                "reversed"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
     "id": "process_mining::discovery::object_centric::variants::get_variants_of_object_type",
     "name": "get_variants_of_object_type",
     "docs": [
@@ -14248,7 +15496,7 @@
       "activity trace."
     ],
     "module": "process_mining::discovery::object_centric::variants",
-    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/9813cee/process_mining/src/discovery/object_centric/variants.rs",
+    "source_path": "/home/aarkue/.cargo/git/checkouts/rust4pm-ee491f322cb0e2e7/65029f8/process_mining/src/discovery/object_centric/variants.rs",
     "source_line": 20,
     "args": [
       [

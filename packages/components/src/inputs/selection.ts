@@ -9,6 +9,10 @@ export function sortByCountDesc(items: FreqItem[]): FreqItem[] {
   return [...items].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
 
+export function sortByName(items: FreqItem[]): FreqItem[] {
+  return [...items].sort((a, b) => a.key.localeCompare(b.key));
+}
+
 export function filterByQuery(items: FreqItem[], query: string): FreqItem[] {
   const q = query.trim().toLowerCase();
   if (q === "") return items;

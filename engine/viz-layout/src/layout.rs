@@ -1,8 +1,5 @@
-//! Pure-Rust Sugiyama-style layered layout, direction-generic (Petri nets = LR, DFGs = TB).
-//! Pipeline from [`LayeredInput`]: cycle-break (Eades-Lin-Smyth) -> longest-path/network-simplex
-//! layering -> dummy insertion -> barycenter+transposition crossing minimization ->
-//! Brandes-Kopf coordinates -> four-sided ported orthogonal routing -> unwind dummies/reversed
-//! arcs and transpose for TB into [`LayeredOutput`].
+//! Pure-Rust Sugiyama-style layered layout, direction-generic (Petri nets = LR, DFGs = TB):
+//! cycle-break, longest-path layering, dummy insertion, crossing minimization, Brandes-Kopf coordinates, then ported orthogonal routing.
 
 use std::collections::BTreeMap;
 
@@ -13,9 +10,9 @@ pub const TRANS_W: f64 = 120.0;
 pub const TRANS_H: f64 = 52.0;
 
 // Spacing near ELK layered defaults, held a touch looser so edge<->node clearance stays >~25px.
-const LAYER_GAP: f64 = 68.0;  // between layer columns
-const NODE_GAP: f64  = 46.0;  // between two real nodes in same layer
-const DUMMY_GAP: f64 = 30.0;  // between a routing track and a node
+const LAYER_GAP: f64 = 68.0; // between layer columns
+const NODE_GAP: f64 = 46.0; // between two real nodes in same layer
+const DUMMY_GAP: f64 = 30.0; // between a routing track and a node
 
 /// Primary flow direction of the layered layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +80,8 @@ pub struct LayeredInput {
     /// Optional per-node hard-pin flag (same order as `nodes`). A pinned node holds its seed
     /// cross-coord exactly; others yield around it. Only meaningful with `seed`. Empty => none.
     pub pinned: Vec<bool>,
+    /// Compact the cross axis after placement (order-preserving); suits dense hub-and-spoke graphs like the OCEL type graph. Default `false`.
+    pub compact: bool,
 }
 
 /// Result of [`layout_layered`], in final SVG coordinates for the requested direction.
@@ -112,7 +111,11 @@ struct Graph {
 
 impl Graph {
     fn new() -> Self {
-        Graph { n: 0, kind: vec![], edges: vec![] }
+        Graph {
+            n: 0,
+            kind: vec![],
+            edges: vec![],
+        }
     }
     fn add_node(&mut self, k: InternalKind) -> usize {
         let idx = self.n;
@@ -125,7 +128,6 @@ impl Graph {
     }
 }
 
-
 // Phase 2: greedy feedback-arc-set cycle breaking
 
 /// Greedy (Eades-Lin-Smyth) feedback-arc-set cycle breaking, weight-aware: orients the heaviest
@@ -137,13 +139,16 @@ fn break_cycles(g: &mut Graph, arc_weight: &[f64]) {
     }
     // Process real edges heaviest-first. `reach[x][y]` = y reachable from x via oriented edges;
     // keep from->to unless `to` already reaches `from` (would close a cycle), else flip to back-edge.
-    let mut order: Vec<usize> =
-        (0..g.edges.len()).filter(|&i| g.edges[i].0 != g.edges[i].1).collect();
+    let mut order: Vec<usize> = (0..g.edges.len())
+        .filter(|&i| g.edges[i].0 != g.edges[i].1)
+        .collect();
     order.sort_by(|&a, &b| {
         let wa = arc_weight.get(g.edges[a].2).copied().unwrap_or(1.0);
         let wb = arc_weight.get(g.edges[b].2).copied().unwrap_or(1.0);
         // Heaviest first; ties by edge index keep it deterministic.
-        wb.partial_cmp(&wa).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(&b))
+        wb.partial_cmp(&wa)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.cmp(&b))
     });
 
     let mut reach = vec![vec![false; n]; n];
@@ -482,7 +487,10 @@ fn insert_dummies(mut g: Graph, layer: Vec<i32>) -> ExpandedGraph {
         }
     }
 
-    ExpandedGraph { g, layer: new_layer }
+    ExpandedGraph {
+        g,
+        layer: new_layer,
+    }
 }
 
 // Phase 5: crossing minimization (barycenter + greedy transposition)
@@ -637,7 +645,9 @@ fn crossing_minimization(layers: &mut Vec<Vec<usize>>, g: &Graph, weight: &[f64]
         let mut s = dfs_seed.clone();
         for layer in s.iter_mut() {
             for i in (1..layer.len()).rev() {
-                rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                rng = rng
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 let j = (rng >> 33) as usize % (i + 1);
                 layer.swap(i, j);
             }
@@ -824,7 +834,6 @@ fn crossing_minimization(layers: &mut Vec<Vec<usize>>, g: &Graph, weight: &[f64]
     }
 }
 
-
 // Phase 5b: crossing-neutral category (lane) consistency
 
 /// Reorder each layer so same-`category` nodes form consistent lanes without raising crossings:
@@ -932,7 +941,11 @@ fn category_consistency_pass(layers: &mut [Vec<usize>], g: &Graph, category: &[O
 /// Minimum centre-to-centre separation between two order-adjacent nodes; `a` is the negative-order-
 /// side one. `clear[a]` widens the gap when `a` reserves clearance beyond its positive-side border.
 fn sep(a: usize, b: usize, node_h: &[f64], is_dummy: &[bool], node_gap: f64, clear: &[f64]) -> f64 {
-    let gap = if is_dummy[a] || is_dummy[b] { DUMMY_GAP } else { node_gap };
+    let gap = if is_dummy[a] || is_dummy[b] {
+        DUMMY_GAP
+    } else {
+        node_gap
+    };
     node_h[a] / 2.0 + gap.max(clear[a]) + node_h[b] / 2.0
 }
 
@@ -961,11 +974,18 @@ fn straighten_long_edges(
         .filter(|(_, c)| c.len() >= 3 && c[1..c.len() - 1].iter().any(|&n| is_dummy[n]))
         .map(|(&a, _)| (a, weight.get(a).copied().unwrap_or(1.0)))
         .collect();
-    arcs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0)));
+    arcs.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.0.cmp(&b.0))
+    });
     for (arc, _) in arcs {
         let chain = &chains[&arc];
-        let dummies: Vec<usize> =
-            chain[1..chain.len() - 1].iter().copied().filter(|&n| is_dummy[n]).collect();
+        let dummies: Vec<usize> = chain[1..chain.len() - 1]
+            .iter()
+            .copied()
+            .filter(|&n| is_dummy[n])
+            .collect();
         if dummies.is_empty() {
             continue;
         }
@@ -1114,10 +1134,20 @@ fn seeded_coords(
 ) {
     // The cross axis is y in LeftRight and x in TopBottom (the final `map` transposes for TB).
     let order_seed = |i: usize| -> Option<f64> {
-        seed.get(i).copied().flatten().map(|(x, y)| if tb { x } else { y })
+        seed.get(i)
+            .copied()
+            .flatten()
+            .map(|(x, y)| if tb { x } else { y })
     };
-    let desired: Vec<f64> =
-        (0..cy.len()).map(|v| if v < n_in { order_seed(v).unwrap_or(cy[v]) } else { cy[v] }).collect();
+    let desired: Vec<f64> = (0..cy.len())
+        .map(|v| {
+            if v < n_in {
+                order_seed(v).unwrap_or(cy[v])
+            } else {
+                cy[v]
+            }
+        })
+        .collect();
     for layer in layers {
         if layer.len() < 2 {
             if let Some(&v) = layer.first() {
@@ -1131,7 +1161,13 @@ fn seeded_coords(
             .collect();
         let fixed: Vec<Option<f64>> = layer
             .iter()
-            .map(|&v| if v < n_in && pinned.get(v).copied().unwrap_or(false) { order_seed(v) } else { None })
+            .map(|&v| {
+                if v < n_in && pinned.get(v).copied().unwrap_or(false) {
+                    order_seed(v)
+                } else {
+                    None
+                }
+            })
             .collect();
         let p = project_gaps_pinned(&d, &gap, &fixed);
         for (i, &v) in layer.iter().enumerate() {
@@ -1184,7 +1220,11 @@ fn snap_align(
                 };
                 let cur = ys[v];
                 let straight_at = |y: f64| -> f64 {
-                    nb[v].iter().filter(|&&(u, _)| (ys[u] - y).abs() < 1.0).map(|&(_, w)| w).sum()
+                    nb[v]
+                        .iter()
+                        .filter(|&&(u, _)| (ys[u] - y).abs() < 1.0)
+                        .map(|&(_, w)| w)
+                        .sum()
                 };
                 let mut best_y = cur;
                 let mut best_cnt = straight_at(cur);
@@ -1210,6 +1250,120 @@ fn snap_align(
         }
         if !changed {
             break;
+        }
+    }
+}
+
+/// Width-safe cross-axis compaction: packs every layer to its minimum width (order preserved),
+/// shifts each layer to its weighted median edge-alignment offset, then lets nodes slide toward their neighbour median within the packed envelope.
+fn priority_compact(
+    layers: &[Vec<usize>],
+    g: &Graph,
+    weight: &[f64],
+    ow: &[f64],
+    is_dummy: &[bool],
+    node_gap: f64,
+    clear: &[f64],
+    cy: &mut [f64],
+) {
+    let n = g.n;
+    let mut lyr = vec![0usize; n];
+    for (i, l) in layers.iter().enumerate() {
+        for &v in l {
+            lyr[v] = i;
+        }
+    }
+    let mut nbr: Vec<Vec<(usize, f64)>> = vec![vec![]; n];
+    for &(a, b, arc, _) in &g.edges {
+        if a == b {
+            continue;
+        }
+        let w = weight.get(arc).copied().unwrap_or(1.0);
+        nbr[a].push((b, w));
+        nbr[b].push((a, w));
+    }
+
+    // 1. Pack each layer to minimum width: local coordinate = running separation sum.
+    let mut x = vec![0.0f64; n];
+    for layer in layers {
+        let mut acc = 0.0;
+        for (i, &v) in layer.iter().enumerate() {
+            if i > 0 {
+                acc += sep(layer[i - 1], v, ow, is_dummy, node_gap, clear);
+            }
+            x[v] = acc;
+        }
+    }
+
+    // 2. Rigid per-layer offset: shift each whole layer to the weighted median alignment of its edges.
+    let mut offset = vec![0.0f64; layers.len()];
+    for p in 0..24 {
+        let order: Vec<usize> = if p % 2 == 0 {
+            (0..layers.len()).collect()
+        } else {
+            (0..layers.len()).rev().collect()
+        };
+        let mut changed = false;
+        for &li in &order {
+            let mut samples: Vec<(f64, f64)> = vec![];
+            for &v in &layers[li] {
+                for &(u, w) in &nbr[v] {
+                    samples.push((x[u] + offset[lyr[u]] - x[v], w));
+                }
+            }
+            if samples.is_empty() {
+                continue;
+            }
+            let no = weighted_median(&mut samples);
+            if (no - offset[li]).abs() > 0.5 {
+                offset[li] = no;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for v in 0..n {
+        cy[v] = x[v] + offset[lyr[v]];
+    }
+
+    // 3. Per-node refinement: slide each node toward its neighbour median, clamped to its same-layer
+    // neighbours' separation so the packed width is preserved (dummies first -> straight long lanes).
+    let prio: Vec<u64> = (0..n)
+        .map(|v| if is_dummy[v] { u64::MAX } else { nbr[v].len() as u64 })
+        .collect();
+    for p in 0..8 {
+        let order: Vec<usize> = if p % 2 == 0 {
+            (0..layers.len()).collect()
+        } else {
+            (0..layers.len()).rev().collect()
+        };
+        for &li in &order {
+            let layer = &layers[li];
+            let mut idxs: Vec<usize> = (0..layer.len()).collect();
+            idxs.sort_by(|&i, &j| prio[layer[j]].cmp(&prio[layer[i]]));
+            for &pos in &idxs {
+                let v = layer[pos];
+                if nbr[v].is_empty() {
+                    continue;
+                }
+                let lo = if pos > 0 {
+                    cy[layer[pos - 1]] + sep(layer[pos - 1], v, ow, is_dummy, node_gap, clear)
+                } else {
+                    f64::NEG_INFINITY
+                };
+                let hi = if pos + 1 < layer.len() {
+                    cy[layer[pos + 1]] - sep(v, layer[pos + 1], ow, is_dummy, node_gap, clear)
+                } else {
+                    f64::INFINITY
+                };
+                if lo > hi {
+                    continue;
+                }
+                let mut samples: Vec<(f64, f64)> = nbr[v].iter().map(|&(u, w)| (cy[u], w)).collect();
+                cy[v] = weighted_median(&mut samples).clamp(lo, hi);
+            }
         }
     }
 }
@@ -1253,8 +1407,12 @@ fn bk_place_block(
             // side one, so the clearance owner (true negative-side node of the pair) is `w`.
             let owner = if flipped { w } else { u_above };
             let s = ow[u_above] / 2.0
-                + (if is_dummy[u_above] || is_dummy[w] { DUMMY_GAP } else { node_gap })
-                    .max(clear[owner])
+                + (if is_dummy[u_above] || is_dummy[w] {
+                    DUMMY_GAP
+                } else {
+                    node_gap
+                })
+                .max(clear[owner])
                 + ow[w] / 2.0;
             if sink[v] == sink[u] {
                 xs[v] = xs[v].max(xs[u] + s);
@@ -1361,8 +1519,11 @@ fn brandes_koepf(
         for (i, layer) in ord.iter().enumerate().skip(1) {
             let mut prev: i64 = -1;
             for &v in layer {
-                let mut ws: Vec<usize> =
-                    adj[v].iter().copied().filter(|&u| tlayer[u] + 1 == i).collect();
+                let mut ws: Vec<usize> = adj[v]
+                    .iter()
+                    .copied()
+                    .filter(|&u| tlayer[u] + 1 == i)
+                    .collect();
                 ws.sort_by_key(|&u| tpos[u]);
                 if ws.is_empty() {
                     continue;
@@ -1447,18 +1608,17 @@ fn brandes_koepf(
         .collect()
 }
 
-
-fn assign_x_positions(layers: &[Vec<usize>], node_w: &[f64], layer_gap: f64) -> Vec<f64> {
+fn assign_x_positions(layers: &[Vec<usize>], node_w: &[f64], gap_after: &[f64]) -> Vec<f64> {
     let mut cx = vec![0.0f64; node_w.len()];
     let mut x = 0.0f64;
-    for layer in layers {
+    for (li, layer) in layers.iter().enumerate() {
         // Layer width = max node width in this layer.
         let layer_w = layer.iter().map(|&n| node_w[n]).fold(0.0f64, f64::max);
         let centre_x = x + layer_w / 2.0;
         for &node in layer {
             cx[node] = centre_x;
         }
-        x += layer_w + layer_gap;
+        x += layer_w + gap_after[li];
     }
     cx
 }
@@ -1519,27 +1679,47 @@ fn project_port(node: usize, side: Side, off: f64, b: &Boxes) -> Port {
     let ell = b.ellipse[node];
     // Fraction of the half-extent the ellipse still spans at the perpendicular offset.
     let ell_span = |o: f64, half: f64| -> f64 {
-        if half <= 0.0 { 1.0 } else { (1.0 - (o / half).powi(2)).max(0.0).sqrt() }
+        if half <= 0.0 {
+            1.0
+        } else {
+            (1.0 - (o / half).powi(2)).max(0.0).sqrt()
+        }
     };
     let (anchor, stub) = match side {
         Side::Right => {
             let o = off.clamp(-hh * 0.95, hh * 0.95);
-            let ax = if ell { cxn + hw * ell_span(o, hh) } else { cxn + hw };
+            let ax = if ell {
+                cxn + hw * ell_span(o, hh)
+            } else {
+                cxn + hw
+            };
             ((ax, cyn + o), (cxn + hw + STUB, cyn + o))
         }
         Side::Left => {
             let o = off.clamp(-hh * 0.95, hh * 0.95);
-            let ax = if ell { cxn - hw * ell_span(o, hh) } else { cxn - hw };
+            let ax = if ell {
+                cxn - hw * ell_span(o, hh)
+            } else {
+                cxn - hw
+            };
             ((ax, cyn + o), (cxn - hw - STUB, cyn + o))
         }
         Side::Top => {
             let o = off.clamp(-hw * 0.95, hw * 0.95);
-            let ay = if ell { cyn - hh * ell_span(o, hw) } else { cyn - hh };
+            let ay = if ell {
+                cyn - hh * ell_span(o, hw)
+            } else {
+                cyn - hh
+            };
             ((cxn + o, ay), (cxn + o, cyn - hh - STUB))
         }
         Side::Bottom => {
             let o = off.clamp(-hw * 0.95, hw * 0.95);
-            let ay = if ell { cyn + hh * ell_span(o, hw) } else { cyn + hh };
+            let ay = if ell {
+                cyn + hh * ell_span(o, hw)
+            } else {
+                cyn + hh
+            };
             ((cxn + o, ay), (cxn + o, cyn + hh + STUB))
         }
     };
@@ -1605,8 +1785,14 @@ fn seg_hits_box_pad(
         if i == skip1 || i == skip2 || b.layer_w[i] <= 0.0 {
             continue;
         }
-        let (xmin, xmax) = (b.cx[i] - b.layer_w[i] / 2.0 - pad, b.cx[i] + b.layer_w[i] / 2.0 + pad);
-        let (ymin, ymax) = (b.cy[i] - b.order_w[i] / 2.0 - pad, b.cy[i] + b.order_w[i] / 2.0 + pad);
+        let (xmin, xmax) = (
+            b.cx[i] - b.layer_w[i] / 2.0 - pad,
+            b.cx[i] + b.layer_w[i] / 2.0 + pad,
+        );
+        let (ymin, ymax) = (
+            b.cy[i] - b.order_w[i] / 2.0 - pad,
+            b.cy[i] + b.order_w[i] / 2.0 + pad,
+        );
         if xmin >= xmax || ymin >= ymax {
             continue;
         }
@@ -1640,8 +1826,7 @@ fn segments_cross(p1: (f64, f64), p2: (f64, f64), p3: (f64, f64), p4: (f64, f64)
     let o = |a: (f64, f64), b: (f64, f64), c: (f64, f64)| {
         (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
     };
-    (o(p3, p4, p1) > 0.0) != (o(p3, p4, p2) > 0.0)
-        && (o(p1, p2, p3) > 0.0) != (o(p1, p2, p4) > 0.0)
+    (o(p3, p4, p1) > 0.0) != (o(p3, p4, p2) > 0.0) && (o(p1, p2, p3) > 0.0) != (o(p1, p2, p4) > 0.0)
 }
 
 /// Count proper segment intersections between edge `arc`'s polyline and every other edge's.
@@ -1682,15 +1867,24 @@ fn route_edges(
     let (cx, cy, lw, ow, is_ellipse) = (&b.cx, &b.cy, &b.layer_w, &b.order_w, &b.ellipse);
     let n_in = b.n_real;
     let n_layers = layers.len();
-    let layer_x: Vec<f64> = layers.iter().map(|l| l.first().map(|&n| cx[n]).unwrap_or(0.0)).collect();
-    let layer_half: Vec<f64> =
-        layers.iter().map(|l| l.iter().map(|&n| lw[n] / 2.0).fold(0.0, f64::max)).collect();
+    let layer_x: Vec<f64> = layers
+        .iter()
+        .map(|l| l.first().map(|&n| cx[n]).unwrap_or(0.0))
+        .collect();
+    let layer_half: Vec<f64> = layers
+        .iter()
+        .map(|l| l.iter().map(|&n| lw[n] / 2.0).fold(0.0, f64::max))
+        .collect();
 
     // Iterate arcs in a stable sorted-key order everywhere below so tie-breaks (port/lane order)
     // stay deterministic across runs.
     let mut arc_keys: Vec<usize> = chains.keys().copied().collect();
     arc_keys.sort_unstable();
-    let ordered = || arc_keys.iter().filter_map(|&a| chains.get(&a).map(|c| (a, c)));
+    let ordered = || {
+        arc_keys
+            .iter()
+            .filter_map(|&a| chains.get(&a).map(|c| (a, c)))
+    };
 
     // Endpoint side selection: each endpoint attaches to the border facing where its edge heads -
     // source forward (right), target backward (left), or top/bottom when strongly perpendicular.
@@ -1753,21 +1947,19 @@ fn route_edges(
         let (dx, dy) = (cx[aim] - cx[node], cy[aim] - cy[node]);
         let thresh = if is_source { 0.7 } else { 2.0 };
         if dy.abs() > dx.abs() * thresh {
-            if dy > 0.0 { Side::Bottom } else { Side::Top }
+            if dy > 0.0 {
+                Side::Bottom
+            } else {
+                Side::Top
+            }
         } else if is_source {
             Side::Right
         } else {
             Side::Left
         }
     };
-    // Flow style: attach each end to the border the node-centre -> aim-centre ray exits through, so
-    // the diagonal leaves perpendicular-ish. Steepness judged by box aspect (|dy|*h <= |dx|*w), but
-    // only flip to a top/bottom port when the cross-offset also dominates the layer-offset
-    // (|dy| > |dx|). The aspect test alone flips too eagerly for wide-short nodes (LR, 150x58): a
-    // forward edge with a mild slope still exits the short top face, so adjacent-layer arcs attach
-    // top/bottom instead of the forward face. The extra gate keeps forward ports clean regardless of
-    // orientation, and is a no-op for tall-in-cross nodes (TB), whose aspect threshold already
-    // implies |dy| > |dx| whenever it flips.
+    // Flow style: attach each end to the border the node-centre -> aim-centre ray exits through.
+    // Steepness is judged by box aspect, but only flips to a top/bottom port when the cross-offset also dominates the layer-offset, keeping forward ports clean on wide-short nodes.
     let ray_side = |node: usize, ax: f64, ay: f64| -> Side {
         let (dx, dy) = (ax - cx[node], ay - cy[node]);
         if dy.abs() * lw[node] <= dx.abs() * ow[node] || dy.abs() <= dx.abs() {
@@ -1792,13 +1984,18 @@ fn route_edges(
         let direct = chain.len() == 2;
         let s_aim = chain[1];
         let t_aim = chain[chain.len() - 2];
-        let (s_side, t_side) = if flow_edges {
+        let (s_side, t_side) = if flow_edges
+            && direct
+            && (cx[hi] - cx[lo]).abs() > lw[lo]
+            && (cy[hi] - cy[lo]).abs() > ow[lo]
+        {
+            // A direct flow edge that crosses a rank and is far apart on the cross axis: `ray_side`
+            // would trap it in the node band as a staircase, so leave/enter via the layer-axis face toward the other rank instead, for one clean diagonal into the gutter.
+            (Side::Right, Side::Left)
+        } else if flow_edges {
             // A long edge whose target sits in a laterally-offset column reads better leaving via the
             // cross-face toward it. Aim the side at the target cross-position when offset > ~a node width.
-            let s = if side_port
-                && chain.len() >= 5
-                && (cy[hi] - cy[lo]).abs() > ow[lo] * 0.9
-            {
+            let s = if side_port && chain.len() >= 5 && (cy[hi] - cy[lo]).abs() > ow[lo] * 0.9 {
                 ray_side(lo, cx[lo], cy[hi])
             } else {
                 ray_side(lo, cx[s_aim], cy[s_aim])
@@ -1812,8 +2009,18 @@ fn route_edges(
         arc_ends.insert(
             arc,
             (
-                EdgeEnd { node: lo, side: s_side, aim_order: cy[s_aim], aim_layer: cx[s_aim] },
-                EdgeEnd { node: hi, side: t_side, aim_order: cy[t_aim], aim_layer: cx[t_aim] },
+                EdgeEnd {
+                    node: lo,
+                    side: s_side,
+                    aim_order: cy[s_aim],
+                    aim_layer: cx[s_aim],
+                },
+                EdgeEnd {
+                    node: hi,
+                    side: t_side,
+                    aim_order: cy[t_aim],
+                    aim_layer: cx[t_aim],
+                },
             ),
         );
     }
@@ -1864,8 +2071,12 @@ fn route_edges(
             // facing border with the same drop sign, keep it there rather than flip to the perp border.
             let clustered = arc_ends.iter().any(|(&other, (s2, t2))| {
                 other != arc
-                    && ((s2.node == hi && s2.side == Side::Left && (s2.aim_order - cy[hi]) * drop > 0.0)
-                        || (t2.node == hi && t2.side == Side::Left && (t2.aim_order - cy[hi]) * drop > 0.0))
+                    && ((s2.node == hi
+                        && s2.side == Side::Left
+                        && (s2.aim_order - cy[hi]) * drop > 0.0)
+                        || (t2.node == hi
+                            && t2.side == Side::Left
+                            && (t2.aim_order - cy[hi]) * drop > 0.0))
             });
             if clustered {
                 continue;
@@ -1892,7 +2103,11 @@ fn route_edges(
     // port centred). On a perp border nest the L's so the fan is planar; facing borders use aim-order.
     type Bucket = Vec<(usize, bool, f64, f64)>;
     let perp_key = |side: Side, is_source: bool, aim_order: f64| -> f64 {
-        if is_source == (side == Side::Bottom) { -aim_order } else { aim_order }
+        if is_source == (side == Side::Bottom) {
+            -aim_order
+        } else {
+            aim_order
+        }
     };
     // Flow (diagonal) edges: put the port where the centre -> aim line crosses the border, not at the
     // aim's raw coordinate. Orthogonal routing keeps `raw`. Gated on `flow_edges`.
@@ -1903,10 +2118,18 @@ fn route_edges(
         let (dx, dy) = (aim_cx - cx[node], aim_cy - cy[node]);
         if side.horizontal() {
             let hw = lw[node] / 2.0;
-            if dx.abs() < 1e-6 { raw } else { cy[node] + dy * (hw / dx.abs()) }
+            if dx.abs() < 1e-6 {
+                raw
+            } else {
+                cy[node] + dy * (hw / dx.abs())
+            }
         } else {
             let hh = ow[node] / 2.0;
-            if dy.abs() < 1e-6 { raw } else { cx[node] + dx * (hh / dy.abs()) }
+            if dy.abs() < 1e-6 {
+                raw
+            } else {
+                cx[node] + dx * (hh / dy.abs())
+            }
         }
     };
     // Flow edges on an ellipse use ONE radial bucket (key 4), not four side buckets: a small circle
@@ -1935,10 +2158,24 @@ fn route_edges(
             let p = flow_pos(t.node, t.side, t.aim_layer, t.aim_order, t.aim_layer);
             (perp_key(t.side, false, t.aim_order), p)
         };
-        let s_key = if radial(s.node) { RADIAL } else { s.side.index() };
-        let t_key = if radial(t.node) { RADIAL } else { t.side.index() };
-        buckets.entry((s.node, s_key)).or_default().push((arc, true, s_sort, s_pos));
-        buckets.entry((t.node, t_key)).or_default().push((arc, false, t_sort, t_pos));
+        let s_key = if radial(s.node) {
+            RADIAL
+        } else {
+            s.side.index()
+        };
+        let t_key = if radial(t.node) {
+            RADIAL
+        } else {
+            t.side.index()
+        };
+        buckets
+            .entry((s.node, s_key))
+            .or_default()
+            .push((arc, true, s_sort, s_pos));
+        buckets
+            .entry((t.node, t_key))
+            .or_default()
+            .push((arc, false, t_sort, t_pos));
     }
     let mut port: BTreeMap<(usize, bool), Port> = BTreeMap::new();
     let mut bucket_keys: Vec<(usize, u8)> = buckets.keys().copied().collect();
@@ -1963,7 +2200,9 @@ fn route_edges(
             });
         } else {
             list.sort_by(|a, b| {
-                a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0))
+                a.2.partial_cmp(&b.2)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(a.0.cmp(&b.0))
             });
         }
         if key.1 == RADIAL {
@@ -2002,8 +2241,11 @@ fn route_edges(
             // cluster, centre it, and shrink the gap to fit (else ports wrap around the far side).
             let d_span = desired[n - 1] - desired[0];
             let max_span = (d_span + 2.0 * gap_ang).min(TAU - gap_ang);
-            let gap_eff =
-                if n > 1 { gap_ang.min(max_span / (n as f64 - 1.0)) } else { gap_ang };
+            let gap_eff = if n > 1 {
+                gap_ang.min(max_span / (n as f64 - 1.0))
+            } else {
+                gap_ang
+            };
             let lo_b = desired[0] - (max_span - d_span) / 2.0;
             let hi_b = lo_b + max_span;
             let mut pos = desired.clone();
@@ -2027,7 +2269,11 @@ fn route_edges(
                 let anchor = (cxn + scale * dc, cyn + scale * ds);
                 let stub = (anchor.0 + STUB * dc, anchor.1 + STUB * ds);
                 let side = if ds.abs() * lw[node] <= dc.abs() * ow[node] {
-                    if dc > 0.0 { Side::Right } else { Side::Left }
+                    if dc > 0.0 {
+                        Side::Right
+                    } else {
+                        Side::Left
+                    }
                 } else if ds > 0.0 {
                     Side::Bottom
                 } else {
@@ -2039,7 +2285,11 @@ fn route_edges(
         }
         let n = list.len();
         let (cxn, cyn) = (cx[node], cy[node]);
-        let extent = if side.horizontal() { ow[node] } else { lw[node] };
+        let extent = if side.horizontal() {
+            ow[node]
+        } else {
+            lw[node]
+        };
         let centre = if side.horizontal() { cyn } else { cxn };
         // Stroke-aware port gap: two thick strokes 18px apart leave almost no daylight, so each
         // adjacent pair needs at least half their strokes plus a constant visual clearance.
@@ -2059,13 +2309,20 @@ fn route_edges(
             // Spread ports along the border, ordered by aim, min-gap apart, bounded both ends so
             // the clamp can't squash them back together.
             let lim = extent * 0.45;
-            let desired: Vec<f64> = list.iter().map(|it| (it.3 - centre).clamp(-lim, lim)).collect();
+            let desired: Vec<f64> = list
+                .iter()
+                .map(|it| (it.3 - centre).clamp(-lim, lim))
+                .collect();
             // Below MIN_PORT_GAP a linear split can't fit; on an ellipse space by true (Euclidean)
             // border distance so outer ports pack tighter. Linear otherwise (matches box offsets).
             let oversubscribed = (2.0 * lim / (n - 1) as f64) < MIN_PORT_GAP;
             if is_ellipse[node] && oversubscribed {
                 let half_along = extent / 2.0;
-                let perp_half = (if side.horizontal() { lw[node] } else { ow[node] }) / 2.0;
+                let perp_half = (if side.horizontal() {
+                    lw[node]
+                } else {
+                    ow[node]
+                }) / 2.0;
                 let span = |o: f64| ((1.0 - (o / half_along).powi(2)).max(0.0)).sqrt();
                 let euclid = |a: f64, b: f64| (perp_half * (span(a) - span(b))).hypot(a - b);
                 // Smallest o >= prev with euclid(prev,o) >= gap (binary search over the physical
@@ -2077,7 +2334,11 @@ fn route_edges(
                     let (mut lo, mut hi) = (prev, half_along);
                     for _ in 0..40 {
                         let mid = (lo + hi) / 2.0;
-                        if euclid(prev, mid) < gap { lo = mid; } else { hi = mid; }
+                        if euclid(prev, mid) < gap {
+                            lo = mid;
+                        } else {
+                            hi = mid;
+                        }
                     }
                     hi
                 };
@@ -2088,7 +2349,11 @@ fn route_edges(
                     let (mut lo, mut hi) = (-half_along, next);
                     for _ in 0..40 {
                         let mid = (lo + hi) / 2.0;
-                        if euclid(next, mid) < gap { hi = mid; } else { lo = mid; }
+                        if euclid(next, mid) < gap {
+                            hi = mid;
+                        } else {
+                            lo = mid;
+                        }
                     }
                     lo
                 };
@@ -2119,8 +2384,13 @@ fn route_edges(
                     for _ in 0..24 {
                         let mid = (lo + hi) / 2.0;
                         match place(mid) {
-                            Some(p) => { best = p; lo = mid; }
-                            None => { hi = mid; }
+                            Some(p) => {
+                                best = p;
+                                lo = mid;
+                            }
+                            None => {
+                                hi = mid;
+                            }
                         }
                     }
                     best
@@ -2214,7 +2484,10 @@ fn route_edges(
         let on_side: Vec<((usize, bool), usize, u8)> = arc_ends
             .iter()
             .flat_map(|(&a, (s, t))| {
-                [((a, true), s.node, s.side.index()), ((a, false), t.node, t.side.index())]
+                [
+                    ((a, true), s.node, s.side.index()),
+                    ((a, false), t.node, t.side.index()),
+                ]
             })
             .collect();
         for (arc, chain) in ordered() {
@@ -2222,9 +2495,10 @@ fn route_edges(
             if m <= 2 {
                 continue;
             }
-            for (is_source, node, adj) in
-                [(true, chain[0], chain[1]), (false, chain[m - 1], chain[m - 2])]
-            {
+            for (is_source, node, adj) in [
+                (true, chain[0], chain[1]),
+                (false, chain[m - 1], chain[m - 2]),
+            ] {
                 let p = port[&(arc, is_source)];
                 if !p.side.horizontal() || radial(node) {
                     continue;
@@ -2242,7 +2516,10 @@ fn route_edges(
                         && ((other < old.min(track)) || (other > old.max(track)))
                 });
                 if ok {
-                    port.insert((arc, is_source), project_port(node, p.side, track - cy[node], b));
+                    port.insert(
+                        (arc, is_source),
+                        project_port(node, p.side, track - cy[node], b),
+                    );
                 }
             }
         }
@@ -2254,7 +2531,10 @@ fn route_edges(
         let on_side: Vec<((usize, bool), usize, u8)> = arc_ends
             .iter()
             .flat_map(|(&a, (s, t))| {
-                [((a, true), s.node, s.side.index()), ((a, false), t.node, t.side.index())]
+                [
+                    ((a, true), s.node, s.side.index()),
+                    ((a, false), t.node, t.side.index()),
+                ]
             })
             .collect();
         let t_of_arc = |a: usize| thickness.get(a).copied().unwrap_or(2.0);
@@ -2270,26 +2550,33 @@ fn route_edges(
             if (ys - yt).abs() < 0.5 || (ys - yt).abs() > 24.0 {
                 continue;
             }
-            let feasible = |node: usize, key: (usize, bool), side: Side, tgt: f64, old: f64| -> bool {
-                if radial(node) || (tgt - cy[node]).abs() > ow[node] * 0.45 {
-                    return false;
-                }
-                on_side.iter().all(|&(k2, n2, s2)| {
-                    if k2 == key || n2 != node || s2 != side.index() {
-                        return true;
+            let feasible =
+                |node: usize, key: (usize, bool), side: Side, tgt: f64, old: f64| -> bool {
+                    if radial(node) || (tgt - cy[node]).abs() > ow[node] * 0.45 {
+                        return false;
                     }
-                    let other = port[&k2].anchor.1;
-                    let gap = MIN_PORT_GAP
-                        .max((t_of_arc(arc) + t_of_arc(k2.0)) / 2.0 + PORT_STROKE_CLEAR);
-                    (other - tgt).abs() >= gap
-                        && ((other < old.min(tgt)) || (other > old.max(tgt)))
-                })
-            };
+                    on_side.iter().all(|&(k2, n2, s2)| {
+                        if k2 == key || n2 != node || s2 != side.index() {
+                            return true;
+                        }
+                        let other = port[&k2].anchor.1;
+                        let gap = MIN_PORT_GAP
+                            .max((t_of_arc(arc) + t_of_arc(k2.0)) / 2.0 + PORT_STROKE_CLEAR);
+                        (other - tgt).abs() >= gap
+                            && ((other < old.min(tgt)) || (other > old.max(tgt)))
+                    })
+                };
             let (s_node, t_node) = (chain[0], chain[1]);
             if feasible(t_node, (arc, false), t.side, ys, yt) {
-                port.insert((arc, false), project_port(t_node, t.side, ys - cy[t_node], b));
+                port.insert(
+                    (arc, false),
+                    project_port(t_node, t.side, ys - cy[t_node], b),
+                );
             } else if feasible(s_node, (arc, true), s.side, yt, ys) {
-                port.insert((arc, true), project_port(s_node, s.side, yt - cy[s_node], b));
+                port.insert(
+                    (arc, true),
+                    project_port(s_node, s.side, yt - cy[s_node], b),
+                );
             }
         }
     }
@@ -2303,9 +2590,17 @@ fn route_edges(
         type NodePorts = Vec<((usize, bool), Side)>;
         let mut by_node: BTreeMap<usize, NodePorts> = BTreeMap::new();
         for &arc in &arc_keys {
-            let Some((s, t)) = arc_ends.get(&arc) else { continue };
-            by_node.entry(s.node).or_default().push(((arc, true), s.side));
-            by_node.entry(t.node).or_default().push(((arc, false), t.side));
+            let Some((s, t)) = arc_ends.get(&arc) else {
+                continue;
+            };
+            by_node
+                .entry(s.node)
+                .or_default()
+                .push(((arc, true), s.side));
+            by_node
+                .entry(t.node)
+                .or_default()
+                .push(((arc, false), t.side));
         }
         let mut node_ids: Vec<usize> = by_node.keys().copied().collect();
         node_ids.sort_unstable();
@@ -2327,7 +2622,11 @@ fn route_edges(
                     if chain.len() <= 2 {
                         return false;
                     }
-                    let adj = if is_source { chain[1] } else { chain[chain.len() - 2] };
+                    let adj = if is_source {
+                        chain[1]
+                    } else {
+                        chain[chain.len() - 2]
+                    };
                     (cy[adj] - port[&(arc, is_source)].anchor.1).abs() < 0.75
                 })
                 .collect();
@@ -2358,11 +2657,22 @@ fn route_edges(
                         continue;
                     }
                     let horiz = side.horizontal();
-                    let cur = if horiz { anchors[e].1 - cy[node] } else { anchors[e].0 - cx[node] };
+                    let cur = if horiz {
+                        anchors[e].1 - cy[node]
+                    } else {
+                        anchors[e].0 - cx[node]
+                    };
                     let lim = (if horiz { ow[node] } else { lw[node] }) * 0.45;
                     // Long jumps let a port tunnel past a blocking neighbour instead of being
                     // walled in behind it (the potential is not unimodal along a border).
-                    for dir in [-5.0 * STEP, -3.0 * STEP, -STEP, STEP, 3.0 * STEP, 5.0 * STEP] {
+                    for dir in [
+                        -5.0 * STEP,
+                        -3.0 * STEP,
+                        -STEP,
+                        STEP,
+                        3.0 * STEP,
+                        5.0 * STEP,
+                    ] {
                         let o2 = (cur + dir).clamp(-lim, lim);
                         if (o2 - cur).abs() < 0.5 {
                             continue;
@@ -2392,7 +2702,10 @@ fn route_edges(
         let all_ports: Vec<((usize, bool), usize, u8)> = arc_ends
             .iter()
             .flat_map(|(&a, (s, t))| {
-                [((a, true), s.node, s.side.index()), ((a, false), t.node, t.side.index())]
+                [
+                    ((a, true), s.node, s.side.index()),
+                    ((a, false), t.node, t.side.index()),
+                ]
             })
             .collect();
         for (arc, chain) in ordered() {
@@ -2493,11 +2806,17 @@ fn route_edges(
     let mut lane: Vec<BTreeMap<usize, f64>> = (0..n_gutters).map(|_| BTreeMap::new()).collect();
     for (l, segs) in gutter_segs.iter_mut().enumerate() {
         segs.sort_by(|a, b| {
-            a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0))
+            a.1.partial_cmp(&b.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.0.cmp(&b.0))
         });
         let k = segs.len();
         let gl = layer_x[l] + layer_half[l];
-        let gr = if l + 1 < n_layers { layer_x[l + 1] - layer_half[l + 1] } else { gl + LAYER_GAP };
+        let gr = if l + 1 < n_layers {
+            layer_x[l + 1] - layer_half[l + 1]
+        } else {
+            gl + LAYER_GAP
+        };
         for (i, &(arc, _)) in segs.iter().enumerate() {
             let f = (i as f64 + 1.0) / (k as f64 + 1.0);
             lane[l].insert(arc, gl + (gr - gl) * f);
@@ -2542,7 +2861,10 @@ fn route_edges(
                 (true, false) => cands.push(vec![a_s, s_s, (s_t.0, s_s.1), s_t, a_t]),
                 (false, _) => cands.push(vec![a_s, s_s, (s_s.0, s_t.1), s_t, a_t]),
             }
-            let chosen = cands.into_iter().find(|c| !poly_hits(c, lo, hi)).unwrap_or(gutter);
+            let chosen = cands
+                .into_iter()
+                .find(|c| !poly_hits(c, lo, hi))
+                .unwrap_or(gutter);
             routes[arc] = simplify_collinear(chosen);
         } else if flow_edges && {
             // Flow style: diagonal into the dummy lane, straight down it, diagonal out (ELK long-edge
@@ -2566,24 +2888,24 @@ fn route_edges(
                 routes[arc] = cand;
                 true
             } else {
-            let head = flow_diag_fix(ps.anchor, v[1], b, lo, hi);
-            let tail = flow_diag_fix(v[m - 2], pt.anchor, b, lo, hi);
-            if let (Some(hd), Some(tl)) = (head, tail) {
-                let mut pts = vec![ps.anchor];
-                pts.extend(hd);
-                pts.push(v[1]);
-                pts.push(v[m - 2]);
-                pts.extend(tl);
-                pts.push(pt.anchor);
-                let cand = simplify_collinear(pts);
-                let ok = !poly_hits(&cand, lo, hi);
-                if ok {
-                    routes[arc] = cand;
+                let head = flow_diag_fix(ps.anchor, v[1], b, lo, hi);
+                let tail = flow_diag_fix(v[m - 2], pt.anchor, b, lo, hi);
+                if let (Some(hd), Some(tl)) = (head, tail) {
+                    let mut pts = vec![ps.anchor];
+                    pts.extend(hd);
+                    pts.push(v[1]);
+                    pts.push(v[m - 2]);
+                    pts.extend(tl);
+                    pts.push(pt.anchor);
+                    let cand = simplify_collinear(pts);
+                    let ok = !poly_hits(&cand, lo, hi);
+                    if ok {
+                        routes[arc] = cand;
+                    }
+                    ok
+                } else {
+                    false
                 }
-                ok
-            } else {
-                false
-            }
             }
         } {
             // handled above
@@ -2598,7 +2920,11 @@ fn route_edges(
             for i in 0..m - 1 {
                 let l = layer_of[chain[i]] as usize;
                 let last_perp = i == m - 2 && !pt.side.horizontal();
-                let glx = if last_perp { v[m - 1].0 } else { *lane[l].get(&arc).unwrap() };
+                let glx = if last_perp {
+                    v[m - 1].0
+                } else {
+                    *lane[l].get(&arc).unwrap()
+                };
                 let cur_y = pts.last().unwrap().1;
                 let y_there = v[i + 1].1;
                 if (glx - pts.last().unwrap().0).abs() > 0.5 {
@@ -2623,7 +2949,10 @@ fn route_edges(
         if chain.len() < 2 {
             continue;
         }
-        let (hy, ty) = (port[&(arc, true)].side.horizontal(), port[&(arc, false)].side.horizontal());
+        let (hy, ty) = (
+            port[&(arc, true)].side.horizontal(),
+            port[&(arc, false)].side.horizontal(),
+        );
         snap_endpoint_jogs(&mut routes[arc], hy, ty);
     }
     nest_parallel_bundle_channels(&mut routes, chains, cy);
@@ -2670,7 +2999,10 @@ fn nest_parallel_bundle_channels(
     for (&arc, c) in chains {
         if c.len() > 2 {
             let (lo, hi) = (c[0], c[c.len() - 1]);
-            bundles.entry((lo.min(hi), lo.max(hi))).or_default().push(arc);
+            bundles
+                .entry((lo.min(hi), lo.max(hi)))
+                .or_default()
+                .push(arc);
         }
     }
     for (&(_, hi), arcs) in bundles.iter().filter(|(_, v)| v.len() >= 2) {
@@ -2689,11 +3021,12 @@ fn nest_parallel_bundle_channels(
                     continue;
                 };
                 // Outer = channel farther (in order) from the target; it must turn last (deepest).
-                let (outer, oc, oend, iend) = if (ord_a - target_order).abs() >= (ord_b - target_order).abs() {
-                    (a, ca, endx_a, endx_b)
-                } else {
-                    (b, cb, endx_b, endx_a)
-                };
+                let (outer, oc, oend, iend) =
+                    if (ord_a - target_order).abs() >= (ord_b - target_order).abs() {
+                        (a, ca, endx_a, endx_b)
+                    } else {
+                        (b, cb, endx_b, endx_a)
+                    };
                 if oend >= iend {
                     continue; // already nested
                 }
@@ -2731,9 +3064,17 @@ fn snap_endpoint_jogs(route: &mut Vec<(f64, f64)>, head_along_y: bool, tail_alon
     let snap_one = |route: &mut [(f64, f64)], head: bool, along_y: bool| {
         let n = route.len();
         let anchor = if head { route[0] } else { route[n - 1] };
-        let ks: Vec<usize> = if head { (0..n - 1).collect() } else { (1..n).rev().collect() };
+        let ks: Vec<usize> = if head {
+            (0..n - 1).collect()
+        } else {
+            (1..n).rev().collect()
+        };
         for k in ks {
-            let (p, q) = if head { (route[k], route[k + 1]) } else { (route[k - 1], route[k]) };
+            let (p, q) = if head {
+                (route[k], route[k + 1])
+            } else {
+                (route[k - 1], route[k])
+            };
             if (p.0 - q.0).hypot(p.1 - q.1) < MIN_TRACK {
                 continue;
             }
@@ -2819,7 +3160,11 @@ fn monotone_project(ys: &[f64], increasing: bool) -> Vec<f64> {
     if n == 0 {
         return vec![];
     }
-    let s: Vec<f64> = if increasing { ys.to_vec() } else { ys.iter().map(|y| -y).collect() };
+    let s: Vec<f64> = if increasing {
+        ys.to_vec()
+    } else {
+        ys.iter().map(|y| -y).collect()
+    };
     // Forward: non-decreasing lower envelope.
     let mut fwd = s.clone();
     for i in 1..n {
@@ -2837,7 +3182,11 @@ fn monotone_project(ys: &[f64], increasing: bool) -> Vec<f64> {
     (0..n)
         .map(|i| {
             let v = (fwd[i] + bwd[i]) / 2.0;
-            if increasing { v } else { -v }
+            if increasing {
+                v
+            } else {
+                -v
+            }
         })
         .collect()
 }
@@ -2847,7 +3196,10 @@ fn monotone_project(ys: &[f64], increasing: bool) -> Vec<f64> {
 fn simplify_collinear(pts: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
     let mut dd: Vec<(f64, f64)> = Vec::with_capacity(pts.len());
     for p in pts {
-        if dd.last().is_none_or(|q: &(f64, f64)| (p.0 - q.0).abs() > 0.5 || (p.1 - q.1).abs() > 0.5) {
+        if dd
+            .last()
+            .is_none_or(|q: &(f64, f64)| (p.0 - q.0).abs() > 0.5 || (p.1 - q.1).abs() > 0.5)
+        {
             dd.push(p);
         }
     }
@@ -2871,7 +3223,9 @@ fn simplify_collinear(pts: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
 fn build_edge_chains(g: &Graph, layer_of: &[i32]) -> BTreeMap<usize, Vec<usize>> {
     let mut segs: BTreeMap<usize, Vec<(i32, usize, usize)>> = BTreeMap::new();
     for &(from, to, arc_idx, _) in &g.edges {
-        segs.entry(arc_idx).or_default().push((layer_of[from], from, to));
+        segs.entry(arc_idx)
+            .or_default()
+            .push((layer_of[from], from, to));
     }
     let mut result: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for (arc_idx, mut chain) in segs {
@@ -2895,7 +3249,10 @@ fn build_edge_chains(g: &Graph, layer_of: &[i32]) -> BTreeMap<usize, Vec<usize>>
 pub fn layout_layered(input: &LayeredInput) -> LayeredOutput {
     let n_in = input.nodes.len();
     if n_in == 0 {
-        return LayeredOutput { centers: vec![], routes: vec![] };
+        return LayeredOutput {
+            centers: vec![],
+            routes: vec![],
+        };
     }
     layout_layered_inner(input)
 }
@@ -2920,9 +3277,20 @@ fn bundle_parallel_arcs(input: &LayeredInput) -> Option<LayeredOutput> {
         return None;
     }
 
-    let t_of =
-        |arc: usize| if input.thickness.len() == n_arcs { input.thickness[arc] } else { 2.0 };
-    let w_of = |arc: usize| if input.weights.len() == n_arcs { input.weights[arc] } else { 1.0 };
+    let t_of = |arc: usize| {
+        if input.thickness.len() == n_arcs {
+            input.thickness[arc]
+        } else {
+            2.0
+        }
+    };
+    let w_of = |arc: usize| {
+        if input.weights.len() == n_arcs {
+            input.weights[arc]
+        } else {
+            1.0
+        }
+    };
 
     // Per-arc lane offset (centred around the bundle route) + per-bundle corridor width.
     let mut lane_off: Vec<f64> = vec![0.0; n_arcs];
@@ -2940,8 +3308,10 @@ fn bundle_parallel_arcs(input: &LayeredInput) -> Option<LayeredOutput> {
     }
 
     let b_edges: Vec<(usize, usize)> = bundles.iter().map(|arcs| input.edges[arcs[0]]).collect();
-    let b_weights: Vec<f64> =
-        bundles.iter().map(|arcs| arcs.iter().map(|&a| w_of(a)).sum()).collect();
+    let b_weights: Vec<f64> = bundles
+        .iter()
+        .map(|arcs| arcs.iter().map(|&a| w_of(a)).sum())
+        .collect();
     let b_labels: Vec<(f64, f64)> = if input.edge_label_sizes.len() == n_arcs {
         bundles
             .iter()
@@ -2966,6 +3336,7 @@ fn bundle_parallel_arcs(input: &LayeredInput) -> Option<LayeredOutput> {
         edge_label_sizes: b_labels,
         seed: input.seed.clone(),
         pinned: input.pinned.clone(),
+        compact: input.compact,
     };
     let out = layout_layered_inner(&bundled);
 
@@ -2980,7 +3351,10 @@ fn bundle_parallel_arcs(input: &LayeredInput) -> Option<LayeredOutput> {
             offset_route(route, lane_off[arc], &out.centers, &input.nodes, from, to)
         })
         .collect();
-    Some(LayeredOutput { centers: out.centers, routes })
+    Some(LayeredOutput {
+        centers: out.centers,
+        routes,
+    })
 }
 
 /// Intersection of two infinite lines, each given by two points. `None` when (near-)parallel.
@@ -3031,14 +3405,21 @@ fn project_onto_outline(
             }
             let sq = disc.sqrt();
             let (t1, t2) = ((-b - sq) / (2.0 * a), (-b + sq) / (2.0 * a));
-            let t = if (t1 - len).abs() <= (t2 - len).abs() { t1 } else { t2 };
+            let t = if (t1 - len).abs() <= (t2 - len).abs() {
+                t1
+            } else {
+                t2
+            };
             Some((inner.0 + t * dir.0, inner.1 + t * dir.1))
         }
         NodeShape::Box => {
             let mut best: Option<((f64, f64), f64)> = None;
-            for (coord, vertical) in
-                [(c.0 - hw, true), (c.0 + hw, true), (c.1 - hh, false), (c.1 + hh, false)]
-            {
+            for (coord, vertical) in [
+                (c.0 - hw, true),
+                (c.0 + hw, true),
+                (c.1 - hh, false),
+                (c.1 + hh, false),
+            ] {
                 let (o, dd, cross_o, cross_d, span_c, span_h) = if vertical {
                     (inner.0, dir.0, inner.1, dir.1, c.1, hh)
                 } else {
@@ -3075,7 +3456,10 @@ fn offset_route(
 ) -> Vec<(f64, f64)> {
     let mut pts: Vec<(f64, f64)> = Vec::with_capacity(route.len());
     for &p in route {
-        if pts.last().is_none_or(|&q: &(f64, f64)| (p.0 - q.0).hypot(p.1 - q.1) > 1e-6) {
+        if pts
+            .last()
+            .is_none_or(|&q: &(f64, f64)| (p.0 - q.0).hypot(p.1 - q.1) > 1e-6)
+        {
             pts.push(p);
         }
     }
@@ -3119,8 +3503,26 @@ fn route_with_sideport_guard(
     thickness: &[f64],
 ) -> Vec<Vec<(f64, f64)>> {
     if input.flow_edges && input.flow_diagonal {
-        let with = route_edges(input.edges.len(), layers, layer, boxes, chains, thickness, true, true);
-        let plain = route_edges(input.edges.len(), layers, layer, boxes, chains, thickness, true, false);
+        let with = route_edges(
+            input.edges.len(),
+            layers,
+            layer,
+            boxes,
+            chains,
+            thickness,
+            true,
+            true,
+        );
+        let plain = route_edges(
+            input.edges.len(),
+            layers,
+            layer,
+            boxes,
+            chains,
+            thickness,
+            true,
+            false,
+        );
         let mut routes = with;
         for arc in 0..routes.len() {
             if routes[arc] == plain[arc] {
@@ -3134,14 +3536,26 @@ fn route_with_sideport_guard(
         }
         routes
     } else {
-        route_edges(input.edges.len(), layers, layer, boxes, chains, thickness, false, false)
+        route_edges(
+            input.edges.len(),
+            layers,
+            layer,
+            boxes,
+            chains,
+            thickness,
+            false,
+            false,
+        )
     }
 }
 
 fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
     let n_in = input.nodes.len();
     if n_in == 0 {
-        return LayeredOutput { centers: vec![], routes: vec![] };
+        return LayeredOutput {
+            centers: vec![],
+            routes: vec![],
+        };
     }
 
     // Parallel-arc bundling: arcs sharing the same (from, to) are laid out as ONE edge (weights summed,
@@ -3160,8 +3574,11 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
     let isolated: Vec<usize> = (0..n_in).filter(|&i| degree[i] == 0).collect();
     if !isolated.is_empty() && isolated.len() < n_in {
         let active: Vec<usize> = (0..n_in).filter(|&i| degree[i] > 0).collect();
-        let remap: BTreeMap<usize, usize> =
-            active.iter().enumerate().map(|(new, &old)| (old, new)).collect();
+        let remap: BTreeMap<usize, usize> = active
+            .iter()
+            .enumerate()
+            .map(|(new, &old)| (old, new))
+            .collect();
         let sub = LayeredInput {
             nodes: active
                 .iter()
@@ -3174,7 +3591,11 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
                     clear_after: input.nodes[i].clear_after,
                 })
                 .collect(),
-            edges: input.edges.iter().map(|&(a, b)| (remap[&a], remap[&b])).collect(),
+            edges: input
+                .edges
+                .iter()
+                .map(|&(a, b)| (remap[&a], remap[&b]))
+                .collect(),
             weights: input.weights.clone(),
             thickness: input.thickness.clone(),
             direction: input.direction,
@@ -3191,10 +3612,12 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
             } else {
                 active.iter().map(|&i| input.pinned[i]).collect()
             },
+            compact: input.compact,
         };
         let sub_out = layout_layered_inner(&sub);
         let mut centers = vec![(0.0, 0.0); n_in];
-        let (mut min_x, mut max_x, mut max_y) = (f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+        let (mut min_x, mut max_x, mut max_y) =
+            (f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
         for (new, &old) in active.iter().enumerate() {
             centers[old] = sub_out.centers[new];
             let (hw, hh) = (input.nodes[old].width / 2.0, input.nodes[old].height / 2.0);
@@ -3205,27 +3628,47 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
         if !min_x.is_finite() {
             (min_x, max_x, max_y) = (0.0, 0.0, 0.0);
         }
-        // Grid the isolated nodes below the connected layout - square-ish, and at least as wide
-        // as the connected layout, so they never stack into a tall single column.
-        let cell = isolated.iter().map(|&i| input.nodes[i].width.max(input.nodes[i].height)).fold(0.0, f64::max) + NODE_GAP;
-        let by_area = (isolated.len() as f64).sqrt().ceil() as usize;
-        let by_width = ((max_x - min_x) / cell).floor() as usize;
-        let cols = by_area.max(by_width).clamp(1, isolated.len().max(1));
+        // Place the isolated nodes in a single row below the connected layout, centred on it; only
+        // spill into extra rows past a generous column cap so a pathological orphan count can't run off the canvas.
+        let cell = isolated
+            .iter()
+            .map(|&i| input.nodes[i].width.max(input.nodes[i].height))
+            .fold(0.0, f64::max)
+            + NODE_GAP;
+        let cols = isolated.len().clamp(1, 24);
+        let row_w = cols as f64 * cell;
+        let start = (min_x + max_x) / 2.0 - row_w / 2.0 + cell / 2.0;
         let top = max_y + NODE_GAP + cell / 2.0;
         for (k, &node) in isolated.iter().enumerate() {
             let (r, c) = (k / cols, k % cols);
-            centers[node] = (min_x + cell / 2.0 + c as f64 * cell, top + r as f64 * cell);
+            centers[node] = (start + c as f64 * cell, top + r as f64 * cell);
         }
-        return LayeredOutput { centers, routes: sub_out.routes };
+        return LayeredOutput {
+            centers,
+            routes: sub_out.routes,
+        };
     }
 
     let tb = input.direction == Direction::TopBottom;
 
     // Canonical extents: `lw` = size along the layer axis (x), `ow` = along the order axis (y).
-    let lw_in: Vec<f64> = input.nodes.iter().map(|nd| if tb { nd.height } else { nd.width }).collect();
-    let ow_in: Vec<f64> = input.nodes.iter().map(|nd| if tb { nd.width } else { nd.height }).collect();
-    let ellipse_in: Vec<bool> = input.nodes.iter().map(|nd| nd.shape == NodeShape::Ellipse).collect();
-    let constraints: Vec<Option<LayerConstraint>> = input.nodes.iter().map(|nd| nd.constraint).collect();
+    let lw_in: Vec<f64> = input
+        .nodes
+        .iter()
+        .map(|nd| if tb { nd.height } else { nd.width })
+        .collect();
+    let ow_in: Vec<f64> = input
+        .nodes
+        .iter()
+        .map(|nd| if tb { nd.width } else { nd.height })
+        .collect();
+    let ellipse_in: Vec<bool> = input
+        .nodes
+        .iter()
+        .map(|nd| nd.shape == NodeShape::Ellipse)
+        .collect();
+    let constraints: Vec<Option<LayerConstraint>> =
+        input.nodes.iter().map(|nd| nd.constraint).collect();
 
     // Per-edge-index importance (looked up via a graph edge's arc_index). Empty => uniform 1.0,
     // which makes every weighted step below reduce exactly to its unweighted form.
@@ -3256,18 +3699,36 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
     crossing_minimization(&mut layers, &g, &arc_weight);
 
     // Hold each object-type/category in a consistent lane where it's free (never adds crossings).
-    let node_category: Vec<Option<u32>> =
-        (0..g.n).map(|i| if i < n_in { input.nodes[i].category } else { None }).collect();
+    let node_category: Vec<Option<u32>> = (0..g.n)
+        .map(|i| {
+            if i < n_in {
+                input.nodes[i].category
+            } else {
+                None
+            }
+        })
+        .collect();
     category_consistency_pass(&mut layers, &g, &node_category);
 
     // Per-internal-node box extents (dummies -> 0).
     let is_dummy: Vec<bool> = (0..g.n).map(|i| g.kind[i] == InternalKind::Dummy).collect();
-    let mut lw: Vec<f64> = (0..g.n).map(|i| if i < n_in { lw_in[i] } else { 0.0 }).collect();
-    let mut ow: Vec<f64> = (0..g.n).map(|i| if i < n_in { ow_in[i] } else { 0.0 }).collect();
+    let mut lw: Vec<f64> = (0..g.n)
+        .map(|i| if i < n_in { lw_in[i] } else { 0.0 })
+        .collect();
+    let mut ow: Vec<f64> = (0..g.n)
+        .map(|i| if i < n_in { ow_in[i] } else { 0.0 })
+        .collect();
     let ellipse: Vec<bool> = (0..g.n).map(|i| i < n_in && ellipse_in[i]).collect();
     // Positive-order-side clearance per internal node (dummies reserve nothing).
-    let clear: Vec<f64> =
-        (0..g.n).map(|i| if i < n_in { input.nodes[i].clear_after.max(0.0) } else { 0.0 }).collect();
+    let clear: Vec<f64> = (0..g.n)
+        .map(|i| {
+            if i < n_in {
+                input.nodes[i].clear_after.max(0.0)
+            } else {
+                0.0
+            }
+        })
+        .collect();
     // Per-edge drawn stroke width (looked up via arc index). Empty => uniform 2.0.
     let thickness: Vec<f64> = if input.thickness.len() == input.edges.len() {
         input.thickness.clone()
@@ -3298,16 +3759,55 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
         }
     }
 
-    // Flow layouts (DFG) use tighter gaps for a compact, ELK-like composition; Petri keeps classic.
-    let (layer_gap, node_gap) =
-        if input.flow_edges { (64.0, 54.0) } else { (LAYER_GAP, NODE_GAP) };
-    let mut cx = assign_x_positions(&layers, &lw, layer_gap);
+    // Flow layouts (DFG) use tighter gaps for a compact composition; Petri keeps classic. Compact
+    // (hub-and-spoke) uses taller layers so long cross-graph edges clear intermediate rows.
+    let (layer_gap, node_gap) = if input.compact {
+        (150.0, 30.0)
+    } else if input.flow_edges {
+        (64.0, 54.0)
+    } else {
+        (LAYER_GAP, NODE_GAP)
+    };
+    // A single-span labelled edge has no dummy to reserve space on; widen the gap between its two
+    // layers instead so the edge is long enough to carry its label (plus marker clearance).
+    let mut gap_after = vec![layer_gap; layers.len()];
+    if !input.edge_label_sizes.is_empty() {
+        for (&arc, chain) in &chains {
+            if chain.len() != 2 {
+                continue;
+            }
+            let lbl_lw = match input.edge_label_sizes.get(arc) {
+                Some(&(w, h)) if w > 0.0 && h > 0.0 => {
+                    if tb {
+                        h
+                    } else {
+                        w
+                    }
+                }
+                _ => continue,
+            };
+            let l0 = layer[chain[0]].min(layer[chain[1]]) as usize;
+            gap_after[l0] = gap_after[l0].max(lbl_lw + 24.0);
+        }
+    }
+    let mut cx = assign_x_positions(&layers, &lw, &gap_after);
     let mut cy = brandes_koepf(&layers, &layer, &g, &ow, &is_dummy, node_gap, &clear);
     let has_seed = input.seed.iter().take(n_in).any(Option::is_some);
     if has_seed {
         // Stable relayout: place each node at its seed (dragged node pinned) so un-dragged nodes stay
         // put; long-edge dummies still snap to a single lane.
-        seeded_coords(&layers, &ow, &is_dummy, node_gap, &clear, tb, n_in, &input.seed, &input.pinned, &mut cy);
+        seeded_coords(
+            &layers,
+            &ow,
+            &is_dummy,
+            node_gap,
+            &clear,
+            tb,
+            n_in,
+            &input.seed,
+            &input.pinned,
+            &mut cy,
+        );
         // A pinned node holds its dropped position on BOTH axes (cross set above, layer here), floating
         // off its structural column. We do NOT re-layer, so only its own edges re-route.
         for i in 0..n_in {
@@ -3317,10 +3817,39 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
                 }
             }
         }
-        straighten_long_edges(&chains, &layers, &layer, &is_dummy, &ow, &arc_weight, node_gap, &clear, &mut cy);
+        straighten_long_edges(
+            &chains,
+            &layers,
+            &layer,
+            &is_dummy,
+            &ow,
+            &arc_weight,
+            node_gap,
+            &clear,
+            &mut cy,
+        );
     } else {
-        snap_align(&layers, &g, &arc_weight, &ow, &is_dummy, node_gap, &clear, &mut cy);
-        straighten_long_edges(&chains, &layers, &layer, &is_dummy, &ow, &arc_weight, node_gap, &clear, &mut cy);
+        snap_align(
+            &layers,
+            &g,
+            &arc_weight,
+            &ow,
+            &is_dummy,
+            node_gap,
+            &clear,
+            &mut cy,
+        );
+        straighten_long_edges(
+            &chains,
+            &layers,
+            &layer,
+            &is_dummy,
+            &ow,
+            &arc_weight,
+            node_gap,
+            &clear,
+            &mut cy,
+        );
     }
 
     // Channel pull-in: a long edge's channel is clamped by its worst layer, exiling it far outside the
@@ -3339,7 +3868,11 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
                 if a == bb {
                     continue;
                 }
-                let (up, dn) = if layer[a] < layer[bb] { (a, bb) } else { (bb, a) };
+                let (up, dn) = if layer[a] < layer[bb] {
+                    (a, bb)
+                } else {
+                    (bb, a)
+                };
                 pred[dn].push(up);
                 succ[up].push(dn);
             }
@@ -3370,8 +3903,14 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
                     if toward.abs() < 1.0 {
                         continue;
                     }
-                    let np = if toward < 0.0 { p.checked_sub(1) } else { Some(p + 1) };
-                    let Some(np) = np.filter(|&np| np < layers[l].len()) else { continue };
+                    let np = if toward < 0.0 {
+                        p.checked_sub(1)
+                    } else {
+                        Some(p + 1)
+                    };
+                    let Some(np) = np.filter(|&np| np < layers[l].len()) else {
+                        continue;
+                    };
                     let nb = layers[l][np];
                     // Hop only over real nodes standing between the dummy and its lane; dummy-dummy
                     // order encodes channel bundling and stays as the ordering pass left it.
@@ -3382,7 +3921,9 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
                         continue;
                     }
                     let (u, v) = if np < p { (nb, d) } else { (d, nb) };
-                    if delta_one(u, v, &pred, &pos_in_layer) + delta_one(u, v, &succ, &pos_in_layer) > 0 {
+                    if delta_one(u, v, &pred, &pos_in_layer) + delta_one(u, v, &succ, &pos_in_layer)
+                        > 0
+                    {
                         continue;
                     }
                     layers[l].swap(p, np);
@@ -3395,8 +3936,27 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
                 break;
             }
             cy = brandes_koepf(&layers, &layer, &g, &ow, &is_dummy, node_gap, &clear);
-            snap_align(&layers, &g, &arc_weight, &ow, &is_dummy, node_gap, &clear, &mut cy);
-            straighten_long_edges(&chains, &layers, &layer, &is_dummy, &ow, &arc_weight, node_gap, &clear, &mut cy);
+            snap_align(
+                &layers,
+                &g,
+                &arc_weight,
+                &ow,
+                &is_dummy,
+                node_gap,
+                &clear,
+                &mut cy,
+            );
+            straighten_long_edges(
+                &chains,
+                &layers,
+                &layer,
+                &is_dummy,
+                &ow,
+                &arc_weight,
+                node_gap,
+                &clear,
+                &mut cy,
+            );
         }
     }
 
@@ -3421,7 +3981,20 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
         }
     }
 
-    let boxes = Boxes { cx, cy, layer_w: lw, order_w: ow, ellipse, n_real: n_in };
+    // Compact placement runs last, so no earlier pass (Brandes-Kopf, the flow channel pull-in, or
+    // terminal centring) can re-expand it. Order-preserving, so crossings hold.
+    if input.compact {
+        priority_compact(&layers, &g, &arc_weight, &ow, &is_dummy, node_gap, &clear, &mut cy);
+    }
+
+    let boxes = Boxes {
+        cx,
+        cy,
+        layer_w: lw,
+        order_w: ow,
+        ellipse,
+        n_real: n_in,
+    };
 
     let reversed: std::collections::BTreeSet<usize> = g
         .edges
@@ -3432,7 +4005,13 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
 
     let flow = route_with_sideport_guard(input, &layers, &layer, &boxes, &chains, &thickness);
 
-    let map = |p: (f64, f64)| -> (f64, f64) { if tb { (p.1, p.0) } else { p } };
+    let map = |p: (f64, f64)| -> (f64, f64) {
+        if tb {
+            (p.1, p.0)
+        } else {
+            p
+        }
+    };
 
     let centers: Vec<(f64, f64)> = (0..n_in).map(|i| map((boxes.cx[i], boxes.cy[i]))).collect();
 
@@ -3481,7 +4060,10 @@ fn nearest_clear_lane(x: f64, ivals: &mut [(f64, f64)]) -> f64 {
 pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
     let n = input.nodes.len();
     if n == 0 {
-        return LayeredOutput { centers: vec![], routes: vec![] };
+        return LayeredOutput {
+            centers: vec![],
+            routes: vec![],
+        };
     }
     let tb = input.direction == Direction::TopBottom;
     // Canonical flow space: cx = layer axis, cy = order axis. `map` transposes back for TB, so a
@@ -3495,15 +4077,27 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
         let (sx, sy) = input.seed.get(i).and_then(|s| *s).unwrap_or((0.0, 0.0));
         cx[i] = if tb { sy } else { sx };
         cy[i] = if tb { sx } else { sy };
-        lw[i] = if tb { input.nodes[i].height } else { input.nodes[i].width };
-        ow[i] = if tb { input.nodes[i].width } else { input.nodes[i].height };
+        lw[i] = if tb {
+            input.nodes[i].height
+        } else {
+            input.nodes[i].width
+        };
+        ow[i] = if tb {
+            input.nodes[i].width
+        } else {
+            input.nodes[i].height
+        };
         ellipse[i] = input.nodes[i].shape == NodeShape::Ellipse;
     }
 
     // Cluster the layer axis into rows: open a new layer wherever consecutive boxes no longer overlap
     // on that axis (centre gap >= averaged extents). Parameter-free; a clear drop lands in its own row.
     let mut by_layer: Vec<usize> = (0..n).collect();
-    by_layer.sort_by(|&a, &b| cx[a].partial_cmp(&cx[b]).unwrap_or(std::cmp::Ordering::Equal));
+    by_layer.sort_by(|&a, &b| {
+        cx[a]
+            .partial_cmp(&cx[b])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let mut layer = vec![0i32; n];
     let mut cur = 0i32;
     for w in 1..n {
@@ -3523,7 +4117,11 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
     }
     let mut reversed_arc = vec![false; input.edges.len()];
     for (arc, &(s, t)) in input.edges.iter().enumerate() {
-        let (from, to, rev) = if layer[s] <= layer[t] { (s, t, false) } else { (t, s, true) };
+        let (from, to, rev) = if layer[s] <= layer[t] {
+            (s, t, false)
+        } else {
+            (t, s, true)
+        };
         reversed_arc[arc] = rev;
         g.add_edge(from, to, arc, rev);
     }
@@ -3543,8 +4141,15 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
         lay_sum[layer[i] as usize] += cx[i];
         lay_cnt[layer[i] as usize] += 1.0;
     }
-    let lay_rep: Vec<f64> =
-        (0..n_layers).map(|l| if lay_cnt[l] > 0.0 { lay_sum[l] / lay_cnt[l] } else { 0.0 }).collect();
+    let lay_rep: Vec<f64> = (0..n_layers)
+        .map(|l| {
+            if lay_cnt[l] > 0.0 {
+                lay_sum[l] / lay_cnt[l]
+            } else {
+                0.0
+            }
+        })
+        .collect();
 
     let chains = build_edge_chains(&g, &layer);
     // Dummy layer-axis coord = its row's representative; the order-axis coord is seeded from a straight-
@@ -3558,7 +4163,11 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
         for &d in &chain[1..chain.len() - 1] {
             let l = layer[d] as usize;
             cx[d] = lay_rep[l];
-            let frac = if span.abs() > 1e-6 { (lay_rep[l] - cx[lo]) / span } else { 0.0 };
+            let frac = if span.abs() > 1e-6 {
+                (lay_rep[l] - cx[lo]) / span
+            } else {
+                0.0
+            };
             cy[d] = cy[lo] + (cy[hi] - cy[lo]) * frac;
         }
     }
@@ -3570,7 +4179,11 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
         layers[layer[i] as usize].push(i);
     }
     for l in &mut layers {
-        l.sort_by(|&a, &b| cy[a].partial_cmp(&cy[b]).unwrap_or(std::cmp::Ordering::Equal));
+        l.sort_by(|&a, &b| {
+            cy[a]
+                .partial_cmp(&cy[b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     // Cross-axis placement via the fresh layout's machinery (NOT naive interpolation, which rakes
@@ -3581,13 +4194,41 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
     } else {
         vec![1.0; input.edges.len()]
     };
-    let clear: Vec<f64> =
-        (0..n_all).map(|i| if i < n { input.nodes[i].clear_after.max(0.0) } else { 0.0 }).collect();
+    let clear: Vec<f64> = (0..n_all)
+        .map(|i| {
+            if i < n {
+                input.nodes[i].clear_after.max(0.0)
+            } else {
+                0.0
+            }
+        })
+        .collect();
     let node_gap = if input.flow_edges { 54.0 } else { NODE_GAP };
     let all_pinned = vec![true; n];
     cy = brandes_koepf(&layers, &layer, &g, &ow, &is_dummy, node_gap, &clear);
-    seeded_coords(&layers, &ow, &is_dummy, node_gap, &clear, tb, n, &input.seed, &all_pinned, &mut cy);
-    straighten_long_edges(&chains, &layers, &layer, &is_dummy, &ow, &arc_weight, node_gap, &clear, &mut cy);
+    seeded_coords(
+        &layers,
+        &ow,
+        &is_dummy,
+        node_gap,
+        &clear,
+        tb,
+        n,
+        &input.seed,
+        &all_pinned,
+        &mut cy,
+    );
+    straighten_long_edges(
+        &chains,
+        &layers,
+        &layer,
+        &is_dummy,
+        &ow,
+        &arc_weight,
+        node_gap,
+        &clear,
+        &mut cy,
+    );
 
     // Single clear lane per long chain (drag-robust): per-layer separation can zigzag a chain's dummies
     // onto opposite sides of intervening nodes, whose averaged lane rakes them. Snap all to ONE clear lane.
@@ -3596,8 +4237,11 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
             continue;
         }
         let (lo, hi) = (chain[0], chain[chain.len() - 1]);
-        let dummies: Vec<usize> =
-            chain[1..chain.len() - 1].iter().copied().filter(|&d| is_dummy[d]).collect();
+        let dummies: Vec<usize> = chain[1..chain.len() - 1]
+            .iter()
+            .copied()
+            .filter(|&d| is_dummy[d])
+            .collect();
         if dummies.is_empty() {
             continue;
         }
@@ -3620,7 +4264,11 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
     }
     // Re-establish within-layer order after the lane snap so port spreading matches the new positions.
     for l in &mut layers {
-        l.sort_by(|&a, &b| cy[a].partial_cmp(&cy[b]).unwrap_or(std::cmp::Ordering::Equal));
+        l.sort_by(|&a, &b| {
+            cy[a]
+                .partial_cmp(&cy[b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     let thickness: Vec<f64> = if input.thickness.len() == input.edges.len() {
@@ -3628,13 +4276,26 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
     } else {
         vec![2.0; input.edges.len()]
     };
-    let boxes = Boxes { cx, cy, layer_w: lw, order_w: ow, ellipse, n_real: n };
+    let boxes = Boxes {
+        cx,
+        cy,
+        layer_w: lw,
+        order_w: ow,
+        ellipse,
+        n_real: n,
+    };
 
     // Same routing-style selection as the full pipeline (diagonal only when explicitly requested).
     let route_flow = input.flow_edges && input.flow_diagonal;
     let flow = route_with_sideport_guard(input, &layers, &layer, &boxes, &chains, &thickness);
 
-    let map = |p: (f64, f64)| -> (f64, f64) { if tb { (p.1, p.0) } else { p } };
+    let map = |p: (f64, f64)| -> (f64, f64) {
+        if tb {
+            (p.1, p.0)
+        } else {
+            p
+        }
+    };
     let centers: Vec<(f64, f64)> = (0..n).map(|i| map((boxes.cx[i], boxes.cy[i]))).collect();
     let mut routes: Vec<Vec<(f64, f64)>> = (0..input.edges.len())
         .map(|arc| {
@@ -3652,11 +4313,22 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
     // Orthogonal end-approach relief (reroute only): a dragged graph loses clean columns, so an arrowhead
     // can rake a node in the target's row. Re-attach it to a perp border (clean L), only if it adds no rake.
     if !route_flow {
-        let box_of =
-            |i: usize| (centers[i].0, centers[i].1, input.nodes[i].width / 2.0, input.nodes[i].height / 2.0);
+        let box_of = |i: usize| {
+            (
+                centers[i].0,
+                centers[i].1,
+                input.nodes[i].width / 2.0,
+                input.nodes[i].height / 2.0,
+            )
+        };
         let seg_hits = |p: (f64, f64), q: (f64, f64), c: (f64, f64, f64, f64)| -> bool {
             let inset = 1.5;
-            let (l, r, t, b) = (c.0 - c.2 + inset, c.0 + c.2 - inset, c.1 - c.3 + inset, c.1 + c.3 - inset);
+            let (l, r, t, b) = (
+                c.0 - c.2 + inset,
+                c.0 + c.2 - inset,
+                c.1 - c.3 + inset,
+                c.1 + c.3 - inset,
+            );
             (0..=48).any(|k| {
                 let f = k as f64 / 48.0;
                 let (x, y) = (p.0 + (q.0 - p.0) * f, p.1 + (q.1 - p.1) * f);
@@ -3664,7 +4336,8 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
             })
         };
         let route_rakes = |pts: &[(f64, f64)], s: usize, t: usize| -> bool {
-            pts.windows(2).any(|w| (0..n).any(|i| i != s && i != t && seg_hits(w[0], w[1], box_of(i))))
+            pts.windows(2)
+                .any(|w| (0..n).any(|i| i != s && i != t && seg_hits(w[0], w[1], box_of(i))))
         };
         for (arc, &(s, t)) in input.edges.iter().enumerate() {
             let rlen = routes[arc].len();
@@ -3691,4 +4364,3 @@ pub fn reroute_from_positions(input: &LayeredInput) -> LayeredOutput {
 
     LayeredOutput { centers, routes }
 }
-

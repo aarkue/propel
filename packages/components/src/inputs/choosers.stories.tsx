@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card } from "@r4pm/components/ui";
 import { useState } from "react";
-import { ActivityChooser, DatasetSelector } from "@r4pm/components";
+import { ActivityChooser, DatasetSelector, ObjectChooser, ObjectTypeChooser } from "@r4pm/components";
 
 const meta = {
   title: "Inputs & Primitives/Choosers",
@@ -19,6 +19,50 @@ export const Activities: StoryObj = {
         <Card>
           <ActivityChooser
             counts={{ review: 312, decide: 740, register: 96, approve: 540, reject: 180 }}
+            value={value}
+            onChange={setValue}
+          />
+        </Card>
+      </div>
+    );
+  },
+};
+
+export const ObjectTypes: StoryObj = {
+  name: "Object Type Chooser",
+  parameters: { frame: { mode: "pad" }, docs: { story: { inline: true, iframeHeight: 300 } } },
+  render: () => {
+    const [value, setValue] = useState<Set<string>>(new Set());
+    return (
+      <div style={{ width: 360, padding: 24 }}>
+        <Card>
+          <ObjectTypeChooser
+            counts={{ order: 1240, item: 3890, delivery: 620, invoice: 980, customer: 410 }}
+            value={value}
+            onChange={setValue}
+          />
+        </Card>
+      </div>
+    );
+  },
+};
+
+export const Objects: StoryObj = {
+  name: "Object Chooser",
+  parameters: { frame: { mode: "pad" }, docs: { story: { inline: true, iframeHeight: 320 } } },
+  render: () => {
+    const [value, setValue] = useState<Set<string>>(new Set());
+    return (
+      <div style={{ width: 360, padding: 24 }}>
+        <Card>
+          <ObjectChooser
+            objects={[
+              { id: "order-1001", involvement: 14 },
+              { id: "order-1002", involvement: 9 },
+              { id: "item-5527", involvement: 6 },
+              { id: "item-5531", involvement: 4 },
+              { id: "customer-88", involvement: 21 },
+            ]}
             value={value}
             onChange={setValue}
           />

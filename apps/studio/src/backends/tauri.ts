@@ -51,8 +51,14 @@ export function createTauriBackend(): BackendContext {
       });
     },
     async exportObject(name, format) {
-      const arr = await (await invoke())<number[]>("export_object", { name, format });
-      return new Uint8Array(arr);
+      // The command returns a `tauri::ipc::Response`, so the bytes arrive as an ArrayBuffer
+      // rather than as a JSON array of integers -- which for an exported log meant several
+      // times the payload, built and parsed one number at a time.
+      const buf = await (await invoke())<ArrayBuffer>("export_object", { name, format });
+      return new Uint8Array(buf);
+    },
+    async exportObjectToPath(name, format, path) {
+      await (await invoke())("export_object_to_path", { name, format, path });
     },
     async unloadObject(name) {
       await (await invoke())("unload_object", { name });

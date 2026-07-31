@@ -6,11 +6,13 @@ import {
   PiArrowClockwise,
   PiArrowLeft,
   PiArrowRight,
+  PiDatabase,
   PiFileArrowUp,
   PiLightning,
   PiSparkle,
 } from "react-icons/pi";
 import { backend } from "../backends";
+import { addPanelToDockview } from "../panels/registry";
 import { continuePreviousSession, declineRestore, lastSessionInfo } from "../persistence/restore";
 import { loadSample, SAMPLE_DATASETS, type SampleDataset } from "../samples";
 import { withBusy } from "./BusyOverlay";
@@ -28,6 +30,11 @@ export function WelcomeScreen({
   onReturn?: () => void;
 }) {
   const queryClient = useQueryClient();
+  // Extraction is offered on every backend. In the browser a source is a file dropped into the
+  // page and read from memory, so only the self-contained kinds work and there is no connection
+  // string -- a narrower way in, not a dead end. Whether *that* is what a source looks like is
+  // what changes the wording below.
+  const nativeSources = backend.kind !== "wasm";
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [resume, setResume] = useState<{ name: string; datasets: number } | null>(null);
   const [resuming, setResuming] = useState(false);
@@ -123,23 +130,51 @@ export function WelcomeScreen({
             />
           </Heading>
           <Text as="p" size="3" color="gray">
-            Import an event log or OCEL to start exploring.
+            {nativeSources
+              ? "Bring a finished log, or build one from your own database."
+              : "Bring a finished log, or build one from a database file."}
           </Text>
         </div>
 
-        <div className="relative rounded-lg border-2 border-dashed border-[var(--gray-a6)] bg-[var(--gray-a2)] px-4 sm:px-8 py-6 sm:py-10 flex flex-col items-center justify-center text-center">
-          <div className="rounded-full bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-3 mb-3">
-            <PiFileArrowUp size={28} />
+        {/* The two ways in, at equal weight. Extraction used to be reachable only after a dataset
+            was already loaded, which put the tool's own way of making one behind the step it
+            replaces. */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[var(--gray-a6)] bg-[var(--gray-a2)] px-4 sm:px-6 py-6 sm:py-8 text-center">
+            <div className="rounded-full bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-3 mb-3">
+              <PiFileArrowUp size={28} />
+            </div>
+            <Heading size="4" className="!mb-1">
+              Open a log
+            </Heading>
+            <Text size="2" color="gray" className="max-w-sm">
+              OCEL, XES and more. Drop anywhere in the window, or pick a kind:
+            </Text>
+            <div className="flex flex-wrap justify-center gap-2 mt-5">
+              <ImportButton />
+            </div>
           </div>
-          <Heading size="4" className="!mb-1">
-            Drop files here
-          </Heading>
-          <Text size="2" color="gray" className="max-w-sm">
-            Drop anywhere in the window, or pick a kind to import:
-          </Text>
-          <div className="flex flex-wrap justify-center gap-2 mt-5">
-            <ImportButton />
-          </div>
+
+          <button
+            type="button"
+            onClick={() => addPanelToDockview("extraction-blueprint")}
+            className="group relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-[var(--gray-a6)] bg-[var(--gray-a2)] px-4 sm:px-6 py-6 sm:py-8 text-center transition-colors hover:border-[var(--indigo-8)] hover:bg-[var(--indigo-a2)]"
+          >
+            <div className="rounded-full bg-[var(--jade-a3)] text-[var(--jade-11)] p-3 mb-3">
+              <PiDatabase size={28} />
+            </div>
+            <Heading size="4" className="!mb-1">
+              Extract from a database
+            </Heading>
+            <Text size="2" color="gray" className="max-w-sm">
+              {nativeSources
+                ? "Point at Postgres, SQLite, CSV or Parquet and build an OCEL log from its tables."
+                : "Drop a SQLite database and build an OCEL log from its tables."}
+            </Text>
+            <Text size="2" className="mt-5 text-[var(--indigo-11)]">
+              Start a blueprint <PiArrowRight className="inline align-middle" />
+            </Text>
+          </button>
         </div>
 
         {SAMPLE_DATASETS.length > 0 && (

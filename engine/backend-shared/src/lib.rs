@@ -236,6 +236,8 @@ pub fn convertible_to(kind: RegistryItemKind) -> Vec<RegistryItemKind> {
         IndexLinkedOCEL => vec![OCEL],
         SlimLinkedOCEL => vec![OCEL],
         EventLogActivityProjection => vec![],
+        // A source is read by an extraction, never converted into a log directly.
+        TabularSource => vec![],
     }
 }
 
@@ -433,6 +435,29 @@ pub fn export_object<B: Backend>(backend: &B, name: &str, format: &str) -> Resul
         .map_err(|e| e.to_string())?;
     if let Some(object) = lock.get(name) {
         object.export_to_bytes(format).map_err(|e| e.to_string())
+    } else {
+        Err("Object not found".to_string())
+    }
+}
+
+/// Export an object straight to a filesystem path, in an explicitly named `format`.
+///
+/// Not covered by [`export_object`]: the OCEL 2.0 bundled format's uncompressed form is a
+/// directory, which has no byte stream at all. It also keeps a large log from being materialised
+/// in memory just to cross an IPC boundary.
+pub fn export_object_to_path<B: Backend>(
+    backend: &B,
+    name: &str,
+    format: &str,
+    path: &str,
+) -> Result<(), String> {
+    let lock = backend
+        .get_state()
+        .items
+        .read()
+        .map_err(|e| e.to_string())?;
+    if let Some(object) = lock.get(name) {
+        object.export_to_path_as(path, format)
     } else {
         Err("Object not found".to_string())
     }
@@ -850,6 +875,50 @@ mod artifact_store_tests {
         load_artifact_bytes(&b, "n".into(), "PetriNet", PNML.as_bytes(), "pnml").unwrap();
         let bytes = export_artifact(&b, "n", "pnml").unwrap();
         assert!(!bytes.is_empty());
+    }
+
+    /// A named binding output is a *pipeline intermediate*, and pipeline intermediates are hidden
+    /// from `/objects` on purpose. That is easy to reach for by accident when a panel wants a
+    /// stable id for its output, and the failure is silent: the call succeeds, the object exists,
+    /// and it never shows up as a dataset. Pin both halves so the rule is discoverable from a
+    /// test rather than by reading `ItemMeta` role assignments.
+    #[test]
+    fn named_binding_output_is_hidden_but_an_unnamed_one_is_listed() {
+        let b = backend();
+        let unnamed = execute_binding(
+            &b,
+            "process_mining::bindings::slim_ocel_bindings::locel_new",
+            &serde_json::json!({}),
+            None,
+        )
+        .expect("locel_new");
+        let unnamed_id: String = serde_json::from_slice(&unnamed).expect("handle");
+
+        execute_binding(
+            &b,
+            "process_mining::bindings::slim_ocel_bindings::locel_new",
+            &serde_json::json!({}),
+            Some("named-output"),
+        )
+        .expect("locel_new with a name");
+
+        let listed: Vec<String> = get_objects_with_type(&b)
+            .expect("objects")
+            .into_iter()
+            .map(|o| o.id)
+            .collect();
+        assert!(
+            listed.contains(&unnamed_id),
+            "an unnamed binding output must be listed as a dataset, got {listed:?}"
+        );
+        assert!(
+            !listed.contains(&"named-output".to_string()),
+            "a named binding output is a pipeline intermediate and must stay hidden, got {listed:?}"
+        );
+        assert!(
+            b.get_state().contains_key("named-output"),
+            "the named object should still exist, just not be listed"
+        );
     }
 
     #[test]

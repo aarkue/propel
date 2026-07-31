@@ -1,4 +1,5 @@
-function fileUriToPath(uri: string): string | null {
+/** `file:///data/x.sqlite` -> `/data/x.sqlite`; null for anything that is not a `file://` URI. */
+export function fileUriToPath(uri: string): string | null {
   if (!uri.startsWith("file://")) return null;
   try {
     const u = new URL(uri);

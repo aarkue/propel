@@ -127,15 +127,34 @@ async fn load_item_bytes(
     backend_shared::load_item_bytes(&backend, id, &kind, &data, &format)
 }
 
+/// Returns [`tauri::ipc::Response`] rather than `Vec<u8>`: Tauri serialises a command's return
+/// value as JSON, so a byte vector would cross the IPC boundary as an array of integers -- several
+/// times the size, built and parsed one element at a time. An exported log is exactly the payload
+/// where that matters. `Response` carries the bytes as a binary body instead.
 #[tauri::command]
 async fn export_object(
     app: AppHandle,
     state: State<'_, ExtendedAppState>,
     name: String,
     format: String,
-) -> Result<Vec<u8>, String> {
+) -> Result<tauri::ipc::Response, String> {
     let backend = TauriBackend::new(&app, &state);
-    backend_shared::export_object(&backend, &name, &format)
+    backend_shared::export_object(&backend, &name, &format).map(tauri::ipc::Response::new)
+}
+
+/// Writes the export where the user picked instead of returning it: the bundled format's
+/// uncompressed form is a directory, which has no byte stream, and even for the single-file
+/// formats this keeps a large log from crossing IPC at all.
+#[tauri::command]
+async fn export_object_to_path(
+    app: AppHandle,
+    state: State<'_, ExtendedAppState>,
+    name: String,
+    format: String,
+    path: String,
+) -> Result<(), String> {
+    let backend = TauriBackend::new(&app, &state);
+    backend_shared::export_object_to_path(&backend, &name, &format, &path)
 }
 
 #[tauri::command]
@@ -340,6 +359,7 @@ pub fn run() {
             get_all_item_kinds,
             load_item_bytes,
             export_object,
+            export_object_to_path,
             unload_object,
             set_object_label,
             load_artifact_bytes,

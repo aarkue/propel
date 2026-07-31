@@ -467,6 +467,14 @@ id: string
 objectType: string
 }
 
+export type TimeframeMode = ("AnyEvent" | "AllEvents" | "SpanWithin" | "SpanEncloses" | "StartsWithin" | "EndsWithin" | "Overlaps" | "Before" | "After")
+/**
+ * How related entities (events / objects) must satisfy a sub-condition in an
+ * `EventMatch` / `ObjectMatch` predicate.
+ */
+
+export type MatchQuantifier = ("Any" | "All" | "First" | "Last")
+
 export type KeepOrRemove = ("Keep" | "Remove")
 
 export type RelabelTarget = ({
@@ -476,76 +484,6 @@ type: "Literal"
 template: string
 type: "Template"
 })
-
-export type Condition = ({
-key: string
-value: string
-type: "AttributeEquals"
-} | {
-key: string
-value: number
-type: "AttributeGreaterThan"
-} | {
-key: string
-value: number
-type: "AttributeLessThan"
-} | {
-key: string
-substring: string
-type: "AttributeContains"
-} | {
-/**
- * Inclusive window start (RFC 3339, e.g. "2025-01-01T00:00:00+00:00").
- */
-start: string
-/**
- * Exclusive window end (RFC 3339).
- */
-end: string
-mode: TimeframeMode
-type: "Timeframe"
-} | {
-key: string
-type: "AttributeExists"
-} | {
-value: string
-type: "EntityType"
-} | {
-min_ms?: (number | null)
-max_ms?: (number | null)
-type: "Duration"
-} | {
-quantifier: MatchQuantifier
-condition: Condition
-type: "EventMatch"
-} | {
-quantifier: MatchQuantifier
-condition: Condition
-type: "ObjectMatch"
-} | {
-conditions: Condition[]
-type: "And"
-} | {
-conditions: Condition[]
-type: "Or"
-} | {
-condition: Condition
-type: "Not"
-})
-/**
- * How an entity's temporal footprint must relate to a window `[start, end)`.
- * For an event the footprint is its single timestamp, so span-based modes collapse
- * to point-in-window. For a trace (XES case) or an OCEL object the footprint is the
- * set of its (related) event timestamps and `span` means `[first, last]`.
- */
-
-export type TimeframeMode = ("AnyEvent" | "AllEvents" | "SpanWithin" | "SpanEncloses" | "StartsWithin" | "EndsWithin" | "Overlaps" | "Before" | "After")
-/**
- * How related entities (events / objects) must satisfy a sub-condition in an
- * `EventMatch` / `ObjectMatch` predicate.
- */
-
-export type MatchQuantifier = ("Any" | "All" | "First" | "Last")
 
 export type RequiredOrForbidden = ("Required" | "Forbidden")
 /**
@@ -623,8 +561,7 @@ dx?: number
 wrap?: boolean
 /**
  * Small kind-indicator glyph drawn just left of the text (OCEL type graph: square = event
- * type, dot = object type). Ignored on wrapped labels. Text width is estimated (no text
- * measurement in the renderer), so placement is approximate.
+ * type, dot = object type); ignored on wrapped labels.
  */
 bullet?: (MarkingKind | null)
 /**
@@ -633,9 +570,8 @@ bullet?: (MarkingKind | null)
 bullet_color?: (string | null)
 }
 /**
- * A group of same-kind tokens drawn inside a node (e.g. Petri place markings). Groups are drawn
- * left-to-right in a single row; if the total count across all groups doesn't fit the node's
- * width, the renderer collapses the whole row to a single numeral instead.
+ * A group of same-kind tokens drawn inside a node (e.g. Petri place markings), left-to-right in
+ * a single row; if the total count doesn't fit the node's width, the row collapses to a numeral.
  */
 
 export interface MarkingGroup {
@@ -648,8 +584,7 @@ count: number
 dashed?: boolean
 /**
  * Fixed dot radius. When any group sets it, the whole row renders in exact mode: fixed
- * sizes, tight per-group clusters, no fit-to-node scaling and no numeral collapse
- * (OC-Declare involvement dots, mirroring the on-screen `MultiDot`).
+ * sizes, tight per-group clusters, no fit-to-node scaling or numeral collapse.
  */
 radius?: (number | null)
 /**
@@ -684,9 +619,8 @@ export interface StyledEdge {
 points: [number, number][]
 color?: (string | null)
 /**
- * Linear gradient stroke from the first to the last polyline point (userSpaceOnUse), used by
- * OC-Declare multi-object-type arcs. Two or more stops override `color` on the path; `color`
- * stays the fallback for consumers of single-color fields (dots/labels defaults).
+ * Linear gradient stroke from the first to the last polyline point, used by OC-Declare
+ * multi-object-type arcs; two or more stops override `color` on the path.
  */
 gradient?: GradientStop[]
 width?: number
@@ -805,9 +739,8 @@ pin?: (string | null)
  */
 category?: (number | null)
 /**
- * Optional seed centre `[x, y]` in final space. When any node has a seed, the layout keeps the
- * structural layer/order but places the cross-axis at the seed (a stable relayout that leaves
- * un-dragged nodes put). Absent means classic layout.
+ * Optional seed centre `[x, y]` in final space. When any node has a seed, the layout keeps
+ * the structural layer/order but places the cross-axis at the seed (a stable relayout).
  * 
  * @minItems 2
  * @maxItems 2
@@ -847,9 +780,1617 @@ time: string
 value: (number | boolean | string | null)
 }
 
+export type Literal = (boolean | number | string | {
+/**
+ * The instant.
+ */
+timestamp: string
+})
+
+export type MappingEntry = (Mapping | {
+/**
+ * Mappings, in priority order.
+ */
+mappings: Mapping1[]
+type: "ordered"
+})
+
+export type TimestampFormat = ({
+type: "auto"
+} | {
+/**
+ * The format.
+ */
+format: string
+type: "format-string"
+} | {
+type: "unix-seconds"
+} | {
+type: "unix-millis"
+})
+/**
+ * _Types_ of attribute values in OCEL2
+ */
+
+export type OCELAttributeType = ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
+/**
+ * Where an entity's timestamp comes from.
+ * 
+ * `deny_unknown_fields`: a misspelled key would otherwise be ignored, leaving a timestamp that
+ * silently drops every row.
+ */
+
+export type TimestampSource = ({
+/**
+ * Where the text comes from.
+ */
+source: ValueExpression
+/**
+ * How to read it. `None` means auto-detection.
+ */
+format?: (TimestampFormat | null)
+type: "value"
+} | {
+/**
+ * Where the date comes from, if anywhere.
+ */
+date?: (TimestampPart | null)
+/**
+ * Where the time comes from, if anywhere.
+ */
+time?: (TimestampPart | null)
+type: "components"
+})
+
+/**
+ * A declarative mapping from relational rows to an OCEL.
+ * 
+ * Carries no connection details and no schema snapshot: both are supplied by the caller, which
+ * keeps a blueprint portable, shareable and free of secrets.
+ */
+
+export interface Node {
+/**
+ * Unique id, referenced by other nodes and by mappings.
+ */
+id: string
+/**
+ * Display label. No semantic role.
+ */
+label?: (string | null)
+/**
+ * The operation.
+ */
+op: ({
+/**
+ * Source id, resolved to a connection at execution time.
+ */
+source_id: string
+/**
+ * Table name.
+ */
+table: string
+type: "source"
+} | {
+/**
+ * Input node id.
+ */
+input: string
+/**
+ * The condition.
+ */
+condition: Predicate
+type: "filter"
+} | {
+/**
+ * Left input node id.
+ */
+left: string
+/**
+ * Right input node id.
+ */
+right: string
+/**
+ * Column pairs, as `(left column, right column)`.
+ */
+on: [string, string][]
+type: "join"
+} | {
+/**
+ * Input node ids.
+ */
+inputs: string[]
+type: "union"
+})
+}
+/**
+ * One independent mapping.
+ */
+
+export interface Mapping {
+type: "single"
+}
+/**
+ * One mapping from a node's rows to entities.
+ */
+
+export interface Mapping1 {
+/**
+ * The node whose rows this reads.
+ */
+node: string
+/**
+ * Display label, also used to name this mapping in diagnostics.
+ */
+label?: (string | null)
+/**
+ * Only rows satisfying this produce anything. `None` accepts every row.
+ */
+when?: (Predicate | null)
+/**
+ * What to produce.
+ */
+target: ({
+/**
+ * Event type.
+ */
+event_type: ValueExpression
+/**
+ * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
+ * be compiled to a view.
+ * 
+ * It is also what coalesces a fan-out. Reading a join of orders and their items gives
+ * one row per item, so a `None` id makes one event per item; an id naming the order
+ * makes one event per order, still related to every item, because the repeated rows
+ * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
+ * while `objects` below is emitted for each of them.
+ */
+id?: (ValueExpression | null)
+/**
+ * When it happened.
+ */
+timestamp: ({
+/**
+ * Where the text comes from.
+ */
+source: ValueExpression
+/**
+ * How to read it. `None` means auto-detection.
+ */
+format?: (TimestampFormat | null)
+type: "value"
+} | {
+/**
+ * Where the date comes from, if anywhere.
+ */
+date?: (TimestampPart | null)
+/**
+ * Where the time comes from, if anywhere.
+ */
+time?: (TimestampPart | null)
+type: "components"
+})
+/**
+ * Event attributes.
+ */
+attributes?: AttributeMapping[]
+/**
+ * Objects related to this event.
+ */
+objects?: InlineObjectRef[]
+type: "event"
+} | {
+/**
+ * Object type.
+ */
+object_type: ValueExpression
+/**
+ * Object id.
+ */
+id: ValueExpression
+/**
+ * When the attribute values below were observed. `None` records them as static
+ * values stamped at the Unix epoch.
+ */
+timestamp?: (TimestampSource | null)
+/**
+ * Object attributes.
+ */
+attributes?: AttributeMapping[]
+type: "object"
+} | {
+event: EventEndpoint
+object: ObjectEndpoint1
+/**
+ * Relation qualifier.
+ */
+qualifier?: (ValueExpression | null)
+type: "e2o"
+} | {
+source: ObjectEndpoint2
+target: ObjectEndpoint3
+/**
+ * Relation qualifier.
+ */
+qualifier?: (ValueExpression | null)
+type: "o2o"
+})
+}
+/**
+ * One value read as a timestamp: where the text comes from, and how to read it.
+ */
+
+export interface TimestampPart {
+/**
+ * Where the text comes from.
+ */
+source: ValueExpression
+/**
+ * How to read it. `None` means auto-detection.
+ */
+format?: (TimestampFormat | null)
+}
+/**
+ * Maps a source column to a named OCEL attribute.
+ */
+
+export interface AttributeMapping {
+/**
+ * Column to read.
+ */
+source_column: string
+/**
+ * Attribute name in the resulting log.
+ */
+name: string
+/**
+ * Declared attribute type, or `None` to take the catalog's type for `source_column`.
+ */
+value_type?: (OCELAttributeType | null)
+}
+/**
+ * An object related to an event declared by the same mapping.
+ */
+
+export interface InlineObjectRef {
+object: ObjectEndpoint
+/**
+ * Relation qualifier.
+ */
+qualifier?: (ValueExpression | null)
+}
+/**
+ * The object.
+ */
+
+export interface ObjectEndpoint {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+/**
+ * How to split one cell into several values.
+ */
+
+export interface SplitSpec {
+/**
+ * The splitting rule.
+ */
+kind: ({
+/**
+ * The separator.
+ */
+delimiter: string
+type: "delimiter"
+} | {
+/**
+ * The pattern.
+ */
+pattern: string
+type: "regex"
+})
+/**
+ * Trim surrounding whitespace from each part.
+ */
+trim: boolean
+}
+/**
+ * The event.
+ */
+
+export interface EventEndpoint {
+/**
+ * The event's id.
+ */
+id: ValueExpression
+/**
+ * The event's type. Required under [`IdRendering::TypePrefixed`].
+ */
+event_type?: (ValueExpression | null)
+}
+/**
+ * The object.
+ */
+
+export interface ObjectEndpoint1 {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+/**
+ * The source object.
+ */
+
+export interface ObjectEndpoint2 {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+/**
+ * The target object.
+ */
+
+export interface ObjectEndpoint3 {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+
+export interface TableSchema {
+/**
+ * Table name.
+ */
+name: string
+/**
+ * Columns, keyed by name.
+ */
+columns: {
+[k: string]: ColumnSchema
+}
+}
+/**
+ * One column's declared shape.
+ */
+
+export interface ColumnSchema {
+/**
+ * Column name.
+ */
+name: string
+/**
+ * The source's own type name, verbatim, for example `INTEGER` or `timestamp`.
+ */
+col_type: string
+/**
+ * Whether the source permits `NULL` here.
+ */
+nullable: boolean
+}
+/**
+ * A few real rows of one table, for display only.
+ * 
+ * Rows are aligned to [`TablePreview::columns`] so a wide table can be read across. A cell is
+ * `None` for SQL `NULL`, distinct from `Some(String::new())`.
+ */
+
+export interface TablePreview {
+/**
+ * Column names, in the order the rows are aligned to.
+ */
+columns: string[]
+/**
+ * Rows, each the same length as `columns`.
+ */
+rows: (string | null)[][]
+}
+
+export type SqlDialect = "DuckDb"
+/**
+ * Which OCEL surface the compiler emits.
+ */
+
+export type EmissionShape = ("PerType" | "Consolidated")
+
+/**
+ * A blueprint compiled to SQL.
+ * 
+ * Serializable but not deserializable: [`Self::errors`] holds [`CompileError`], which is not, so
+ * neither is this. Crosses a bindings boundary outbound only, as a compile binding's return
+ * value.
+ */
+
+export interface ViewDef {
+/**
+ * The relation's name, unquoted.
+ */
+name: string
+/**
+ * A bare `SELECT` body with no `CREATE` wrapper, so the same text serves a view, a CTE and
+ * a `CREATE TABLE AS`.
+ */
+body: string
+}
+/**
+ * SQL that must return zero rows for the compiled relations to agree with the extractor.
+ */
+
+export interface Probe {
+/**
+ * The mapping this is about, or `None` for a whole-log check.
+ */
+mapping?: (MappingRef | null)
+/**
+ * What it guards.
+ */
+kind: ("AmbiguousObjectIdentity" | "AmbiguousEventIdentity" | "AmbiguousStaticObjectAttributes" | {
+StaleTypeDomain: {
+/**
+ * The column the domain came from.
+ */
+column: string
+}
+})
+/**
+ * The check itself, as a `SELECT` returning zero rows when the guard holds.
+ */
+sql: string
+}
+/**
+ * Points a diagnostic back at the mapping it came from.
+ */
+
+export interface MappingRef {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from -- see
+ * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
+ * what the author wrote rather than a position in the flattened list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * A mapping that produced no view, and why.
+ * 
+ * Compilation never fails wholesale: an uncompilable mapping is skipped and recorded here, and
+ * everything else still compiles.
+ * 
+ * Serializable but not deserializable: [`RejectReason`] is not, so neither is this.
+ */
+
+export interface CompileError {
+/**
+ * The mapping this is about, or `None` for a blueprint-level problem.
+ */
+mapping?: (MappingRef | null)
+/**
+ * Why it could not be compiled.
+ */
+reason: ({
+SynthesizedId: {
+/**
+ * The absent field.
+ */
+field: string
+}
+} | {
+DynamicTypeName: {
+/**
+ * The position whose type is dynamic.
+ */
+field: string
+/**
+ * Why no domain was available.
+ */
+detail: string
+}
+} | {
+TypeDomainTooLarge: {
+/**
+ * The column the domain came from.
+ */
+column: string
+/**
+ * How many values it has.
+ */
+size: number
+/**
+ * The cap.
+ */
+cap: number
+}
+} | {
+ReservedTypeName: {
+/**
+ * The offending type name.
+ */
+name: string
+}
+} | {
+UnknownNode: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnresolvedNodeSchema: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+NodeCycle: {
+/**
+ * A node id taking part in the cycle.
+ */
+node: string
+}
+} | {
+EmptyProjection: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+EmptyUnion: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnknownColumn: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UndeclaredColumnKind: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableIdentityRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableDisplayRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+ResidualTimestamp: {
+/**
+ * What about it is residual.
+ */
+detail: string
+}
+} | {
+UndecidableJoinKey: {
+/**
+ * The join node's id.
+ */
+node: string
+/**
+ * Which side the column is on.
+ */
+side: string
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+}
+} | {
+UnportableRegex: {
+/**
+ * The pattern.
+ */
+pattern: string
+/**
+ * Which construct made it unportable.
+ */
+detail: string
+}
+} | {
+InvalidRegex: {
+/**
+ * The pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+}
+} | {
+InvalidTemplate: {
+/**
+ * The template text.
+ */
+template: string
+/**
+ * What is wrong with it.
+ */
+reason: string
+}
+} | {
+AttributeCoercion: {
+/**
+ * The attribute name.
+ */
+attribute: string
+/**
+ * The source column.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * The declared OCEL attribute type.
+ */
+declared: string
+}
+} | {
+DynamicTypeAttributeConflict: {
+/**
+ * The attribute name.
+ */
+attribute: string
+}
+} | {
+UnsupportedEmissionShape: {
+/**
+ * The shape asked for.
+ */
+shape: string
+}
+} | {
+ViewCycle: {
+/**
+ * The relation's name.
+ */
+view: string
+}
+} | {
+Invalid: {
+/**
+ * The rendered validation error.
+ */
+detail: string
+}
+})
+}
+
+export interface ExtractionCatalog {
+/**
+ * Table schemas, keyed by source id then table name.
+ */
+tables: {
+[k: string]: {
+[k: string]: TableSchema
+}
+}
+/**
+ * Column domains, keyed by source id, then table name, then column name.
+ */
+domains: {
+[k: string]: {
+[k: string]: {
+[k: string]: string[]
+}
+}
+}
+/**
+ * A handful of real rows per table, keyed by source id then table name, to show a person
+ * what the data looks like.
+ * 
+ * Deliberately unreachable through the [`Catalog`] trait: unlike
+ * [`domains`](ExtractionCatalog::domains), a preview is incomplete, so compiling from one
+ * would emit views only for the types that happened to appear first.
+ */
+previews?: {
+[k: string]: {
+[k: string]: TablePreview
+}
+}
+}
+/**
+ * One table's declared shape.
+ */
+
+export type ExtractionError = ({
+Invalid: ValidationError[]
+} | {
+MissingProvider: {
+/**
+ * The missing source id.
+ */
+source_id: string
+}
+} | {
+InvalidRegex: {
+/**
+ * The offending pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+}
+} | {
+JoinKeyColumnMissing: {
+/**
+ * The `Join` node.
+ */
+node: string
+/**
+ * `"left"` or `"right"`.
+ */
+side: string
+/**
+ * The key column, as named on that side.
+ */
+column: string
+}
+} | {
+Provider: {
+/**
+ * The node being read when the failure happened.
+ */
+node: string
+/**
+ * The underlying error.
+ */
+source: ({
+UnknownTable: {
+/**
+ * The table name.
+ */
+table: string
+}
+} | {
+UnknownColumn: {
+/**
+ * The table name.
+ */
+table: string
+/**
+ * The column name.
+ */
+column: string
+}
+} | "QueryUnsupported" | {
+Backend: {
+/**
+ * The table being read when the failure happened.
+ */
+table: string
+/**
+ * The backend's error message.
+ */
+message: string
+}
+})
+}
+} | {
+Sink: {
+/**
+ * What was being added when the failure happened.
+ */
+context: string
+/**
+ * The underlying error.
+ */
+source: ({
+DuplicateEvent: {
+/**
+ * The repeated id.
+ */
+id: string
+}
+} | {
+DuplicateObject: {
+/**
+ * The repeated id.
+ */
+id: string
+}
+} | {
+IdTypeCollision: {
+/**
+ * The contested id.
+ */
+id: string
+}
+} | {
+UnknownType: {
+/**
+ * `"event"` or `"object"`.
+ */
+kind: string
+/**
+ * The undeclared type name.
+ */
+name: string
+}
+} | "InvalidRef" | {
+Backend: string
+})
+}
+} | {
+IdTypeCollision: {
+mapping: MappingRef1
+/**
+ * The contested id.
+ */
+id: string
+/**
+ * The type this row wanted the id for. The type that already holds it is whatever the
+ * sink reports for that id.
+ */
+requested_type: string
+}
+} | {
+ConflictingAttributeType: {
+/**
+ * `"event"` or `"object"`.
+ */
+kind: string
+/**
+ * The entity type.
+ */
+type_name: string
+/**
+ * The attribute.
+ */
+attribute: string
+/**
+ * The type it was declared with first.
+ */
+declared: ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
+/**
+ * The type the later declaration gave it.
+ */
+conflicting: ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
+}
+} | {
+DuplicateObject: {
+mapping: MappingRef2
+/**
+ * The repeated id.
+ */
+id: string
+}
+} | {
+MissingEndpoint: {
+mapping: MappingRef3
+/**
+ * Which endpoint (`"event"`, `"object"`, `"source"`, `"target"`, ...).
+ */
+endpoint: string
+/**
+ * The unresolved id.
+ */
+id: string
+}
+} | {
+MissingEndpointsAtFinalize: {
+/**
+ * How many relations the sink could not resolve. Equals the number of
+ * [`MissingEndpoint`](Self::MissingEndpoint) errors an eager sink reports for the same
+ * run for an `E2O`/`O2O` endpoint or a `Target::Event`'s inline reference resolved via
+ * [`resolve_object_endpoint`](super::mapping_exec::resolve_object_endpoint) --
+ * **not** universally: an inline reference on a `Target::Event` whose own event this run
+ * dropped is reported by an eager sink as [`DropReason::UnresolvedEndpoint`] on that
+ * mapping, with no [`MissingEndpoint`] error pushed at all (there is no endpoint left to
+ * resolve), while a deferring sink -- which cannot know at the call site that the event
+ * will not exist -- stages the reference regardless and counts it here at finalize. This
+ * count can therefore exceed the eager sink's `MissingEndpoint` tally by exactly that
+ * many references.
+ */
+count: number
+}
+})
+/**
+ * A reason a blueprint cannot be executed or compiled.
+ */
+
+export type ValidationError = ({
+/**
+ * The blueprint's version.
+ */
+found: number
+/**
+ * The newest version this build reads.
+ */
+supported: number
+type: "unsupported-version"
+} | {
+/**
+ * The repeated id.
+ */
+id: string
+type: "duplicate-node-id"
+} | {
+/**
+ * Who referred to it.
+ */
+from: string
+/**
+ * The missing id.
+ */
+id: string
+type: "unknown-node-ref"
+} | {
+/**
+ * One node id participating in the cycle.
+ */
+id: string
+type: "node-cycle"
+} | {
+/**
+ * The source id.
+ */
+source_id: string
+type: "unknown-source"
+} | {
+/**
+ * The source id.
+ */
+source_id: string
+/**
+ * The table name.
+ */
+table: string
+type: "unknown-table"
+} | {
+/**
+ * The node whose rows were being read.
+ */
+node: string
+/**
+ * The column name.
+ */
+column: string
+type: "unknown-column"
+} | {
+/**
+ * Which mapping, by label or index.
+ */
+mapping: string
+/**
+ * Which endpoint.
+ */
+endpoint: string
+type: "missing-type-for-prefixing"
+} | {
+/**
+ * Which mapping, by label or index.
+ */
+mapping: string
+/**
+ * Which endpoint.
+ */
+endpoint: string
+type: "missing-type-for-create"
+} | {
+/**
+ * The node id.
+ */
+node: string
+type: "empty-union"
+} | {
+/**
+ * The pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+type: "invalid-regex"
+} | {
+/**
+ * The template text.
+ */
+template: string
+/**
+ * What is wrong with it.
+ */
+reason: string
+type: "invalid-template"
+})
+
+/**
+ * What [`extract`](super::extract::extract) produced, beyond the OCEL itself.
+ * 
+ * Serializable but not deserializable: [`ExtractionError`] carries `&'static str` fields (a
+ * borrow no deserializer can manufacture), so this only ever crosses a bindings boundary
+ * outbound, as a `#[register_binding]` return value.
+ */
+
+export interface MappingStats {
+mapping: MappingRef
+/**
+ * Rows the mapping's node produced, before `when` was applied.
+ */
+rows_read: number
+/**
+ * Entities or relations this mapping *handed to the sink*.
+ * 
+ * # Not "survived the run", for a sink that defers resolution
+ * 
+ * For an eager sink ([`SlimOcelSink`](super::slim_sink::SlimOcelSink)) the two coincide:
+ * a relation whose endpoint does not exist is refused at the call site, so it is counted
+ * under [`DropReason::UnresolvedEndpoint`] and never here.
+ * 
+ * A sink that answers [`Resolution::Deferred`](super::sink::Resolution::Deferred) --
+ * [`DuckDbSink`](super::duckdb_sink::DuckDbSink) -- has no id index to refuse with, so the
+ * relation is written, counted here, and only deleted at
+ * [`finalize`](super::sink::ExtractionSink::finalize). The same dangling `E2O` therefore
+ * reads as
+ * 
+ * | | eager | deferring |
+ * |---|---|---|
+ * | `entities_emitted` | 0 | 1 |
+ * | `dropped[UnresolvedEndpoint]` | 1 | absent |
+ * | [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) | 0 | 1 |
+ * 
+ * This is the same reporting shift [`DuckDbSink`]'s own docs describe for `dropped`, seen
+ * from the other side: the loss is reported in bulk at finalize because the mapping that
+ * named the endpoint is long gone by then. Both logs still have the same contents.
+ * 
+ * To compare two sinks, or to count what a run actually produced, subtract
+ * `ExtractionReport::finalize.unresolved_endpoints` from the run's total rather than
+ * reading a single mapping's counter -- per-mapping attribution of a deferred loss does not
+ * exist, by construction.
+ * 
+ * [`DuckDbSink`]: super::duckdb_sink::DuckDbSink
+ */
+entities_emitted: number
+/**
+ * Rows that tried to create an entity **the sink already had**. Not a loss: an object mapping
+ * at event grain names the same object on every row by design. See
+ * [`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what
+ * turns a repeat into a loss instead.
+ * 
+ * # Exactly what is counted
+ * 
+ * One increment per row whose entity-creating call found the entity already present:
+ * 
+ * * a [`Target::Object`](super::blueprint::Target::Object) row whose
+ *   [`resolve_object`](super::sink::ExtractionSink::resolve_object) answered
+ *   [`Exists`](super::sink::Resolution::Exists), or whose
+ *   [`add_object`](super::sink::ExtractionSink::add_object) was refused with
+ *   [`SinkError::DuplicateObject`](super::sink::SinkError::DuplicateObject) -- the same event
+ *   seen through an eager and a deferring sink respectively, which is why both report the same
+ *   number;
+ * * a [`Target::Event`](super::blueprint::Target::Event) row whose `add_event` was refused
+ *   with [`SinkError::DuplicateEvent`](super::sink::SinkError::DuplicateEvent).
+ * 
+ * **Including a repeat across two mappings**, which is a change in meaning from "rows that
+ * named an entity *this mapping* had already emitted". A second mapping naming an id a first
+ * mapping created now counts one deduplication, where it used to count none. That distinction
+ * needed one id set per mapping holding every id it named -- the last per-run structure whose
+ * size tracked the data -- and it could never have been made to agree across sinks anyway: a
+ * sink that answers [`Deferred`](super::sink::Resolution::Deferred) to every ask cannot say
+ * whose object it already had.
+ * 
+ * # And what is not
+ * 
+ * **Resolving a relation endpoint is never counted**, so an `E2O`/`O2O` mapping reports zero
+ * however often its rows repeat an id. Finding an endpoint that already exists is the normal
+ * successful case, not a deduplication -- counting it made a healthy `E2O` mapping over `n`
+ * rows report `n` deduplications (and `2n` for `O2O`) while nothing had been deduplicated at
+ * all. Counting only the repeats among them is what the per-mapping id set used to buy, and it
+ * went with it: a case-centric blueprint whose single event mapping creates its case objects
+ * through an inline reference used to report `rows - distinct cases` here and now reports
+ * zero. The objects are unaffected; only this counter is. A blueprint that wants that number
+ * reported can name the cases with a [`Target::Object`](super::blueprint::Target::Object)
+ * mapping, which is what [`FlatEventTable`](super::case_centric::FlatEventTable) already adds
+ * as soon as there are case attributes.
+ */
+deduplicated: number
+/**
+ * Rows dropped, by reason. A row that matches several reasons at once (rare) is counted
+ * once, under the first one detected.
+ */
+dropped: {
+[k: string]: number
+}
+}
+/**
+ * Which mapping.
+ */
+
+export interface MappingRef1 {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from -- see
+ * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
+ * what the author wrote rather than a position in the flattened list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * The mapping whose row named the repeat.
+ */
+
+export interface MappingRef2 {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from -- see
+ * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
+ * what the author wrote rather than a position in the flattened list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * The mapping whose row named the endpoint.
+ */
+
+export interface MappingRef3 {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from -- see
+ * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
+ * what the author wrote rather than a position in the flattened list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * What the sink did at [`ExtractionSink::finalize`](super::sink::ExtractionSink::finalize).
+ * 
+ * All zero for a sink that resolves relation endpoints eagerly, which reports everything
+ * through [`per_mapping`](Self::per_mapping) instead. A sink that defers -- a path-backed
+ * one, which cannot afford an in-memory id index -- reports its share of the same
+ * information here, because it only learns it after the last row. See
+ * [`Resolution`](super::sink::Resolution).
+ */
+
+export interface FinalizeReport {
+/**
+ * Relations written against a [`Resolution::Deferred`] endpoint that resolved to a real
+ * entity at finalize.
+ */
+resolved_relations: number
+/**
+ * Relations whose deferred endpoint did not resolve. These are what a sink answering
+ * immediately would have counted per mapping as
+ * [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint);
+ * `on_missing_endpoint` decided what happened to them (dropped, or their object created).
+ */
+unresolved_endpoints: number
+/**
+ * Objects synthesised at finalize under `on_missing_endpoint: Create`, for deferred
+ * endpoints that turned out not to exist.
+ */
+objects_created: number
+/**
+ * Repeated entity ids removed at finalize -- a deferring sink's share of
+ * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated), which it could
+ * not detect while writing.
+ */
+duplicates_removed: number
+}
+/**
+ * How long a run spent, split by phase, in milliseconds.
+ * 
+ * The split is the point: discovering a source's schema is a fixed cost paid before a single row
+ * is read, and a caller that already holds a catalog can skip it entirely. Reporting one total
+ * would hide which of the two a slow run actually spent its time in.
+ */
+
+export interface ExtractionTiming {
+/**
+ * Connecting to each source and reading its schema. Zero when the caller supplied a catalog.
+ */
+discovery_ms: number
+/**
+ * Reading rows and emitting entities: `extract` itself.
+ */
+extraction_ms: number
+}
+
+export interface ResolvedStep {
+edge: TypeEdge
+/**
+ * Whether the edge is traversed in reverse direction.
+ */
+reverse: boolean
+}
+/**
+ * The typed edge traversed in this step.
+ */
+
+export interface TypeEdge {
+/**
+ * Source type of the edge.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Target type of the edge.
+ */
+target: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Relationship qualifier this edge represents.
+ */
+qualifier: string
+}
+
 export type EventIndex = number
+/**
+ * An Object Index
+ * 
+ * Points to an object in the context of a given OCEL
+ */
 
 export type ObjectIndex = number
+
+/**
+ * Connections of a single schema, with metrics and throughput.
+ */
+
+export interface SchemaStats {
+metrics: SchemaMetrics
+/**
+ * Event-to-event throughput times, if both endpoints are events.
+ */
+throughput?: (ThroughputStats | null)
+}
+/**
+ * Schema quality metrics.
+ */
+
+export interface SchemaMetrics {
+/**
+ * Number of distinct (source, target) pairs connected.
+ */
+support: number
+/**
+ * Fraction of source-type instances with at least one connection.
+ */
+coverage: number
+/**
+ * Inverse average fan-out: `1 / (avg distinct targets per connected source)`. High = discriminating.
+ */
+selectivity: number
+/**
+ * Total number of connections.
+ */
+path_count: number
+/**
+ * Number of distinct source entities with at least one connection.
+ */
+sources_with_paths: number
+/**
+ * Total number of source entities of this type.
+ */
+total_sources: number
+/**
+ * Fraction of target-type instances reached.
+ */
+reach: number
+/**
+ * Inverse average fan-in: `|distinct targets| / support`. High = each target reached by few sources.
+ */
+exclusivity: number
+}
+/**
+ * Throughput time statistics (seconds) over event-to-event connections.
+ */
+
+export interface ThroughputStats {
+/**
+ * Minimum duration in seconds.
+ */
+min: number
+/**
+ * Maximum duration in seconds.
+ */
+max: number
+/**
+ * Mean duration in seconds.
+ */
+mean: number
+/**
+ * Median duration in seconds.
+ */
+median: number
+}
+/**
+ * A discovered connection between two entities, with timestamps.
+ * 
+ * Only source and target are materialized (not the full intermediate path).
+ */
+
+export interface Connection {
+/**
+ * Source entity of the connection.
+ */
+source: ({
+Event: EventIndex
+} | {
+Object: ObjectIndex
+})
+/**
+ * Target entity of the connection.
+ */
+target: ({
+Event: EventIndex
+} | {
+Object: ObjectIndex
+})
+/**
+ * Timestamp of the source (only present if the source is an event).
+ */
+source_time?: (string | null)
+/**
+ * Timestamp of the target (only present if the target is an event).
+ */
+target_time?: (string | null)
+}
+
+export type TypeRef = ({
+Event: string
+} | {
+Object: string
+})
+
+/**
+ * A discovery query: source/target types, max schema length, and connection params.
+ */
+
+export interface PathConnectionParams {
+/**
+ * Temporal constraint applied along each path.
+ */
+temporal: ("None" | "Forward" | {
+Bounded: number
+})
+/**
+ * Which target event(s) to keep per source.
+ */
+selection: ("All" | "First" | "Last" | "Closest")
+/**
+ * Global cap on the number of connections: a coarse safety limit, checked between
+ * sources, so a single high-fan-out source can overshoot it.
+ */
+max_connections?: (number | null)
+/**
+ * Store only one connection per (source, target) pair.
+ */
+dedup_targets: boolean
+/**
+ * Terminate early once selectivity is provably below this threshold.
+ */
+selectivity_threshold?: (number | null)
+}
+
+export interface DiscoveredSchema {
+/**
+ * Enumeration index (stable for a given `source`/`target`/`max_length`/`allowed_types`).
+ */
+index: number
+/**
+ * Human-readable schema string.
+ */
+schema: string
+/**
+ * Source type.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Target type.
+ */
+target: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Number of steps in the schema.
+ */
+length: number
+stats: SchemaStats
+/**
+ * Whether the schema has zero connections.
+ */
+is_dead: boolean
+/**
+ * Whether selectivity-based early termination was triggered.
+ */
+selectivity_pruned: boolean
+/**
+ * Whether the connection limit was reached (results may be incomplete).
+ */
+limit_reached: boolean
+/**
+ * Index into [`PathSchemaDiscovery::equivalence_classes`].
+ */
+equivalence_class: number
+}
+/**
+ * Computed metrics and throughput.
+ */
+
+export interface ConnectionEquivalenceClass {
+/**
+ * Representative schema (shortest display string in the class).
+ */
+representative: string
+/**
+ * All schemas in this class (display strings).
+ */
+schemas: string[]
+/**
+ * Number of unique (source, target) connections shared by every schema in the class.
+ */
+connection_count: number
+}
+
+export interface PathSchemaTypeNode {
+/**
+ * Type name (activity / object class).
+ */
+name: string
+/**
+ * Whether this is an event type (`true`) or object type (`false`).
+ */
+is_event: boolean
+/**
+ * Number of entities of this type.
+ */
+count: number
+}
+/**
+ * A directed, typed edge in the type graph (a qualified E2O or O2O relationship type).
+ */
 
 export type OCELAttributeValue = (number | boolean | string | null)
 
@@ -1347,6 +2888,66 @@ objects: OcSimTraceObject[]
  * One object instance taking part in a simulated firing.
  */
 
+export type Condition = ({
+key: string
+value: string
+type: "AttributeEquals"
+} | {
+key: string
+value: number
+type: "AttributeGreaterThan"
+} | {
+key: string
+value: number
+type: "AttributeLessThan"
+} | {
+key: string
+substring: string
+type: "AttributeContains"
+} | {
+/**
+ * Inclusive window start (RFC 3339, e.g. "2025-01-01T00:00:00+00:00").
+ */
+start: string
+/**
+ * Exclusive window end (RFC 3339).
+ */
+end: string
+mode: TimeframeMode
+type: "Timeframe"
+} | {
+key: string
+type: "AttributeExists"
+} | {
+value: string
+type: "EntityType"
+} | {
+min_ms?: (number | null)
+max_ms?: (number | null)
+type: "Duration"
+} | {
+quantifier: MatchQuantifier
+condition: Condition
+type: "EventMatch"
+} | {
+quantifier: MatchQuantifier
+condition: Condition
+type: "ObjectMatch"
+} | {
+conditions: Condition[]
+type: "And"
+} | {
+conditions: Condition[]
+type: "Or"
+} | {
+condition: Condition
+type: "Not"
+})
+/**
+ * How an entity's temporal footprint must relate to a window `[start, end)`. For an event this
+ * is its timestamp; for a trace/object it's the related event timestamps, `span` = `[first, last]`.
+ */
+
 export type Transform = ({
 activities: string[]
 mode: KeepOrRemove
@@ -1498,9 +3099,8 @@ flow_edges?: boolean
  */
 flow_diagonal?: boolean
 /**
- * Optional `[width, height]` in final space of each edge's mid-point label (same length/order
- * as `edges`). The layout reserves that space on the edge centre so labels don't overlap other
- * edges/nodes. Empty => no reservation.
+ * Optional `[width, height]` of each edge's mid-point label (same length/order as `edges`);
+ * the layout reserves that space so labels don't overlap other edges/nodes.
  */
 edge_label_sizes?: [number, number][]
 /**
@@ -1513,10 +3113,7 @@ thickness?: number[]
  */
 tree?: boolean
 /**
- * Compact the cross axis after placement (priority method): pull weakly-linked clusters together
- * and straighten long-edge lanes onto their endpoints, removing the slack Brandes-Kopf leaves.
- * Order-preserving (crossings unchanged). For dense hub-and-spoke graphs like the OCEL type
- * graph; the flow surfaces (DFG/Petri) leave it off. Default `false`.
+ * Compact the cross axis after placement (order-preserving); for dense hub-and-spoke graphs like the OCEL type graph. Default `false`.
  */
 compact?: boolean
 }
@@ -1631,6 +3228,235 @@ traces: {
 
 export type Nullable_uint = (number | null)
 
+export type ValueExpression = ({
+/**
+ * Column name.
+ */
+column: string
+type: "column"
+} | {
+/**
+ * The value.
+ */
+value: string
+type: "constant"
+} | {
+/**
+ * The template.
+ */
+template: string
+type: "template"
+} | {
+/**
+ * Parts, tried in order.
+ */
+parts: ValueExpression[]
+type: "coalesce"
+})
+
+export type Predicate = ({
+/**
+ * Conditions.
+ */
+conditions: Predicate[]
+type: "and"
+} | {
+/**
+ * Conditions.
+ */
+conditions: Predicate[]
+type: "or"
+} | {
+/**
+ * The negated condition.
+ */
+condition: Predicate
+type: "not"
+} | {
+/**
+ * Left side.
+ */
+left: ({
+/**
+ * Column name.
+ */
+column: string
+type: "column"
+} | {
+/**
+ * The literal.
+ */
+value: (boolean | number | string | {
+/**
+ * The instant.
+ */
+timestamp: string
+})
+type: "literal"
+})
+/**
+ * Operator.
+ */
+op: ("eq" | "ne" | "lt" | "le" | "gt" | "ge")
+/**
+ * Right side.
+ */
+right: ({
+/**
+ * Column name.
+ */
+column: string
+type: "column"
+} | {
+/**
+ * The literal.
+ */
+value: (boolean | number | string | {
+/**
+ * The instant.
+ */
+timestamp: string
+})
+type: "literal"
+})
+type: "compare"
+} | {
+/**
+ * Column name.
+ */
+column: string
+type: "is-null"
+} | {
+/**
+ * Column name.
+ */
+column: string
+type: "is-empty"
+} | {
+/**
+ * Column name.
+ */
+column: string
+/**
+ * Regular expression.
+ */
+regex: string
+type: "matches"
+} | {
+/**
+ * Column name.
+ */
+column: string
+/**
+ * Accepted values.
+ */
+values: Literal[]
+type: "in"
+})
+
+export interface Blueprint {
+/**
+ * Schema version. Checked against [`super::MODEL_VERSION`] during validation.
+ */
+version: number
+/**
+ * How entity ids are rendered.
+ */
+id_rendering?: ("raw" | "type-prefixed")
+/**
+ * The row graph.
+ */
+nodes: Node[]
+/**
+ * The mappings.
+ */
+mappings: MappingEntry[]
+/**
+ * What to do about relations naming a missing entity.
+ */
+on_missing_endpoint?: ("drop" | "create" | "error")
+/**
+ * What to do about a repeated object id.
+ */
+on_duplicate_object?: ("first-wins" | "error")
+}
+/**
+ * A node in the row graph.
+ */
+
+export interface CompiledOcel {
+dialect: SqlDialect
+shape: EmissionShape
+views: ViewDef[]
+probes: Probe[]
+errors: CompileError[]
+}
+/**
+ * One compiled relation: a name and the bare `SELECT` that defines it.
+ */
+
+export interface Map_of_string {
+[k: string]: string
+}
+
+export type Nullable_ExtractionCatalog = (ExtractionCatalog | null)
+
+/**
+ * The concrete, serializable [`Catalog`].
+ * 
+ * This is the form that crosses a bindings boundary, that an editor holds and sends back, and
+ * that gets pinned to disk so a compile can be reproduced against a schema that has since
+ * changed.
+ */
+
+export interface ExtractionReport {
+/**
+ * One entry per mapping executed, in **desugared blueprint order** -- the order the author
+ * wrote the mappings in, with each ordered group expanded in place. Deliberately not
+ * execution order: execution is multi-pass and grouped by node (see
+ * [`extract`](super::extract::extract)), so there is no single linear order to report, and
+ * a diagnostic is far more useful indexed by what the author wrote. Each entry's
+ * [`MappingRef::path`] names that authored entry outright.
+ */
+per_mapping: MappingStats[]
+/**
+ * Non-fatal problems collected while running -- a policy configured to error
+ * (`on_duplicate_object: Error`, `on_missing_endpoint: Error`) or a sink failure on one
+ * relation. Extraction continues past these; see [`ExtractionError`] for what aborts it
+ * instead.
+ */
+errors: ExtractionError[]
+/**
+ * The running total of rows every `Join`/`Union` materialisation this run performed
+ * produced -- summed across materialisations, **not** a peak: a run that materialises two
+ * nodes of a thousand rows each reports two thousand, even though the two never had to be
+ * live at the same moment. It is an upper bound on peak buffered rows, not the peak itself.
+ * (A cached materialisation is counted once, when it is computed, not again per reader.)
+ * 
+ * Includes the `Source`/`Filter` rows that fed a `Join`/`Union`, since those materialise
+ * too the moment one needs them as an input; see invariant I1 on
+ * [`extract`](super::extract::extract). Zero when no mapping's node graph contains a `Join`
+ * or `Union`, since a pure `Source -> Filter` chain streams and never buffers a row past
+ * the one being processed -- which is what makes zero here a meaningful witness that the
+ * run streamed.
+ */
+rows_materialized: number
+finalize: FinalizeReport
+/**
+ * Where the run's wall-clock time went.
+ * 
+ * `None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a
+ * set of open providers and so has no idea what it cost to obtain them. The runner that owns
+ * the connections fills this in; the `extraction-dbcon` bindings do. Kept out of `extract` for a
+ * second reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate
+ * builds for wasm.
+ */
+timing?: (ExtractionTiming | null)
+}
+/**
+ * Counts for one mapping's run.
+ */
+
 export interface OCELTypeStats {
 /**
  * Number of events per event type/activity
@@ -1645,6 +3471,142 @@ object_type_counts: {
 [k: string]: number
 }
 }
+
+export interface ResolvedPathSchema {
+/**
+ * The starting type.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Ordered traversal steps with embedded typed edges.
+ */
+steps: ResolvedStep[]
+/**
+ * The ending type.
+ */
+target: ({
+Event: string
+} | {
+Object: string
+})
+}
+/**
+ * One step of a [`ResolvedPathSchema`]: a typed edge plus traversal direction.
+ */
+
+export interface PathSchemaConnections {
+/**
+ * Human-readable schema string.
+ */
+schema: string
+stats: SchemaStats
+/**
+ * The connections, with entities referenced by their OCEL index.
+ */
+connections: Connection[]
+/**
+ * Whether the connection limit was reached (results may be incomplete).
+ */
+limit_reached: boolean
+/**
+ * Whether selectivity-based early termination was triggered.
+ */
+selectivity_pruned: boolean
+}
+/**
+ * Metrics and throughput for the connections.
+ */
+
+export interface PathSchemaQuery {
+/**
+ * Source type to start schemas from.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Optional target type; if `None`, schemas to any type are enumerated.
+ */
+target?: (TypeRef | null)
+/**
+ * Maximum number of steps per schema.
+ */
+max_length: number
+/**
+ * Whether a schema may revisit the same type.
+ */
+allow_cycles: boolean
+/**
+ * Optional set of types the intermediate steps may pass through; `None` allows all. The
+ * source (the start) and the target (when one is given) are always permitted, so only the
+ * steps in between are constrained.
+ */
+allowed_types?: (TypeRef[] | null)
+params: PathConnectionParams
+}
+/**
+ * Connection-finding parameters.
+ */
+
+export interface PathSchemaDiscovery {
+/**
+ * Source entity type the query started from.
+ */
+source_type: string
+/**
+ * Total number of source-type entities.
+ */
+total_sources: number
+/**
+ * Enumerated schemas with their stats.
+ */
+schemas: DiscoveredSchema[]
+/**
+ * Connection-equivalence classes over the enumerated schemas.
+ */
+equivalence_classes: ConnectionEquivalenceClass[]
+}
+/**
+ * One enumerated schema with its computed stats and equivalence class.
+ */
+
+export type Nullable_TypeRef = (TypeRef | null)
+/**
+ * A reference to an OCEL type: an event type or an object type, by name.
+ * 
+ * Type-level analogue of [`EntityRef`] (which references an instance). Event and object
+ * types live in separate namespaces, so the same name can denote both; carrying the kind
+ * here keeps them distinct everywhere a type is named.
+ */
+
+export type Nullable_Array_of_TypeRef = (TypeRef[] | null)
+/**
+ * A reference to an OCEL type: an event type or an object type, by name.
+ * 
+ * Type-level analogue of [`EntityRef`] (which references an instance). Event and object
+ * types live in separate namespaces, so the same name can denote both; carrying the kind
+ * here keeps them distinct everywhere a type is named.
+ */
+
+export interface PathSchemaTypeGraph {
+/**
+ * Event and object type nodes.
+ */
+nodes: PathSchemaTypeNode[]
+/**
+ * Qualified E2O / O2O relationship edges.
+ */
+edges: TypeEdge[]
+}
+/**
+ * A node (event or object type) of the OCEL type graph, with its entity count.
+ */
 
 export type Nullable_Array_of_string = (string[] | null)
 
@@ -2028,6 +3990,52 @@ export interface Bindings {
   "process_mining::analysis::object_centric::oc_statistics::locel_event_object_type_counts": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: [string, string, number][] };
+  "process_mining::bindings::extraction_bindings::extraction_compile": { args: {
+    "blueprint": Blueprint;
+    "catalog": ExtractionCatalog;
+    "shape": EmissionShape;
+    }; ret: CompiledOcel };
+  "process_mining::bindings::extraction_bindings::extraction_discover_catalog_items": { args: {
+    "sources": Map_of_string;
+    }; ret: ExtractionCatalog };
+  "process_mining::bindings::extraction_bindings::extraction_run_items": { args: {
+    "blueprint": Blueprint;
+    "sources": Map_of_string;
+    "catalog"?: Nullable_ExtractionCatalog;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::bindings::extraction_bindings::extraction_validate": { args: {
+    "blueprint": Blueprint;
+    "catalog": ExtractionCatalog;
+    }; ret: ValidationError[] };
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain": { args: {
+    "connections": Map_of_string;
+    "source_id": string;
+    "table": string;
+    "column": string;
+    }; ret: string[] };
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog": { args: {
+    "connections": Map_of_string;
+    }; ret: ExtractionCatalog };
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog_items_dbcon": { args: {
+    "sources": Map_of_string;
+    }; ret: ExtractionCatalog };
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_run": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "blueprint": Blueprint;
+    "connections": Map_of_string;
+    "catalog"?: Nullable_ExtractionCatalog;
+    }; ret: ExtractionReport };
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_run_items_dbcon": { args: {
+    "blueprint": Blueprint;
+    "sources": Map_of_string;
+    "catalog"?: Nullable_ExtractionCatalog;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview": { args: {
+    "connections": Map_of_string;
+    "source_id": string;
+    "table": string;
+    "limit"?: Nullable_uint;
+    }; ret: TablePreview };
   "process_mining::bindings::index_link_ocel": { args: {
     "ocel": OCELHandle;
     }; ret: IndexLinkedOCELHandle };
@@ -2040,9 +4048,33 @@ export interface Bindings {
   "process_mining::bindings::ocel_type_stats": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OCELTypeStats };
+  "process_mining::bindings::path_schema_bindings::path_schema_connections": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "schema": ResolvedPathSchema;
+    "params"?: PathConnectionParams;
+    }; ret: PathSchemaConnections };
+  "process_mining::bindings::path_schema_bindings::path_schema_discover": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "query": PathSchemaQuery;
+    }; ret: PathSchemaDiscovery };
+  "process_mining::bindings::path_schema_bindings::path_schema_enumerate": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "source": TypeRef;
+    "target"?: Nullable_TypeRef;
+    "max_length": number;
+    "allow_cycles"?: boolean;
+    "allowed_types"?: Nullable_Array_of_TypeRef;
+    }; ret: ResolvedPathSchema[] };
+  "process_mining::bindings::path_schema_bindings::path_schema_type_graph": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: PathSchemaTypeGraph };
   "process_mining::bindings::slim_link_ocel": { args: {
     "ocel": OCELHandle;
     }; ret: SlimLinkedOCELHandle };
+  "process_mining::bindings::slim_ocel_bindings::get_dfg_of_object_type": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "ob_type": string;
+    }; ret: [[string, string], number][] };
   "process_mining::bindings::slim_ocel_bindings::get_e2o_ids": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev_id": string;
@@ -2079,6 +4111,10 @@ export interface Bindings {
     "ocel": SlimLinkedOCELHandle;
     "ob_id": string;
     }; ret: Nullable_string };
+  "process_mining::bindings::slim_ocel_bindings::get_variants_of_object_type": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "ob_type": string;
+    }; ret: [string[], number][] };
   "process_mining::bindings::slim_ocel_bindings::locel_add_e2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "event": number;
@@ -2119,6 +4155,12 @@ export interface Bindings {
   "process_mining::bindings::slim_ocel_bindings::locel_construct_ocel": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OCELHandle };
+  "process_mining::bindings::slim_ocel_bindings::locel_conversion_rate": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "activity": string;
+    "source_type": string;
+    "target_type": string;
+    }; ret: number };
   "process_mining::bindings::slim_ocel_bindings::locel_delete_e2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "event": number;
@@ -2129,6 +4171,9 @@ export interface Bindings {
     "from_obj": number;
     "to_obj": number;
     }; ret: boolean };
+  "process_mining::bindings::slim_ocel_bindings::locel_event_object_type_counts": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: [string, string, number][] };
   "process_mining::bindings::slim_ocel_bindings::locel_get_e2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev": number;
@@ -2214,6 +4259,14 @@ export interface Bindings {
     "ob_type": string;
     }; ret: number[] };
   "process_mining::bindings::slim_ocel_bindings::locel_new": { args: {}; ret: SlimLinkedOCELHandle };
+  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sojourn_per_event": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "top_k"?: Nullable_uint;
+    }; ret: [string, number][] };
+  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sync_per_event": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "top_k"?: Nullable_uint;
+    }; ret: [string, number, string][] };
   "process_mining::bindings::test_some_inputs": { args: {
     "s": string;
     "n": number;
@@ -2288,11 +4341,6 @@ export interface Bindings {
     "locel": SlimLinkedOCELHandle;
     "options"?: OCDeclareDiscoveryOptions;
     }; ret: OCDeclareArc[] };
-  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart": { args: {
-    "arcs": OCDeclareArc[];
-    "activities": string[];
-    "lossless_reduction": boolean;
-    }; ret: OCDeclareArc[] };
   "process_mining::discovery::object_centric::variants::get_variants_of_object_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob_type": string;
@@ -2316,6 +4364,7 @@ export const RETURN_TYPES = {
   "Array_of_ObjectIndex": "Array_of_ObjectIndex",
   "Array_of_OcelAttributeInfo": "Array_of_OcelAttributeInfo",
   "Array_of_ProcessVariant": "Array_of_ProcessVariant",
+  "Array_of_ResolvedPathSchema": "Array_of_ResolvedPathSchema",
   "Array_of_Tuple_of_Array_of_string_and_uint": "Array_of_Tuple_of_Array_of_string_and_uint",
   "Array_of_Tuple_of_DateTime_and_OCELAttributeValue": "Array_of_Tuple_of_DateTime_and_OCELAttributeValue",
   "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
@@ -2324,11 +4373,13 @@ export const RETURN_TYPES = {
   "Array_of_Tuple_of_string_and_int64": "Array_of_Tuple_of_string_and_int64",
   "Array_of_Tuple_of_string_and_int64_and_string": "Array_of_Tuple_of_string_and_int64_and_string",
   "Array_of_Tuple_of_string_and_string_and_int64": "Array_of_Tuple_of_string_and_string_and_int64",
+  "Array_of_ValidationError": "Array_of_ValidationError",
   "Array_of_VariantAlignmentResult": "Array_of_VariantAlignmentResult",
   "Array_of_string": "Array_of_string",
   "AttributeSummary": "AttributeSummary",
   "AttributeValues": "AttributeValues",
   "CaseDurations": "CaseDurations",
+  "CompiledOcel": "CompiledOcel",
   "DateTime": "DateTime",
   "DfPerformance": "DfPerformance",
   "DfgCounts": "DfgCounts",
@@ -2338,6 +4389,8 @@ export const RETURN_TYPES = {
   "EventLogActivityProjection": "EventLogActivityProjection",
   "EventLogInput": "EventLogInput",
   "EventTimeHistogram": "EventTimeHistogram",
+  "ExtractionCatalog": "ExtractionCatalog",
+  "ExtractionReport": "ExtractionReport",
   "FitnessResult": "FitnessResult",
   "GraphLayout": "GraphLayout",
   "IndexLinkedOCEL": "IndexLinkedOCEL",
@@ -2367,8 +4420,12 @@ export const RETURN_TYPES = {
   "OcelDfPerformance": "OcelDfPerformance",
   "OcelInput": "OcelInput",
   "OcelTypeRelations": "OcelTypeRelations",
+  "PathSchemaConnections": "PathSchemaConnections",
+  "PathSchemaDiscovery": "PathSchemaDiscovery",
+  "PathSchemaTypeGraph": "PathSchemaTypeGraph",
   "PetriNet": "PetriNet",
   "SlimLinkedOCEL": "SlimLinkedOCEL",
+  "TablePreview": "TablePreview",
   "TraceBrowserPage": "TraceBrowserPage",
   "TraceDetail": "TraceDetail",
   "TraceVariants": "TraceVariants",
@@ -2395,6 +4452,7 @@ export interface ReturnTypeShape {
   "Array_of_ObjectIndex": number[];
   "Array_of_OcelAttributeInfo": OcelAttributeInfo[];
   "Array_of_ProcessVariant": ProcessVariant[];
+  "Array_of_ResolvedPathSchema": ResolvedPathSchema[];
   "Array_of_Tuple_of_Array_of_string_and_uint": [string[], number][];
   "Array_of_Tuple_of_DateTime_and_OCELAttributeValue": [string, OCELAttributeValue][];
   "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint": [[string, string], number][];
@@ -2403,11 +4461,13 @@ export interface ReturnTypeShape {
   "Array_of_Tuple_of_string_and_int64": [string, number][];
   "Array_of_Tuple_of_string_and_int64_and_string": [string, number, string][];
   "Array_of_Tuple_of_string_and_string_and_int64": [string, string, number][];
+  "Array_of_ValidationError": ValidationError[];
   "Array_of_VariantAlignmentResult": VariantAlignmentResult[];
   "Array_of_string": string[];
   "AttributeSummary": AttributeSummary;
   "AttributeValues": AttributeValues;
   "CaseDurations": CaseDurations;
+  "CompiledOcel": CompiledOcel;
   "DateTime": string;
   "DfPerformance": DfPerformance;
   "DfgCounts": DfgCounts;
@@ -2417,6 +4477,8 @@ export interface ReturnTypeShape {
   "EventLogActivityProjection": EventLogActivityProjectionHandle;
   "EventLogInput": EventLogInput;
   "EventTimeHistogram": EventTimeHistogram;
+  "ExtractionCatalog": ExtractionCatalog;
+  "ExtractionReport": ExtractionReport;
   "FitnessResult": FitnessResult;
   "GraphLayout": GraphLayout;
   "IndexLinkedOCEL": IndexLinkedOCELHandle;
@@ -2446,8 +4508,12 @@ export interface ReturnTypeShape {
   "OcelDfPerformance": OcelDfPerformance;
   "OcelInput": OcelInput;
   "OcelTypeRelations": OcelTypeRelations;
+  "PathSchemaConnections": PathSchemaConnections;
+  "PathSchemaDiscovery": PathSchemaDiscovery;
+  "PathSchemaTypeGraph": PathSchemaTypeGraph;
   "PetriNet": PetriNet;
   "SlimLinkedOCEL": SlimLinkedOCELHandle;
+  "TablePreview": TablePreview;
   "TraceBrowserPage": TraceBrowserPage;
   "TraceDetail": TraceDetail;
   "TraceVariants": TraceVariants;
@@ -2513,11 +4579,26 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::analysis::object_centric::oc_performance::locel_oc_perf_sync_per_event": "Array_of_Tuple_of_string_and_int64_and_string",
   "process_mining::analysis::object_centric::oc_statistics::locel_conversion_rate": "double",
   "process_mining::analysis::object_centric::oc_statistics::locel_event_object_type_counts": "Array_of_Tuple_of_string_and_string_and_int64",
+  "process_mining::bindings::extraction_bindings::extraction_compile": "CompiledOcel",
+  "process_mining::bindings::extraction_bindings::extraction_discover_catalog_items": "ExtractionCatalog",
+  "process_mining::bindings::extraction_bindings::extraction_run_items": "SlimLinkedOCEL",
+  "process_mining::bindings::extraction_bindings::extraction_validate": "Array_of_ValidationError",
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain": "Array_of_string",
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog": "ExtractionCatalog",
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog_items_dbcon": "ExtractionCatalog",
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_run": "ExtractionReport",
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_run_items_dbcon": "SlimLinkedOCEL",
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview": "TablePreview",
   "process_mining::bindings::index_link_ocel": "IndexLinkedOCEL",
   "process_mining::bindings::num_events": "uint",
   "process_mining::bindings::num_objects": "uint",
   "process_mining::bindings::ocel_type_stats": "OCELTypeStats",
+  "process_mining::bindings::path_schema_bindings::path_schema_connections": "PathSchemaConnections",
+  "process_mining::bindings::path_schema_bindings::path_schema_discover": "PathSchemaDiscovery",
+  "process_mining::bindings::path_schema_bindings::path_schema_enumerate": "Array_of_ResolvedPathSchema",
+  "process_mining::bindings::path_schema_bindings::path_schema_type_graph": "PathSchemaTypeGraph",
   "process_mining::bindings::slim_link_ocel": "SlimLinkedOCEL",
+  "process_mining::bindings::slim_ocel_bindings::get_dfg_of_object_type": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
   "process_mining::bindings::slim_ocel_bindings::get_e2o_ids": "Nullable_Array_of_string",
   "process_mining::bindings::slim_ocel_bindings::get_e2o_rev_ids": "Nullable_Array_of_string",
   "process_mining::bindings::slim_ocel_bindings::get_event_ids_of_type": "Array_of_string",
@@ -2527,6 +4608,7 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::bindings::slim_ocel_bindings::get_obj_activity_trace": "Array_of_string",
   "process_mining::bindings::slim_ocel_bindings::get_object_ids_of_type": "Array_of_string",
   "process_mining::bindings::slim_ocel_bindings::get_object_type_of_id": "Nullable_string",
+  "process_mining::bindings::slim_ocel_bindings::get_variants_of_object_type": "Array_of_Tuple_of_Array_of_string_and_uint",
   "process_mining::bindings::slim_ocel_bindings::locel_add_e2o": "boolean",
   "process_mining::bindings::slim_ocel_bindings::locel_add_event": "Nullable_EventIndex",
   "process_mining::bindings::slim_ocel_bindings::locel_add_event_type": "null",
@@ -2534,8 +4616,10 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::bindings::slim_ocel_bindings::locel_add_object": "Nullable_ObjectIndex",
   "process_mining::bindings::slim_ocel_bindings::locel_add_object_type": "null",
   "process_mining::bindings::slim_ocel_bindings::locel_construct_ocel": "OCEL",
+  "process_mining::bindings::slim_ocel_bindings::locel_conversion_rate": "double",
   "process_mining::bindings::slim_ocel_bindings::locel_delete_e2o": "boolean",
   "process_mining::bindings::slim_ocel_bindings::locel_delete_o2o": "boolean",
+  "process_mining::bindings::slim_ocel_bindings::locel_event_object_type_counts": "Array_of_Tuple_of_string_and_string_and_int64",
   "process_mining::bindings::slim_ocel_bindings::locel_get_e2o": "Array_of_Tuple_of_string_and_ObjectIndex",
   "process_mining::bindings::slim_ocel_bindings::locel_get_e2o_rev": "Array_of_Tuple_of_string_and_EventIndex",
   "process_mining::bindings::slim_ocel_bindings::locel_get_ev_attr_val": "Nullable_OCELAttributeValue",
@@ -2558,6 +4642,8 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::bindings::slim_ocel_bindings::locel_get_ob_types": "Array_of_string",
   "process_mining::bindings::slim_ocel_bindings::locel_get_obs_of_type": "Array_of_ObjectIndex",
   "process_mining::bindings::slim_ocel_bindings::locel_new": "SlimLinkedOCEL",
+  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sojourn_per_event": "Array_of_Tuple_of_string_and_int64",
+  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sync_per_event": "Array_of_Tuple_of_string_and_int64_and_string",
   "process_mining::bindings::test_some_inputs": "string",
   "process_mining::conformance::case_centric::alignments::align_empty_trace": "AlignmentResult",
   "process_mining::conformance::case_centric::alignments::align_trace_binding": "AlignmentResult",
@@ -2577,6 +4663,5 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::discovery::case_centric::dfg::discover_dfg": "DirectlyFollowsGraph",
   "process_mining::discovery::object_centric::dfg::get_dfg_of_object_type": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
   "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints": "Array_of_OCDeclareArc",
-  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart": "Array_of_OCDeclareArc",
   "process_mining::discovery::object_centric::variants::get_variants_of_object_type": "Array_of_Tuple_of_Array_of_string_and_uint",
 };

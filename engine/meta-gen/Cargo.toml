@@ -14,9 +14,16 @@ name = "file-assoc"
 path = "src/bin/file-assoc.rs"
 
 [dependencies]
-process_mining = {git = "https://github.com/aarkue/rust4pm.git", branch = "propel", features = ["bindings"]}
+# Must stay the exact same source (path) as app-bindings'/backend-shared's own `process_mining`
+# dependency below: cargo only unifies (and shares one `inventory` registry across) crates that
+# resolve to the identical package source, which is what lets `list_functions_meta()` here see
+# every `#[register_binding]` function force-linked in via `app-bindings`/`backend-shared`.
+process_mining = { git = "https://github.com/aarkue/rust4pm.git", branch = "feat/extraction-blueprints", features = ["bindings", "extraction-blueprint", "extraction-dbcon", "ocel-bundle", "ocel-bundle-parquet"] }
 app-bindings = { path = "../app-bindings" }
-backend-shared = { path = "../backend-shared", features = ["ocel-sqlite"] }
+# extraction-blueprint-dbcon on so codegen picks up the dbcon-gated bindings too (discover_catalog,
+# column_domain, run) -- this is the codegen tool, not a shipped runtime crate, so the git-pinned
+# dbcon tree is an acceptable dev-time cost here even though it's off by default for wasm.
+backend-shared = { path = "../backend-shared", features = ["ocel-sqlite", "extraction-blueprint-dbcon"] }
 # preserve_order so rewriting tauri.conf.json (file-assoc bin) keeps its key order instead of
 # alphabetizing. meta-gen is excluded from workspace default-members so this feature does not
 # unify into the runtime crates (webserver/wasm) on a bare `cargo build`.

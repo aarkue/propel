@@ -678,7 +678,12 @@ fn ensure_marker(
             6.0,
             12.0,
         ),
-        EdgeMarker::Ball => (format!(r#"<circle cx="6" cy="6" r="5" fill="{col}"/>"#), 6.0, 6.0, 12.0),
+        EdgeMarker::Ball => (
+            format!(r#"<circle cx="6" cy="6" r="5" fill="{col}"/>"#),
+            6.0,
+            6.0,
+            12.0,
+        ),
         EdgeMarker::ArrowBall => (
             format!(
                 r#"<path d="M 2,1 L 12,6 L 2,11 Z" fill="{col}"/><circle cx="12" cy="6" r="5" fill="{col}"/>"#
@@ -1009,9 +1014,17 @@ pub fn render_graph_svg(graph: &StyledGraph, palette: &SvgPalette) -> String {
         defs = defs,
         bg = xml_escape(bg_color),
         g1_id = if graph.edges_on_top { "nodes" } else { "edges" },
-        g1 = if graph.edges_on_top { &nodes_svg } else { &edges_svg },
+        g1 = if graph.edges_on_top {
+            &nodes_svg
+        } else {
+            &edges_svg
+        },
         g2_id = if graph.edges_on_top { "edges" } else { "nodes" },
-        g2 = if graph.edges_on_top { &edges_svg } else { &nodes_svg },
+        g2 = if graph.edges_on_top {
+            &edges_svg
+        } else {
+            &nodes_svg
+        },
         legend = legend_svg,
     )
 }

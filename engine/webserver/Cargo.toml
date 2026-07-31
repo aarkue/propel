@@ -10,5 +10,5 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-backend-shared = { path = "../backend-shared", features = ["ocel-sqlite"] }
+backend-shared = { path = "../backend-shared", features = ["ocel-sqlite", "extraction-blueprint-dbcon-postgres"] }
 app-bindings = { path = "../app-bindings" }

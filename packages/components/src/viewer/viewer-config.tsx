@@ -1,5 +1,6 @@
 import { type ComponentType, createContext, type ReactNode, useCallback, useContext, useMemo } from "react";
 import type { DfgLayoutFn } from "../dfg/DfgGraph";
+import type { BlueprintLayoutFn } from "../extraction-blueprint/elk-layout";
 import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 import type { DeclareLayoutFn } from "../oc-declare/layout-util";
 import type { TypeGraphLayoutFn } from "../ocel-type-graph/OcelTypeGraph";
@@ -15,6 +16,7 @@ export interface LayoutEngine {
   petri?: PetriLayoutFn;
   processTree?: ProcessTreeLayoutFn;
   typeGraph?: TypeGraphLayoutFn;
+  blueprint?: BlueprintLayoutFn;
   renderSvg?: StyledGraphRenderer;
 }
 

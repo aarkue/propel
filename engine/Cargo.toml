@@ -11,3 +11,12 @@ opt-level = 3
 # Force single-unit codegen to ensure all inventory registrations are linked at opt-level 3.
 [profile.release.package.app-bindings]
 codegen-units = 1
+
+# `process_mining`'s `extraction-dbcon` feature (reached via backend-shared's
+# `extraction-blueprint-dbcon`) pulls in `dbcon`, which needs the patched `sqlx` fork for SQLite:
+# without it, crates.io `sqlx` and `rusqlite` (the `ocel-sqlite` feature) each want a different,
+# incompatible `libsqlite3-sys`, and both `link` against native `sqlite3`, which Cargo's resolver
+# refuses.
+[patch.crates-io]
+sqlx = { git = "https://github.com/aarkue/sqlx-fix.git", branch = "sqlite3-fix" }
+

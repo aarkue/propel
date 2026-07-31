@@ -53,3 +53,33 @@
   transform: translateZ(0) scale(1, 1);
   -webkit-transform: translateZ(0) scale(1, 1);
 }
+
+/* The "add another one" row at the foot of a list: a dashed full-width slot rather than a button,
+   so it reads as an empty place waiting to be filled. */
+.bp-add-row {
+  width: 100%;
+  justify-content: center;
+  border-style: dashed !important;
+  color: var(--gray-11) !important;
+}
+.bp-add-row:hover {
+  border-style: solid !important;
+  background: var(--gray-a3) !important;
+  color: var(--gray-12) !important;
+}
+
+/* Hover treatment for affordances inside `.react-flow__viewport`. Paint-only on purpose: animating
+   `transform`, `filter` or `opacity` there promotes the element to its own compositing layer, which
+   is rasterized at 1x and upscaled by the zoom -- it goes blurry, and on WebKit takes the canvas
+   with it (the `.react-flow` fix above only re-rasterizes the root, not a new child layer). */
+.bp-node-affordance {
+  transition:
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+}
+.bp-node-affordance:hover {
+  background: var(--bp-affordance-hover, var(--accent-10)) !important;
+  box-shadow:
+    0 0 0 3px var(--gray-a4),
+    0 2px 8px rgb(0 0 0 / 30%);
+}

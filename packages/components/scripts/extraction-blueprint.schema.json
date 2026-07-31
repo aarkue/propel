@@ -1,0 +1,3183 @@
+{
+  "defs": {
+    "AttributeMapping": {
+      "description": "Maps a source column to a named OCEL attribute.",
+      "properties": {
+        "name": {
+          "description": "Attribute name in the resulting log.",
+          "type": "string"
+        },
+        "source_column": {
+          "description": "Column to read.",
+          "type": "string"
+        },
+        "value_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OCELAttributeType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Declared attribute type, or `None` to take the catalog's type for `source_column`."
+        }
+      },
+      "required": [
+        "source_column",
+        "name"
+      ],
+      "type": "object"
+    },
+    "Blueprint": {
+      "description": "A declarative mapping from relational rows to an OCEL.\n\nCarries no connection details and no schema snapshot: both are supplied by the caller, which\nkeeps a blueprint portable, shareable and free of secrets.",
+      "properties": {
+        "id_rendering": {
+          "$ref": "#/$defs/IdRendering",
+          "default": "raw",
+          "description": "How entity ids are rendered."
+        },
+        "mappings": {
+          "description": "The mappings.",
+          "items": {
+            "$ref": "#/$defs/MappingEntry"
+          },
+          "type": "array"
+        },
+        "nodes": {
+          "description": "The row graph.",
+          "items": {
+            "$ref": "#/$defs/Node"
+          },
+          "type": "array"
+        },
+        "on_duplicate_object": {
+          "$ref": "#/$defs/DuplicateObjectPolicy",
+          "default": "first-wins",
+          "description": "What to do about a repeated object id."
+        },
+        "on_missing_endpoint": {
+          "$ref": "#/$defs/MissingEndpointPolicy",
+          "default": "drop",
+          "description": "What to do about relations naming a missing entity."
+        },
+        "version": {
+          "description": "Schema version. Checked against [`super::MODEL_VERSION`] during validation.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "nodes",
+        "mappings"
+      ],
+      "type": "object"
+    },
+    "ColumnSchema": {
+      "description": "One column's declared shape.",
+      "properties": {
+        "col_type": {
+          "description": "The source's own type name, verbatim, for example `INTEGER` or `timestamp`.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Column name.",
+          "type": "string"
+        },
+        "nullable": {
+          "description": "Whether the source permits `NULL` here.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "col_type",
+        "nullable"
+      ],
+      "type": "object"
+    },
+    "CompareOp": {
+      "description": "Comparison operator.",
+      "oneOf": [
+        {
+          "const": "eq",
+          "description": "Equal.",
+          "type": "string"
+        },
+        {
+          "const": "ne",
+          "description": "Not equal.",
+          "type": "string"
+        },
+        {
+          "const": "lt",
+          "description": "Less than.",
+          "type": "string"
+        },
+        {
+          "const": "le",
+          "description": "Less than or equal.",
+          "type": "string"
+        },
+        {
+          "const": "gt",
+          "description": "Greater than.",
+          "type": "string"
+        },
+        {
+          "const": "ge",
+          "description": "Greater than or equal.",
+          "type": "string"
+        }
+      ]
+    },
+    "CompileError": {
+      "description": "A mapping that produced no view, and why.\n\nCompilation never fails wholesale: an uncompilable mapping is skipped and recorded here, and\neverything else still compiles.\n\nSerializable but not deserializable: [`RejectReason`] is not, so neither is this.",
+      "properties": {
+        "mapping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MappingRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The mapping this is about, or `None` for a blueprint-level problem."
+        },
+        "reason": {
+          "$ref": "#/$defs/RejectReason",
+          "description": "Why it could not be compiled."
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "type": "object"
+    },
+    "CompiledOcel": {
+      "description": "A blueprint compiled to SQL.\n\nSerializable but not deserializable: [`Self::errors`] holds [`CompileError`], which is not, so\nneither is this. Crosses a bindings boundary outbound only, as a compile binding's return\nvalue.",
+      "properties": {
+        "dialect": {
+          "$ref": "#/$defs/SqlDialect"
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/CompileError"
+          },
+          "type": "array"
+        },
+        "probes": {
+          "items": {
+            "$ref": "#/$defs/Probe"
+          },
+          "type": "array"
+        },
+        "shape": {
+          "$ref": "#/$defs/EmissionShape"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/ViewDef"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "dialect",
+        "shape",
+        "views",
+        "probes",
+        "errors"
+      ],
+      "type": "object"
+    },
+    "DropReason": {
+      "description": "Why one row a mapping read produced nothing.\n\nDeliberately does not include a repeated object id at event grain -- see\n[`MappingStats::deduplicated`].",
+      "oneOf": [
+        {
+          "const": "UnresolvedEndpoint",
+          "description": "A relation named an event or object id that could not be resolved, under\n[`MissingEndpointPolicy::Drop`](super::blueprint::MissingEndpointPolicy::Drop).",
+          "type": "string"
+        },
+        {
+          "const": "UnparseableTimestamp",
+          "description": "A timestamp expression did not parse.",
+          "type": "string"
+        },
+        {
+          "const": "NullOrUnrenderableId",
+          "description": "An id expression evaluated to `Null` or to a value with no\n[`canonical_string`](super::value::Value::canonical_string).",
+          "type": "string"
+        },
+        {
+          "const": "PredicateExcluded",
+          "description": "The mapping's `when` excluded the row.",
+          "type": "string"
+        },
+        {
+          "const": "IdTypeCollision",
+          "description": "The row named an entity whose id is already taken by an entity of a *different* type.\nOnly reachable under [`IdRendering::Raw`](super::blueprint::IdRendering::Raw), where two\ntypes can render the same id; `TypePrefixed` makes it impossible. Deliberately **not**\n[`MappingStats::deduplicated`]: nothing was deduplicated, two distinct entities collided.",
+          "type": "string"
+        }
+      ]
+    },
+    "DuplicateObjectPolicy": {
+      "description": "What to do when an object id is produced more than once.",
+      "oneOf": [
+        {
+          "const": "first-wins",
+          "description": "Keep the first, and count the rest as deduplicated rather than lost.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Record an error.",
+          "type": "string"
+        }
+      ]
+    },
+    "EmissionShape": {
+      "description": "Which OCEL surface the compiler emits.",
+      "oneOf": [
+        {
+          "const": "PerType",
+          "description": "One `event_<T>` / `object_<T>` view per declared type, plus `event`, `object`,\n`event_object`, `object_object` and the two type maps -- the OCEL 2.0 layout external\ntooling reads.",
+          "type": "string"
+        },
+        {
+          "const": "Consolidated",
+          "description": "The `events`/`objects`/`e2o`/`o2o`/`object_attribute_changes`/`event_attr_meta` layout\n`rust4pm`'s own reader (`DuckDbLinkedOCEL`) consumes. Unlike [`Self::PerType`], a type is\nstored as a column *value* rather than encoded into a view name, so\n[`RejectReason::DynamicTypeName`] never fires under this shape: no\n[`Catalog::column_domain`](super::catalog::Catalog::column_domain) lookup is needed, and\nwith none there is nothing that can go stale and no per-type-view cap to exceed.",
+          "type": "string"
+        }
+      ]
+    },
+    "EventEndpoint": {
+      "description": "A reference to an event. Mirrors [`ObjectEndpoint`].",
+      "properties": {
+        "event_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValueExpression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The event's type. Required under [`IdRendering::TypePrefixed`]."
+        },
+        "id": {
+          "$ref": "#/$defs/ValueExpression",
+          "description": "The event's id."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "ExtractionCatalog": {
+      "description": "The concrete, serializable [`Catalog`].\n\nThis is the form that crosses a bindings boundary, that an editor holds and sends back, and\nthat gets pinned to disk so a compile can be reproduced against a schema that has since\nchanged.",
+      "properties": {
+        "domains": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "description": "Column domains, keyed by source id, then table name, then column name.",
+          "type": "object"
+        },
+        "tables": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/TableSchema"
+            },
+            "type": "object"
+          },
+          "description": "Table schemas, keyed by source id then table name.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "tables",
+        "domains"
+      ],
+      "type": "object"
+    },
+    "ExtractionError": {
+      "description": "Why [`extract`](super::extract::extract) could not run at all, or a non-fatal problem\nrecorded in [`ExtractionReport::errors`] while it did.\n\nSerializable but not deserializable: some variants carry `&'static str` fields (a borrow no\ndeserializer can manufacture), so this only ever crosses a bindings boundary outbound.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "The blueprint failed [`validate`](super::validate::validate); `extract` refuses to run\nit. Fatal.",
+          "properties": {
+            "Invalid": {
+              "items": {
+                "$ref": "#/$defs/ValidationError"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "Invalid"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A `Source` node names a `source_id` with no entry in the `providers` map `extract` was\ngiven. Fatal.",
+          "properties": {
+            "MissingProvider": {
+              "properties": {
+                "source_id": {
+                  "description": "The missing source id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source_id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "MissingProvider"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A predicate's or split's regular expression failed to compile. Fatal; `validate` checks\nthis, so it should not happen when `extract` is called on a validated blueprint.",
+          "properties": {
+            "InvalidRegex": {
+              "properties": {
+                "message": {
+                  "description": "The compiler's message.",
+                  "type": "string"
+                },
+                "pattern": {
+                  "description": "The offending pattern.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pattern",
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "InvalidRegex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A `Join`'s `on` clause named a key column that its input's rows do not carry. Fatal:\ndropping the column from the key instead would shorten it, silently turning the join into\na partial cross product.",
+          "properties": {
+            "JoinKeyColumnMissing": {
+              "properties": {
+                "column": {
+                  "description": "The key column, as named on that side.",
+                  "type": "string"
+                },
+                "node": {
+                  "description": "The `Join` node.",
+                  "type": "string"
+                },
+                "side": {
+                  "description": "`\"left\"` or `\"right\"`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node",
+                "side",
+                "column"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "JoinKeyColumnMissing"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A [`RowProvider`](super::provider::RowProvider) call failed. Fatal: the rows a mapping\nneeds are simply not available.",
+          "properties": {
+            "Provider": {
+              "properties": {
+                "node": {
+                  "description": "The node being read when the failure happened.",
+                  "type": "string"
+                },
+                "source": {
+                  "$ref": "#/$defs/ProviderError",
+                  "description": "The underlying error."
+                }
+              },
+              "required": [
+                "node",
+                "source"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Provider"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An [`ExtractionSink`](super::sink::ExtractionSink) call failed for a reason other than a\npolicy below. Non-fatal: recorded and extraction continues.",
+          "properties": {
+            "Sink": {
+              "properties": {
+                "context": {
+                  "description": "What was being added when the failure happened.",
+                  "type": "string"
+                },
+                "source": {
+                  "$ref": "#/$defs/SinkError",
+                  "description": "The underlying error."
+                }
+              },
+              "required": [
+                "context",
+                "source"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Sink"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Two mappings, or two rows, produced the same rendered id under two *different* types.\nOnly reachable under [`IdRendering::Raw`](super::blueprint::IdRendering::Raw). Non-fatal:\nthe row is dropped (see [`DropReason::IdTypeCollision`]) and the run continues. Merging\nthe two would silently fold two distinct entities into one, and writing this row's\nattributes onto the other type's object used to abort the entire extraction.",
+          "properties": {
+            "IdTypeCollision": {
+              "properties": {
+                "id": {
+                  "description": "The contested id.",
+                  "type": "string"
+                },
+                "mapping": {
+                  "$ref": "#/$defs/MappingRef",
+                  "description": "The mapping whose row collided."
+                },
+                "requested_type": {
+                  "description": "The type this row wanted the id for. The type that already holds it is whatever the\nsink reports for that id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "mapping",
+                "id",
+                "requested_type"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "IdTypeCollision"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Two mappings declared the same attribute of the same entity type under different value\ntypes. Non-fatal: the declaration is widened to a type that covers both (see\n[`OCELAttributeType::coalesce`](crate::core::event_data::object_centric::OCELAttributeType::coalesce))\nand every row is converted to that widened type, rather than the last declaration silently\nwinning while each mapping stored its own rows under the type *it* declared. Still worth\nreporting: which type an attribute ends up with is then decided by a coincidence of two\nmappings, not by either author's intent.\n\nDeliberately does not name a mapping: a conflict is a property of the pair, and pointing\nat whichever one happened to run second would be arbitrary. The type and attribute names\nlocate it precisely enough.",
+          "properties": {
+            "ConflictingAttributeType": {
+              "properties": {
+                "attribute": {
+                  "description": "The attribute.",
+                  "type": "string"
+                },
+                "conflicting": {
+                  "$ref": "#/$defs/OCELAttributeType",
+                  "description": "The type the later declaration gave it."
+                },
+                "declared": {
+                  "$ref": "#/$defs/OCELAttributeType",
+                  "description": "The type it was declared with first."
+                },
+                "kind": {
+                  "description": "`\"event\"` or `\"object\"`.",
+                  "type": "string"
+                },
+                "type_name": {
+                  "description": "The entity type.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "type_name",
+                "attribute",
+                "declared",
+                "conflicting"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ConflictingAttributeType"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`on_duplicate_object: Error` fired: `id` had already been added by `mapping`. Non-fatal.",
+          "properties": {
+            "DuplicateObject": {
+              "properties": {
+                "id": {
+                  "description": "The repeated id.",
+                  "type": "string"
+                },
+                "mapping": {
+                  "$ref": "#/$defs/MappingRef",
+                  "description": "The mapping whose row named the repeat."
+                }
+              },
+              "required": [
+                "mapping",
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "DuplicateObject"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`on_missing_endpoint: Error` fired: `endpoint` named `id`, which could not be resolved.\nNon-fatal.",
+          "properties": {
+            "MissingEndpoint": {
+              "properties": {
+                "endpoint": {
+                  "description": "Which endpoint (`\"event\"`, `\"object\"`, `\"source\"`, `\"target\"`, ...).",
+                  "type": "string"
+                },
+                "id": {
+                  "description": "The unresolved id.",
+                  "type": "string"
+                },
+                "mapping": {
+                  "$ref": "#/$defs/MappingRef",
+                  "description": "The mapping whose row named the endpoint."
+                }
+              },
+              "required": [
+                "mapping",
+                "endpoint",
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "MissingEndpoint"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`on_missing_endpoint: Error` fired for a sink that answered\n[`Resolution::Deferred`](super::sink::Resolution::Deferred): the same policy violation as\n[`MissingEndpoint`](Self::MissingEndpoint), reported once for the whole run instead of\nonce per endpoint. Non-fatal.\n\nSuch a sink detects the violation at [`finalize`](super::sink::ExtractionSink::finalize),\nin bulk, where the mapping and the row that named the endpoint are long gone -- so this\ndeliberately names neither. It is emitted whenever\n[`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport::unresolved_endpoints)\nis nonzero under that policy; without it, `Error` silently degraded to `Drop` for every\ndeferring sink.",
+          "properties": {
+            "MissingEndpointsAtFinalize": {
+              "properties": {
+                "count": {
+                  "description": "How many relations the sink could not resolve. Equals the number of\n[`MissingEndpoint`](Self::MissingEndpoint) errors an eager sink reports for the same\nrun for an `E2O`/`O2O` endpoint or a `Target::Event`'s inline reference resolved via\n[`resolve_object_endpoint`](super::mapping_exec::resolve_object_endpoint) --\n**not** universally: an inline reference on a `Target::Event` whose own event this run\ndropped is reported by an eager sink as [`DropReason::UnresolvedEndpoint`] on that\nmapping, with no [`MissingEndpoint`] error pushed at all (there is no endpoint left to\nresolve), while a deferring sink -- which cannot know at the call site that the event\nwill not exist -- stages the reference regardless and counts it here at finalize. This\ncount can therefore exceed the eager sink's `MissingEndpoint` tally by exactly that\nmany references.",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "count"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "MissingEndpointsAtFinalize"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ExtractionReport": {
+      "description": "What [`extract`](super::extract::extract) produced, beyond the OCEL itself.\n\nSerializable but not deserializable: [`ExtractionError`] carries `&'static str` fields (a\nborrow no deserializer can manufacture), so this only ever crosses a bindings boundary\noutbound, as a `#[register_binding]` return value.",
+      "properties": {
+        "errors": {
+          "description": "Non-fatal problems collected while running -- a policy configured to error\n(`on_duplicate_object: Error`, `on_missing_endpoint: Error`) or a sink failure on one\nrelation. Extraction continues past these; see [`ExtractionError`] for what aborts it\ninstead.",
+          "items": {
+            "$ref": "#/$defs/ExtractionError"
+          },
+          "type": "array"
+        },
+        "finalize": {
+          "$ref": "#/$defs/FinalizeReport",
+          "description": "What the sink did at [`ExtractionSink::finalize`](super::sink::ExtractionSink::finalize).\n\nAll zero for a sink that resolves relation endpoints eagerly, which reports everything\nthrough [`per_mapping`](Self::per_mapping) instead. A sink that defers -- a path-backed\none, which cannot afford an in-memory id index -- reports its share of the same\ninformation here, because it only learns it after the last row. See\n[`Resolution`](super::sink::Resolution)."
+        },
+        "per_mapping": {
+          "description": "One entry per mapping executed, in **desugared blueprint order** -- the order the author\nwrote the mappings in, with each ordered group expanded in place. Deliberately not\nexecution order: execution is multi-pass and grouped by node (see\n[`extract`](super::extract::extract)), so there is no single linear order to report, and\na diagnostic is far more useful indexed by what the author wrote. Each entry's\n[`MappingRef::path`] names that authored entry outright.",
+          "items": {
+            "$ref": "#/$defs/MappingStats"
+          },
+          "type": "array"
+        },
+        "rows_materialized": {
+          "description": "The running total of rows every `Join`/`Union` materialisation this run performed\nproduced -- summed across materialisations, **not** a peak: a run that materialises two\nnodes of a thousand rows each reports two thousand, even though the two never had to be\nlive at the same moment. It is an upper bound on peak buffered rows, not the peak itself.\n(A cached materialisation is counted once, when it is computed, not again per reader.)\n\nIncludes the `Source`/`Filter` rows that fed a `Join`/`Union`, since those materialise\ntoo the moment one needs them as an input; see invariant I1 on\n[`extract`](super::extract::extract). Zero when no mapping's node graph contains a `Join`\nor `Union`, since a pure `Source -> Filter` chain streams and never buffers a row past\nthe one being processed -- which is what makes zero here a meaningful witness that the\nrun streamed.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtractionTiming"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where the run's wall-clock time went.\n\n`None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a\nset of open providers and so has no idea what it cost to obtain them. The runner that owns\nthe connections fills this in; `process_mining_dbcon`'s does. Kept out of `extract` for a\nsecond reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate\nbuilds for wasm."
+        }
+      },
+      "required": [
+        "per_mapping",
+        "errors",
+        "rows_materialized",
+        "finalize"
+      ],
+      "type": "object"
+    },
+    "ExtractionTiming": {
+      "description": "How long a run spent, split by phase, in milliseconds.\n\nThe split is the point: discovering a source's schema is a fixed cost paid before a single row\nis read, and a caller that already holds a catalog can skip it entirely. Reporting one total\nwould hide which of the two a slow run actually spent its time in.",
+      "properties": {
+        "discovery_ms": {
+          "description": "Connecting to each source and reading its schema. Zero when the caller supplied a catalog.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "extraction_ms": {
+          "description": "Reading rows and emitting entities: `extract` itself.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "discovery_ms",
+        "extraction_ms"
+      ],
+      "type": "object"
+    },
+    "FinalizeReport": {
+      "description": "What a sink did during [`ExtractionSink::finalize`], folded into\n[`ExtractionReport::finalize`](super::report::ExtractionReport::finalize).\n\nAll zero for a sink that resolves eagerly ([`SlimOcelSink`](super::slim_sink::SlimOcelSink)):\nit has nothing left to do at finalize, and everything it dropped or deduplicated is already\nin the per-mapping counters. Nonzero entries mean the run used a deferring sink, and are\nwhere that sink's share of the same information lives.",
+      "properties": {
+        "duplicates_removed": {
+          "description": "Repeated entity ids removed at finalize -- a deferring sink's share of\n[`MappingStats::deduplicated`](super::report::MappingStats::deduplicated), which it could\nnot detect while writing.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "objects_created": {
+          "description": "Objects synthesised at finalize under `on_missing_endpoint: Create`, for deferred\nendpoints that turned out not to exist.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "resolved_relations": {
+          "description": "Relations written against a [`Resolution::Deferred`] endpoint that resolved to a real\nentity at finalize.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unresolved_endpoints": {
+          "description": "Relations whose deferred endpoint did not resolve. These are what a sink answering\nimmediately would have counted per mapping as\n[`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint);\n`on_missing_endpoint` decided what happened to them (dropped, or their object created).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "resolved_relations",
+        "unresolved_endpoints",
+        "objects_created",
+        "duplicates_removed"
+      ],
+      "type": "object"
+    },
+    "IdRendering": {
+      "description": "How entity ids are rendered, for events and objects alike.",
+      "oneOf": [
+        {
+          "const": "raw",
+          "description": "Use the id expression's value verbatim.",
+          "type": "string"
+        },
+        {
+          "const": "type-prefixed",
+          "description": "Prefix the id with its type name, so ids from different types cannot collide.\n\nUnder this setting every relation endpoint must declare its type, since otherwise the\nprefixed id cannot be rebuilt. Validation enforces that.",
+          "type": "string"
+        }
+      ]
+    },
+    "InlineObjectRef": {
+      "description": "An object related to an event declared by the same mapping.",
+      "properties": {
+        "object": {
+          "$ref": "#/$defs/ObjectEndpoint",
+          "description": "The object."
+        },
+        "qualifier": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValueExpression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Relation qualifier."
+        }
+      },
+      "required": [
+        "object"
+      ],
+      "type": "object"
+    },
+    "Literal": {
+      "anyOf": [
+        {
+          "description": "A boolean.",
+          "type": "boolean"
+        },
+        {
+          "description": "An integer.",
+          "format": "int64",
+          "type": "integer"
+        },
+        {
+          "description": "A float.",
+          "format": "double",
+          "type": "number"
+        },
+        {
+          "description": "Text.",
+          "type": "string"
+        },
+        {
+          "description": "An instant with a fixed UTC offset, given as RFC 3339 text.",
+          "properties": {
+            "timestamp": {
+              "description": "The instant.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          "required": [
+            "timestamp"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "A literal in a comparison or membership test.\n\nUntagged in JSON, so `true`, `5`, `5.0` and `\"x\"` deserialize to the matching variant.\nOrder matters for `Boolean`, `Integer`, `Float` and `Text`, whose JSON shapes overlap only\nwith each other (a bare JSON boolean, number or string): boolean before integer before float\nbefore text.\n\n`Timestamp` is exempt from that ordering. It is deliberately not a bare string -- an\nuntagged variant added as `Timestamp(String)` would have the same JSON shape as `Text` and\nwould need placing *before* `Text` to ever be chosen, which would then make it swallow every\nordinary string that happens to parse as RFC 3339, silently reclassifying it. Wrapping it in\na single-field object instead (`{\"timestamp\": \"...\"}`) gives it a JSON shape distinct from\nevery other variant, so its position in this enum does not matter and no plain string is\never at risk of being mistaken for a timestamp.\n\nSee [`Predicate::prepare`] for how a `Text` literal compared against a column of another\ndeclared type is coerced -- that is the mechanism that makes a plain ISO-8601 string usable\nagainst a timestamp column without needing this variant at all; this variant exists for a\nblueprint author (or editor) that already knows it is authoring a timestamp."
+    },
+    "Mapping": {
+      "description": "One mapping from a node's rows to entities.",
+      "properties": {
+        "label": {
+          "description": "Display label, also used to name this mapping in diagnostics.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "node": {
+          "description": "The node whose rows this reads.",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target",
+          "description": "What to produce."
+        },
+        "when": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Predicate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only rows satisfying this produce anything. `None` accepts every row."
+        }
+      },
+      "required": [
+        "node",
+        "target"
+      ],
+      "type": "object"
+    },
+    "MappingEntry": {
+      "description": "A mapping, or an ordered group of them.\n\n`Single` is not boxed: it is the overwhelmingly common case, and callers construct and match\nit directly.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Mapping",
+          "description": "One independent mapping.",
+          "properties": {
+            "type": {
+              "const": "single",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Mappings tried in order, where the first match wins.\n\nSurface sugar: desugaring rewrites each guard to exclude the earlier ones, so nothing\ndownstream of validation sees this variant.",
+          "properties": {
+            "mappings": {
+              "description": "Mappings, in priority order.",
+              "items": {
+                "$ref": "#/$defs/Mapping"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "ordered",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "mappings"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MappingRef": {
+      "description": "Points a diagnostic back at the mapping it came from.",
+      "properties": {
+        "index": {
+          "description": "Position in the desugared, flattened mapping list this run executed.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "label": {
+          "description": "The mapping's own label, if it has one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "The JSON path of the authored entry this mapping came from -- see\n[`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at\nwhat the author wrote rather than a position in the flattened list.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "path"
+      ],
+      "type": "object"
+    },
+    "MappingStats": {
+      "description": "Counts for one mapping's run.",
+      "properties": {
+        "deduplicated": {
+          "description": "Rows that tried to create an entity **the sink already had**. Not a loss: an object mapping\nat event grain names the same object on every row by design. See\n[`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what\nturns a repeat into a loss instead.\n\n# Exactly what is counted\n\nOne increment per row whose entity-creating call found the entity already present:\n\n* a [`Target::Object`](super::blueprint::Target::Object) row whose\n  [`resolve_object`](super::sink::ExtractionSink::resolve_object) answered\n  [`Exists`](super::sink::Resolution::Exists), or whose\n  [`add_object`](super::sink::ExtractionSink::add_object) was refused with\n  [`SinkError::DuplicateObject`](super::sink::SinkError::DuplicateObject) -- the same event\n  seen through an eager and a deferring sink respectively, which is why both report the same\n  number;\n* a [`Target::Event`](super::blueprint::Target::Event) row whose `add_event` was refused\n  with [`SinkError::DuplicateEvent`](super::sink::SinkError::DuplicateEvent).\n\n**Including a repeat across two mappings**, which is a change in meaning from \"rows that\nnamed an entity *this mapping* had already emitted\". A second mapping naming an id a first\nmapping created now counts one deduplication, where it used to count none. That distinction\nneeded one id set per mapping holding every id it named -- the last per-run structure whose\nsize tracked the data -- and it could never have been made to agree across sinks anyway: a\nsink that answers [`Deferred`](super::sink::Resolution::Deferred) to every ask cannot say\nwhose object it already had.\n\n# And what is not\n\n**Resolving a relation endpoint is never counted**, so an `E2O`/`O2O` mapping reports zero\nhowever often its rows repeat an id. Finding an endpoint that already exists is the normal\nsuccessful case, not a deduplication -- counting it made a healthy `E2O` mapping over `n`\nrows report `n` deduplications (and `2n` for `O2O`) while nothing had been deduplicated at\nall. Counting only the repeats among them is what the per-mapping id set used to buy, and it\nwent with it: a case-centric blueprint whose single event mapping creates its case objects\nthrough an inline reference used to report `rows - distinct cases` here and now reports\nzero. The objects are unaffected; only this counter is. A blueprint that wants that number\nreported can name the cases with a [`Target::Object`](super::blueprint::Target::Object)\nmapping, which is what [`FlatEventTable`](super::case_centric::FlatEventTable) already adds\nas soon as there are case attributes.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dropped": {
+          "additionalProperties": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Rows dropped, by reason. A row that matches several reasons at once (rare) is counted\nonce, under the first one detected.",
+          "type": "object"
+        },
+        "entities_emitted": {
+          "description": "Entities or relations this mapping *handed to the sink*.\n\n# Not \"survived the run\", for a sink that defers resolution\n\nFor an eager sink ([`SlimOcelSink`](super::slim_sink::SlimOcelSink)) the two coincide:\na relation whose endpoint does not exist is refused at the call site, so it is counted\nunder [`DropReason::UnresolvedEndpoint`] and never here.\n\nA sink that answers [`Resolution::Deferred`](super::sink::Resolution::Deferred) --\n[`DuckDbSink`](super::duckdb_sink::DuckDbSink) -- has no id index to refuse with, so the\nrelation is written, counted here, and only deleted at\n[`finalize`](super::sink::ExtractionSink::finalize). The same dangling `E2O` therefore\nreads as\n\n| | eager | deferring |\n|---|---|---|\n| `entities_emitted` | 0 | 1 |\n| `dropped[UnresolvedEndpoint]` | 1 | absent |\n| [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) | 0 | 1 |\n\nThis is the same reporting shift [`DuckDbSink`]'s own docs describe for `dropped`, seen\nfrom the other side: the loss is reported in bulk at finalize because the mapping that\nnamed the endpoint is long gone by then. Both logs still have the same contents.\n\nTo compare two sinks, or to count what a run actually produced, subtract\n`ExtractionReport::finalize.unresolved_endpoints` from the run's total rather than\nreading a single mapping's counter -- per-mapping attribution of a deferred loss does not\nexist, by construction.\n\n[`DuckDbSink`]: super::duckdb_sink::DuckDbSink",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mapping": {
+          "$ref": "#/$defs/MappingRef",
+          "description": "Which mapping."
+        },
+        "rows_read": {
+          "description": "Rows the mapping's node produced, before `when` was applied.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mapping",
+        "rows_read",
+        "entities_emitted",
+        "deduplicated",
+        "dropped"
+      ],
+      "type": "object"
+    },
+    "MissingEndpointPolicy": {
+      "description": "What to do when a relation names an entity that does not exist.",
+      "oneOf": [
+        {
+          "const": "drop",
+          "description": "Skip the relation.",
+          "type": "string"
+        },
+        {
+          "const": "create",
+          "description": "Create the object. Requires the endpoint to declare its type.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Record an error.",
+          "type": "string"
+        }
+      ]
+    },
+    "Node": {
+      "description": "A node in the row graph.",
+      "properties": {
+        "id": {
+          "description": "Unique id, referenced by other nodes and by mappings.",
+          "type": "string"
+        },
+        "label": {
+          "description": "Display label. No semantic role.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "op": {
+          "$ref": "#/$defs/NodeOp",
+          "description": "The operation."
+        }
+      },
+      "required": [
+        "id",
+        "op"
+      ],
+      "type": "object"
+    },
+    "NodeOp": {
+      "description": "One operation in the row graph.",
+      "oneOf": [
+        {
+          "description": "Read a table from a source.",
+          "properties": {
+            "source_id": {
+              "description": "Source id, resolved to a connection at execution time.",
+              "type": "string"
+            },
+            "table": {
+              "description": "Table name.",
+              "type": "string"
+            },
+            "type": {
+              "const": "source",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source_id",
+            "table"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Keep the rows of `input` satisfying `condition`.",
+          "properties": {
+            "condition": {
+              "$ref": "#/$defs/Predicate",
+              "description": "The condition."
+            },
+            "input": {
+              "description": "Input node id.",
+              "type": "string"
+            },
+            "type": {
+              "const": "filter",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "input",
+            "condition"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Inner-join two nodes on the given column pairs.",
+          "properties": {
+            "left": {
+              "description": "Left input node id.",
+              "type": "string"
+            },
+            "on": {
+              "description": "Column pairs, as `(left column, right column)`.",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "right": {
+              "description": "Right input node id.",
+              "type": "string"
+            },
+            "type": {
+              "const": "join",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "left",
+            "right",
+            "on"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Concatenate the rows of several nodes, aligning columns by name.\n\nThis is `UNION ALL`, not `UNION`: duplicate rows are kept, because dropping them would\ndrop the entities they produce. The output columns are the union of the inputs' column\n*names*, and an input that lacks one of them contributes `Null` for it rather than being\nrejected -- so unioning two near-identical tables that differ by one column is legal.\nBoth rules are part of the model's semantics, not an implementation detail: a compiler\ntranslating this node must emit `UNION ALL` with the absent columns explicitly\nnull-filled.",
+          "properties": {
+            "inputs": {
+              "description": "Input node ids.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "union",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "inputs"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "OCELAttributeType": {
+      "description": "_Types_ of attribute values in OCEL2",
+      "oneOf": [
+        {
+          "const": "String",
+          "description": "String",
+          "type": "string"
+        },
+        {
+          "const": "Time",
+          "description": "`DateTime`",
+          "type": "string"
+        },
+        {
+          "const": "Integer",
+          "description": "Integer",
+          "type": "string"
+        },
+        {
+          "const": "Float",
+          "description": "Float",
+          "type": "string"
+        },
+        {
+          "const": "Boolean",
+          "description": "Boolean",
+          "type": "string"
+        },
+        {
+          "const": "Null",
+          "description": "Placeholder for invalid types",
+          "type": "string"
+        }
+      ]
+    },
+    "ObjectEndpoint": {
+      "description": "A reference to an object, used at every position where one is named.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ValueExpression",
+          "description": "The object's id."
+        },
+        "object_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValueExpression"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The object's type. Required under [`IdRendering::TypePrefixed`] and under\n[`MissingEndpointPolicy::Create`]."
+        },
+        "split": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SplitSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Split the id cell into several ids, producing one relation per part."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "Operand": {
+      "description": "One side of a comparison.",
+      "oneOf": [
+        {
+          "description": "The value in a column of the current row.",
+          "properties": {
+            "column": {
+              "description": "Column name.",
+              "type": "string"
+            },
+            "type": {
+              "const": "column",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "column"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A fixed value.",
+          "properties": {
+            "type": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/Literal",
+              "description": "The literal."
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Predicate": {
+      "description": "A boolean test over one row.\n\nComparisons are typed: numbers compare numerically, so `amount > 0` means what it says\nrather than comparing text. Any comparison involving `NULL` is false, including `NULL = NULL`.",
+      "oneOf": [
+        {
+          "description": "All conditions hold. An empty list is true.",
+          "properties": {
+            "conditions": {
+              "description": "Conditions.",
+              "items": {
+                "$ref": "#/$defs/Predicate"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "and",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "conditions"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Any condition holds. An empty list is false.",
+          "properties": {
+            "conditions": {
+              "description": "Conditions.",
+              "items": {
+                "$ref": "#/$defs/Predicate"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "or",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "conditions"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The condition does not hold.",
+          "properties": {
+            "condition": {
+              "$ref": "#/$defs/Predicate",
+              "description": "The negated condition."
+            },
+            "type": {
+              "const": "not",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "condition"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Compare two operands.",
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/Operand",
+              "description": "Left side."
+            },
+            "op": {
+              "$ref": "#/$defs/CompareOp",
+              "description": "Operator."
+            },
+            "right": {
+              "$ref": "#/$defs/Operand",
+              "description": "Right side."
+            },
+            "type": {
+              "const": "compare",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "left",
+            "op",
+            "right"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The column is `NULL` or absent.",
+          "properties": {
+            "column": {
+              "description": "Column name.",
+              "type": "string"
+            },
+            "type": {
+              "const": "is-null",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "column"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The column is `NULL`, absent, or renders as the empty string.",
+          "properties": {
+            "column": {
+              "description": "Column name.",
+              "type": "string"
+            },
+            "type": {
+              "const": "is-empty",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "column"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The column's text -- see [`Value::display_string`] -- matches the regular expression.",
+          "properties": {
+            "column": {
+              "description": "Column name.",
+              "type": "string"
+            },
+            "regex": {
+              "description": "Regular expression.",
+              "type": "string"
+            },
+            "type": {
+              "const": "matches",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "column",
+            "regex"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The column equals one of the listed literals.",
+          "properties": {
+            "column": {
+              "description": "Column name.",
+              "type": "string"
+            },
+            "type": {
+              "const": "in",
+              "type": "string"
+            },
+            "values": {
+              "description": "Accepted values.",
+              "items": {
+                "$ref": "#/$defs/Literal"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "type",
+            "column",
+            "values"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Probe": {
+      "description": "SQL that must return zero rows for the compiled relations to agree with the extractor.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ProbeKind",
+          "description": "What it guards."
+        },
+        "mapping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MappingRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The mapping this is about, or `None` for a whole-log check."
+        },
+        "sql": {
+          "description": "The check itself, as a `SELECT` returning zero rows when the guard holds.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "sql"
+      ],
+      "type": "object"
+    },
+    "ProbeKind": {
+      "description": "What a probe guards. A probe holds when its SQL returns zero rows.",
+      "oneOf": [
+        {
+          "const": "AmbiguousObjectIdentity",
+          "description": "Two objects claim one id under different types. The extractor keeps the first and reports\nthe collision; the views keep both.",
+          "type": "string"
+        },
+        {
+          "const": "AmbiguousEventIdentity",
+          "description": "Two events claim one id. See [`Self::AmbiguousObjectIdentity`].",
+          "type": "string"
+        },
+        {
+          "const": "AmbiguousStaticObjectAttributes",
+          "description": "Two rows of one mapping give one object id different static attribute values. The\nextractor writes the mapping's *first* row for an id and ignores later repeats; SQL rows\nare unordered, so the views agree only when the repeats carry the same values.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A type name read from a column has a value outside the domain the catalog supplied, so\nthe compiled view set is missing the entities carrying it.",
+          "properties": {
+            "StaleTypeDomain": {
+              "properties": {
+                "column": {
+                  "description": "The column the domain came from.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "column"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "StaleTypeDomain"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ProviderError": {
+      "description": "Why a [`RowProvider::scan`] call failed.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "`table` has no entry in this provider.",
+          "properties": {
+            "UnknownTable": {
+              "properties": {
+                "table": {
+                  "description": "The table name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "table"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnknownTable"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A requested column is not present on `table`.",
+          "properties": {
+            "UnknownColumn": {
+              "properties": {
+                "column": {
+                  "description": "The column name.",
+                  "type": "string"
+                },
+                "table": {
+                  "description": "The table name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "table",
+                "column"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnknownColumn"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "QueryUnsupported",
+          "description": "This provider cannot execute SQL: it reports no [`RowProvider::query_dialect`], or the\nquery it was handed is one it cannot run. Never fatal on its own -- the caller falls back\nto executing the node row by row.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The underlying source failed while reading. Carries the backend's message rather than\nits original error type, so this type stays independent of any particular driver.",
+          "properties": {
+            "Backend": {
+              "properties": {
+                "message": {
+                  "description": "The backend's error message.",
+                  "type": "string"
+                },
+                "table": {
+                  "description": "The table being read when the failure happened.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "table",
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Backend"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RejectReason": {
+      "description": "Why a mapping could not be compiled to a view.\n\nEvery variant names something the emitter refused to guess at. The three reasons the\nredesign eliminated (`ConflictingPrefixFlag`, `DynamicTypeWithPrefixing`,\n`SynthesizedChangeTableEventId`) are gone: prefixing is one blueprint-level policy, and\n`ChangeTableEvents` no longer exists. [`RejectReason::DynamicTypeName`] narrowed from \"the\ntype is dynamic\" to \"the type is dynamic *and no column domain was supplied*\".\n\nSerializable but not deserializable: several variants carry `&'static str` fields (a borrow no\ndeserializer can manufacture), so this only ever crosses a bindings boundary outbound.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A `Target::Event` with no `id` expression: the extractor mints a fresh `UUID` per row, a\nnondeterministic side effect with no relational denotation.",
+          "properties": {
+            "SynthesizedId": {
+              "properties": {
+                "field": {
+                  "description": "The absent field.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "SynthesizedId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A type name is read from the data and the catalog supplies no domain for the column it\ncomes from, so there is no name to put in `CREATE VIEW event_<T>`.",
+          "properties": {
+            "DynamicTypeName": {
+              "properties": {
+                "detail": {
+                  "description": "Why no domain was available.",
+                  "type": "string"
+                },
+                "field": {
+                  "description": "The position whose type is dynamic.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "detail"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "DynamicTypeName"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A column domain has more distinct values than [`MAX_TYPE_DOMAIN`], so a per-type shape\nwould emit one view per value.",
+          "properties": {
+            "TypeDomainTooLarge": {
+              "properties": {
+                "cap": {
+                  "description": "The cap.",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "column": {
+                  "description": "The column the domain came from.",
+                  "type": "string"
+                },
+                "size": {
+                  "description": "How many values it has.",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "column",
+                "size",
+                "cap"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "TypeDomainTooLarge"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A type name collides with one of the relations the emitter itself defines.",
+          "properties": {
+            "ReservedTypeName": {
+              "properties": {
+                "name": {
+                  "description": "The offending type name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ReservedTypeName"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A mapping reads a node that is not declared.",
+          "properties": {
+            "UnknownNode": {
+              "properties": {
+                "node": {
+                  "description": "The node id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnknownNode"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A node's column shape could not be resolved -- typically an unknown source table.",
+          "properties": {
+            "UnresolvedNodeSchema": {
+              "properties": {
+                "node": {
+                  "description": "The node id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnresolvedNodeSchema"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The node graph contains a cycle, so there is no order in which to emit it.",
+          "properties": {
+            "NodeCycle": {
+              "properties": {
+                "node": {
+                  "description": "A node id taking part in the cycle.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "NodeCycle"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A node has no columns, and SQL has no zero-column `SELECT`.",
+          "properties": {
+            "EmptyProjection": {
+              "properties": {
+                "node": {
+                  "description": "The node id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "EmptyProjection"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A `Union` node with no inputs.",
+          "properties": {
+            "EmptyUnion": {
+              "properties": {
+                "node": {
+                  "description": "The node id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "EmptyUnion"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An expression reads a column the node does not have.",
+          "properties": {
+            "UnknownColumn": {
+              "properties": {
+                "column": {
+                  "description": "The column name.",
+                  "type": "string"
+                },
+                "field": {
+                  "description": "Which position referenced it.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "column",
+                "field"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnknownColumn"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The catalog's `col_type` for a column maps to no\n[`ValueKind`](super::value::ValueKind), so the rule the extractor applies to that\ncolumn's values cannot be decided at compile time.",
+          "properties": {
+            "UndeclaredColumnKind": {
+              "properties": {
+                "col_type": {
+                  "description": "The catalog's own type string.",
+                  "type": "string"
+                },
+                "column": {
+                  "description": "The column name.",
+                  "type": "string"
+                },
+                "field": {
+                  "description": "Which position referenced it.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "column",
+                "col_type",
+                "field"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UndeclaredColumnKind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A column with no [`Value::canonical_string`](super::value::Value::canonical_string) --\n`Float` or `Timestamp` -- is used at an identity position, where it makes the expression\n`None` for every row.",
+          "properties": {
+            "UnstableIdentityRendering": {
+              "properties": {
+                "col_type": {
+                  "description": "The catalog's own type string.",
+                  "type": "string"
+                },
+                "column": {
+                  "description": "The column name.",
+                  "type": "string"
+                },
+                "field": {
+                  "description": "Which position referenced it.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "column",
+                "col_type",
+                "field"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnstableIdentityRendering"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A column whose [`Value::display_string`](super::value::Value::display_string) a SQL cast\ndoes not reproduce -- Rust writes `1` where `DuckDB` writes `1.0`, and keeps a\ntimestamp's original offset -- feeds a position that reads it as text.",
+          "properties": {
+            "UnstableDisplayRendering": {
+              "properties": {
+                "col_type": {
+                  "description": "The catalog's own type string.",
+                  "type": "string"
+                },
+                "column": {
+                  "description": "The column name.",
+                  "type": "string"
+                },
+                "field": {
+                  "description": "Which position referenced it.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "column",
+                "col_type",
+                "field"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnstableDisplayRendering"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A timestamp is parsed by a `chrono` cascade that is not translated to SQL.",
+          "properties": {
+            "ResidualTimestamp": {
+              "properties": {
+                "detail": {
+                  "description": "What about it is residual.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "detail"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ResidualTimestamp"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A join key column's declared kind is unknown, so whether the extractor's kind-tagged keys\ncan match is not decidable at compile time.",
+          "properties": {
+            "UndecidableJoinKey": {
+              "properties": {
+                "col_type": {
+                  "description": "The catalog's own type string.",
+                  "type": "string"
+                },
+                "column": {
+                  "description": "The column name.",
+                  "type": "string"
+                },
+                "node": {
+                  "description": "The join node's id.",
+                  "type": "string"
+                },
+                "side": {
+                  "description": "Which side the column is on.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "node",
+                "side",
+                "column",
+                "col_type"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UndecidableJoinKey"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A regular expression is not provably identical between Rust's `regex` crate (the\nextractor) and RE2 (`DuckDB`).",
+          "properties": {
+            "UnportableRegex": {
+              "properties": {
+                "detail": {
+                  "description": "Which construct made it unportable.",
+                  "type": "string"
+                },
+                "pattern": {
+                  "description": "The pattern.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pattern",
+                "detail"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnportableRegex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A regular expression does not compile at all.",
+          "properties": {
+            "InvalidRegex": {
+              "properties": {
+                "message": {
+                  "description": "The compiler's message.",
+                  "type": "string"
+                },
+                "pattern": {
+                  "description": "The pattern.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pattern",
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "InvalidRegex"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A `Template` has an unterminated or empty placeholder, which makes it `None` for every\nrow.",
+          "properties": {
+            "InvalidTemplate": {
+              "properties": {
+                "reason": {
+                  "description": "What is wrong with it.",
+                  "type": "string"
+                },
+                "template": {
+                  "description": "The template text.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "template",
+                "reason"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "InvalidTemplate"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An attribute's declared type is not the source column's kind, and the coercion\n`attribute_value` applies is not one a typed SQL column can reproduce -- its fallback on\nfailure is the cell's own natural value, which has a different type.",
+          "properties": {
+            "AttributeCoercion": {
+              "properties": {
+                "attribute": {
+                  "description": "The attribute name.",
+                  "type": "string"
+                },
+                "col_type": {
+                  "description": "The catalog's own type string.",
+                  "type": "string"
+                },
+                "column": {
+                  "description": "The source column.",
+                  "type": "string"
+                },
+                "declared": {
+                  "description": "The declared OCEL attribute type.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "attribute",
+                "column",
+                "col_type",
+                "declared"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "AttributeCoercion"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A mapping whose type name comes from the data declares an attribute that another mapping\ndeclares under a different type. A statically-named type has its declarations reconciled\nbefore the first row; a data-named one declares lazily, one row at a time, so which type\nwins depends on row order.",
+          "properties": {
+            "DynamicTypeAttributeConflict": {
+              "properties": {
+                "attribute": {
+                  "description": "The attribute name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "attribute"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "DynamicTypeAttributeConflict"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The requested [`EmissionShape`] is not implemented.",
+          "properties": {
+            "UnsupportedEmissionShape": {
+              "properties": {
+                "shape": {
+                  "description": "The shape asked for.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "shape"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnsupportedEmissionShape"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A relation view's dependencies on other relation views form a cycle, so no order exists\nin which its `CREATE VIEW` (or CTE, or `CREATE TABLE ... AS`) could run. Not reachable\nfrom a [`validate`](super::validate)d blueprint -- see the note on\n[`CompiledOcel::relations`] -- so this only guards a blueprint fed to [`compile`]\nunvalidated.",
+          "properties": {
+            "ViewCycle": {
+              "properties": {
+                "view": {
+                  "description": "The relation's name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "view"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ViewCycle"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The blueprint does not [`validate`](super::validate::validate) against the catalog, so\nnothing was compiled at all. One per [`ValidationError`](super::validate::ValidationError),\nrendered through its `Display`: that type is not `Deserialize`, and neither is this enum,\nso carrying it structurally would buy nothing a caller could read back.",
+          "properties": {
+            "Invalid": {
+              "properties": {
+                "detail": {
+                  "description": "The rendered validation error.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "detail"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Invalid"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SinkError": {
+      "description": "Why an [`ExtractionSink`] call failed.\n\nSerializable but not deserializable: [`SinkError::UnknownType`] carries a `&'static str` (a\nborrow no deserializer can manufacture), so this only ever crosses a bindings boundary\noutbound, nested inside [`ExtractionError::Sink`](super::report::ExtractionError::Sink).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "[`ExtractionSink::add_event`] was called with an id already present.",
+          "properties": {
+            "DuplicateEvent": {
+              "properties": {
+                "id": {
+                  "description": "The repeated id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "DuplicateEvent"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "[`ExtractionSink::add_object`] was called with an id already present.",
+          "properties": {
+            "DuplicateObject": {
+              "properties": {
+                "id": {
+                  "description": "The repeated id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "DuplicateObject"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "[`ExtractionSink::add_object`] was called for `id`, but `id` is already present under a\n*different* object type -- only reachable under\n[`IdRendering::Raw`](super::blueprint::IdRendering::Raw). Distinguished from\n[`SinkError::DuplicateObject`] because the two must not be handled alike: a plain repeat\nmeans \"the id already exists, append to it\", while this means two distinct entities\ncollided on one id. A sink that cannot tell the two apart at\n[`resolve_object`](ExtractionSink::resolve_object) time -- because it defers, and\ntherefore never answers `Missing` for a type mismatch the way an eager sink's `resolve_object`\ndoes -- returns this from `add_object` instead, once the attempted insert makes the\nmismatch unambiguous.",
+          "properties": {
+            "IdTypeCollision": {
+              "properties": {
+                "id": {
+                  "description": "The contested id.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "IdTypeCollision"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "An entity was added, or a relation named an endpoint, under a type that was never\ndeclared via [`ExtractionSink::declare_event_type`] / [`declare_object_type`](ExtractionSink::declare_object_type).",
+          "properties": {
+            "UnknownType": {
+              "properties": {
+                "kind": {
+                  "description": "`\"event\"` or `\"object\"`.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "The undeclared type name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "UnknownType"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "InvalidRef",
+          "description": "A relation named a ref this sink instance did not itself hand out. Defensive: does not\nhappen through [`extract`](super::extract::extract), which only ever passes back a ref\nthis same sink returned.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The backend failed (I/O, driver error). Carries the backend's message rather than its\noriginal error type, so this type stays independent of any particular sink.",
+          "properties": {
+            "Backend": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "Backend"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SplitKind": {
+      "description": "The splitting rule of a [`SplitSpec`].",
+      "oneOf": [
+        {
+          "description": "Split on a literal separator.",
+          "properties": {
+            "delimiter": {
+              "description": "The separator.",
+              "type": "string"
+            },
+            "type": {
+              "const": "delimiter",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "delimiter"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Extract values with a regular expression.\n\nWith capture groups, every group of every match yields a value; without, each whole\nmatch does.",
+          "properties": {
+            "pattern": {
+              "description": "The pattern.",
+              "type": "string"
+            },
+            "type": {
+              "const": "regex",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pattern"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SplitSpec": {
+      "description": "How to split one cell into several values.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SplitKind",
+          "description": "The splitting rule."
+        },
+        "trim": {
+          "description": "Trim surrounding whitespace from each part.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "trim"
+      ],
+      "type": "object"
+    },
+    "SqlDialect": {
+      "description": "Which SQL engine the emitted statements target.\n\nOnly `DuckDB` is implemented. The enum exists so the compiler never hard-codes one engine's\nspelling: every quote, cast and function name in the emitted SQL comes from a method here.",
+      "oneOf": [
+        {
+          "const": "DuckDb",
+          "description": "`DuckDB`, the engine the differential tests run against.",
+          "type": "string"
+        }
+      ]
+    },
+    "TableSchema": {
+      "description": "One table's declared shape.",
+      "properties": {
+        "columns": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ColumnSchema"
+          },
+          "description": "Columns, keyed by name.",
+          "type": "object"
+        },
+        "name": {
+          "description": "Table name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "columns"
+      ],
+      "type": "object"
+    },
+    "Target": {
+      "description": "What a mapping produces from a row.",
+      "oneOf": [
+        {
+          "description": "An event.",
+          "properties": {
+            "attributes": {
+              "default": [],
+              "description": "Event attributes.",
+              "items": {
+                "$ref": "#/$defs/AttributeMapping"
+              },
+              "type": "array"
+            },
+            "event_type": {
+              "$ref": "#/$defs/ValueExpression",
+              "description": "Event type."
+            },
+            "id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ValueExpression"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Event id. `None` assigns a UUID, which is not reproducible across runs and cannot\nbe compiled to a view."
+            },
+            "objects": {
+              "default": [],
+              "description": "Objects related to this event.",
+              "items": {
+                "$ref": "#/$defs/InlineObjectRef"
+              },
+              "type": "array"
+            },
+            "timestamp": {
+              "$ref": "#/$defs/TimestampSource",
+              "description": "When it happened."
+            },
+            "type": {
+              "const": "event",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "event_type",
+            "timestamp"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "An object.",
+          "properties": {
+            "attributes": {
+              "default": [],
+              "description": "Object attributes.",
+              "items": {
+                "$ref": "#/$defs/AttributeMapping"
+              },
+              "type": "array"
+            },
+            "id": {
+              "$ref": "#/$defs/ValueExpression",
+              "description": "Object id."
+            },
+            "object_type": {
+              "$ref": "#/$defs/ValueExpression",
+              "description": "Object type."
+            },
+            "timestamp": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TimestampSource"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "When the attribute values below were observed. `None` records them as static\nvalues stamped at the Unix epoch."
+            },
+            "type": {
+              "const": "object",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "object_type",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "An event-to-object relation.",
+          "properties": {
+            "event": {
+              "$ref": "#/$defs/EventEndpoint",
+              "description": "The event."
+            },
+            "object": {
+              "$ref": "#/$defs/ObjectEndpoint",
+              "description": "The object."
+            },
+            "qualifier": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ValueExpression"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Relation qualifier."
+            },
+            "type": {
+              "const": "e2o",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "event",
+            "object"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "An object-to-object relation.",
+          "properties": {
+            "qualifier": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ValueExpression"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Relation qualifier."
+            },
+            "source": {
+              "$ref": "#/$defs/ObjectEndpoint",
+              "description": "The source object."
+            },
+            "target": {
+              "$ref": "#/$defs/ObjectEndpoint",
+              "description": "The target object."
+            },
+            "type": {
+              "const": "o2o",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source",
+            "target"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TimestampFormat": {
+      "description": "How to interpret a timestamp value.",
+      "oneOf": [
+        {
+          "description": "Try a cascade of common formats, most specific first.",
+          "properties": {
+            "type": {
+              "const": "auto",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A `chrono` format string.",
+          "properties": {
+            "format": {
+              "description": "The format.",
+              "type": "string"
+            },
+            "type": {
+              "const": "format-string",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "format"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Seconds since the Unix epoch.",
+          "properties": {
+            "type": {
+              "const": "unix-seconds",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Milliseconds since the Unix epoch.",
+          "properties": {
+            "type": {
+              "const": "unix-millis",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TimestampSource": {
+      "description": "Where an entity's timestamp comes from.",
+      "oneOf": [
+        {
+          "description": "One column.",
+          "properties": {
+            "column": {
+              "description": "Column name.",
+              "type": "string"
+            },
+            "format": {
+              "$ref": "#/$defs/TimestampFormat",
+              "description": "How to interpret it."
+            },
+            "type": {
+              "const": "column",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "column",
+            "format"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Separate date and time columns, combined.\n\nRequired by schemas that split them: `ERPNext`'s `posting_date` plus `posting_time`,\nand SAP `CDHDR`'s `UDATE` plus `UTIME`.",
+          "properties": {
+            "date_column": {
+              "description": "Column holding the date, if any.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "time_column": {
+              "description": "Column holding the time, if any.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "components",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A fixed instant, for entities whose source has no timestamp.",
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/TimestampFormat",
+              "description": "How to interpret it."
+            },
+            "type": {
+              "const": "constant",
+              "type": "string"
+            },
+            "value": {
+              "description": "The value.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value",
+            "format"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ValidationError": {
+      "description": "A reason a blueprint cannot be executed or compiled.",
+      "oneOf": [
+        {
+          "description": "The blueprint's `version` is newer than this build understands.",
+          "properties": {
+            "found": {
+              "description": "The blueprint's version.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "supported": {
+              "description": "The newest version this build reads.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": {
+              "const": "unsupported-version",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "found",
+            "supported"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Two nodes share an id.",
+          "properties": {
+            "id": {
+              "description": "The repeated id.",
+              "type": "string"
+            },
+            "type": {
+              "const": "duplicate-node-id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A node or mapping names a node that does not exist.",
+          "properties": {
+            "from": {
+              "description": "Who referred to it.",
+              "type": "string"
+            },
+            "id": {
+              "description": "The missing id.",
+              "type": "string"
+            },
+            "type": {
+              "const": "unknown-node-ref",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "from",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The node graph contains a cycle, so no evaluation order exists.",
+          "properties": {
+            "id": {
+              "description": "One node id participating in the cycle.",
+              "type": "string"
+            },
+            "type": {
+              "const": "node-cycle",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A source node names a source with no entry in the catalog.",
+          "properties": {
+            "source_id": {
+              "description": "The source id.",
+              "type": "string"
+            },
+            "type": {
+              "const": "unknown-source",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source_id"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A source node names a table with no schema in the catalog.",
+          "properties": {
+            "source_id": {
+              "description": "The source id.",
+              "type": "string"
+            },
+            "table": {
+              "description": "The table name.",
+              "type": "string"
+            },
+            "type": {
+              "const": "unknown-table",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source_id",
+            "table"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "An expression reads a column absent from the declared schema.",
+          "properties": {
+            "column": {
+              "description": "The column name.",
+              "type": "string"
+            },
+            "node": {
+              "description": "The node whose rows were being read.",
+              "type": "string"
+            },
+            "type": {
+              "const": "unknown-column",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node",
+            "column"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Type prefixing is on, but a relation endpoint does not declare its type.",
+          "properties": {
+            "endpoint": {
+              "description": "Which endpoint.",
+              "type": "string"
+            },
+            "mapping": {
+              "description": "Which mapping, by label or index.",
+              "type": "string"
+            },
+            "type": {
+              "const": "missing-type-for-prefixing",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "mapping",
+            "endpoint"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Missing endpoints are created, but an object endpoint does not declare its type.",
+          "properties": {
+            "endpoint": {
+              "description": "Which endpoint.",
+              "type": "string"
+            },
+            "mapping": {
+              "description": "Which mapping, by label or index.",
+              "type": "string"
+            },
+            "type": {
+              "const": "missing-type-for-create",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "mapping",
+            "endpoint"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A union has no inputs, so it has no columns to project.",
+          "properties": {
+            "node": {
+              "description": "The node id.",
+              "type": "string"
+            },
+            "type": {
+              "const": "empty-union",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A regular expression does not compile.",
+          "properties": {
+            "message": {
+              "description": "The compiler's message.",
+              "type": "string"
+            },
+            "pattern": {
+              "description": "The pattern.",
+              "type": "string"
+            },
+            "type": {
+              "const": "invalid-regex",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pattern",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A `Template` expression has a placeholder that is unterminated or empty, either of which\ndrops every row instead of the intended substitution.",
+          "properties": {
+            "reason": {
+              "description": "What is wrong with it.",
+              "type": "string"
+            },
+            "template": {
+              "description": "The template text.",
+              "type": "string"
+            },
+            "type": {
+              "const": "invalid-template",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "template",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ValueExpression": {
+      "description": "Produces one text value from a row.\n\nEvery position that becomes an identity -- entity ids, relation endpoints, type names,\nqualifiers -- uses this, and every variant propagates absence: if any input has no\n[`Value::canonical_string`], the whole expression is `None` and the caller drops the row.",
+      "oneOf": [
+        {
+          "description": "The value in a column.",
+          "properties": {
+            "column": {
+              "description": "Column name.",
+              "type": "string"
+            },
+            "type": {
+              "const": "column",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "column"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A fixed string.",
+          "properties": {
+            "type": {
+              "const": "constant",
+              "type": "string"
+            },
+            "value": {
+              "description": "The value.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Text with `{column}` placeholders, for example `ORD-{order_id}-{region}`.",
+          "properties": {
+            "template": {
+              "description": "The template.",
+              "type": "string"
+            },
+            "type": {
+              "const": "template",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "template"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The first part that produces a value.",
+          "properties": {
+            "parts": {
+              "description": "Parts, tried in order.",
+              "items": {
+                "$ref": "#/$defs/ValueExpression"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "coalesce",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "parts"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ViewDef": {
+      "description": "One compiled relation: a name and the bare `SELECT` that defines it.",
+      "properties": {
+        "body": {
+          "description": "A bare `SELECT` body with no `CREATE` wrapper, so the same text serves a view, a CTE and\na `CREATE TABLE AS`.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The relation's name, unquoted.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "body"
+      ],
+      "type": "object"
+    }
+  },
+  "roots": {
+    "AttributeMapping": {
+      "$ref": "#/$defs/AttributeMapping"
+    },
+    "Blueprint": {
+      "$ref": "#/$defs/Blueprint"
+    },
+    "ColumnSchema": {
+      "$ref": "#/$defs/ColumnSchema"
+    },
+    "CompareOp": {
+      "$ref": "#/$defs/CompareOp"
+    },
+    "CompileError": {
+      "$ref": "#/$defs/CompileError"
+    },
+    "CompiledOcel": {
+      "$ref": "#/$defs/CompiledOcel"
+    },
+    "DropReason": {
+      "$ref": "#/$defs/DropReason"
+    },
+    "DuplicateObjectPolicy": {
+      "$ref": "#/$defs/DuplicateObjectPolicy"
+    },
+    "EmissionShape": {
+      "$ref": "#/$defs/EmissionShape"
+    },
+    "EventEndpoint": {
+      "$ref": "#/$defs/EventEndpoint"
+    },
+    "ExtractionCatalog": {
+      "$ref": "#/$defs/ExtractionCatalog"
+    },
+    "ExtractionError": {
+      "$ref": "#/$defs/ExtractionError"
+    },
+    "ExtractionReport": {
+      "$ref": "#/$defs/ExtractionReport"
+    },
+    "ExtractionTiming": {
+      "$ref": "#/$defs/ExtractionTiming"
+    },
+    "FinalizeReport": {
+      "$ref": "#/$defs/FinalizeReport"
+    },
+    "IdRendering": {
+      "$ref": "#/$defs/IdRendering"
+    },
+    "InlineObjectRef": {
+      "$ref": "#/$defs/InlineObjectRef"
+    },
+    "Literal": {
+      "$ref": "#/$defs/Literal"
+    },
+    "Mapping": {
+      "$ref": "#/$defs/Mapping"
+    },
+    "MappingEntry": {
+      "$ref": "#/$defs/MappingEntry"
+    },
+    "MappingRef": {
+      "$ref": "#/$defs/MappingRef"
+    },
+    "MappingStats": {
+      "$ref": "#/$defs/MappingStats"
+    },
+    "MissingEndpointPolicy": {
+      "$ref": "#/$defs/MissingEndpointPolicy"
+    },
+    "Node": {
+      "$ref": "#/$defs/Node"
+    },
+    "NodeOp": {
+      "$ref": "#/$defs/NodeOp"
+    },
+    "OCELAttributeType": {
+      "$ref": "#/$defs/OCELAttributeType"
+    },
+    "ObjectEndpoint": {
+      "$ref": "#/$defs/ObjectEndpoint"
+    },
+    "Operand": {
+      "$ref": "#/$defs/Operand"
+    },
+    "Predicate": {
+      "$ref": "#/$defs/Predicate"
+    },
+    "Probe": {
+      "$ref": "#/$defs/Probe"
+    },
+    "ProbeKind": {
+      "$ref": "#/$defs/ProbeKind"
+    },
+    "ProviderError": {
+      "$ref": "#/$defs/ProviderError"
+    },
+    "RejectReason": {
+      "$ref": "#/$defs/RejectReason"
+    },
+    "SinkError": {
+      "$ref": "#/$defs/SinkError"
+    },
+    "SplitKind": {
+      "$ref": "#/$defs/SplitKind"
+    },
+    "SplitSpec": {
+      "$ref": "#/$defs/SplitSpec"
+    },
+    "SqlDialect": {
+      "$ref": "#/$defs/SqlDialect"
+    },
+    "TableSchema": {
+      "$ref": "#/$defs/TableSchema"
+    },
+    "Target": {
+      "$ref": "#/$defs/Target"
+    },
+    "TimestampFormat": {
+      "$ref": "#/$defs/TimestampFormat"
+    },
+    "TimestampSource": {
+      "$ref": "#/$defs/TimestampSource"
+    },
+    "ValidationError": {
+      "$ref": "#/$defs/ValidationError"
+    },
+    "ValueExpression": {
+      "$ref": "#/$defs/ValueExpression"
+    },
+    "ViewDef": {
+      "$ref": "#/$defs/ViewDef"
+    }
+  }
+}

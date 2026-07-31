@@ -95,6 +95,14 @@ export interface BackendContext {
 
   loadItem(id: string, kind: string, data: Uint8Array, format: string): Promise<void>;
   exportObject(name: string, format: string): Promise<Uint8Array>;
+  /**
+   * Desktop-only (tauri): write the export straight to `path`. Absent on wasm/http, so callers
+   * must feature-detect and fall back to {@link BackendContext.exportObject}.
+   *
+   * `format` is passed explicitly because a path need not carry it: the OCEL 2.0 bundled format's
+   * uncompressed form is a directory. This also keeps a large log out of the IPC boundary.
+   */
+  exportObjectToPath?(name: string, format: string, path: string): Promise<void>;
   unloadObject(name: string): Promise<void>;
   /** Set (or, with an empty string, clear) an object's user-facing display label; persists engine-side. */
   setLabel(id: string, label: string): Promise<void>;

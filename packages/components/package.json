@@ -33,11 +33,13 @@
     "./process-tree/editor.css": "./src/process-tree/editor/editor.css",
     "./charts": "./src/charts/index.ts",
     "./elk-layout": "./src/elk-layout/index.ts",
+    "./extraction-blueprint": "./src/extraction-blueprint/index.tsx",
     "./rust-layout/wasm": "./src/rust-layout/wasm.ts",
     "./rust-layout/viz_layout_wasm_bg.wasm": "./src/rust-layout/pkg/viz_layout_wasm_bg.wasm"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "codegen:extraction-blueprint": "node scripts/gen-extraction-blueprint-types.mjs",
     "docs:types": "node scripts/gen-data-types-doc.mjs && node scripts/gen-component-types-doc.mjs",
     "dev": "storybook dev -p 6006 --no-open",
     "showcase": "storybook build",
@@ -68,6 +70,7 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@types/react-plotly.js": "^2.6.3",
+    "json-schema-to-typescript": "^15.0.0",
     "plotly.js": "^2.35.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
@@ -106,6 +109,10 @@
       "./elk-layout": {
         "types": "./dist/elk-layout/index.d.ts",
         "import": "./dist/elk-layout/index.js"
+      },
+      "./extraction-blueprint": {
+        "types": "./dist/extraction-blueprint/index.d.ts",
+        "import": "./dist/extraction-blueprint/index.js"
       },
       "./rust-layout/wasm": {
         "types": "./dist/rust-layout/wasm.d.ts",

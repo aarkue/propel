@@ -43,6 +43,8 @@
           "xml.gz",
           "ocel.csv",
           "ocel.csv.gz",
+          "ocel.zip",
+          "ocel-parquet.zip",
           "sqlite"
         ],
         "name": "OCEL file",
@@ -58,6 +60,18 @@
         "name": "EventLog file",
         "description": "EventLog file",
         "mimeType": "application/xml",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "sqlite3",
+          "db",
+          "csv",
+          "parquet"
+        ],
+        "name": "TabularSource file",
+        "description": "TabularSource file",
+        "mimeType": "application/vnd.sqlite3",
         "role": "Editor"
       },
       {

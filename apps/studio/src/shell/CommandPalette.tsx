@@ -14,10 +14,10 @@ import {
   PiSun,
   PiTrash,
 } from "react-icons/pi";
-import toast from "react-hot-toast";
 import { useDatasets } from "../stores";
 import { exportFormatsFor } from "@r4pm/client";
 import { backend } from "../backends";
+import { exportDataset } from "./export-dataset";
 import { unloadDataset } from "../persistence/session";
 import { addPanelToDockview, VISIBLE_PANELS } from "../panels/registry";
 import { useImport } from "./import-context";
@@ -99,15 +99,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     [queryClient],
   );
 
-  const exportObject = useCallback(async (id: string, ext: string, mime: string) => {
-    try {
-      const bytes = await backend.exportObject(id, ext);
-      await backend.saveBytes(bytes, `${id}.${ext}`, mime);
-    } catch (e) {
-      toast.error(`Export failed: ${String(e)}`);
-    }
-  }, []);
-
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [];
 
@@ -162,7 +153,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           icon: PiFileArrowDown,
           keywords: [f.ext, "download"],
           run: () => {
-            exportObject(d.id, f.ext, f.mime);
+            void exportDataset(d.id, f.ext, f.mime);
             onClose();
           },
         });
@@ -224,7 +215,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     unload,
     onClose,
     toggleTheme,
-    exportObject,
   ]);
 
   const ranked = useMemo(

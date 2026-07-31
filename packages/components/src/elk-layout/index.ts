@@ -1,4 +1,5 @@
 // opt-in ELK (elkjs) layout engine bundle; loads lazily, tree-shaken for consumers that never import it
+import { layoutBlueprintGraph } from "../extraction-blueprint/elk-layout";
 import { elkDeclareLayout } from "../oc-declare/elk-declare-layout";
 import { layoutTypeGraph } from "../ocel-type-graph/elk-layout";
 import { elkLayoutPetriNet } from "../petri/editor/helpers/elk-layout-graph";
@@ -13,6 +14,7 @@ export {
   elkLayoutPetriNet,
   elkLayoutProcessTree,
   layoutTypeGraph,
+  layoutBlueprintGraph,
 };
 
 /** Ready ELK `LayoutEngine` covering every graph surface. Pure JS (no backend, no wasm); good default.
@@ -24,4 +26,5 @@ export const elkLayout: LayoutEngine = {
   petri: elkLayoutPetriNet,
   processTree: elkLayoutProcessTree,
   typeGraph: layoutTypeGraph,
+  blueprint: layoutBlueprintGraph,
 };

@@ -10,7 +10,16 @@ import {
 } from "../stores";
 import type { ItemKindInfo } from "@r4pm/client";
 import { backend } from "../backends";
-import { candidateKinds, formatsForKind, type ImportCandidate, importFileAs } from "../data-import";
+import { addPanelToDockview } from "../panels/registry";
+import {
+  candidateKinds,
+  importFileAsSource,
+  formatsForKind,
+  TABULAR_SOURCE_KIND,
+  type ImportCandidate,
+  importFileAs,
+} from "../data-import";
+import { connectionStringForPath, isExtractionSource, isExtractionSourceFile } from "../extraction-sources";
 import { IO_KINDS, ioKindByName } from "../io-kinds";
 import { openOutputAsPanel } from "../panels/pipeline-bridge";
 import { loadArtifactCached } from "../persistence/session";
@@ -72,6 +81,12 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   const importableKinds = useMemo<ItemKindInfo[]>(() => {
     const registry = (kindsQuery.data ?? [])
       .filter((k) => k.import_formats.length > 0)
+      // `TabularSource` is never a dataset: it holds the bytes an extraction reads, has no viewer
+      // and no export format, and its own affordance is the picker's "As a data source" column.
+      // Listing it here would put a raw kind name in the Import menu, in the command palette and
+      // beside the real kinds in the picker -- and would turn a bare `.db` drop, which used to open
+      // a blueprint outright, into a one-option dialog.
+      .filter((k) => k.kind !== TABULAR_SOURCE_KIND)
       // Hide advanced/internal kinds (raw OCEL, IndexLinkedOCEL, activity projection) unless the expert toggle is on.
       .filter((k) => showExpertKinds || !EXPERT_IMPORT_KINDS.includes(k.kind))
       // Also drop per-kind expert formats (e.g. EventLog's `.json`).
@@ -120,20 +135,65 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
+  /** Open a blueprint panel already pointed at `src` as its one source. */
+  const openAsSource = useCallback((sourceId: string, connection: string) => {
+    addPanelToDockview("extraction-blueprint", undefined, {
+      connections: { [sourceId]: connection },
+    });
+  }, []);
+
+  /** A native path: the extractor opens the file where it lies. */
+  const openPathAsSource = useCallback(
+    (path: string) => {
+      const connection = connectionStringForPath(path);
+      if (!connection) return;
+      const sourceId = (path.split(/[\\/]/).pop() ?? "source").replace(/\.[^.]*$/, "") || "source";
+      openAsSource(sourceId, connection);
+    },
+    [openAsSource],
+  );
+
+  /** A browser `File` has no path, so its bytes are imported and read from the registry. */
+  const openFileAsSource = useCallback(
+    (file: File) => {
+      void (async () => {
+        try {
+          const { sourceId, connection } = await importFileAsSource(backend, file);
+          openAsSource(sourceId, connection);
+        } catch (e) {
+          toast.error(`Could not read "${file.name}": ${String(e)}`);
+        }
+      })();
+    },
+    [openAsSource],
+  );
+
   const handleDroppedFile = useCallback(
     (file: File) => {
       const cands = candidateKinds(importableKinds, file.name);
-      if (cands.length === 0) {
-        toast.error(`Unsupported file "${file.name}".`);
+      // Narrower than the path route's `isExtractionSource`: a `File` has only bytes, and only the
+      // SQLite family can be read back from memory. Offering "as a data source" for a dropped csv
+      // would open a blueprint that can never discover a catalog.
+      const asSource = isExtractionSourceFile(file.name);
+      if (cands.length === 0 && !asSource) {
+        toast.error(
+          isExtractionSource(file.name)
+            ? `"${file.name}" can only be opened from a file path, which a browser drop does not carry.`
+            : `Unsupported file "${file.name}".`,
+        );
         return;
       }
-      if (cands.length === 1) {
+      if (cands.length === 0 && asSource) {
+        openFileAsSource(file);
+        return;
+      }
+      if (cands.length === 1 && !asSource) {
         runImport(file, cands[0].kind, cands[0].ext);
         return;
       }
       setPicker({ name: file.name, candidates: cands, source: { kind: "file", file } });
     },
-    [importableKinds, runImport],
+    [importableKinds, runImport, openFileAsSource],
   );
 
   // Native path-import (desktop): dispatch by kind. io-kind -> engine artifact store + viewer;
@@ -165,17 +225,24 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     (path: string) => {
       const name = path.split(/[\\/]/).pop() ?? path;
       const cands = candidateKinds(importableKinds, name);
-      if (cands.length === 0) {
+      // A `.sqlite`/`.csv`/`.parquet` is legitimately both a finished log and the data one is
+      // built from, and nothing in the filename says which. Ask, rather than pick.
+      const asSource = isExtractionSource(name);
+      if (cands.length === 0 && !asSource) {
         toast.error(`Unsupported file "${name}".`);
         return;
       }
-      if (cands.length === 1) {
+      if (cands.length === 1 && !asSource) {
         void importPath(cands[0].kind, path);
+        return;
+      }
+      if (cands.length === 0 && asSource) {
+        openPathAsSource(path);
         return;
       }
       setPicker({ name, candidates: cands, source: { kind: "path", path } });
     },
-    [importableKinds, importPath],
+    [importableKinds, importPath, openPathAsSource],
   );
 
   const importKind = useCallback(
@@ -340,6 +407,20 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       <KindPickerDialog
         filename={picker?.name ?? null}
         candidates={picker?.candidates ?? []}
+        onPickSource={
+          // Each route has its own reach: a path goes through `dbcon` (csv/parquet included), a
+          // `File` goes through the registry (SQLite family only).
+          picker &&
+          (picker.source.kind === "path"
+            ? isExtractionSource(picker.name)
+            : isExtractionSourceFile(picker.name))
+            ? () => {
+                if (picker.source.kind === "path") openPathAsSource(picker.source.path);
+                else openFileAsSource(picker.source.file);
+                setPicker(null);
+              }
+            : undefined
+        }
         onPick={(c) => {
           if (picker) {
             if (picker.source.kind === "file") runImport(picker.source.file, c.kind, c.ext);

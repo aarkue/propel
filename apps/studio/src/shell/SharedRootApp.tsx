@@ -8,6 +8,7 @@ import { BackendReactContext } from "./backend-context";
 import { bootToDefault, getLastProject } from "../persistence/session";
 import { migrateLegacyPipelines } from "../stores/pipelines";
 import { BusyOverlay } from "./BusyOverlay";
+import { ExportContainerDialog } from "./export-dataset";
 import { RelinkDialog } from "./RelinkDialog";
 import { Dashboard } from "./Dashboard";
 import { EngineEvents } from "./EngineEvents";
@@ -72,6 +73,7 @@ function ThemedBody({ children }: { children: ReactNode }) {
       <Toaster position="bottom-right" />
       {children}
       <BusyOverlay />
+      <ExportContainerDialog />
     </Theme>
   );
 }

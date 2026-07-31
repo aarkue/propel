@@ -1,4 +1,5 @@
 import type { BackendContext, ItemKindInfo } from "@r4pm/client";
+import { SOURCE_ITEM_PREFIX, sourceItemFormat } from "./extraction-sources";
 import { loadItemCached } from "./persistence/session";
 
 /** A registry kind that can load a given file, with the import format (extension) that matched. */
@@ -84,4 +85,29 @@ export function loadTextItem(
   format: string,
 ): Promise<void> {
   return backend.loadItem(id, kind, new TextEncoder().encode(text), format);
+}
+
+/** The registry kind a file dropped *as data* is imported into. Its bytes stay in the engine and
+ *  an extraction reads them from there, which is the only route available where there is no
+ *  filesystem (wasm) or no path (a browser `File`). */
+export const TABULAR_SOURCE_KIND = "TabularSource";
+
+/**
+ * Import `file`'s bytes as a `TabularSource` and return the `connections` value naming it.
+ *
+ * Rejects a format the bytes route cannot read back, rather than storing a source that only fails
+ * once the editor asks it for a catalog -- see `sourceItemFormat`.
+ */
+export async function importFileAsSource(
+  backend: BackendContext,
+  file: File,
+): Promise<{ sourceId: string; connection: string }> {
+  const format = sourceItemFormat(file.name);
+  if (!format) {
+    throw new Error("this file cannot be read from memory; open it from a file path instead");
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const id = await uniqueId(backend, sanitizeId(file.name));
+  await backend.loadItem(id, TABULAR_SOURCE_KIND, bytes, format);
+  return { sourceId: sanitizeId(file.name), connection: `${SOURCE_ITEM_PREFIX}${id}` };
 }

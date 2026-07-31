@@ -21,8 +21,87 @@ const JSTS_OPTS = {
 const handleRefs = new Set();
 const namedRoots = []; // { schema, title }
 const titleToRoot = new Map(); // dedup identical types by schemars title
+const cyclicRegistering = new Set(); // guards eager cyclic-root registration against mutual cycles
 
 const sanitize = (s) => s.replace(/[^A-Za-z0-9_]/g, "_");
+
+// A def is "cyclic" if it can reach itself by following `$ref`s (direct or transitive) --
+// e.g. `Predicate`'s `And`/`Or` variants hold `Vec<Predicate>`. json-schema-to-typescript
+// (15.0.4) cannot compile a cyclic def *embedded inside a different root's own compile() call*:
+// re-deriving a self-recursive structure from within an unrelated ancestor's dereference pass
+// recurses without bound and blows the stack (confirmed empirically -- `Predicate` alone compiles
+// fine, `NodeOp` embedding a `$ref` to `Predicate` does not, even though `NodeOp` itself is not
+// recursive). It compiles a cyclic def fine as long as *that def is the root being compiled* --
+// so each cyclic def gets its own dedicated root (registered eagerly below), and every other
+// root sees it as an opaque named reference instead of re-expanding its structure.
+function findCyclicDefs(defs) {
+  if (!defs) return new Set();
+  const refsOf = new Map();
+  const collectRefs = (node, out) => {
+    if (!node || typeof node !== "object") return;
+    if (typeof node.$ref === "string") {
+      const m = node.$ref.match(/^#\/(?:\$defs|definitions)\/(.+)$/);
+      if (m) out.add(m[1]);
+      return; // sibling keys next to `$ref` are ignored per JSON Schema -- nothing else to walk
+    }
+    for (const v of Object.values(node)) {
+      if (Array.isArray(v)) {
+        for (const x of v) collectRefs(x, out);
+      } else {
+        collectRefs(v, out);
+      }
+    }
+  };
+  for (const name of Object.keys(defs)) {
+    const out = new Set();
+    collectRefs(defs[name], out);
+    refsOf.set(name, out);
+  }
+  const cyclic = new Set();
+  for (const start of refsOf.keys()) {
+    const seen = new Set();
+    const stack = [...refsOf.get(start)];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (cur === start) {
+        cyclic.add(start);
+        break;
+      }
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      for (const next of refsOf.get(cur) || []) stack.push(next);
+    }
+  }
+  return cyclic;
+}
+
+// Replace *every* cyclic def -- including the root being compiled itself, if it is one -- with an
+// opaque `tsType` leaf (json-schema-to-typescript's escape hatch: a schema with a `tsType` key is
+// emitted as that literal text, un-walked, never dereferenced). No `title` on the stub -- leaving
+// one would make json-schema-to-typescript treat it as *its own* standalone declaration site too
+// (`export type Predicate = Predicate;`, self-referential and invalid); the real declaration comes
+// only from the root's own top-level body (see `registerRoot`: `schema` itself keeps its real
+// `oneOf`/properties, only `schema.$defs[name]` -- what internal `$ref`s resolve *to* -- is stubbed).
+//
+// A cyclic def's *own* root is stubbed too (not just references reached from elsewhere): naively
+// keeping a genuine self-`$ref` real, so json-schema-to-typescript builds an actual circular object
+// reference and de-dereferences it, sounds right and works for an array-wrapped self-reference
+// (`conditions: Vec<Predicate>`) -- but @apidevtools/json-schema-ref-parser resolves a *scalar*
+// self-`$ref` (`Not { condition: Box<Predicate> }`) to a *different*, non-identical clone instead of
+// the same live object, so the two forms end up pointing at different (but structurally identical)
+// nodes and json-schema-to-typescript names them differently, leaking an unrenamed `RootTn`
+// placeholder for the scalar one (confirmed empirically: `and`/`or`'s array self-ref resolves
+// correctly, `not`'s scalar self-ref does not, in the exact same compile() call). Routing every
+// self-reference through the same opaque-name leaf, regardless of array/scalar shape, sidesteps
+// that inconsistency entirely rather than depending on a third-party resolver quirk.
+function pruneCyclicDefs(defs, cyclic) {
+  if (!defs || cyclic.size === 0) return defs;
+  const pruned = {};
+  for (const [name, value] of Object.entries(defs)) {
+    pruned[name] = cyclic.has(name) ? { tsType: sanitize(name) } : value;
+  }
+  return pruned;
+}
 
 // Roots are compiled under stable `RootT{n}` placeholders (json-schema-to-typescript
 // leaves these untouched, unlike titles which it normalizes). After generation we
@@ -30,9 +109,34 @@ const sanitize = (s) => s.replace(/[^A-Za-z0-9_]/g, "_");
 function registerRoot(schema, defs) {
   const title = schema.title;
   if (title && titleToRoot.has(title)) return titleToRoot.get(title);
+  const cyclic = findCyclicDefs(defs);
+  // Eagerly give every cyclic def its own root *before* this one is pushed, so if this root's
+  // own compile() output also (incorrectly) tries to declare a stubbed cyclic def, the real
+  // declaration is already in `declByName` first and wins the dedup in the merge step below.
+  // `cyclicRegistering` guards against two (transitively) mutually-cyclic defs -- e.g. A and B
+  // each reachable from the other -- re-triggering each other before either finishes registering
+  // (titleToRoot alone isn't set until the end of a call, which would otherwise ping-pong forever).
+  for (const name of cyclic) {
+    if (name !== title && defs[name] && !titleToRoot.has(name) && !cyclicRegistering.has(name)) {
+      cyclicRegistering.add(name);
+      // Same-object rule as in `tsType`'s `$ref` branch: no spread copy, or the cyclic def's own
+      // root stops being referentially identical to its `$defs` entry and the fix is defeated.
+      defs[name].title ??= name;
+      registerRoot(defs[name], defs);
+    }
+  }
   // Carry the ambient `$defs` so nested `$ref`s still resolve when this root is compiled
-  // in isolation (it may have been lifted out of an ancestor that owned the `$defs`).
-  const stored = defs && !schema.$defs ? { ...schema, $defs: defs } : schema;
+  // in isolation (it may have been lifted out of an ancestor that owned the `$defs`), with
+  // every *other* cyclic def opaqued out per the above. Always rebuild with the pruned table,
+  // even when `schema` already carries its own `$defs` (e.g. a top-level arg/return schema) --
+  // otherwise the unpruned original leaks through unchanged and the cyclic-def fix never applies.
+  const prunedDefs = defs && pruneCyclicDefs(defs, cyclic);
+  // Mutate in place rather than `{...schema, $defs: prunedDefs}`: when `schema` is itself a
+  // cyclic def's own `$defs` entry (the "keep" case above), spreading here would produce a new
+  // object no longer referentially identical to `prunedDefs[title]`, silently reintroducing the
+  // same duplicate-copy problem the same-object rule above exists to avoid.
+  if (prunedDefs) schema.$defs = prunedDefs;
+  const stored = schema;
   const name = `RootT${namedRoots.length}`;
   namedRoots.push({ schema: stored, title });
   if (title) titleToRoot.set(title, name);
@@ -54,7 +158,14 @@ function tsType(schema, defs) {
   // primitive newtypes (e.g. `ObjectIndex` = u32) inline to `number`.
   const ref = typeof schema.$ref === "string" && schema.$ref.match(/^#\/(?:\$defs|definitions)\/(.+)$/);
   if (ref && defs?.[ref[1]]) {
-    return tsType({ title: ref[1], ...defs[ref[1]] }, defs);
+    // Recurse on the *same* def object (never a `{...defs[ref[1]]}` spread copy): a self-recursive
+    // def (e.g. `Predicate`) reached both as another root's nested `$ref` and as its own dedicated
+    // compile root must stay referentially identical for json-schema-to-typescript's own `$ref`
+    // dereferencing to recognise the recursion as a cycle -- two structurally-identical-but-distinct
+    // copies re-derive each other without bound instead (confirmed empirically). `title` is set
+    // once, idempotently, directly on the shared def object rather than on a copy.
+    defs[ref[1]].title ??= ref[1];
+    return tsType(defs[ref[1]], defs);
   }
   const t = schema.type;
   if (t === "integer" || t === "number") return "number";
@@ -105,14 +216,32 @@ for (let idx = 0; idx < namedRoots.length; idx++) {
   const name = `RootT${idx}`;
   let out;
   try {
-    out = await compile({ ...normalizeDefs(namedRoots[idx].schema), title: name }, name, JSTS_OPTS);
+    // Mutate the (already-fresh, per-call) normalized root in place rather than spreading a
+    // `{...normalized, title: name}` wrapper around it: for a cyclic def, `normalizeDefs`
+    // preserves the self-reference as a genuine `normalized === normalized.definitions[X]` JS
+    // cycle (see its own comment), and a further shallow copy here would immediately undo that
+    // by making the compiled root a distinct object from its own `$defs` entry again.
+    const normalized = normalizeDefs(namedRoots[idx].schema);
+    normalized.title = name;
+    out = await compile(normalized, name, JSTS_OPTS);
   } catch (e) {
     out = `export type ${name} = unknown; // compile failed: ${e.message}`;
     failures.push({ name, title: namedRoots[idx].title, error: e.message });
   }
   for (const block of out.split(/\n(?=export )/)) {
     const mm = block.match(declRe);
-    if (mm && !declByName.has(mm[1])) declByName.set(mm[1], block.trim());
+    if (!mm) continue;
+    // A cyclic def's `tsType` stub (see `pruneCyclicDefs`) can still surface as a bogus
+    // self-alias when some *other* root's compile() reaches it -- e.g. `export type Predicate =
+    // Predicate;`. Never valid TypeScript; drop it regardless of merge order rather than relying
+    // solely on the eager-registration ordering in `registerRoot` to pre-empt it. Anchored at the
+    // start only (not the whole block): jsts joins consecutive named-type declarations within one
+    // compile() call with a single `\n` when there's no blank-line separator, so this block can
+    // carry a trailing, unrelated declaration's orphaned leading comment after the alias line --
+    // dropping the whole block is still correct (that comment's declaration starts its own chunk
+    // elsewhere, split at the next `\nexport `, and is unaffected).
+    if (new RegExp(`^export type ${mm[1]} = ${mm[1]}\\b`).test(block.trim())) continue;
+    if (!declByName.has(mm[1])) declByName.set(mm[1], block.trim());
   }
 }
 

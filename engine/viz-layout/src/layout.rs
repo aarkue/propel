@@ -1331,7 +1331,13 @@ fn priority_compact(
     // 3. Per-node refinement: slide each node toward its neighbour median, clamped to its same-layer
     // neighbours' separation so the packed width is preserved (dummies first -> straight long lanes).
     let prio: Vec<u64> = (0..n)
-        .map(|v| if is_dummy[v] { u64::MAX } else { nbr[v].len() as u64 })
+        .map(|v| {
+            if is_dummy[v] {
+                u64::MAX
+            } else {
+                nbr[v].len() as u64
+            }
+        })
         .collect();
     for p in 0..8 {
         let order: Vec<usize> = if p % 2 == 0 {
@@ -1361,7 +1367,8 @@ fn priority_compact(
                 if lo > hi {
                     continue;
                 }
-                let mut samples: Vec<(f64, f64)> = nbr[v].iter().map(|&(u, w)| (cy[u], w)).collect();
+                let mut samples: Vec<(f64, f64)> =
+                    nbr[v].iter().map(|&(u, w)| (cy[u], w)).collect();
                 cy[v] = weighted_median(&mut samples).clamp(lo, hi);
             }
         }
@@ -3984,7 +3991,16 @@ fn layout_layered_inner(input: &LayeredInput) -> LayeredOutput {
     // Compact placement runs last, so no earlier pass (Brandes-Kopf, the flow channel pull-in, or
     // terminal centring) can re-expand it. Order-preserving, so crossings hold.
     if input.compact {
-        priority_compact(&layers, &g, &arc_weight, &ow, &is_dummy, node_gap, &clear, &mut cy);
+        priority_compact(
+            &layers,
+            &g,
+            &arc_weight,
+            &ow,
+            &is_dummy,
+            node_gap,
+            &clear,
+            &mut cy,
+        );
     }
 
     let boxes = Boxes {

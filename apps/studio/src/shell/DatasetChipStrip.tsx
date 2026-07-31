@@ -2,11 +2,11 @@ import { Popover, Spinner } from "@r4pm/components/ui";
 import type { Provenance } from "@r4pm/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import toast from "react-hot-toast";
 import { PiCaretDown, PiFileArrowDown, PiFlowArrow, PiTrash } from "react-icons/pi";
 import { useDatasets } from "../stores";
 import { exportFormatsFor } from "@r4pm/client";
 import { backend } from "../backends";
+import { exportDataset } from "./export-dataset";
 import { unloadDataset } from "../persistence/session";
 import { sendToPipeline } from "../panels/pipeline-bridge";
 import { ChipAction, ChipStrip, EntityChip, ExportLineageChipAction } from "./chips";
@@ -61,12 +61,7 @@ function DatasetChip({
   const runExport = async (ext: string, mime: string, close: () => void) => {
     setFormatMenuOpen(false);
     close();
-    try {
-      const bytes = await backend.exportObject(id, ext);
-      await backend.saveBytes(bytes, `${id}.${ext}`, mime);
-    } catch (e) {
-      toast.error(`Export failed: ${String(e)}`);
-    }
+    await exportDataset(id, ext, mime);
   };
 
   return (

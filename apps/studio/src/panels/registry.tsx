@@ -52,14 +52,25 @@ export const VISIBLE_PANELS = PANEL_REGISTRY.filter((p) => !p.hidden);
  * (TopBar "Add panel", gallery, command palette, empty-state) so new entry
  * points need no extra wiring.
  */
-export function addPanelToDockview(type: string, title?: string) {
+export function addPanelToDockview(
+  type: string,
+  title?: string,
+  /** Initial dockview params, read back by `usePanelState`/`usePanelDraft` -- how a panel can be
+   *  opened already pointed at something, e.g. a blueprint with a connection filled in. */
+  params?: Record<string, unknown>,
+) {
   const api = getDockviewApi();
   if (!api) {
     console.warn(`addPanelToDockview("${type}"): dockview api not ready; panel not added`);
     return;
   }
   const def = getPanelByType(type);
-  api.addPanel({ id: `${type}-${Date.now()}`, title: title ?? def?.name ?? type, component: type });
+  api.addPanel({
+    id: `${type}-${Date.now()}`,
+    title: title ?? def?.name ?? type,
+    component: type,
+    params,
+  });
 }
 
 /** Dockview `components` map: every registry panel keyed by its type. */

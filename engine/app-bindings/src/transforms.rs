@@ -2571,7 +2571,6 @@ mod parity_tests {
         );
     }
 
-
     /// The old round-trip shape when a filter/sample transform empties a type's membership
     /// without re-pruning the type lists: `retired`/`discontinued` stay declared with zero members alongside a surviving `order`/`item` pair.
     fn old_shaped_with_emptied_types() -> SlimLinkedOCEL {

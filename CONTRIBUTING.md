@@ -17,7 +17,7 @@ transport / panel" recipes.
 packages/   the @r4pm/* libraries. Only `components` is published; `client` is internal (the engine
             contract: generated bindings + BackendContext, consumed by apps/studio).
             components = viewers/inputs/feedback + the presentation contract + export frame; subpaths
-            /ui, /petri, /charts, /styles.css)
+            /ui, /petri, /charts, /styles.css, /rules.css)
 apps/studio the application (composes the packages + selects a transport: wasm/http/tauri); also hosts
             the studio-internal viewer registry, panels, pipeline, transforms, and stores
 examples/   runnable external-consumer example
@@ -48,9 +48,12 @@ for how the `Backend` trait and the `BackendContext` interface make that work.
 - **Storybook type docs are snapshotted.** The prop/data-type definitions shown in the docs come from generated files; `dev` does not rebuild them. Run `pnpm --filter @r4pm/components docs:types` after changing a documented viewer prop or data-type shape.
 - **`verbatimModuleSyntax: true`**: use `import type` for type-only imports.
 - **Tailwind v4 is the standard** for UI, shipped to consumers via `@r4pm/components/styles.css`
-  (which every host -- Storybook, studio, external apps -- imports). A viewer's **root** sizes
-  inline (`width/height: 100%`); inner layout may use
-  Tailwind.
+  (Tailwind + Radix + the package's own rules). A host that runs its own Tailwind build imports
+  `@r4pm/components/rules.css` instead (same thing minus Tailwind) and `@source`s this package's
+  source so the utility classes are generated. Storybook and `examples/external-consumer` take the
+  first route, `apps/studio` the second. Never `ui/styles.css` alone: that is Radix only, and the
+  `.bp-*` / `.r4pm-*` / editor rules go missing with no error anywhere. A viewer's **root** sizes
+  inline (`width/height: 100%`); inner layout may use Tailwind.
 - **Reusable packages depend only on `@r4pm/client`'s `BackendContext` interface**, never on a
   specific transport (wasm/tauri/fetch). Transport code lives in `apps/*`.
 - **UI primitives come from `@r4pm/components/ui`, never `@radix-ui/themes` directly** (biome
@@ -288,16 +291,28 @@ your viewer defs against it, and resolve by return-type title. `BindingViewerPan
 a binding, show its viewer" wrapper) is likewise studio-internal at
 `apps/studio/src/shell/BindingViewerPanel`.
 
-**Tailwind:** the components use Tailwind v4 utility classes. The package ships source
-`.tsx` (via `tsup`); importing apps bundle these classes into their own `index.css`:
+**Tailwind:** the components use Tailwind v4 utility classes. An app with no Tailwind setup of its
+own just imports `@r4pm/components/styles.css` and is done. An app that runs its own Tailwind build
+bundles the components' classes into its own `index.css` and imports `rules.css` for the rest:
 
 ```css
+/* index.css */
 @import "tailwindcss";
 @source "../node_modules/@r4pm/components/src";
 ```
 
-You also need a React Query provider (`@tanstack/react-query`) and, for the Radix-backed UI from
-`@r4pm/components/ui`, a `<Theme>` wrapper + `@radix-ui/themes/styles.css`.
+```tsx
+import "./index.css";
+import "@r4pm/components/rules.css"; // after your Tailwind entry, never before
+```
+
+`rules.css` carries the Radix theme, the shared `--r4pm-*` tokens, the Petri-net editor's stylesheet,
+and the components' hand-written rules: everything `styles.css` has except Tailwind itself. It
+replaces reaching for `@radix-ui/themes/styles.css` (or `@r4pm/components/ui/styles.css`) directly:
+those give you Radix and nothing else, and the missing rules fail silently.
+
+You also need a React Query provider (`@tanstack/react-query`) and a `<Theme>` wrapper around the
+Radix-backed UI from `@r4pm/components/ui`.
 
 A complete, runnable example lives in [`examples/external-consumer/`](../examples/external-consumer/)
 - a standalone Vite + React app that imports `@r4pm/components`, resolves a viewer by return-type via

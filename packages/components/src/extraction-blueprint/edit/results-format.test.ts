@@ -5,7 +5,7 @@ import { formatDuration } from "./RunPanel";
 
 function stats(dropped: MappingStats["dropped"]): MappingStats {
   return {
-    mapping: { index: 0, label: null, path: "$.mappings[0]" },
+    mapping: { index: 0, label: null, path: "$.mappings[0]", describes: "object" },
     rows_read: 10,
     entities_emitted: 5,
     deduplicated: 0,

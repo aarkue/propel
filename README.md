@@ -109,8 +109,9 @@ contract) consumed by `apps/studio`, not published:
 | `@r4pm/components` | **yes** | (none of `@r4pm/client`) | reusable component library + presentation contract + export frame, via subpaths (see the [components README](./packages/components/README.md)) |
 | `@r4pm/client` | no (internal) | (none) | `callBinding`, `BackendContext` interface, `FunctionMeta`/`ExtendedJSONSchema`, branded `Handle<K>`, generated `Bindings`. The engine contract; consumed by the app + the three transports. |
 
-The subpaths (`.`, `/ui`, `/petri`, `/charts`, `/styles.css`, plus companion `/ui/styles.css` and
-`/petri/editor.css`) are documented in the [components README](./packages/components/README.md).
+The subpaths (`.`, `/ui`, `/petri`, `/charts`, `/styles.css`, plus `/rules.css` for apps that run
+their own Tailwind build, and companion `/ui/styles.css` and `/petri/editor.css`) are documented in
+the [components README](./packages/components/README.md).
 
 Studio-internal code (viewer registry, pipeline editor, transforms, stores) lives in `apps/studio/src`
 and is not published.

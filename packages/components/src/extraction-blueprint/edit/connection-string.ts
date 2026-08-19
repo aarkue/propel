@@ -2,7 +2,7 @@
 // per source kind instead of one free-text box. The string stays the single source of truth --
 // these functions only project it into fields and back -- which keeps a hand-typed or pasted string
 // (an exotic Postgres URL with query parameters, say) working untouched.
-export type ConnectionKind = "csv" | "sqlite" | "duckdb" | "postgres" | "custom";
+export type ConnectionKind = "csv" | "parquet" | "xlsx" | "sqlite" | "duckdb" | "postgres" | "custom";
 
 export interface ConnectionDraft {
   kind: ConnectionKind;
@@ -33,6 +33,8 @@ export const EMPTY_DRAFT: ConnectionDraft = {
 
 export const CONNECTION_KIND_LABEL: Record<ConnectionKind, string> = {
   csv: "CSV file",
+  parquet: "Parquet file",
+  xlsx: "Excel workbook",
   sqlite: "SQLite",
   duckdb: "DuckDB",
   postgres: "PostgreSQL",
@@ -48,6 +50,10 @@ export function buildConnectionString(d: ConnectionDraft): string {
       const base = d.path.startsWith("csv://") ? d.path : `csv://${d.path}`;
       return d.delimiter ? `${base}?delimiter=${encodeURIComponent(d.delimiter)}` : base;
     }
+    case "parquet":
+      return d.path.startsWith("parquet://") ? d.path : `parquet://${d.path}`;
+    case "xlsx":
+      return d.path.startsWith("xlsx://") ? d.path : `xlsx://${d.path}`;
     case "sqlite":
       return d.path.startsWith("sqlite://") ? d.path : `sqlite://${d.path}`;
     case "duckdb":
@@ -67,24 +73,35 @@ export function parseConnectionString(s: string): ConnectionDraft {
   const base = { ...EMPTY_DRAFT, raw: s };
   if (!s) return base;
 
-  if (s.startsWith("csv://") || s.toLowerCase().endsWith(".csv")) {
-    const [pathPart, query] = s.split("?", 2);
-    const delimiter = query?.startsWith("delimiter=")
-      ? decodeURIComponent(query.slice("delimiter=".length))
-      : "";
-    return { ...base, kind: "csv", path: pathPart.replace(/^csv:\/\//, ""), delimiter };
-  }
-  if (s.startsWith("sqlite://") || /\.(sqlite|sqlite3|db)$/i.test(s)) {
-    return { ...base, kind: "sqlite", path: s.replace(/^sqlite:\/\//, "") };
-  }
-  if (s.startsWith("duckdb://") || /\.duckdb$/i.test(s)) {
-    return { ...base, kind: "duckdb", path: s.replace(/^duckdb:\/\//, "") };
-  }
+  const csv = (path: string): ConnectionDraft => {
+    const [pathPart, query] = path.split("?", 2);
+    const delimiter = query ? (new URLSearchParams(query).get("delimiter") ?? "") : "";
+    return { ...base, kind: "csv", path: pathPart, delimiter };
+  };
+
+  // An explicit `kind://` scheme wins over extension sniffing (e.g. `xlsx://export.csv` stays
+  // an xlsx source).
+  if (s.startsWith("csv://")) return csv(s.slice("csv://".length));
+  if (s.startsWith("parquet://")) return { ...base, kind: "parquet", path: s.slice("parquet://".length) };
+  if (s.startsWith("xlsx://")) return { ...base, kind: "xlsx", path: s.slice("xlsx://".length) };
+  if (s.startsWith("sqlite://")) return { ...base, kind: "sqlite", path: s.slice("sqlite://".length) };
+  if (s.startsWith("duckdb://")) return { ...base, kind: "duckdb", path: s.slice("duckdb://".length) };
+
+  // No scheme: a bare path, read by its extension.
+  if (s.toLowerCase().endsWith(".csv")) return csv(s);
+  if (s.toLowerCase().endsWith(".parquet")) return { ...base, kind: "parquet", path: s };
+  if (s.toLowerCase().endsWith(".xlsx")) return { ...base, kind: "xlsx", path: s };
+  if (/\.(sqlite|sqlite3|db)$/i.test(s)) return { ...base, kind: "sqlite", path: s };
+  if (/\.duckdb$/i.test(s)) return { ...base, kind: "duckdb", path: s };
+
   if (s.startsWith("postgres://") || s.startsWith("postgresql://")) {
     try {
       // `URL` handles the percent-decoding of a password containing "@" or ":", which a hand-rolled
       // split would get wrong.
       const u = new URL(s);
+      // No form field carries query params (sslmode, application_name, ...): parsing into
+      // "postgres" here would silently drop them the next time any field is edited.
+      if (u.search) return { ...base, kind: "custom" };
       return {
         ...base,
         kind: "postgres",
@@ -101,30 +118,49 @@ export function parseConnectionString(s: string): ConnectionDraft {
   return { ...base, kind: "custom" };
 }
 
+/** Marks a connection as naming a source the host holds in memory rather than a database: what
+ *  follows is a registry item id, not a location. */
+export const ITEM_PREFIX = "item://";
+
 /** A one-line description of what a connection points at, with any password masked -- shown in the
  *  connection list so a source is identifiable without exposing a secret on screen. */
 export function describeConnection(s: string): string {
   if (!s) return "not configured";
+  // A source whose bytes the host already holds. It has no location to describe, and it is not a
+  // connection string at all, so it would otherwise fall through to `custom` and be printed raw.
+  if (s.startsWith(ITEM_PREFIX)) return `File - ${s.slice(ITEM_PREFIX.length)}`;
   const d = parseConnectionString(s);
   switch (d.kind) {
     case "csv":
+    case "parquet":
+    case "xlsx":
     case "sqlite":
     case "duckdb":
-      return `${CONNECTION_KIND_LABEL[d.kind]} · ${d.path || "no path"}`;
+      return `${CONNECTION_KIND_LABEL[d.kind]} - ${d.path || "no path"}`;
     case "postgres":
-      return `PostgreSQL · ${d.user ? `${d.user}@` : ""}${d.host}${d.port ? `:${d.port}` : ""}/${d.database}`;
+      return `PostgreSQL - ${d.user ? `${d.user}@` : ""}${d.host}${d.port ? `:${d.port}` : ""}/${d.database}`;
     case "custom":
       return maskSecrets(s);
   }
 }
 
-/** The name a connection suggests for its source id: a file's stem, a Postgres database name.
- *  Empty when the string says nothing usable, so the caller keeps the id it has. */
+/** The name a connection suggests for its source id: a registry item's id, a file's stem, a
+ *  Postgres database name. Empty when the string says nothing usable, so the caller keeps the id
+ *  it has. */
 export function suggestedSourceId(s: string): string {
+  return rawSuggestion(s)
+    .replace(/[^A-Za-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function rawSuggestion(s: string): string {
+  // `item://` carries a registry item id, not a location, so it parses as `custom` with an empty
+  // path -- which suggested nothing, and left every byte-mode source called "source-1" forever.
+  // The id the host mints is already the file's stem, which is exactly the name wanted here.
+  if (s.startsWith(ITEM_PREFIX)) return s.slice(ITEM_PREFIX.length);
   const d = parseConnectionString(s);
-  const raw =
-    d.kind === "postgres" ? d.database : (d.path.split(/[\\/]/).pop() ?? "").replace(/\.[^.]*$/, "");
-  return raw.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  if (d.kind === "postgres") return d.database;
+  return (d.path.split(/[\\/]/).pop() ?? "").replace(/\.[^.]*$/, "");
 }
 
 /** Whether `id` is still a placeholder this editor minted, and so may be replaced by a name

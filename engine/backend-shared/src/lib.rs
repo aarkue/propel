@@ -238,6 +238,8 @@ pub fn convertible_to(kind: RegistryItemKind) -> Vec<RegistryItemKind> {
         EventLogActivityProjection => vec![],
         // A source is read by an extraction, never converted into a log directly.
         TabularSource => vec![],
+        // `RegistryItem::convert` has no arm for a downstream handle type.
+        Custom(_) => vec![],
     }
 }
 
@@ -442,9 +444,8 @@ pub fn export_object<B: Backend>(backend: &B, name: &str, format: &str) -> Resul
 
 /// Export an object straight to a filesystem path, in an explicitly named `format`.
 ///
-/// Not covered by [`export_object`]: the OCEL 2.0 bundled format's uncompressed form is a
-/// directory, which has no byte stream at all. It also keeps a large log from being materialised
-/// in memory just to cross an IPC boundary.
+/// Unlike [`export_object`], this handles the OCEL 2.0 bundled format's uncompressed directory
+/// form (which has no byte stream) and avoids materializing a large log just to cross IPC.
 pub fn export_object_to_path<B: Backend>(
     backend: &B,
     name: &str,
@@ -877,11 +878,8 @@ mod artifact_store_tests {
         assert!(!bytes.is_empty());
     }
 
-    /// A named binding output is a *pipeline intermediate*, and pipeline intermediates are hidden
-    /// from `/objects` on purpose. That is easy to reach for by accident when a panel wants a
-    /// stable id for its output, and the failure is silent: the call succeeds, the object exists,
-    /// and it never shows up as a dataset. Pin both halves so the rule is discoverable from a
-    /// test rather than by reading `ItemMeta` role assignments.
+    /// A named binding output is a pipeline intermediate and is hidden from `/objects` on purpose;
+    /// the failure mode is silent (object exists, never shows up as a dataset), so pin both halves.
     #[test]
     fn named_binding_output_is_hidden_but_an_unnamed_one_is_listed() {
         let b = backend();

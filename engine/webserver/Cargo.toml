@@ -10,5 +10,11 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-backend-shared = { path = "../backend-shared", features = ["ocel-sqlite", "extraction-blueprint-dbcon-postgres"] }
+backend-shared = { path = "../backend-shared", features = [
+    "ocel-sqlite",
+    "extraction-blueprint-dbcon-postgres",
+    # Native-only: links libduckdb. The studio offers DuckDB as a source kind on these two
+    # targets, so the engine has to actually enable it or the picker promises what it cannot open.
+    "extraction-blueprint-dbcon-duckdb",
+] }
 app-bindings = { path = "../app-bindings" }

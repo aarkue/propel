@@ -39,10 +39,11 @@ export const vis = defineVis({
       ctx.backend.callBinding("app_bindings::ocel::get_ocel_activity_object_involvements", { ocel }),
     ]);
     const onProjectActivities = (arcs: OCDeclareArc[], activities: string[]) =>
-      ctx.backend.callBinding(
-        "process_mining::discovery::object_centric::oc_declare::project_oc_arcs_smart",
-        { arcs, activities, lossless_reduction: true },
-      );
+      ctx.backend.callBinding("process_mining::discovery::object_centric::oc_declare::project_oc_arcs", {
+        arcs,
+        activities,
+        reduction: "Lossless",
+      });
     return { eventTypeCounts: stats.event_type_counts, activityInvolvements, onProjectActivities };
   },
   component: OCDeclarePanel,

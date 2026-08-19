@@ -1,11 +1,6 @@
-// The form furniture the mapping editors are built from.
-//
-// A mapping form is a long column of small controls, and the failure mode is that it reads as one
-// undifferentiated grey list: every label the same weight as every hint, nothing marking where one
-// decision ends and the next begins. So `Field` gives its label real presence (uppercase, tracked,
-// with an optional accent dot marking the fields that decide what the mapping produces), and
-// `Disclosure` reads as a closed drawer with its current contents stated on the right rather than
-// as another row of text.
+// Form furniture for the mapping editors: `Field` gives labels real presence (uppercase, tracked,
+// optional accent dot for fields that decide the mapping's output); `Disclosure` reads as a closed
+// drawer stating its current contents, not just another grey row.
 import { Badge, Text } from "@r4pm/components/ui";
 import { useState, type ReactNode } from "react";
 import { PiCaretRight } from "react-icons/pi";
@@ -37,7 +32,7 @@ export function Disclosure({ title, summary, count, defaultOpen, children }: Dis
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent px-2.5 py-2 text-left"
+        className="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent px-2.5 py-2 text-left transition-colors hover:bg-[var(--gray-a3)] focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:[outline-color:var(--accent-8)]"
       >
         <PiCaretRight
           size={12}
@@ -116,11 +111,11 @@ export function PillGroup<T extends string>({
   onChange: (next: T) => void;
 }) {
   return (
-    <div
-      className="flex min-w-0 max-w-full flex-wrap justify-end overflow-hidden rounded-md"
-      style={{ border: "1px solid var(--gray-a5)" }}
-    >
-      {options.map((o) => {
+    // The track carries a fill of its own so the group reads as one control; without it the
+    // unselected options were bare text on the dialog's background and the whole thing looked
+    // like a label rather than something to press.
+    <div className="flex min-w-0 max-w-full flex-wrap justify-end overflow-hidden rounded-md border border-[var(--gray-a5)] bg-[var(--gray-a2)]">
+      {options.map((o, i) => {
         const active = o.value === value;
         return (
           <button
@@ -128,11 +123,17 @@ export function PillGroup<T extends string>({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(o.value)}
-            className="cursor-pointer border-none px-2 py-1 text-[11px] leading-none whitespace-nowrap transition-colors"
-            style={{
-              background: active ? "var(--accent-9)" : "transparent",
-              color: active ? "var(--accent-contrast)" : "var(--gray-11)",
-            }}
+            // Hover as a class, not an inline style, which cannot express it: an unselected option
+            // gave no feedback at all under the pointer.
+            // `border-0` rather than `border-none`: the latter is `border-style: none`, which would
+            // suppress the divider `border-l` sets on every option after the first.
+            className={`cursor-pointer whitespace-nowrap border-0 px-2 py-1 text-[11px] leading-none transition-colors focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:[outline-color:var(--accent-8)] ${
+              i > 0 ? "border-l border-l-[var(--gray-a4)]" : ""
+            } ${
+              active
+                ? "bg-[var(--accent-9)] font-medium [color:var(--accent-contrast)]"
+                : "bg-transparent [color:var(--gray-11)] hover:bg-[var(--gray-a3)] hover:[color:var(--gray-12)]"
+            }`}
           >
             {o.label}
           </button>
@@ -160,7 +161,7 @@ export function InlineDisclosure({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex cursor-pointer items-center gap-1 self-start border-none bg-transparent p-0 text-[12px]"
+        className="flex cursor-pointer items-center gap-1 self-start rounded border-none bg-transparent p-0 text-[12px] transition-colors hover:[color:var(--gray-12)] focus-visible:outline-2 focus-visible:[outline-color:var(--accent-8)] focus-visible:outline-offset-2"
         style={{ color: "var(--gray-11)" }}
       >
         <PiCaretRight

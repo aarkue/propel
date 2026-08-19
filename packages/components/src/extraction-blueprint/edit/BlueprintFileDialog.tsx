@@ -109,8 +109,7 @@ export function BlueprintFileDialog({
                     Include connection strings
                   </Text>
                   <Text size="1" color="gray" className="block text-[10px] leading-snug">
-                    Off by default. A connection string can carry a password, and an exported file is the
-                    thing that ends up pasted into an issue or committed to a repository.
+                    A connection string may contain a password.
                   </Text>
                 </label>
               </div>
@@ -121,7 +120,7 @@ export function BlueprintFileDialog({
                   <PiWarningCircle />
                 </Callout.Icon>
                 <Callout.Text>
-                  This document contains connection strings, passwords included. Treat it as a secret.
+                  Contains connection strings, passwords included. Treat as a secret.
                 </Callout.Text>
               </Callout.Root>
             )}

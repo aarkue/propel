@@ -1,11 +1,9 @@
-// The "Run" dialog: calls `onRun(blueprint, connections)` and renders its result -- a small
-// results panel (entities emitted per mapping, `deduplicated` counts, per-`DropReason` counts).
-// `onRun`'s return is a bare `string` handle, not a typed `SlimLinkedOCELHandle` -- this package
-// has no @r4pm/client dependency, so it cannot know or care about `Handle<"SlimLinkedOCEL">`; the
-// host wires the real `callBinding` call and hands back only what this dialog needs to display.
+// The "Run" dialog: calls `onRun(blueprint, connections)` and renders the result (entities per
+// mapping, `deduplicated` counts, per-`DropReason` counts). `onRun` returns a bare `string` handle
+// rather than `Handle<"SlimLinkedOCEL">` since this package has no @r4pm/client dependency.
 import { Badge, Button, Callout, Dialog, Flex, IconButton, Table, Text } from "@r4pm/components/ui";
 import { useState } from "react";
-import { PiCheckCircle, PiX } from "react-icons/pi";
+import { PiCheckCircle, PiPlay, PiX } from "react-icons/pi";
 import { toBlueprint } from "../model";
 import { DROP_REASON_INFO, dropReasonLabel, dropReasonRows, totalDropped } from "./results-format";
 import type { ExtractionReport } from "../types";
@@ -69,11 +67,24 @@ export function RunPanel({ open, onOpenChange }: { open: boolean; onOpenChange: 
             </IconButton>
           </Dialog.Close>
         </Flex>
-        <Flex gap="2" align="center">
-          <Button size="1" disabled={running} onClick={() => void run()}>
-            {running ? "Running..." : "Run"}
+        {!running && !result && !error ? (
+          <Flex direction="column" align="center" gap="3" py="6">
+            <PiPlay size={28} className="opacity-50" />
+            <Text size="2" color="gray" align="center">
+              Runs this blueprint and loads the result as a new dataset.
+            </Text>
+            <Button size="3" color="grass" onClick={() => void run()}>
+              <PiPlay /> Run
+            </Button>
+          </Flex>
+        ) : (
+          // Same CTA size and color as the first run -- re-running is exactly as common an action
+          // as the first run, so it shouldn't shrink to a size="1" button the moment a result or
+          // error appears below it.
+          <Button size="3" color="grass" disabled={running} onClick={() => void run()}>
+            <PiPlay /> {running ? "Running..." : result ? "Run again" : "Run"}
           </Button>
-        </Flex>
+        )}
         {result && (
           <Callout.Root color="green" size="1" mt="2">
             <Callout.Icon>
@@ -107,9 +118,7 @@ export function RunPanel({ open, onOpenChange }: { open: boolean; onOpenChange: 
         )}
         {result && !result.report && (
           <Text size="1" color="gray" as="div" mt="3">
-            Per-mapping counts and drop reasons are not available on this run path, so nothing here is a claim
-            that no rows were dropped. Validate the blueprint to catch what a report would otherwise have told
-            you.
+            No per-mapping report on this run path. Validate the blueprint to check for drops.
           </Text>
         )}
         {result?.report && (

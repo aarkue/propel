@@ -80,6 +80,12 @@ export type MappingEntry =
             /**
              * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
              * be compiled to a view.
+             *
+             * It is also what coalesces a fan-out. Reading a join of orders and their items gives
+             * one row per item, so a `None` id makes one event per item; an id naming the order
+             * makes one event per order, still related to every item, because the repeated rows
+             * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
+             * while `objects` below is emitted for each of them.
              */
             id?: ValueExpression | null;
             /**
@@ -89,7 +95,61 @@ export type MappingEntry =
             /**
              * When it happened.
              */
-            timestamp: TimestampSource;
+            timestamp:
+              | {
+                  /**
+                   * How to read it. `None` means auto-detection.
+                   */
+                  format?: TimestampFormat | null;
+                  /**
+                   * Produces one text value from a row.
+                   *
+                   * Every position that becomes an identity -- entity ids, relation endpoints, type names,
+                   * qualifiers -- uses this, and every variant propagates absence: if any input has no
+                   * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+                   */
+                  source:
+                    | {
+                        /**
+                         * Column name.
+                         */
+                        column: string;
+                        type: "column";
+                      }
+                    | {
+                        type: "constant";
+                        /**
+                         * The value.
+                         */
+                        value: string;
+                      }
+                    | {
+                        /**
+                         * The template.
+                         */
+                        template: string;
+                        type: "template";
+                      }
+                    | {
+                        /**
+                         * Parts, tried in order.
+                         */
+                        parts: ValueExpression[];
+                        type: "coalesce";
+                      };
+                  type: "value";
+                }
+              | {
+                  /**
+                   * Where the date comes from, if anywhere.
+                   */
+                  date?: TimestampPart | null;
+                  /**
+                   * Where the time comes from, if anywhere.
+                   */
+                  time?: TimestampPart | null;
+                  type: "components";
+                };
             type: "event";
           }
         | {
@@ -238,13 +298,68 @@ export type ValueExpression =
       type: "coalesce";
     };
 
-export type TimestampSource =
-  | ({
+export type TimestampFormat =
+  | {
+      type: "auto";
+    }
+  | {
       /**
-       * One value: the same `TimestampPart` each half of a "components" pair uses.
+       * The format.
        */
+      format: string;
+      type: "format-string";
+    }
+  | {
+      type: "unix-seconds";
+    }
+  | {
+      type: "unix-millis";
+    };
+
+export type TimestampSource =
+  | {
+      /**
+       * How to read it. `None` means auto-detection.
+       */
+      format?: TimestampFormat | null;
+      /**
+       * Produces one text value from a row.
+       *
+       * Every position that becomes an identity -- entity ids, relation endpoints, type names,
+       * qualifiers -- uses this, and every variant propagates absence: if any input has no
+       * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+       */
+      source:
+        | {
+            /**
+             * Column name.
+             */
+            column: string;
+            type: "column";
+          }
+        | {
+            type: "constant";
+            /**
+             * The value.
+             */
+            value: string;
+          }
+        | {
+            /**
+             * The template.
+             */
+            template: string;
+            type: "template";
+          }
+        | {
+            /**
+             * Parts, tried in order.
+             */
+            parts: ValueExpression[];
+            type: "coalesce";
+          };
       type: "value";
-    } & TimestampPart)
+    }
   | {
       /**
        * Where the date comes from, if anywhere.
@@ -365,6 +480,49 @@ export interface SplitSpec {
   trim: boolean;
 }
 
+export interface TimestampPart {
+  /**
+   * How to read it. `None` means auto-detection.
+   */
+  format?: TimestampFormat | null;
+  /**
+   * Produces one text value from a row.
+   *
+   * Every position that becomes an identity -- entity ids, relation endpoints, type names,
+   * qualifiers -- uses this, and every variant propagates absence: if any input has no
+   * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+   */
+  source:
+    | {
+        /**
+         * Column name.
+         */
+        column: string;
+        type: "column";
+      }
+    | {
+        type: "constant";
+        /**
+         * The value.
+         */
+        value: string;
+      }
+    | {
+        /**
+         * The template.
+         */
+        template: string;
+        type: "template";
+      }
+    | {
+        /**
+         * Parts, tried in order.
+         */
+        parts: ValueExpression[];
+        type: "coalesce";
+      };
+}
+
 export interface EventEndpoint {
   /**
    * The event's type. Required under [`IdRendering::TypePrefixed`].
@@ -461,6 +619,12 @@ export interface Mapping {
         /**
          * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
          * be compiled to a view.
+         *
+         * It is also what coalesces a fan-out. Reading a join of orders and their items gives
+         * one row per item, so a `None` id makes one event per item; an id naming the order
+         * makes one event per order, still related to every item, because the repeated rows
+         * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
+         * while `objects` below is emitted for each of them.
          */
         id?: ValueExpression | null;
         /**
@@ -470,7 +634,61 @@ export interface Mapping {
         /**
          * When it happened.
          */
-        timestamp: TimestampSource;
+        timestamp:
+          | {
+              /**
+               * How to read it. `None` means auto-detection.
+               */
+              format?: TimestampFormat | null;
+              /**
+               * Produces one text value from a row.
+               *
+               * Every position that becomes an identity -- entity ids, relation endpoints, type names,
+               * qualifiers -- uses this, and every variant propagates absence: if any input has no
+               * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+               */
+              source:
+                | {
+                    /**
+                     * Column name.
+                     */
+                    column: string;
+                    type: "column";
+                  }
+                | {
+                    type: "constant";
+                    /**
+                     * The value.
+                     */
+                    value: string;
+                  }
+                | {
+                    /**
+                     * The template.
+                     */
+                    template: string;
+                    type: "template";
+                  }
+                | {
+                    /**
+                     * Parts, tried in order.
+                     */
+                    parts: ValueExpression[];
+                    type: "coalesce";
+                  };
+              type: "value";
+            }
+          | {
+              /**
+               * Where the date comes from, if anywhere.
+               */
+              date?: TimestampPart | null;
+              /**
+               * Where the time comes from, if anywhere.
+               */
+              time?: TimestampPart | null;
+              type: "components";
+            };
         type: "event";
       }
     | {
@@ -930,6 +1148,11 @@ export interface CompileError {
 
 export interface MappingRef {
   /**
+   * What this mapping produces, derived from its target: `event "appoint officer"`,
+   * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+   */
+  describes: string;
+  /**
    * Position in the desugared, flattened mapping list this run executed.
    */
   index: number;
@@ -945,10 +1168,7 @@ export interface MappingRef {
   path: string;
 }
 
-export type SqlDialect = "DuckDb";
-/**
- * Which OCEL surface the compiler emits.
- */
+export type SqlDialect = "DuckDb" | "Postgres";
 
 export type EmissionShape = "PerType" | "Consolidated";
 
@@ -1020,8 +1240,12 @@ export interface ExtractionCatalog {
     };
   };
   /**
-   * A handful of real rows per table, keyed by source id then table name. Display only, unlike
-   * `domains`, which is the complete distinct set the SQL compiler emits one view per value of.
+   * A handful of real rows per table, keyed by source id then table name, to show a person
+   * what the data looks like.
+   *
+   * Deliberately unreachable through the [`Catalog`] trait: unlike
+   * [`domains`](ExtractionCatalog::domains), a preview is incomplete, so compiling from one
+   * would emit views only for the types that happened to appear first.
    */
   previews?: {
     [k: string]: {
@@ -1036,6 +1260,17 @@ export interface ExtractionCatalog {
       [k: string]: TableSchema;
     };
   };
+}
+
+export interface TablePreview {
+  /**
+   * Column names, in the order the rows are aligned to.
+   */
+  columns: string[];
+  /**
+   * Rows, each the same length as `columns`.
+   */
+  rows: (string | null)[][];
 }
 
 export interface TableSchema {
@@ -1423,7 +1658,7 @@ export interface ExtractionReport {
    *
    * `None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a
    * set of open providers and so has no idea what it cost to obtain them. The runner that owns
-   * the connections fills this in; `process_mining_dbcon`'s does. Kept out of `extract` for a
+   * the connections fills this in; the `extraction-dbcon` bindings do. Kept out of `extract` for a
    * second reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate
    * builds for wasm.
    */
@@ -2173,6 +2408,12 @@ export type Target =
       /**
        * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
        * be compiled to a view.
+       *
+       * It is also what coalesces a fan-out. Reading a join of orders and their items gives
+       * one row per item, so a `None` id makes one event per item; an id naming the order
+       * makes one event per order, still related to every item, because the repeated rows
+       * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
+       * while `objects` below is emitted for each of them.
        */
       id?: ValueExpression | null;
       /**
@@ -2182,7 +2423,61 @@ export type Target =
       /**
        * When it happened.
        */
-      timestamp: TimestampSource;
+      timestamp:
+        | {
+            /**
+             * How to read it. `None` means auto-detection.
+             */
+            format?: TimestampFormat | null;
+            /**
+             * Produces one text value from a row.
+             *
+             * Every position that becomes an identity -- entity ids, relation endpoints, type names,
+             * qualifiers -- uses this, and every variant propagates absence: if any input has no
+             * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+             */
+            source:
+              | {
+                  /**
+                   * Column name.
+                   */
+                  column: string;
+                  type: "column";
+                }
+              | {
+                  type: "constant";
+                  /**
+                   * The value.
+                   */
+                  value: string;
+                }
+              | {
+                  /**
+                   * The template.
+                   */
+                  template: string;
+                  type: "template";
+                }
+              | {
+                  /**
+                   * Parts, tried in order.
+                   */
+                  parts: ValueExpression[];
+                  type: "coalesce";
+                };
+            type: "value";
+          }
+        | {
+            /**
+             * Where the date comes from, if anywhere.
+             */
+            date?: TimestampPart | null;
+            /**
+             * Where the time comes from, if anywhere.
+             */
+            time?: TimestampPart | null;
+            type: "components";
+          };
       type: "event";
     }
   | {
@@ -2287,51 +2582,3 @@ export type Target =
       target: ObjectEndpoint;
       type: "o2o";
     };
-
-export type TimestampFormat =
-  | {
-      type: "auto";
-    }
-  | {
-      /**
-       * The format.
-       */
-      format: string;
-      type: "format-string";
-    }
-  | {
-      type: "unix-seconds";
-    }
-  | {
-      type: "unix-millis";
-    };
-
-/**
- * A few real rows of one table, for display only. Rows are aligned to `columns` rather than
- * stored per column, so a wide table can be read across. A `null` cell is SQL NULL.
- */
-export interface TablePreview {
-  /**
-   * Column names, in the order the rows are aligned to.
-   */
-  columns: string[];
-  /**
-   * Rows, each the same length as `columns`.
-   */
-  rows: (string | null)[][];
-}
-
-/**
- * One half of a `TimestampSource` "components" pair: where the text comes from, and how to read
- * it. The Rust side also accepts a bare column name here, so stored blueprints keep opening.
- */
-export interface TimestampPart {
-  /**
-   * Where the text comes from. A `constant` pins one side while the other varies per row.
-   */
-  source: ValueExpression;
-  /**
-   * How to read it. Absent means auto-detect.
-   */
-  format?: TimestampFormat | null;
-}

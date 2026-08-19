@@ -21,6 +21,12 @@ describe("suggestedSourceId", () => {
     expect(suggestedSourceId("postgres://u:p@host:5432/shop")).toBe("shop");
   });
 
+  // `item://` is not a connection string: parsed as one it falls through to `custom` with an empty path.
+  it("names a registry-held source after its item id", () => {
+    expect(suggestedSourceId("item://flight-list-202201")).toBe("flight-list-202201");
+    expect(suggestedSourceId("item://order items")).toBe("order_items");
+  });
+
   it("is empty when the string suggests nothing, so the caller keeps its id", () => {
     expect(suggestedSourceId("")).toBe("");
     expect(suggestedSourceId("some-opaque-dsn")).toBe("");
@@ -117,6 +123,21 @@ describe("parseConnectionString", () => {
     expect(d.raw).toBe(raw);
   });
 
+  it("falls back to custom for a Postgres URL with query params, since no field would round-trip them", () => {
+    const raw = "postgres://u@h/db?sslmode=require&application_name=x";
+    const d = parseConnectionString(raw);
+    expect(d.kind).toBe("custom");
+    expect(d.raw).toBe(raw);
+  });
+
+  it("reads a CSV delimiter when other query params surround it", () => {
+    expect(parseConnectionString("csv:///x.csv?quote=%22&delimiter=%3B")).toMatchObject({
+      kind: "csv",
+      path: "/x.csv",
+      delimiter: ";",
+    });
+  });
+
   it("round-trips what it parses", () => {
     for (const s of ["csv:///x.csv?delimiter=%3B", "sqlite:///x.sqlite", "postgres://u:p@h:5432/db"]) {
       expect(buildConnectionString(parseConnectionString(s))).toBe(s);
@@ -161,5 +182,52 @@ describe("previewSplit", () => {
   it("reports a malformed pattern instead of throwing", () => {
     const r = previewSplit({ kind: { type: "regex", pattern: "([" }, trim: true }, "x");
     expect(r).toHaveProperty("error");
+  });
+});
+
+describe("parquet", () => {
+  it("round-trips a path through the scheme", () => {
+    expect(buildConnectionString({ ...EMPTY_DRAFT, kind: "parquet", path: "/data/orders.parquet" })).toBe(
+      "parquet:///data/orders.parquet",
+    );
+    // An already-prefixed path is not prefixed twice.
+    expect(
+      buildConnectionString({ ...EMPTY_DRAFT, kind: "parquet", path: "parquet:///data/o.parquet" }),
+    ).toBe("parquet:///data/o.parquet");
+  });
+
+  it("reads back both the scheme and a bare suffix, the two forms dbcon dispatches on", () => {
+    expect(parseConnectionString("parquet:///data/orders.parquet").kind).toBe("parquet");
+    expect(parseConnectionString("/data/orders.parquet").kind).toBe("parquet");
+    expect(parseConnectionString("/data/ORDERS.PARQUET").kind).toBe("parquet");
+    expect(parseConnectionString("parquet:///data/orders.parquet").path).toBe("/data/orders.parquet");
+  });
+
+  it("describes and names a source from it", () => {
+    expect(describeConnection("parquet:///data/orders.parquet")).toBe("Parquet file - /data/orders.parquet");
+    expect(suggestedSourceId("/data/orders.parquet")).toBe("orders");
+  });
+});
+
+describe("xlsx", () => {
+  it("round-trips a path through the scheme", () => {
+    expect(buildConnectionString({ ...EMPTY_DRAFT, kind: "xlsx", path: "/data/log.xlsx" })).toBe(
+      "xlsx:///data/log.xlsx",
+    );
+    expect(buildConnectionString({ ...EMPTY_DRAFT, kind: "xlsx", path: "xlsx:///data/log.xlsx" })).toBe(
+      "xlsx:///data/log.xlsx",
+    );
+  });
+
+  it("reads back both the scheme and a bare suffix, the two forms dbcon dispatches on", () => {
+    expect(parseConnectionString("xlsx:///data/log.xlsx").kind).toBe("xlsx");
+    expect(parseConnectionString("/data/log.xlsx").kind).toBe("xlsx");
+    expect(parseConnectionString("/data/LOG.XLSX").kind).toBe("xlsx");
+    expect(parseConnectionString("xlsx:///data/log.xlsx").path).toBe("/data/log.xlsx");
+  });
+
+  it("describes and names a source from it", () => {
+    expect(describeConnection("xlsx:///data/log.xlsx")).toBe("Excel workbook - /data/log.xlsx");
+    expect(suggestedSourceId("/data/log.xlsx")).toBe("log");
   });
 });

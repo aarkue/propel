@@ -1,13 +1,8 @@
-// The main ReactFlow surface.
+// The main ReactFlow surface. Mappings are nodes, not a side panel, since each mapping reads
+// exactly one node's rows and what it produces is the point of the blueprint.
 //
-// Five node types: the four row-graph ops (`Source`/`Filter`/`Join`/`Union`, dispatched off
-// `op.type`) and `mapping`. Mappings are nodes, not a side panel: a mapping reads exactly one
-// node's rows, which is an edge, and what it produces is the point of the blueprint. This mirrors
-// OCPQ's editor, whose `ExtractorNode` sat on the canvas next to its table.
-//
-// Row-graph edges are still derived rather than stored -- `NodeOp`'s own fields and each
-// mapping's `node` already say which nodes feed which, so a separate edge list would be a second
-// source of truth (see model.ts). `onConnect` routes a drag-connect back into the right field.
+// Row-graph edges are derived from `NodeOp`'s own fields rather than stored, so there's no
+// separate edge list to fall out of sync (see model.ts).
 import {
   Background,
   BackgroundVariant,
@@ -67,6 +62,29 @@ import type { ExtractionCatalog, MappingEntry, NodeOp, TablePreview, ValidationE
 
 const EMPTY_CATALOG: ExtractionCatalog = { tables: {}, domains: {} };
 
+/**
+ * Text a dropped file's path arrives as, tried in the order a desktop WebView is most likely to
+ * expose it: `text/uri-list`, a `file://` link buried in `text/html` (WebKitGTK wraps a dropped
+ * file as anchor text rather than a proper uri-list entry), then bare `text/plain`.
+ */
+function textEntriesFromDataTransfer(dt: DataTransfer): string[] {
+  const uriList = dt.getData("text/uri-list");
+  if (uriList) {
+    const lines = uriList
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#"));
+    if (lines.length > 0) return lines;
+  }
+  const html = dt.getData("text/html");
+  if (html) {
+    const links = Array.from(html.matchAll(/file:\/\/[^\s"'<>]+/gi)).map((m) => m[0]);
+    if (links.length > 0) return links;
+  }
+  const plain = dt.getData("text/plain").trim();
+  return plain ? [plain] : [];
+}
+
 /** Floating chrome shared by the canvas overlays, so they read as panes above the graph rather
  *  than as controls drawn on it. */
 const TOOLBAR_CHROME: React.CSSProperties = {
@@ -87,10 +105,8 @@ function edgeColor(kind: "row" | "mapping", targetKind: string | undefined): str
 
 /**
  * Edges are drawn from the *live* handle positions ReactFlow passes in, not from a path ELK
- * routed. Two bugs came from doing it the other way round: a node added after the initial layout
- * had no routed path at all and so rendered no edge, and dragging a node left its edges frozen
- * where the layout had put them. ELK still decides where nodes go; it just no longer owns how the
- * lines between them look.
+ * routed, so a node added after the initial layout still renders an edge and a dragged node's
+ * edges track it instead of freezing in place.
  */
 function BlueprintEdge({
   sourceX,
@@ -252,16 +268,22 @@ function BlueprintGraphInner({
     () => (Object.keys(previews).length === 0 ? catalogBase : { ...catalogBase, previews }),
     [catalogBase, previews],
   );
-  // Why discovery failed, if it did. Held as state rather than swallowed or toasted: a swallowed
-  // rejection leaves an empty canvas with nothing to act on (an unreadable file, a connection the
-  // build cannot open, a source the host no longer holds all look identical), and this effect
-  // re-runs on every connection keystroke, so a toast per attempt would be a storm.
+  // Why discovery failed, if it did. Held as state rather than toasted, since this effect re-runs
+  // on every connection keystroke and a toast per attempt would be a storm.
   const [catalogError, setCatalogError] = useState<string | null>(null);
   useEffect(() => {
     if (catalogProp || !callbacks.onDiscoverCatalog) return;
+    // A freshly added source has an empty connection string; skip it during discovery so an
+    // unconfigured source doesn't surface as a connection failure.
+    const configured = Object.fromEntries(Object.entries(connections).filter(([, v]) => v.trim() !== ""));
+    if (Object.keys(configured).length === 0) {
+      setCatalogFetched(EMPTY_CATALOG);
+      setCatalogError(null);
+      return;
+    }
     const t = setTimeout(() => {
       callbacks
-        .onDiscoverCatalog?.(connections)
+        .onDiscoverCatalog?.(configured)
         .then((c) => {
           setCatalogFetched(c);
           setCatalogError(null);
@@ -528,11 +550,8 @@ function BlueprintGraphInner({
     [isEdit, mutate],
   );
 
-  /** Add a Source node for `ref` and open the add-mapping dialog on it.
-   *
-   *  A table on its own produces nothing, so stopping there leaves the user in front of a node
-   *  with no indication that the `+` is the next step. `openMapping` is false only when several
-   *  tables are being added at once. */
+  /** Add a Source node for `ref` and open the add-mapping dialog on it. `openMapping` is false
+   *  only when several tables are being added at once. */
   const addTable = useCallback(
     (ref: TableRef, position?: { x: number; y: number }, openMapping = true) => {
       const id = freshId(
@@ -675,12 +694,8 @@ function BlueprintGraphInner({
     (e: React.DragEvent) => {
       const resolve = callbacks.onConnectionForDrop;
       if (!isEdit || !resolve) return;
-      // Tauri's WebKit strips dropped `File` bytes and passes the path as text instead, so both
-      // are read and whichever the host can turn into a connection string wins.
       const dropped = [
-        ...(e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain") || "")
-          .split(/\r?\n/)
-          .filter(Boolean),
+        ...textEntriesFromDataTransfer(e.dataTransfer),
         ...Array.from(e.dataTransfer.files).map((f) => f.name),
       ];
       const added: Record<string, string> = {};
@@ -813,6 +828,10 @@ function BlueprintGraphInner({
           <ContextMenu.Root>
             <ContextMenu.Trigger>
               <div
+                // Lets a host-level (window-wide) drop handler recognize that this canvas already
+                // owns file drops and stand down, rather than racing it to also treat the same drop
+                // as "open a new blueprint". Only present when a drop here actually does something.
+                data-blueprint-drop-target={callbacks.onConnectionForDrop ? "" : undefined}
                 style={{ width: "100%", height: "100%" }}
                 onDragOver={(e) => {
                   if (callbacks.onConnectionForDrop) e.preventDefault();

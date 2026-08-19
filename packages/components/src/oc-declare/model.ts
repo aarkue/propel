@@ -1,7 +1,17 @@
 import type { OCDeclareArc, OCDeclareArcLabel, ObjectTypeAssociation } from "./index";
 import type { ArcType } from "./types";
 
-export type EdgeTemplate = "as" | "ef" | "ef-rev" | "df" | "df-rev" | "nef" | "nef-rev" | "ndf" | "ndf-rev";
+export type EdgeTemplate =
+  | "as"
+  | "ef"
+  | "ef-rev"
+  | "df"
+  | "df-rev"
+  | "nas"
+  | "nef"
+  | "nef-rev"
+  | "ndf"
+  | "ndf-rev";
 
 export interface DeclareNode {
   id: string;
@@ -40,6 +50,7 @@ export const EDGE_TEMPLATES: EdgeTemplate[] = [
   "ef-rev",
   "df",
   "df-rev",
+  "nas",
   "nef",
   "nef-rev",
   "ndf",
@@ -52,6 +63,7 @@ export const TEMPLATE_LABELS: Record<EdgeTemplate, string> = {
   "ef-rev": "Eventually Precedes",
   df: "Directly Follows",
   "df-rev": "Directly Precedes",
+  nas: "not Always Succeeds",
   nef: "not Eventually Follows",
   "nef-rev": "not Eventually Precedes",
   ndf: "not Directly Follows",
@@ -64,6 +76,7 @@ export const TEMPLATE_TO_ARC: Record<EdgeTemplate, { arc_type: ArcType; negated:
   "ef-rev": { arc_type: "EP", negated: false },
   df: { arc_type: "DF", negated: false },
   "df-rev": { arc_type: "DP", negated: false },
+  nas: { arc_type: "AS", negated: true },
   nef: { arc_type: "EF", negated: true },
   "nef-rev": { arc_type: "EP", negated: true },
   ndf: { arc_type: "DF", negated: true },
@@ -113,6 +126,7 @@ const ARC_TO_TEMPLATE: Record<string, EdgeTemplate> = {
   "EP|false": "ef-rev",
   "DF|false": "df",
   "DP|false": "df-rev",
+  "AS|true": "nas",
   "EF|true": "nef",
   "EP|true": "nef-rev",
   "DF|true": "ndf",

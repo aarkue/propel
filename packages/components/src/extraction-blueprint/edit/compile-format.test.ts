@@ -93,11 +93,15 @@ describe("compiledProbeStatements", () => {
 
 describe("describeMappingTarget / describeCompileErrorTarget", () => {
   it("prefers the mapping's label over its path", () => {
-    expect(describeMappingTarget({ index: 0, label: "orders", path: "$.mappings[0]" })).toBe("orders");
+    expect(
+      describeMappingTarget({ index: 0, label: "orders", path: "$.mappings[0]", describes: "object" }),
+    ).toBe("orders");
   });
 
   it("falls back to the path when there is no label", () => {
-    expect(describeMappingTarget({ index: 0, label: null, path: "$.mappings[0]" })).toBe("$.mappings[0]");
+    expect(describeMappingTarget({ index: 0, label: null, path: "$.mappings[0]", describes: "object" })).toBe(
+      "$.mappings[0]",
+    );
   });
 
   it("reads '(blueprint)' for a whole-blueprint error/probe (mapping: null)", () => {

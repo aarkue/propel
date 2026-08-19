@@ -51,6 +51,19 @@ describe("template↔arc", () => {
     expect(TEMPLATE_TO_ARC.nef).toEqual({ arc_type: "EF", negated: true });
     expect(TEMPLATE_TO_ARC["ndf-rev"]).toEqual({ arc_type: "DP", negated: true });
     expect(TEMPLATE_TO_ARC.as).toEqual({ arc_type: "AS", negated: false });
+    expect(TEMPLATE_TO_ARC.nas).toEqual({ arc_type: "AS", negated: true });
+  });
+  it("round-trips a negated association arc", () => {
+    const arc = {
+      from: "confirm order",
+      to: "send package",
+      arc_type: "AS" as const,
+      counts: [0, 0] as [number | null, number | null],
+      label: { each: [], any: [{ type: "Simple" as const, object_type: "employees" }], all: [] },
+    };
+    const model = arcsToModel([arc]);
+    expect(model.edges[0].template).toBe("nas");
+    expect(toArcs(model)[0]).toEqual(arc);
   });
   it("negated templates force [0,0] counts, else cardinality ?? [1,null]", () => {
     expect(templateCounts("nef", [3, 5])).toEqual([0, 0]);

@@ -1,13 +1,10 @@
-// The four `Target` variants (Event/Object/E2O/O2O), plus the two reusable sub-editors the model
-// itself calls for (spec 1.2): `ObjectEndpointEditor` (id/object_type/split) and
-// `EventEndpointEditor` (id/event_type), each used at every position the spec names as the
-// factoring win -- Target::Object's own id/type, InlineObjectRef.object, E2O.object + E2O.event,
-// O2O.source + O2O.target. Building one of each and reusing it four times (not forking into four
-// near-identical forms) is the direct UI payoff of that model decision.
+// The four `Target` variants (Event/Object/E2O/O2O), built from two reusable sub-editors,
+// `ObjectEndpointEditor` and `EventEndpointEditor`, shared across every position that needs one
+// rather than forked into near-identical forms per variant.
 //
-// Layout rule: the fields that decide *what this mapping produces* stay visible and sit side by
-// side; a setting belonging to one of them (a timestamp's format) hangs off it as an
-// `InlineDisclosure`; only open-ended lists (attributes, split rules) keep a boxed `Disclosure`.
+// Layout rule: fields that decide *what this mapping produces* stay visible and side by side; a
+// setting belonging to one of them hangs off it as an `InlineDisclosure`; only open-ended lists
+// (attributes, split rules) keep a boxed `Disclosure`.
 import { Button, Select, Text, TextField } from "@r4pm/components/ui";
 import { PiPlus } from "react-icons/pi";
 import { describeExpr } from "../node-summary";
@@ -202,18 +199,14 @@ function EventTargetForm({
           nodeId={nodeId}
           hint="id"
           noneLabel="Auto (UUID)"
-          noneHint="A random UUID per event, so every row makes its own event. Pick a column to make ids stable, let this mapping compile to SQL, and merge rows sharing an id into one event related to all of their objects."
+          noneHint="Random UUID per row. Pick a column for stable, mergeable ids."
           onChange={(id) => onChange({ ...value, id })}
         />
       </Field>
 
       <Field
         label={objects.length > 0 ? `Related objects (${objects.length})` : "Related objects"}
-        hint={
-          objects.length === 0
-            ? "None yet. Add one to link this event to an object named by a column in the same row."
-            : undefined
-        }
+        hint={objects.length === 0 ? "Link this event to an object via a column." : undefined}
       >
         <InlineObjectRefList
           value={objects}
@@ -285,10 +278,7 @@ function ObjectTargetForm({
           nodeId={nodeId}
           onChange={(next) => onChange({ ...value, attributes: next })}
         />
-        <Field
-          label="Observed at"
-          hint="Set this when the rows are a change table: each row then records the attribute values as of that moment, rather than one static value per object."
-        >
+        <Field label="Observed at" hint="For change tables: each row is a value as of that moment.">
           <OptionalTimestampSource
             value={value.timestamp}
             nodeId={nodeId}
@@ -421,10 +411,7 @@ export function ObjectEndpointEditor({
       {/* Not collapsed, unlike the rest of the tail. Under the editor's default policies
           (type-prefixed ids, create-on-missing) an endpoint with no type cannot resolve at all, so
           hiding the field behind "optional" was hiding the most important thing on the form. */}
-      <Field
-        label="Object type"
-        hint="Which type of object this id refers to. Required to rebuild a type-prefixed id, and to create the object when it does not exist yet."
-      >
+      <Field label="Object type" hint="Object type this id refers to.">
         <OptionalValueExpression
           value={value.object_type}
           nodeId={nodeId}
@@ -471,10 +458,7 @@ export function EventEndpointEditor({
           onChange={(id) => onChange({ ...value, id })}
         />
       </Field>
-      <Field
-        label="Event type"
-        hint="Which type of event this id refers to. Required to rebuild a type-prefixed id."
-      >
+      <Field label="Event type" hint="Event type this id refers to.">
         <OptionalValueExpression
           value={value.event_type}
           nodeId={nodeId}

@@ -6,10 +6,10 @@ import {
   PiArrowClockwise,
   PiArrowLeft,
   PiArrowRight,
-  PiDatabase,
   PiFileArrowUp,
   PiLightning,
   PiSparkle,
+  PiTable,
 } from "react-icons/pi";
 import { backend } from "../backends";
 import { addPanelToDockview } from "../panels/registry";
@@ -131,14 +131,12 @@ export function WelcomeScreen({
           </Heading>
           <Text as="p" size="3" color="gray">
             {nativeSources
-              ? "Bring a finished log, or build one from your own database."
-              : "Bring a finished log, or build one from a database file."}
+              ? "Bring a finished log, or build one from your own database or tabular files."
+              : "Bring a finished log, or build one from a database or tabular file."}
           </Text>
         </div>
 
-        {/* The two ways in, at equal weight. Extraction used to be reachable only after a dataset
-            was already loaded, which put the tool's own way of making one behind the step it
-            replaces. */}
+        {/* The two ways in, at equal weight: extraction must not be gated behind an existing dataset. */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[var(--gray-a6)] bg-[var(--gray-a2)] px-4 sm:px-6 py-6 sm:py-8 text-center">
             <div className="rounded-full bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-3 mb-3">
@@ -161,15 +159,15 @@ export function WelcomeScreen({
             className="group relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-[var(--gray-a6)] bg-[var(--gray-a2)] px-4 sm:px-6 py-6 sm:py-8 text-center transition-colors hover:border-[var(--indigo-8)] hover:bg-[var(--indigo-a2)]"
           >
             <div className="rounded-full bg-[var(--jade-a3)] text-[var(--jade-11)] p-3 mb-3">
-              <PiDatabase size={28} />
+              <PiTable size={28} />
             </div>
             <Heading size="4" className="!mb-1">
-              Extract from a database
+              Extract from tables or databases
             </Heading>
             <Text size="2" color="gray" className="max-w-sm">
               {nativeSources
-                ? "Point at Postgres, SQLite, CSV or Parquet and build an OCEL log from its tables."
-                : "Drop a SQLite database and build an OCEL log from its tables."}
+                ? "Point at Postgres, SQLite, CSV, XLSX or Parquet and build an OCEL log from its tables."
+                : "Drop a SQLite database or tabular file and build an OCEL log from its tables."}
             </Text>
             <Text size="2" className="mt-5 text-[var(--indigo-11)]">
               Start a blueprint <PiArrowRight className="inline align-middle" />

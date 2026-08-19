@@ -21,6 +21,11 @@ ocel-sqlite = ["process_mining/ocel-sqlite"]
 # The file-backed connector: SQLite, CSV and Parquet, all readable from bytes and all buildable
 # for wasm32. Safe for every target.
 extraction-blueprint-dbcon = ["process_mining/extraction-dbcon"]
+# DuckDB links a native library and has no wasm32 build, so it is opt-in like PostgreSQL.
+extraction-blueprint-dbcon-duckdb = [
+    "extraction-blueprint-dbcon",
+    "process_mining/extraction-dbcon-duckdb",
+]
 
 # Adds PostgreSQL, which pulls `sqlx` and does not build for wasm32. Native backends only.
 extraction-blueprint-dbcon-postgres = [

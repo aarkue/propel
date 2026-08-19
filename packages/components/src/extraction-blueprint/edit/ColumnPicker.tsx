@@ -1,9 +1,6 @@
-// The column picker, rebuilt to OCPQ's shape. The generic `Combobox` shows a flat list of strings,
-// which for a column is the least useful thing about it: what a user needs while wiring a mapping
-// is the column's type and what its values actually look like. So each row carries a type icon,
-// the name, the declared type and a sample of real values (from `catalog.domains`, when the host
-// has fetched them), and the list is ordered by what the field is asking for -- an "id" field
-// floats `*_id` columns, a timestamp field floats date/time ones.
+// Each row carries a type icon, name, declared type, and a sample of real values (from
+// `catalog.domains`), ordered by what the field is asking for: an "id" field floats `*_id`
+// columns, a timestamp field floats date/time ones.
 import { Popover, ScrollArea, Text, TextField } from "@r4pm/components/ui";
 import { useMemo, useState } from "react";
 import { PiCalendarBlank, PiCaretDown, PiCheck, PiHash, PiLink, PiToggleLeft } from "react-icons/pi";
@@ -104,8 +101,7 @@ export function ColumnPicker({
       <Popover.Trigger>
         <button
           type="button"
-          className={`flex w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-left transition-colors ${className ?? ""}`}
-          style={{ border: "1px solid var(--gray-a7)", background: "var(--color-surface)" }}
+          className={`flex w-full min-w-0 cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-left transition-colors border-[var(--gray-a7)] bg-[var(--color-surface)] hover:border-[var(--gray-a8)] hover:bg-[var(--gray-a2)] focus-visible:-outline-offset-1 focus-visible:outline-2 focus-visible:[outline-color:var(--accent-8)] ${className ?? ""}`}
         >
           {selected ? (
             <ColumnRow info={selected} />
@@ -140,7 +136,7 @@ export function ColumnPicker({
           {allowEmpty && (
             <button
               type="button"
-              className="flex w-full cursor-pointer items-center gap-2 rounded border-none bg-transparent px-1.5 py-1 text-left"
+              className="flex w-full cursor-pointer items-center gap-2 rounded border-none bg-transparent px-1.5 py-1 text-left hover:bg-[var(--gray-a3)]"
               onClick={() => choose("")}
             >
               <span className="w-3.5 shrink-0">{!value && <PiCheck size={12} />}</span>

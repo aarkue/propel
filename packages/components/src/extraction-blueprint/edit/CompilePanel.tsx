@@ -1,15 +1,7 @@
 // The "Compile" dialog: calls `onCompile(blueprint, catalog, shape)` and renders the resulting
-// SQL. Mirrors RunPanel.tsx's layout, loading and error-state conventions (a Dialog with a
-// disabled-while-busy trigger button, a red inline error line on throw), but the *content* of a
-// successful result is shaped differently, because a compile is never wholesale pass/fail the way
-// a run is:
-//
-//  - `errors()` names mappings the compiler skipped, one per line, alongside the SQL for
-//    everything else -- never a toast, since it would disappear while the omission it describes
-//    stays permanent in the emitted views.
-//  - `probes()` are SQL that must return zero rows for the views to agree with the extractor; a
-//    non-empty result means the views are lying for that case, not that something is broken, so
-//    each one carries a one-line explanation rather than being surfaced as an error.
+// SQL. Unlike RunPanel.tsx, a compile is never wholesale pass/fail: `errors()` names mappings
+// the compiler skipped (shown inline, never a toast, since the omission is permanent), and
+// `probes()` are SQL that must return zero rows for the views to agree with the extractor.
 import {
   Badge,
   Button,
@@ -24,7 +16,8 @@ import {
 import { useState } from "react";
 import { PiCheck, PiCopy, PiWarningCircle, PiX } from "react-icons/pi";
 import { toBlueprint } from "../model";
-import type { CompiledOcel, EmissionShape } from "../types";
+import type { CompiledOcel, EmissionShape, SqlDialect } from "../types";
+import { Disclosure, InlineDisclosure } from "./Disclosure";
 import { useEditContext } from "./edit-context";
 import {
   compiledDdl,
@@ -38,6 +31,13 @@ import {
 const SHAPES: { value: EmissionShape; label: string; hint: string }[] = [
   { value: "PerType", label: "Per type", hint: "one view per declared event/object type (OCEL 2.0 layout)" },
   { value: "Consolidated", label: "Consolidated", hint: "one events/objects table, type as a column value" },
+];
+
+/** The engines the compiler can emit for. Not the same as the engines a *source* can be read from:
+ *  this picks the SQL the views are written in, not where the data lives. */
+const DIALECTS: { value: SqlDialect; label: string; hint: string }[] = [
+  { value: "DuckDb", label: "DuckDB", hint: "checked row-for-row against the extractor" },
+  { value: "Postgres", label: "PostgreSQL", hint: "same views; regex filters are not compiled" },
 ];
 
 function CopyButton({ text }: { text: string }) {
@@ -62,6 +62,7 @@ function CopyButton({ text }: { text: string }) {
 export function CompilePanel({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const edit = useEditContext();
   const [shape, setShape] = useState<EmissionShape>("PerType");
+  const [dialect, setDialect] = useState<SqlDialect>("DuckDb");
   const [compiling, setCompiling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompiledOcel | null>(null);
@@ -73,7 +74,7 @@ export function CompilePanel({ open, onOpenChange }: { open: boolean; onOpenChan
     setCompiling(true);
     setError(null);
     try {
-      setResult(await onCompile(toBlueprint(edit.model), edit.catalog, shape));
+      setResult(await onCompile(toBlueprint(edit.model), edit.catalog, shape, dialect));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -112,6 +113,22 @@ export function CompilePanel({ open, onOpenChange }: { open: boolean; onOpenChan
         </Flex>
 
         <Flex gap="2" align="center" mt="2">
+          <Select.Root size="1" value={dialect} onValueChange={(v) => setDialect(v as SqlDialect)}>
+            <Select.Trigger />
+            <Select.Content>
+              {DIALECTS.map((d) => (
+                <Select.Item key={d.value} value={d.value}>
+                  {d.label}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+          <Text size="1" color="gray">
+            {DIALECTS.find((d) => d.value === dialect)?.hint}
+          </Text>
+        </Flex>
+
+        <Flex gap="2" align="center" mt="2">
           <Button size="1" disabled={compiling} onClick={() => void compile()}>
             {compiling ? "Compiling..." : "Compile"}
           </Button>
@@ -143,8 +160,7 @@ export function CompilePanel({ open, onOpenChange }: { open: boolean; onOpenChan
                 {result.errors.length} mapping{result.errors.length === 1 ? "" : "s"} could not be compiled
               </Text>
               <Text as="div" size="1" className="opacity-90 mb-2">
-                The rest of the blueprint still compiled below. The entities these mappings would have
-                produced are missing from the SQL, even though a real extraction would include them.
+                The rest compiled below; these mappings' entities are missing from the SQL.
               </Text>
               <Flex direction="column" gap="1">
                 {result.errors.map((e, i) => (
@@ -178,35 +194,43 @@ export function CompilePanel({ open, onOpenChange }: { open: boolean; onOpenChan
           </div>
         )}
 
+        {/* Shut by default, and each probe's SQL shut inside it. The SQL a user came here for is the
+            DDL above; the probes are a caveat about it, and rendering every one as an open textarea
+            buried that DDL under a wall of queries that are usually not worth reading. The count is
+            on the closed header, so "are there any?" is still answerable without opening it. */}
         {probes.length > 0 && (
           <div style={{ marginTop: 12 }}>
-            <Text size="1" weight="medium" as="div" mb="1">
-              Probes ({probes.length})
-            </Text>
-            <Text size="1" color="gray" as="div" mb="2">
-              Each must return zero rows for the SQL above to agree with what an actual extraction would
-              produce. A non-empty result is not a bug in the SQL -- it means this blueprint's data hits a
-              case the compiler could only detect by reading the data itself, and the views above disagree
-              with the extractor for those rows.
-            </Text>
-            <Flex direction="column" gap="3">
-              {probes.map(({ probe, sql }, i) => (
-                <div key={i}>
-                  <Flex justify="between" align="center" mb="1">
-                    <Text size="1">
-                      <strong>{describeMappingTarget(probe.mapping)}</strong>: {describeProbeKind(probe.kind)}
-                    </Text>
-                    <CopyButton text={sql} />
-                  </Flex>
-                  <TextArea
-                    value={sql}
-                    readOnly
-                    rows={3}
-                    style={{ fontFamily: "var(--code-font-family, monospace)" }}
-                  />
-                </div>
-              ))}
-            </Flex>
+            <Disclosure
+              title="Probes"
+              count={probes.length}
+              summary={probes.length === 1 ? "1 check" : `${probes.length} checks`}
+            >
+              <Text size="1" color="gray" as="div">
+                Each should return zero rows. A non-empty result means the SQL disagrees with a real
+                extraction for that case.
+              </Text>
+              <Flex direction="column" gap="2">
+                {probes.map(({ probe, sql }, i) => (
+                  <div key={i}>
+                    <Flex justify="between" align="center" gap="2">
+                      <Text size="1" className="min-w-0">
+                        <strong>{describeMappingTarget(probe.mapping)}</strong>:{" "}
+                        {describeProbeKind(probe.kind)}
+                      </Text>
+                      <CopyButton text={sql} />
+                    </Flex>
+                    <InlineDisclosure label="SQL">
+                      <TextArea
+                        value={sql}
+                        readOnly
+                        rows={3}
+                        style={{ fontFamily: "var(--code-font-family, monospace)" }}
+                      />
+                    </InlineDisclosure>
+                  </div>
+                ))}
+              </Flex>
+            </Disclosure>
           </div>
         )}
       </Dialog.Content>

@@ -206,16 +206,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     });
 
     return list;
-  }, [
-    datasets,
-    kinds.data,
-    importableKinds,
-    resolved,
-    importKind,
-    unload,
-    onClose,
-    toggleTheme,
-  ]);
+  }, [datasets, kinds.data, importableKinds, resolved, importKind, unload, onClose, toggleTheme]);
 
   const ranked = useMemo(
     () =>

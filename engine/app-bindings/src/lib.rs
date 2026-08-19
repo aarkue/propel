@@ -21,12 +21,6 @@ pub fn app_ping() -> String {
     "pong".to_string()
 }
 
-/// STUB: no-op until rust4pm feat/oc-declare-act-projection merges; replace with the real activity-projection then.
-#[register_binding]
-pub fn activity_projection_stub() -> Vec<String> {
-    Vec::new()
-}
-
 #[register_binding]
 pub fn alphappp_auto(log_proj: &EventLogActivityProjection) -> PetriNet {
     let (_config, net) = process_mining::discovery::case_centric::alphappp::auto_parameters::alphappp_discover_with_auto_parameters(log_proj);

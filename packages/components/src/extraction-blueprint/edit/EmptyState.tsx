@@ -35,8 +35,7 @@ export function EmptyState({
           No data source available
         </Text>
         <Text as="p" size="2" color="gray" className="leading-snug">
-          This build cannot open a source. A blueprint written elsewhere can still be loaded, validated and
-          compiled to SQL here.
+          This build can't open a source. You can still load, validate and compile a blueprint here.
         </Text>
       </div>
     );

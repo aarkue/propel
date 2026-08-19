@@ -30,10 +30,8 @@ export function defaultForKind(kind: ValueExpression["type"]): ValueExpression {
 }
 
 /**
- * Insert `{column}` at `cursorPos` -- unless the text immediately before the cursor already has
- * an unterminated `{` (no matching `}` after it), in which case complete *that* placeholder in
- * place instead of inserting a second `{`. This is what makes "type `{`, click a suggestion"
- * behave as completion rather than duplication (see `ValueExpressionEditor.test.tsx`).
+ * Insert `{column}` at `cursorPos`, unless the text before the cursor has an unterminated `{`,
+ * in which case complete that placeholder in place instead of inserting a second `{`.
  */
 export function insertColumnToken(
   template: string,
@@ -242,8 +240,9 @@ function TemplateEditor({
               key={c}
               type="button"
               onClick={() => insert(c)}
-              className="cursor-pointer rounded px-1 py-px font-mono text-[10px] transition-colors"
-              style={{ background: "var(--gray-a3)", border: "1px solid var(--gray-a5)" }}
+              // Hover as a class: the chip declared `transition-colors` but had nothing to
+              // transition to, so a row of them read as labels rather than as things to click.
+              className="cursor-pointer rounded border border-[var(--gray-a5)] bg-[var(--gray-a3)] px-1 py-px font-mono text-[10px] transition-colors hover:border-[var(--accent-8)] hover:bg-[var(--accent-a4)] focus-visible:-outline-offset-1 focus-visible:outline-2 focus-visible:[outline-color:var(--accent-8)]"
             >
               {`{${c}}`}
             </button>

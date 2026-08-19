@@ -30,6 +30,30 @@ sizes inline so it fills its container immediately; inner layout uses that style
 coloring, formatting, and interactivity are configured once via `ViewerConfigProvider` (see the
 Storybook "Concepts > Viewer Configuration" page).
 
+### If your app already runs Tailwind
+
+Import `@r4pm/components/rules.css` instead, and point Tailwind at this package's source so it
+generates the utility classes the components use:
+
+```css
+/* your index.css */
+@import "tailwindcss";
+@source "../node_modules/@r4pm/components/src";
+```
+
+```tsx
+import "./index.css";
+import "@r4pm/components/rules.css"; // after your Tailwind entry, never before
+```
+
+`rules.css` is everything `styles.css` has minus Tailwind itself: the Radix theme, the shared
+`--r4pm-*` tokens, the Petri-net editor's stylesheet and the components' own hand-written rules.
+Importing only `@r4pm/components/ui/styles.css` gets you Radix but none of the latter, which shows up
+as components that render with their layout intact and their styling missing.
+
+Order matters: Tailwind's Preflight resets `button`, `input` and friends, so it has to load before
+Radix or it strips Radix's control styling.
+
 ## Subpaths
 
 Heavier viewers live behind subpaths so the core entry stays light (importing `@r4pm/components`
@@ -41,7 +65,8 @@ never pulls Plotly or the Petri-net editor):
 | `@r4pm/components/ui` | the Radix Themes seam (`Theme`, `Button`, `Card`, ...). Import UI primitives from here, never `@radix-ui/themes` directly |
 | `@r4pm/components/petri` | the React Flow + ELK Petri-net **editor** (layout, export controls) |
 | `@r4pm/components/charts` | Plotly-backed viewers: `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot` |
-| `@r4pm/components/styles.css` | precompiled stylesheet (Tailwind + Radix theme) |
+| `@r4pm/components/styles.css` | precompiled stylesheet (Tailwind + Radix theme + everything in `rules.css`) |
+| `@r4pm/components/rules.css` | the same minus Tailwind, for apps that run their own Tailwind build |
 
 ## Docs
 

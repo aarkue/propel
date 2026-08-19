@@ -111,11 +111,8 @@ const SAMPLE_BLUEPRINT: Blueprint = {
   ],
 };
 
-// Same graph as SAMPLE_BLUEPRINT, plus a second, deliberately uncompilable mapping (an Event
-// target with no `id`, so the compiler's `RejectReason::SynthesizedId` fires -- the extractor
-// would mint a random UUID per row, which has no relational denotation) -- exercises the "one
-// mapping fails, the rest of the blueprint still compiles" path the compile panel has to make
-// unmissable rather than hiding behind a toast.
+// Same graph as SAMPLE_BLUEPRINT, plus an Event mapping with no `id` (fires
+// `RejectReason::SynthesizedId`), to exercise "one mapping fails, the rest still compiles".
 const SAMPLE_BLUEPRINT_WITH_COMPILE_ERROR: Blueprint = {
   ...SAMPLE_BLUEPRINT,
   mappings: [
@@ -187,6 +184,7 @@ function mockCallbacks(): BlueprintEditCallbacks {
             index: i,
             label: m.type === "single" ? (m.label ?? null) : null,
             path: `$.mappings[${i}]`,
+            describes: m.type === "single" ? m.target.type : "mapping",
           },
           rows_read: 128,
           entities_emitted: 120,
@@ -204,20 +202,22 @@ function mockCallbacks(): BlueprintEditCallbacks {
         },
       },
     }),
-    // A tiny stand-in for `extraction_compile`: emits one view per compilable Object/Event
-    // mapping (skipped if `id` is absent -- `RejectReason::SynthesizedId`, since the extractor
-    // would mint a random UUID per row with no relational denotation), named differently per
-    // `shape` so switching the selector visibly changes the SQL. Not a real compiler -- Storybook
-    // has no backend -- but the same shape `extraction_compile` itself returns.
-    onCompile: async (blueprint, _catalog, shape) => {
+    // A stand-in for `extraction_compile`: one view per compilable Object/Event mapping (skips
+    // ones missing `id`), named per `shape` so the selector visibly changes the SQL.
+    onCompile: async (blueprint, _catalog, shape, dialect) => {
       const views: { name: string; body: string }[] = [];
       const errors: {
-        mapping: { index: number; label: string | null; path: string } | null;
+        mapping: { index: number; label: string | null; path: string; describes: string } | null;
         reason: { SynthesizedId: { field: string } } | { Invalid: { detail: string } };
       }[] = [];
       blueprint.mappings.forEach((entry, i) => {
         if (entry.type !== "single") return;
-        const mappingRef = { index: i, label: entry.label ?? null, path: `$.mappings[${i}]` };
+        const mappingRef = {
+          index: i,
+          label: entry.label ?? null,
+          path: `$.mappings[${i}]`,
+          describes: entry.target.type,
+        };
         const { target } = entry;
         if (target.type !== "object" && target.type !== "event") return;
         if (!target.id) {
@@ -236,7 +236,7 @@ function mockCallbacks(): BlueprintEditCallbacks {
       });
       const objectView = views.find((v) => v.name.startsWith("object"));
       return {
-        dialect: "DuckDb",
+        dialect: dialect ?? "DuckDb",
         shape,
         views,
         probes: objectView

@@ -1,8 +1,6 @@
-// The canvas toolbars. Left: add a table, connections, blueprint settings, auto-layout. Right:
-// validation status, compile, run, clear -- the same split OCPQ had, where "what do I build with"
-// sits on one side and "what do I do with it" on the other. Every backend-calling action is
-// optional-callback-driven: a missing callback hides its own affordance, mirroring
-// oc-declare/edit/EditToolbar.tsx's `onDiscover`/`onEvaluate` pattern.
+// Canvas toolbars: left is "what to build with" (table, connections, settings, layout), right is
+// "what to do with it" (validate, compile, run, clear). Every backend-calling action is driven by
+// an optional callback, so a missing callback just hides its affordance.
 import { Badge, Button, Flex, Popover, Select, Separator, Text } from "@r4pm/components/ui";
 import { useState } from "react";
 import {
@@ -146,7 +144,7 @@ function BlueprintSettings() {
         <Flex direction="column" gap="3">
           <SettingRow
             label="Id rendering"
-            hint="Type-prefixed makes ids from different types unable to collide, but then every relation endpoint must declare its type."
+            hint="Prevents id collisions across types; endpoints must declare their type."
           >
             <Select.Root
               size="1"
@@ -163,7 +161,7 @@ function BlueprintSettings() {
           <Separator size="4" />
           <SettingRow
             label="Missing relation endpoint"
-            hint="What to do when a relation names an entity no mapping produced. Create requires the endpoint to declare its type."
+            hint="When a relation points to nothing. Create needs a declared type."
           >
             <Select.Root
               size="1"

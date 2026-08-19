@@ -1,19 +1,18 @@
 import { createContext, useContext } from "react";
 import type { EditorBlueprint } from "../model";
+import type { ConnectionKind } from "./connection-string";
 import type {
   Blueprint,
   CompiledOcel,
   EmissionShape,
   ExtractionCatalog,
   ExtractionReport,
+  SqlDialect,
   TablePreview,
   ValidationError,
 } from "../types";
 
-/** Injected backend callbacks; a missing one hides its own toolbar affordance (mirrors
- *  oc-declare's `EditCallbacks`). `connections` is a `Record<string,string>` (source id ->
- *  connection string) the host owns -- see `edit-context.ts`'s own header note below: connection
- *  strings are never part of `EditorBlueprint`/`Blueprint`. */
+/** Injected backend callbacks; a missing one hides its own toolbar affordance (mirrors oc-declare's `EditCallbacks`). */
 export interface BlueprintEditCallbacks {
   onDiscoverCatalog?: (connections: Record<string, string>) => Promise<ExtractionCatalog>;
   onColumnDomain?: (
@@ -22,58 +21,49 @@ export interface BlueprintEditCallbacks {
     table: string,
     column: string,
   ) => Promise<string[]>;
-  /** A few real rows of one table, for display only. Much cheaper than `onColumnDomain`, which is
-   *  a `SELECT DISTINCT` per column and is the exact set the SQL compiler enumerates views from. */
+  /** A few real rows of one table, for display only. Cheaper than `onColumnDomain`'s `SELECT DISTINCT` per column. */
   onTablePreview?: (
     connections: Record<string, string>,
     sourceId: string,
     table: string,
     limit?: number,
   ) => Promise<TablePreview>;
-  /** A `dbcon` connection string for a file dropped on the canvas, or undefined if the host
-   *  cannot open that file (an unknown extension, or a browser `File` with no real path).
-   *  Dropping onto the canvas means "read this as data", so no disambiguation is needed. */
+  /** A `dbcon` connection string for a file dropped on the canvas, or undefined if the host cannot open it. */
   onConnectionForDrop?: (pathOrName: string) => string | undefined;
-  /** A native open dialog, resolving to an absolute path or undefined if cancelled. Absent where
-   *  the host has no filesystem (a browser), which is what hides the Browse affordance. */
+  /** A native open dialog, resolving to an absolute path or undefined if cancelled. Absent on hosts with no filesystem, which hides the Browse affordance. */
   onPickFile?: (extensions: string[]) => Promise<string | undefined>;
+  /** Per-kind availability on this host. Absent from the map = available; mapped to a string = shown but disabled, naming where it does work. */
+  connectionKindAvailability?: Partial<Record<ConnectionKind, string>>;
+  /** Pick a file and get back a finished connection string, for a backend with no filesystem that
+   *  reads bytes into the registry and returns an `item://` string instead of a path. */
+  onAddFileSource?: (extensions: string[]) => Promise<string | undefined>;
   onValidate?: (blueprint: Blueprint, catalog: ExtractionCatalog) => Promise<ValidationError[]>;
-  /** `ocelHandle` in the result is an opaque string -- see index.tsx's header for why this package
-   *  cannot type it as a branded `SlimLinkedOCELHandle` without depending on @r4pm/client.
-   *
-   *  `catalog` is the one the editor already discovered. Passing it lets the runner skip
-   *  rediscovering every source's schema, which it otherwise does on every single run. */
+  /** `ocelHandle` is an opaque string, since this package cannot depend on @r4pm/client for a branded type.
+   *  `catalog` is what the editor already discovered, so the runner need not rediscover it. */
   onRun?: (
     blueprint: Blueprint,
     connections: Record<string, string>,
     catalog: ExtractionCatalog,
   ) => Promise<{
     ocelHandle: string;
-    /** Absent when the host's run path cannot produce one. Deliberately optional rather than
-     *  something a host fakes with an empty report: zeroed counts render as "ran fine, produced
-     *  nothing", which is a different and wrong claim. `RunPanel` says so instead. */
+    /** Absent when the host's run path cannot produce one; left optional rather than faked with a zeroed report, which `RunPanel` would misread as "ran fine, produced nothing". */
     report?: ExtractionReport;
-    /** What the host called the resulting log in its own dataset list, when it keeps one. Shown
-     *  instead of the opaque handle, so a successful run says where its output went. */
+    /** What the host calls the resulting log in its own dataset list, shown instead of the opaque handle. */
     datasetLabel?: string;
   }>;
-  /** Compiles to SQL views instead of running -- pure, no connection needed (`extraction_compile`
-   *  takes only a catalog, never `connections`), so a host can offer this even where `onRun` is
-   *  hidden (no database connector feature/build). */
+  /** Compiles to SQL views instead of running -- pure, no connection needed, so a host can offer this even where `onRun` is hidden. */
   onCompile?: (
     blueprint: Blueprint,
     catalog: ExtractionCatalog,
     shape: EmissionShape,
+    dialect?: SqlDialect,
   ) => Promise<CompiledOcel>;
 }
 
 export interface EditContextValue {
   model: EditorBlueprint;
   mutate: (fn: (m: EditorBlueprint) => EditorBlueprint) => void;
-  /** Connections are never part of `EditorBlueprint`/`Blueprint` (spec 1.7, 2.6: "connections are
-   *  an argument, never part of the blueprint") -- held here, in the editor's own state (or the
-   *  host's, via `onConnectionsChange`), so an "export blueprint as JSON" action can never
-   *  accidentally serialize a secret into it. */
+  /** Never part of `EditorBlueprint`/`Blueprint` (spec 1.7, 2.6), so "export blueprint as JSON" can't leak a secret into it. */
   connections: Record<string, string>;
   onConnectionsChange: (next: Record<string, string>) => void;
   catalog: ExtractionCatalog;

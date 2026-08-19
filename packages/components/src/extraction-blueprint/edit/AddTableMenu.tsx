@@ -93,21 +93,14 @@ export function TableList({
           const open = query ? true : !collapsed[g.sourceId];
           return (
             <div key={g.sourceId}>
+              {/* Hover and focus need classes, not inline `style`, which can't express either. */}
               <button
                 type="button"
                 onClick={() => !query && setCollapsed((c) => ({ ...c, [g.sourceId]: !c[g.sourceId] }))}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  width: "100%",
-                  padding: "4px 5px",
-                  border: "none",
-                  background: "none",
-                  cursor: query ? "default" : "pointer",
-                  borderRadius: 4,
-                  color: "var(--gray-12)",
-                }}
+                className={`flex w-full items-center gap-[5px] rounded border-none bg-transparent px-[5px] py-1 transition-colors focus-visible:outline-2 focus-visible:[outline-color:var(--accent-8)] focus-visible:-outline-offset-1 ${
+                  query ? "cursor-default" : "cursor-pointer hover:bg-[var(--gray-a3)]"
+                }`}
+                style={{ color: "var(--gray-12)" }}
               >
                 <PiDatabase style={{ flexShrink: 0, color: "var(--gray-10)" }} />
                 <Text size="1" weight="medium" style={{ flex: 1, textAlign: "left" }}>
@@ -124,18 +117,8 @@ export function TableList({
                       key={t}
                       type="button"
                       onClick={() => onSelect({ sourceId: g.sourceId, table: t })}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        width: "100%",
-                        padding: "3px 5px",
-                        border: "none",
-                        background: "none",
-                        cursor: "pointer",
-                        borderRadius: 4,
-                        color: "var(--gray-12)",
-                      }}
+                      className="flex w-full cursor-pointer items-center gap-[5px] rounded border-none bg-transparent px-[5px] py-[3px] transition-colors hover:bg-[var(--gray-a3)] focus-visible:-outline-offset-1 focus-visible:outline-2 focus-visible:[outline-color:var(--accent-8)]"
+                      style={{ color: "var(--gray-12)" }}
                     >
                       <PiTable style={{ flexShrink: 0, color: "var(--gray-10)" }} />
                       <Text size="1" style={{ textAlign: "left" }}>

@@ -16,7 +16,7 @@ import { useEditContext } from "./edit-context";
 import { ObjectInvolvementEditor } from "./ObjectInvolvementEditor";
 
 const POSITIVE: EdgeTemplate[] = ["as", "ef", "ef-rev", "df", "df-rev"];
-const NEGATED: EdgeTemplate[] = ["nef", "nef-rev", "ndf", "ndf-rev"];
+const NEGATED: EdgeTemplate[] = ["nas", "nef", "nef-rev", "ndf", "ndf-rev"];
 
 function TemplateButton({
   template,

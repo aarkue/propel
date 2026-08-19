@@ -7,10 +7,10 @@ import { addConnectionEntry, removeConnectionEntry, setConnectionEntry } from ".
 // `renameSourceId`, which takes a source id and never a connection string.)
 describe("connections-ops (editing connections never touches the blueprint)", () => {
   it("addConnectionEntry mints a fresh, non-colliding source id", () => {
-    const next = addConnectionEntry({ source: "a", source1: "b" });
-    expect(Object.keys(next)).toContain("source2");
-    expect(next.source).toBe("a");
-    expect(next.source1).toBe("b");
+    const next = addConnectionEntry({ "source-1": "a", "source-2": "b" });
+    expect(Object.keys(next)).toContain("source-3");
+    expect(next["source-1"]).toBe("a");
+    expect(next["source-2"]).toBe("b");
   });
 
   it("removeConnectionEntry drops exactly the named entry", () => {

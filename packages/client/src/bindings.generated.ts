@@ -939,11 +939,11 @@ event_type: ValueExpression
  * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
  * be compiled to a view.
  * 
- * It is also what coalesces a fan-out. Reading a join of orders and their items gives
- * one row per item, so a `None` id makes one event per item; an id naming the order
- * makes one event per order, still related to every item, because the repeated rows
- * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
- * while `objects` below is emitted for each of them.
+ * It is also what coalesces a fan-out: over a join of orders and their items, a `None`
+ * id makes one event per item, an id naming the order one event per order, still related
+ * to every item. The repeated rows count as
+ * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated) while
+ * `objects` below is emitted for each.
  */
 id?: (ValueExpression | null)
 /**
@@ -1224,7 +1224,7 @@ columns: string[]
 rows: (string | null)[][]
 }
 
-export type SqlDialect = "DuckDb"
+export type SqlDialect = ("DuckDb" | "Postgres")
 /**
  * Which OCEL surface the compiler emits.
  */
@@ -1251,7 +1251,8 @@ name: string
 body: string
 }
 /**
- * SQL that must return zero rows for the compiled relations to agree with the extractor.
+ * A data-dependent assumption the compiled relations make, as SQL that returns zero rows when
+ * the assumption holds.
  */
 
 export interface Probe {
@@ -1289,9 +1290,9 @@ index: number
  */
 label?: (string | null)
 /**
- * The JSON path of the authored entry this mapping came from -- see
- * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
- * what the author wrote rather than a position in the flattened list.
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
  */
 path: string
 /**
@@ -1475,17 +1476,6 @@ column: string
 col_type: string
 }
 } | {
-UnportableRegex: {
-/**
- * The pattern.
- */
-pattern: string
-/**
- * Which construct made it unportable.
- */
-detail: string
-}
-} | {
 InvalidRegex: {
 /**
  * The pattern.
@@ -1532,13 +1522,6 @@ DynamicTypeAttributeConflict: {
  * The attribute name.
  */
 attribute: string
-}
-} | {
-UnsupportedEmissionShape: {
-/**
- * The shape asked for.
- */
-shape: string
 }
 } | {
 ViewCycle: {
@@ -1773,17 +1756,10 @@ id: string
 } | {
 MissingEndpointsAtFinalize: {
 /**
- * How many relations the sink could not resolve. Equals the number of
- * [`MissingEndpoint`](Self::MissingEndpoint) errors an eager sink reports for the same
- * run for an `E2O`/`O2O` endpoint or a `Target::Event`'s inline reference resolved via
- * [`resolve_object_endpoint`](super::mapping_exec::resolve_object_endpoint) --
- * **not** universally: an inline reference on a `Target::Event` whose own event this run
- * dropped is reported by an eager sink as [`DropReason::UnresolvedEndpoint`] on that
- * mapping, with no [`MissingEndpoint`] error pushed at all (there is no endpoint left to
- * resolve), while a deferring sink -- which cannot know at the call site that the event
- * will not exist -- stages the reference regardless and counts it here at finalize. This
- * count can therefore exceed the eager sink's `MissingEndpoint` tally by exactly that
- * many references.
+ * How many relations the sink could not resolve. Usually equals an eager sink's
+ * [`MissingEndpoint`](Self::MissingEndpoint) count for the same run, but can exceed it:
+ * a deferring sink also stages the inline references of a `Target::Event` whose event
+ * this run dropped, which an eager sink never asks about.
  */
 count: number
 }
@@ -1896,6 +1872,52 @@ template: string
  */
 reason: string
 type: "invalid-template"
+} | {
+/**
+ * The `Join` node.
+ */
+node: string
+/**
+ * The contested output column name.
+ */
+column: string
+type: "ambiguous-join-column"
+} | {
+/**
+ * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
+ */
+location: string
+/**
+ * The column compared against.
+ */
+column: string
+/**
+ * That column's declared type, verbatim from the catalog.
+ */
+col_type: string
+/**
+ * The literal, as authored.
+ */
+literal: string
+/**
+ * The kind `col_type` names: `text`, `integer`, `float`, `boolean` or `timestamp`.
+ */
+expected: string
+type: "uncoercible-literal"
+} | {
+/**
+ * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
+ */
+location: string
+/**
+ * The left operand's declared kind: `text`, `integer`, `float`, `boolean` or `timestamp`.
+ */
+left_kind: string
+/**
+ * The right operand's declared kind.
+ */
+right_kind: string
+type: "incomparable-compare"
 })
 
 /**
@@ -1913,79 +1935,30 @@ mapping: MappingRef
  */
 rows_read: number
 /**
- * Entities or relations this mapping *handed to the sink*.
+ * Entities or relations this mapping handed to the sink, which is not the same as
+ * "survived the run" for a sink that defers resolution.
  * 
- * # Not "survived the run", for a sink that defers resolution
- * 
- * For an eager sink ([`SlimOcelSink`](super::slim_sink::SlimOcelSink)) the two coincide:
- * a relation whose endpoint does not exist is refused at the call site, so it is counted
- * under [`DropReason::UnresolvedEndpoint`] and never here.
- * 
- * A sink that answers [`Resolution::Deferred`](super::sink::Resolution::Deferred) --
- * [`DuckDbSink`](super::duckdb_sink::DuckDbSink) -- has no id index to refuse with, so the
- * relation is written, counted here, and only deleted at
- * [`finalize`](super::sink::ExtractionSink::finalize). The same dangling `E2O` therefore
- * reads as
- * 
- * | | eager | deferring |
- * |---|---|---|
- * | `entities_emitted` | 0 | 1 |
- * | `dropped[UnresolvedEndpoint]` | 1 | absent |
- * | [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) | 0 | 1 |
- * 
- * This is the same reporting shift [`DuckDbSink`]'s own docs describe for `dropped`, seen
- * from the other side: the loss is reported in bulk at finalize because the mapping that
- * named the endpoint is long gone by then. Both logs still have the same contents.
- * 
- * To compare two sinks, or to count what a run actually produced, subtract
- * `ExtractionReport::finalize.unresolved_endpoints` from the run's total rather than
- * reading a single mapping's counter -- per-mapping attribution of a deferred loss does not
- * exist, by construction.
- * 
- * [`DuckDbSink`]: super::duckdb_sink::DuckDbSink
+ * An eager sink refuses a dangling relation at the call site, so it lands in
+ * [`DropReason::UnresolvedEndpoint`] and never here. A deferring sink writes it, counts it
+ * here, and deletes it at [`finalize`](super::sink::ExtractionSink::finalize), reporting it
+ * in [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) instead. To count
+ * what a run produced, subtract `ExtractionReport::finalize.unresolved_endpoints` from the
+ * total.
  */
 entities_emitted: number
 /**
- * Rows that tried to create an entity **the sink already had**. Not a loss: an object mapping
+ * Rows that tried to create an entity the sink already had. Not a loss: an object mapping
  * at event grain names the same object on every row by design. See
  * [`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what
  * turns a repeat into a loss instead.
  * 
- * # Exactly what is counted
+ * One increment per row whose entity-creating call found the entity already present, across
+ * mappings, since the sink is what answers.
  * 
- * One increment per row whose entity-creating call found the entity already present:
- * 
- * * a [`Target::Object`](super::blueprint::Target::Object) row whose
- *   [`resolve_object`](super::sink::ExtractionSink::resolve_object) answered
- *   [`Exists`](super::sink::Resolution::Exists), or whose
- *   [`add_object`](super::sink::ExtractionSink::add_object) was refused with
- *   [`SinkError::DuplicateObject`](super::sink::SinkError::DuplicateObject) -- the same event
- *   seen through an eager and a deferring sink respectively, which is why both report the same
- *   number;
- * * a [`Target::Event`](super::blueprint::Target::Event) row whose `add_event` was refused
- *   with [`SinkError::DuplicateEvent`](super::sink::SinkError::DuplicateEvent).
- * 
- * **Including a repeat across two mappings**, which is a change in meaning from "rows that
- * named an entity *this mapping* had already emitted". A second mapping naming an id a first
- * mapping created now counts one deduplication, where it used to count none. That distinction
- * needed one id set per mapping holding every id it named -- the last per-run structure whose
- * size tracked the data -- and it could never have been made to agree across sinks anyway: a
- * sink that answers [`Deferred`](super::sink::Resolution::Deferred) to every ask cannot say
- * whose object it already had.
- * 
- * # And what is not
- * 
- * **Resolving a relation endpoint is never counted**, so an `E2O`/`O2O` mapping reports zero
- * however often its rows repeat an id. Finding an endpoint that already exists is the normal
- * successful case, not a deduplication -- counting it made a healthy `E2O` mapping over `n`
- * rows report `n` deduplications (and `2n` for `O2O`) while nothing had been deduplicated at
- * all. Counting only the repeats among them is what the per-mapping id set used to buy, and it
- * went with it: a case-centric blueprint whose single event mapping creates its case objects
- * through an inline reference used to report `rows - distinct cases` here and now reports
- * zero. The objects are unaffected; only this counter is. A blueprint that wants that number
- * reported can name the cases with a [`Target::Object`](super::blueprint::Target::Object)
- * mapping, which is what [`FlatEventTable`](super::case_centric::FlatEventTable) already adds
- * as soon as there are case attributes.
+ * Resolving a relation endpoint is never counted, so an `E2O`/`O2O` mapping reports zero
+ * however often its rows repeat an id: finding an existing endpoint is the normal successful
+ * case. A blueprint that wants its inline references' repeats counted can name the objects
+ * with their own [`Target::Object`](super::blueprint::Target::Object) mapping.
  */
 deduplicated: number
 /**
@@ -1995,6 +1968,11 @@ deduplicated: number
 dropped: {
 [k: string]: number
 }
+/**
+ * Attribute values that would not convert to their attribute's declared type, stored as
+ * `Null`. Not a dropped row: the entity was written, with one of its attributes empty.
+ */
+uncoercible_attributes?: number
 }
 /**
  * Which mapping.
@@ -2010,9 +1988,9 @@ index: number
  */
 label?: (string | null)
 /**
- * The JSON path of the authored entry this mapping came from -- see
- * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
- * what the author wrote rather than a position in the flattened list.
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
  */
 path: string
 /**
@@ -2035,9 +2013,9 @@ index: number
  */
 label?: (string | null)
 /**
- * The JSON path of the authored entry this mapping came from -- see
- * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
- * what the author wrote rather than a position in the flattened list.
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
  */
 path: string
 /**
@@ -2060,9 +2038,9 @@ index: number
  */
 label?: (string | null)
 /**
- * The JSON path of the authored entry this mapping came from -- see
- * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
- * what the author wrote rather than a position in the flattened list.
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
  */
 path: string
 /**
@@ -2072,12 +2050,243 @@ path: string
 describes: string
 }
 /**
+ * One node the compiler refused to push down to its source, and why.
+ */
+
+export interface PushdownDeclined {
+/**
+ * The node id, as the blueprint names it.
+ */
+node: string
+/**
+ * What the compiler objected to.
+ */
+reason: ({
+SynthesizedId: {
+/**
+ * The absent field.
+ */
+field: string
+}
+} | {
+DynamicTypeName: {
+/**
+ * The position whose type is dynamic.
+ */
+field: string
+/**
+ * Why no domain was available.
+ */
+detail: string
+}
+} | {
+TypeDomainTooLarge: {
+/**
+ * The column the domain came from.
+ */
+column: string
+/**
+ * How many values it has.
+ */
+size: number
+/**
+ * The cap.
+ */
+cap: number
+}
+} | {
+ReservedTypeName: {
+/**
+ * The offending type name.
+ */
+name: string
+}
+} | {
+UnknownNode: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnresolvedNodeSchema: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+NodeCycle: {
+/**
+ * A node id taking part in the cycle.
+ */
+node: string
+}
+} | {
+EmptyProjection: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+EmptyUnion: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnknownColumn: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UndeclaredColumnKind: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableIdentityRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableDisplayRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+ResidualTimestamp: {
+/**
+ * What about it is residual.
+ */
+detail: string
+}
+} | {
+UndecidableJoinKey: {
+/**
+ * The join node's id.
+ */
+node: string
+/**
+ * Which side the column is on.
+ */
+side: string
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+}
+} | {
+InvalidRegex: {
+/**
+ * The pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+}
+} | {
+InvalidTemplate: {
+/**
+ * The template text.
+ */
+template: string
+/**
+ * What is wrong with it.
+ */
+reason: string
+}
+} | {
+AttributeCoercion: {
+/**
+ * The attribute name.
+ */
+attribute: string
+/**
+ * The source column.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * The declared OCEL attribute type.
+ */
+declared: string
+}
+} | {
+DynamicTypeAttributeConflict: {
+/**
+ * The attribute name.
+ */
+attribute: string
+}
+} | {
+ViewCycle: {
+/**
+ * The relation's name.
+ */
+view: string
+}
+} | {
+Invalid: {
+/**
+ * The rendered validation error.
+ */
+detail: string
+}
+})
+}
+/**
  * What the sink did at [`ExtractionSink::finalize`](super::sink::ExtractionSink::finalize).
  * 
  * All zero for a sink that resolves relation endpoints eagerly, which reports everything
- * through [`per_mapping`](Self::per_mapping) instead. A sink that defers -- a path-backed
- * one, which cannot afford an in-memory id index -- reports its share of the same
- * information here, because it only learns it after the last row. See
+ * through [`per_mapping`](Self::per_mapping) instead. See
  * [`Resolution`](super::sink::Resolution).
  */
 
@@ -2088,10 +2297,8 @@ export interface FinalizeReport {
  */
 resolved_relations: number
 /**
- * Relations whose deferred endpoint did not resolve. These are what a sink answering
- * immediately would have counted per mapping as
- * [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint);
- * `on_missing_endpoint` decided what happened to them (dropped, or their object created).
+ * Relations whose deferred endpoint did not resolve. An eager sink counts these per mapping
+ * as [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint).
  */
 unresolved_endpoints: number
 /**
@@ -2100,18 +2307,14 @@ unresolved_endpoints: number
  */
 objects_created: number
 /**
- * Repeated entity ids removed at finalize -- a deferring sink's share of
- * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated), which it could
- * not detect while writing.
+ * Repeated entity ids removed at finalize: a deferring sink's share of
+ * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated).
  */
 duplicates_removed: number
 }
 /**
- * How long a run spent, split by phase, in milliseconds.
- * 
- * The split is the point: discovering a source's schema is a fixed cost paid before a single row
- * is read, and a caller that already holds a catalog can skip it entirely. Reporting one total
- * would hide which of the two a slow run actually spent its time in.
+ * How long a run spent, split by phase, in milliseconds. Schema discovery is a fixed cost a
+ * caller holding a catalog can skip, so it is reported apart from the row reading.
  */
 
 export interface ExtractionTiming {
@@ -2616,6 +2819,8 @@ aggregated: AlignmentAggregate
 /**
  * The process model the log was aligned against (the caller-supplied net, echoed back).
  */
+
+export type output_id = (string | null)
 
 export interface EventLogInput {
 traces?: XesTraceInput[]
@@ -3203,10 +3408,10 @@ events_per_timestamp: {
  */
 activities: string[]
 /**
- * Width of each equal-width bin, in milliseconds.
- * Each bin has their center as key, so a bar then spans
- * `[center - bin_width_ms / 2, center + bin_width_ms / 2)`.
- * Empty bins might be omitted.
+ * Width of each bin in milliseconds, which is also the spacing of the bin centers.
+ * 
+ * Bins are keyed by their center, so one spans
+ * `[center - bin_width_ms / 2, center + bin_width_ms / 2)`. `0` means there are no bins.
  */
 bin_width_ms: number
 }
@@ -3227,6 +3432,10 @@ traces: {
  */
 
 export type Nullable_uint = (number | null)
+
+export interface Map_of_string {
+[k: string]: string
+}
 
 export type ValueExpression = ({
 /**
@@ -3395,10 +3604,6 @@ errors: CompileError[]
  * One compiled relation: a name and the bare `SELECT` that defines it.
  */
 
-export interface Map_of_string {
-[k: string]: string
-}
-
 export type Nullable_ExtractionCatalog = (ExtractionCatalog | null)
 
 /**
@@ -3411,45 +3616,53 @@ export type Nullable_ExtractionCatalog = (ExtractionCatalog | null)
 
 export interface ExtractionReport {
 /**
- * One entry per mapping executed, in **desugared blueprint order** -- the order the author
- * wrote the mappings in, with each ordered group expanded in place. Deliberately not
- * execution order: execution is multi-pass and grouped by node (see
- * [`extract`](super::extract::extract)), so there is no single linear order to report, and
- * a diagnostic is far more useful indexed by what the author wrote. Each entry's
- * [`MappingRef::path`] names that authored entry outright.
+ * One entry per mapping executed, in desugared blueprint order: the order the author wrote
+ * the mappings in, with each ordered group expanded in place. Not execution order,
+ * which is multi-pass and grouped by node. Each entry's [`MappingRef::path`] names the
+ * authored entry.
  */
 per_mapping: MappingStats[]
 /**
- * Non-fatal problems collected while running -- a policy configured to error
- * (`on_duplicate_object: Error`, `on_missing_endpoint: Error`) or a sink failure on one
- * relation. Extraction continues past these; see [`ExtractionError`] for what aborts it
- * instead.
+ * Non-fatal problems collected while running: a policy configured to error
+ * (`on_duplicate_object: Error`, `on_missing_endpoint: Error`), or an attribute type two
+ * mappings disagreed on. Extraction continues past these. See [`ExtractionError`] for what
+ * aborts it instead.
+ * 
+ * Capped at [`MAX_REPORTED_ERRORS`], with the remainder counted in
+ * [`errors_suppressed`](Self::errors_suppressed).
  */
 errors: ExtractionError[]
 /**
- * The running total of rows every `Join`/`Union` materialisation this run performed
- * produced -- summed across materialisations, **not** a peak: a run that materialises two
- * nodes of a thousand rows each reports two thousand, even though the two never had to be
- * live at the same moment. It is an upper bound on peak buffered rows, not the peak itself.
- * (A cached materialisation is counted once, when it is computed, not again per reader.)
+ * Non-fatal problems the run hit past [`MAX_REPORTED_ERRORS`], which
+ * [`errors`](Self::errors) therefore does not name. Zero for every run under the cap.
+ */
+errors_suppressed: number
+/**
+ * Rows every `Join`/`Union` materialisation this run performed produced, summed across
+ * materialisations rather than peaked: an upper bound on peak buffered rows. A cached
+ * materialisation is counted once, when computed.
  * 
- * Includes the `Source`/`Filter` rows that fed a `Join`/`Union`, since those materialise
- * too the moment one needs them as an input; see invariant I1 on
- * [`extract`](super::extract::extract). Zero when no mapping's node graph contains a `Join`
- * or `Union`, since a pure `Source -> Filter` chain streams and never buffers a row past
- * the one being processed -- which is what makes zero here a meaningful witness that the
- * run streamed.
+ * Zero when no mapping's node graph contains a `Join` or `Union`, since a pure
+ * `Source -> Filter` chain streams. Zero is therefore a witness that the run streamed.
  */
 rows_materialized: number
+/**
+ * Nodes whose source could have executed the whole node but the compiler declined to build
+ * the query for, paired with the reason, and deduplicated per node.
+ * 
+ * Always safe, since the executor runs the node itself. Reported because falling back on a
+ * `Join` is the one execution path whose memory grows with the data, so this explains a
+ * non-zero [`rows_materialized`](Self::rows_materialized).
+ */
+pushdown_declined: PushdownDeclined[]
 finalize: FinalizeReport
 /**
  * Where the run's wall-clock time went.
  * 
- * `None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a
- * set of open providers and so has no idea what it cost to obtain them. The runner that owns
- * the connections fills this in; the `extraction-dbcon` bindings do. Kept out of `extract` for a
- * second reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate
- * builds for wasm.
+ * `None` from [`extract`](super::extract::extract) itself, which is handed open providers
+ * and cannot know what they cost to obtain. The runner that owns the connections fills this
+ * in, as the `extraction-dbcon` bindings do. Also kept out of `extract` because
+ * `std::time::Instant` panics on `wasm32-unknown-unknown`.
  */
 timing?: (ExtractionTiming | null)
 }
@@ -3800,8 +4013,9 @@ refinement: boolean
 considered_arrow_types: OCDeclareArcType[]
 }
 
+export type OCDeclareReductionMode = ("None" | "Lossless" | "Lossy")
+
 export interface Bindings {
-  "app_bindings::activity_projection_stub": { args: {}; ret: string[] };
   "app_bindings::alignments::align_event_log": { args: {
     "event_log": EventLogHandle;
     "net": PetriNet;
@@ -3815,9 +4029,11 @@ export interface Bindings {
     }; ret: PetriNet };
   "app_bindings::event_log::event_log_from_activities": { args: {
     "traces": string[][];
+    "output_id"?: output_id;
     }; ret: EventLogHandle };
   "app_bindings::event_log::event_log_from_json": { args: {
     "log": EventLogInput;
+    "output_id"?: output_id;
     }; ret: EventLogHandle };
   "app_bindings::event_log::event_log_to_json": { args: {
     "event_log": EventLogHandle;
@@ -3933,9 +4149,11 @@ export interface Bindings {
     }; ret: AttributeCatalogEntry[] };
   "app_bindings::ocel::ocel_from_json": { args: {
     "input": OcelInput;
+    "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
   "app_bindings::ocel::ocel_from_oc_sim_trace": { args: {
     "trace": OcSimTraceStep[];
+    "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
   "app_bindings::ocel::ocel_to_json": { args: {
     "ocel": SlimLinkedOCELHandle;
@@ -3946,10 +4164,12 @@ export interface Bindings {
   "app_bindings::transforms::apply_event_log_transforms": { args: {
     "event_log": EventLogHandle;
     "transforms": Transform[];
+    "output_id"?: output_id;
     }; ret: EventLogHandle };
   "app_bindings::transforms::apply_ocel_transforms": { args: {
     "ocel": SlimLinkedOCELHandle;
     "transforms": Transform[];
+    "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
   "app_bindings::viz::export_graph_svg": { args: {
     "graph": StyledGraph;
@@ -3990,10 +4210,17 @@ export interface Bindings {
   "process_mining::analysis::object_centric::oc_statistics::locel_event_object_type_counts": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: [string, string, number][] };
+  "process_mining::bindings::extraction_bindings::extraction_column_domain_items": { args: {
+    "sources": Map_of_string;
+    "source_id": string;
+    "table": string;
+    "column": string;
+    }; ret: string[] };
   "process_mining::bindings::extraction_bindings::extraction_compile": { args: {
     "blueprint": Blueprint;
     "catalog": ExtractionCatalog;
     "shape": EmissionShape;
+    "dialect"?: SqlDialect;
     }; ret: CompiledOcel };
   "process_mining::bindings::extraction_bindings::extraction_discover_catalog_items": { args: {
     "sources": Map_of_string;
@@ -4002,7 +4229,14 @@ export interface Bindings {
     "blueprint": Blueprint;
     "sources": Map_of_string;
     "catalog"?: Nullable_ExtractionCatalog;
+    "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
+  "process_mining::bindings::extraction_bindings::extraction_table_preview_items": { args: {
+    "sources": Map_of_string;
+    "source_id": string;
+    "table": string;
+    "limit"?: Nullable_uint;
+    }; ret: TablePreview };
   "process_mining::bindings::extraction_bindings::extraction_validate": { args: {
     "blueprint": Blueprint;
     "catalog": ExtractionCatalog;
@@ -4013,11 +4247,9 @@ export interface Bindings {
     "table": string;
     "column": string;
     }; ret: string[] };
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_connection_kinds": { args: {}; ret: string[] };
   "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog": { args: {
     "connections": Map_of_string;
-    }; ret: ExtractionCatalog };
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog_items_dbcon": { args: {
-    "sources": Map_of_string;
     }; ret: ExtractionCatalog };
   "process_mining::bindings::extraction_dbcon_bindings::extraction_run": { args: {
     "ocel": SlimLinkedOCELHandle;
@@ -4025,11 +4257,6 @@ export interface Bindings {
     "connections": Map_of_string;
     "catalog"?: Nullable_ExtractionCatalog;
     }; ret: ExtractionReport };
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_run_items_dbcon": { args: {
-    "blueprint": Blueprint;
-    "sources": Map_of_string;
-    "catalog"?: Nullable_ExtractionCatalog;
-    }; ret: SlimLinkedOCELHandle };
   "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview": { args: {
     "connections": Map_of_string;
     "source_id": string;
@@ -4038,6 +4265,7 @@ export interface Bindings {
     }; ret: TablePreview };
   "process_mining::bindings::index_link_ocel": { args: {
     "ocel": OCELHandle;
+    "output_id"?: output_id;
     }; ret: IndexLinkedOCELHandle };
   "process_mining::bindings::num_events": { args: {
     "ocel": SlimLinkedOCELHandle;
@@ -4070,6 +4298,7 @@ export interface Bindings {
     }; ret: PathSchemaTypeGraph };
   "process_mining::bindings::slim_link_ocel": { args: {
     "ocel": OCELHandle;
+    "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
   "process_mining::bindings::slim_ocel_bindings::get_dfg_of_object_type": { args: {
     "ocel": SlimLinkedOCELHandle;
@@ -4154,6 +4383,7 @@ export interface Bindings {
     }; ret: null };
   "process_mining::bindings::slim_ocel_bindings::locel_construct_ocel": { args: {
     "ocel": SlimLinkedOCELHandle;
+    "output_id"?: output_id;
     }; ret: OCELHandle };
   "process_mining::bindings::slim_ocel_bindings::locel_conversion_rate": { args: {
     "ocel": SlimLinkedOCELHandle;
@@ -4258,7 +4488,9 @@ export interface Bindings {
     "ocel": SlimLinkedOCELHandle;
     "ob_type": string;
     }; ret: number[] };
-  "process_mining::bindings::slim_ocel_bindings::locel_new": { args: {}; ret: SlimLinkedOCELHandle };
+  "process_mining::bindings::slim_ocel_bindings::locel_new": { args: {
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
   "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sojourn_per_event": { args: {
     "ocel": SlimLinkedOCELHandle;
     "top_k"?: Nullable_uint;
@@ -4315,13 +4547,16 @@ export interface Bindings {
     }; ret: ProcessVariant[] };
   "process_mining::core::event_data::case_centric::utils::activity_projection::log_to_activity_projection": { args: {
     "log": EventLogHandle;
+    "output_id"?: output_id;
     }; ret: EventLogActivityProjectionHandle };
   "process_mining::core::event_data::object_centric::utils::flatten::flatten_ocel_on": { args: {
     "ocel": SlimLinkedOCELHandle;
     "object_type": string;
+    "output_id"?: output_id;
     }; ret: EventLogHandle };
   "process_mining::core::event_data::object_centric::utils::init_exit_events::add_init_exit_events_to_ocel": { args: {
     "ocel": OCEL;
+    "output_id"?: output_id;
     }; ret: OCELHandle };
   "process_mining::core::process_models::object_centric::ocdfg::object_centric_dfg_struct::discover_dfg_from_ocel": { args: {
     "ocel": SlimLinkedOCELHandle;
@@ -4340,6 +4575,15 @@ export interface Bindings {
   "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints": { args: {
     "locel": SlimLinkedOCELHandle;
     "options"?: OCDeclareDiscoveryOptions;
+    }; ret: OCDeclareArc[] };
+  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs": { args: {
+    "arcs": OCDeclareArc[];
+    "activities": string[];
+    "reduction": OCDeclareReductionMode;
+    }; ret: OCDeclareArc[] };
+  "process_mining::discovery::object_centric::oc_declare::reduce_oc_arcs": { args: {
+    "arcs": OCDeclareArc[];
+    "lossless": boolean;
     }; ret: OCDeclareArc[] };
   "process_mining::discovery::object_centric::variants::get_variants_of_object_type": { args: {
     "ocel": SlimLinkedOCELHandle;
@@ -4527,7 +4771,6 @@ export interface ReturnTypeShape {
 
 /** Each binding's return-type title (null when the return type is unnamed, e.g. a tuple/primitive). */
 export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
-  "app_bindings::activity_projection_stub": "Array_of_string",
   "app_bindings::alignments::align_event_log": "LogAlignments",
   "app_bindings::alphappp_auto": "PetriNet",
   "app_bindings::app_ping": "string",
@@ -4579,15 +4822,16 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::analysis::object_centric::oc_performance::locel_oc_perf_sync_per_event": "Array_of_Tuple_of_string_and_int64_and_string",
   "process_mining::analysis::object_centric::oc_statistics::locel_conversion_rate": "double",
   "process_mining::analysis::object_centric::oc_statistics::locel_event_object_type_counts": "Array_of_Tuple_of_string_and_string_and_int64",
+  "process_mining::bindings::extraction_bindings::extraction_column_domain_items": "Array_of_string",
   "process_mining::bindings::extraction_bindings::extraction_compile": "CompiledOcel",
   "process_mining::bindings::extraction_bindings::extraction_discover_catalog_items": "ExtractionCatalog",
   "process_mining::bindings::extraction_bindings::extraction_run_items": "SlimLinkedOCEL",
+  "process_mining::bindings::extraction_bindings::extraction_table_preview_items": "TablePreview",
   "process_mining::bindings::extraction_bindings::extraction_validate": "Array_of_ValidationError",
   "process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain": "Array_of_string",
+  "process_mining::bindings::extraction_dbcon_bindings::extraction_connection_kinds": "Array_of_string",
   "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog": "ExtractionCatalog",
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog_items_dbcon": "ExtractionCatalog",
   "process_mining::bindings::extraction_dbcon_bindings::extraction_run": "ExtractionReport",
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_run_items_dbcon": "SlimLinkedOCEL",
   "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview": "TablePreview",
   "process_mining::bindings::index_link_ocel": "IndexLinkedOCEL",
   "process_mining::bindings::num_events": "uint",
@@ -4663,5 +4907,7 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "process_mining::discovery::case_centric::dfg::discover_dfg": "DirectlyFollowsGraph",
   "process_mining::discovery::object_centric::dfg::get_dfg_of_object_type": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
   "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints": "Array_of_OCDeclareArc",
+  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs": "Array_of_OCDeclareArc",
+  "process_mining::discovery::object_centric::oc_declare::reduce_oc_arcs": "Array_of_OCDeclareArc",
   "process_mining::discovery::object_centric::variants::get_variants_of_object_type": "Array_of_Tuple_of_Array_of_string_and_uint",
 };

@@ -42,6 +42,30 @@ export function App({ net }) {
 }
 ```
 
+### If your app already runs Tailwind
+
+Import `@r4pm/components/rules.css` instead of `styles.css`, and point your own Tailwind build at
+this package's source:
+
+```css
+/* your index.css */
+@import "tailwindcss";
+@source "../node_modules/@r4pm/components/src";
+```
+
+```tsx
+import "./index.css";
+import "@r4pm/components/rules.css"; // after your Tailwind entry, never before
+```
+
+`rules.css` is `styles.css` minus Tailwind itself: the Radix theme, the shared `--r4pm-*` tokens, the
+Petri-net editor's stylesheet and the components' own hand-written rules. Importing only
+`@r4pm/components/ui/styles.css` gets you Radix but none of the latter, which shows up as components
+that render with their layout intact and their styling missing.
+
+Order matters: Tailwind's Preflight resets `button`, `input` and friends, so it has to load before
+Radix or it strips Radix's control styling.
+
 Coloring, value formatting, interactivity, and the layout engine are shared across viewers and
 configured once. See [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs)
 and [Layout Engines](?path=/docs/getting-started-layout-engines--docs). For the exact

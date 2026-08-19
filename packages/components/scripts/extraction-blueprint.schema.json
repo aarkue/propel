@@ -204,7 +204,12 @@
         },
         {
           "const": "UnparseableTimestamp",
-          "description": "A timestamp expression did not parse.",
+          "description": "A timestamp expression produced text, and that text did not parse: the format is wrong.",
+          "type": "string"
+        },
+        {
+          "const": "MissingTimestamp",
+          "description": "The row had no timestamp to parse: the column was `NULL`, or the expression produced\nnothing (or only blank text).\n\nFor a [`TimestampSource::Components`](super::expr::TimestampSource::Components) pair the\n*date* side decides, whatever the time side holds: a time of day with no date does not\nname an instant.",
           "type": "string"
         },
         {
@@ -296,6 +301,16 @@
             "type": "object"
           },
           "description": "Column domains, keyed by source id, then table name, then column name.",
+          "type": "object"
+        },
+        "previews": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/TablePreview"
+            },
+            "type": "object"
+          },
+          "description": "A handful of real rows per table, keyed by source id then table name, to show a person\nwhat the data looks like.\n\nDeliberately unreachable through the [`Catalog`] trait: unlike\n[`domains`](ExtractionCatalog::domains), a preview is incomplete, so compiling from one\nwould emit views only for the types that happened to appear first.",
           "type": "object"
         },
         "tables": {
@@ -664,7 +679,7 @@
               "type": "null"
             }
           ],
-          "description": "Where the run's wall-clock time went.\n\n`None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a\nset of open providers and so has no idea what it cost to obtain them. The runner that owns\nthe connections fills this in; `process_mining_dbcon`'s does. Kept out of `extract` for a\nsecond reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate\nbuilds for wasm."
+          "description": "Where the run's wall-clock time went.\n\n`None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a\nset of open providers and so has no idea what it cost to obtain them. The runner that owns\nthe connections fills this in; the `extraction-dbcon` bindings do. Kept out of `extract` for a\nsecond reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate\nbuilds for wasm."
         }
       },
       "required": [
@@ -888,6 +903,10 @@
     "MappingRef": {
       "description": "Points a diagnostic back at the mapping it came from.",
       "properties": {
+        "describes": {
+          "description": "What this mapping produces, derived from its target: `event \"appoint officer\"`,\n`event -> object relation`, and so on. Present whether or not a `label` was typed.",
+          "type": "string"
+        },
         "index": {
           "description": "Position in the desugared, flattened mapping list this run executed.",
           "format": "uint",
@@ -908,7 +927,8 @@
       },
       "required": [
         "index",
-        "path"
+        "path",
+        "describes"
       ],
       "type": "object"
     },
@@ -2346,14 +2366,49 @@
       "type": "object"
     },
     "SqlDialect": {
-      "description": "Which SQL engine the emitted statements target.\n\nOnly `DuckDB` is implemented. The enum exists so the compiler never hard-codes one engine's\nspelling: every quote, cast and function name in the emitted SQL comes from a method here.",
+      "description": "Which SQL engine the emitted statements target.\n\nThe enum exists so the compiler never hard-codes one engine's spelling: every quote, cast and\nfunction name in the emitted SQL comes from a method here.\n\nThe two are **not** equally evidenced. `DuckDb` is what the differential suite runs against, so\nits output is checked row-for-row against the extractor. `Postgres` is derived from the same\nfragments and is not covered by that suite, so it is verified by construction and by unit tests\nover the emitted text, not by execution. Where an engine difference cannot be *proved* away --\nregular expressions, see [`portable_regex`](super::portable::portable_regex) -- `Postgres`\nrefuses to compile the construct rather than emitting SQL that might disagree.",
       "oneOf": [
         {
           "const": "DuckDb",
           "description": "`DuckDB`, the engine the differential tests run against.",
           "type": "string"
+        },
+        {
+          "const": "Postgres",
+          "description": "`PostgreSQL` 12+. Emitted from the same fragments as `DuckDb`; see the type-level note.",
+          "type": "string"
         }
       ]
+    },
+    "TablePreview": {
+      "description": "A few real rows of one table, for display only.\n\nRows are aligned to [`TablePreview::columns`] so a wide table can be read across. A cell is\n`None` for SQL `NULL`, distinct from `Some(String::new())`.",
+      "properties": {
+        "columns": {
+          "description": "Column names, in the order the rows are aligned to.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rows": {
+          "description": "Rows, each the same length as `columns`.",
+          "items": {
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "columns",
+        "rows"
+      ],
+      "type": "object"
     },
     "TableSchema": {
       "description": "One table's declared shape.",
@@ -2403,7 +2458,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Event id. `None` assigns a UUID, which is not reproducible across runs and cannot\nbe compiled to a view."
+              "description": "Event id. `None` assigns a UUID, which is not reproducible across runs and cannot\nbe compiled to a view.\n\nIt is also what coalesces a fan-out. Reading a join of orders and their items gives\none row per item, so a `None` id makes one event per item; an id naming the order\nmakes one event per order, still related to every item, because the repeated rows\nare counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)\nwhile `objects` below is emitted for each of them."
             },
             "objects": {
               "default": [],
@@ -2604,48 +2659,91 @@
         }
       ]
     },
+    "TimestampPart": {
+      "additionalProperties": false,
+      "description": "One value read as a timestamp: where the text comes from, and how to read it.",
+      "properties": {
+        "format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimestampFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How to read it. `None` means auto-detection."
+        },
+        "source": {
+          "$ref": "#/$defs/ValueExpression",
+          "description": "Where the text comes from."
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "type": "object"
+    },
     "TimestampSource": {
-      "description": "Where an entity's timestamp comes from.",
+      "description": "Where an entity's timestamp comes from.\n\n`deny_unknown_fields`: a misspelled key would otherwise be ignored, leaving a timestamp that\nsilently drops every row.",
       "oneOf": [
         {
-          "description": "One column.",
+          "additionalProperties": false,
+          "description": "One value: a column, a constant, a template or a coalesce, with a format.",
           "properties": {
-            "column": {
-              "description": "Column name.",
-              "type": "string"
-            },
             "format": {
-              "$ref": "#/$defs/TimestampFormat",
-              "description": "How to interpret it."
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TimestampFormat"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "How to read it. `None` means auto-detection."
+            },
+            "source": {
+              "$ref": "#/$defs/ValueExpression",
+              "description": "Where the text comes from."
             },
             "type": {
-              "const": "column",
+              "const": "value",
               "type": "string"
             }
           },
           "required": [
             "type",
-            "column",
-            "format"
+            "source"
           ],
           "type": "object"
         },
         {
-          "description": "Separate date and time columns, combined.\n\nRequired by schemas that split them: `ERPNext`'s `posting_date` plus `posting_time`,\nand SAP `CDHDR`'s `UDATE` plus `UTIME`.",
+          "additionalProperties": false,
+          "description": "Separate date and time parts, combined.\n\nRequired by schemas that split them: `ERPNext`'s `posting_date` plus `posting_time`,\nand SAP `CDHDR`'s `UDATE` plus `UTIME`. A date column paired with a constant\n`\"00:00:00\"` states that the source has no time of day.",
           "properties": {
-            "date_column": {
-              "description": "Column holding the date, if any.",
-              "type": [
-                "string",
-                "null"
-              ]
+            "date": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TimestampPart"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Where the date comes from, if anywhere."
             },
-            "time_column": {
-              "description": "Column holding the time, if any.",
-              "type": [
-                "string",
-                "null"
-              ]
+            "time": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TimestampPart"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Where the time comes from, if anywhere."
             },
             "type": {
               "const": "components",
@@ -2654,29 +2752,6 @@
           },
           "required": [
             "type"
-          ],
-          "type": "object"
-        },
-        {
-          "description": "A fixed instant, for entities whose source has no timestamp.",
-          "properties": {
-            "format": {
-              "$ref": "#/$defs/TimestampFormat",
-              "description": "How to interpret it."
-            },
-            "type": {
-              "const": "constant",
-              "type": "string"
-            },
-            "value": {
-              "description": "The value.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "value",
-            "format"
           ],
           "type": "object"
         }

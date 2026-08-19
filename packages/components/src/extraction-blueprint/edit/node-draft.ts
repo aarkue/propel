@@ -39,35 +39,25 @@ export const KIND_META: Record<DraftKind, { label: string; description: string }
   o2o: { label: "O2O relation", description: "Link an object to an object" },
   ordered: {
     label: "Rule set",
-    description: "One row, several outcomes: the first rule that matches wins (change tables)",
+    description: "First matching rule wins",
   },
   filter: { label: "Filter", description: "Keep rows matching a condition" },
   join: { label: "Join", description: "Merge rows with another node" },
   union: { label: "Union", description: "Concatenate rows from several nodes" },
 };
 
-/**
- * What a new mapping off this node should start out saying it produces.
- *
- * A blank type name is the single most common thing left unfilled, and the answer is almost always
- * sitting right there in the table's name -- a mapping added off `customers` is a `customer`. Same
- * for the id: the top-ranked id-ish column is nearly always the right one. Both are only
- * suggestions written into an editable field, never anything the model enforces.
- */
+/** What a new mapping off this node should start out saying it produces -- suggestions written into an editable field, never enforced. */
 export interface MappingSeed {
   typeName?: string;
-  /** Id-ish columns, best first. A list rather than one name because a relation needs two
-   *  different ids and picking the same column for both would be actively wrong. */
+  /** Id-ish columns, best first; a list because a relation needs two different ids. */
   idColumns?: string[];
   timestampColumn?: string;
-  /** A column naming what happened, when the table has one. A flat event log keeps the activity
-   *  in a column, so an event mapping reads it rather than taking the table's name as a constant. */
+  /** A column naming what happened, when the table has one, instead of the table's name as a constant. */
   activityColumn?: string;
 }
 
 /** The nearest `Source` upstream of `nodeId`, following a Filter/Join/Union chain to its first
- *  input. Ambiguous for a Join (two tables feed it), where the left input is taken -- a suggestion
- *  does not have to be right, only useful. */
+ *  input. For a Join, the left input is taken. */
 function nearestSourceTable(nodes: EditorNode[], nodeId: string): string | undefined {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const seen = new Set<string>();
@@ -84,12 +74,8 @@ function nearestSourceTable(nodes: EditorNode[], nodeId: string): string | undef
 
 /**
  * A singular, human-readable type name from a table name: `orders` -> `order`, `order_items` ->
- * `order item`, `address` -> `address`.
- *
- * Deliberately crude. It strips one trailing `s` unless that would mangle a word that legitimately
- * ends in one (`address`, `status`, `analysis`), and turns separators into spaces. Anything it gets
- * wrong is one edit away in a text field, which is a better trade than shipping an inflection
- * library for a placeholder.
+ * `order item`, `address` -> `address`. Deliberately crude, since anything wrong is one edit away
+ * in a text field -- not worth an inflection library for a placeholder.
  */
 export function typeNameFromTable(table: string): string {
   const base = table.replace(/^.*\./, "").replace(/[_-]+/g, " ").trim();
@@ -334,27 +320,15 @@ export function convertNodeOp(op: NodeOp, kind: DraftKind): NodeOp {
   return defaultNodeOp(kind, input);
 }
 
-/**
- * The attribute name to show after a source column is picked.
- *
- * Fills an empty name from the column, and keeps following the column while the two agree -- so
- * changing your mind about which column feeds an attribute renames it too. Stops the moment the
- * name has been edited by hand, which is the signal that the user wants something other than the
- * column name.
- */
+/** The attribute name to show after a source column is picked. Follows the column while the name
+ *  matches it, but stops once the name has been hand-edited. */
 export function attributeNameFor(currentName: string, previousColumn: string, nextColumn: string): string {
   if (!currentName || currentName === previousColumn) return nextColumn;
   return currentName;
 }
 
-/**
- * Key-column pairs to start a join from, given both inputs' resolved schemas.
- *
- * Two heuristics, in order: a column of the same name on both sides, and a foreign-key-shaped pair
- * (`customer_id` on one side against `id` on the other, where `customer` is the other side's
- * table). Id-ish names first, and at most two pairs -- this is a starting point to correct, not an
- * attempt at schema inference.
- */
+/** Key-column pairs to start a join from: a same-name match on both sides, then a foreign-key-shaped
+ *  pair (`customer_id` against `id`). Id-ish names first, capped at two pairs -- a starting point, not schema inference. */
 export function suggestJoinKeys(
   nodes: EditorNode[],
   catalog: ExtractionCatalog,

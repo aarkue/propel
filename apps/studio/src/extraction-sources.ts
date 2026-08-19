@@ -1,32 +1,15 @@
-// What an extraction can be pointed at, and which binding set reads it.
-//
-// Two entirely separate routes exist and neither can read the other's sources:
-//
-//  - `item://<registry id>` names a `TabularSource` whose bytes are held in the engine. Read by
-//    `extraction_discover_catalog_items` / `extraction_run_items`, which need only `ocel-sqlite` --
-//    so this is the only route that works on the pure-wasm backend and in the browser, where there
-//    is no filesystem and a dropped `File` has no path.
-//  - anything else is a database connection string, read by the `extraction-dbcon` bindings,
-//    which open the file where it lies and so need a real path.
-//
-// One extraction opens one set of providers, so a blueprint cannot mix the two in a single run.
-// That is a real limit rather than something to paper over: picking one group and quietly ignoring
-// the other produces a log missing whole mappings, with nothing on screen saying why.
-//
-// Deliberately dependency-light (`dnd` is itself import-free), so it stays cheap to test and cannot
-// drag the app's module graph into a unit test.
+// Two separate, non-mixable routes: `item://<registry id>` reads a `TabularSource`'s bytes from
+// the engine (works with no filesystem, e.g. in the browser); anything else is a `dbcon` connection
+// string that opens a real path. A blueprint mixing both would silently drop one group's mappings.
 import { fileUriToPath } from "./shell/dnd";
 
 /** Marks a `connections` entry as naming a registry item rather than a database. */
 export const SOURCE_ITEM_PREFIX = "item://";
 
 /** Extensions the `extraction-dbcon` connector can open as an extraction source, given a path. */
-const SOURCE_EXTENSIONS = ["sqlite", "sqlite3", "db", "csv", "parquet"];
+const SOURCE_EXTENSIONS = ["sqlite", "sqlite3", "db", "csv", "parquet", "xlsx"];
 
-/** Extensions the *bytes* route can read back, which is every one `TabularSource` stores.
- *  `extraction_discover_catalog_items` opens the SQLite family itself and hands CSV, TSV and
- *  Parquet to `dbcon` (see `open_sources`), so a dropped file of any of these works with no
- *  filesystem -- the browser included. */
+/** Extensions the *bytes* route can read back, i.e. every one `TabularSource` stores. */
 const SOURCE_ITEM_EXTENSIONS = SOURCE_EXTENSIONS;
 
 /** The lowercased extension of `filename`, or undefined when it has none. */
@@ -55,19 +38,15 @@ export function isExtractionSourceFile(filename: string): boolean {
 export function connectionStringForPath(path: string): string | undefined {
   const ext = extensionOf(path);
   if (!ext || !SOURCE_EXTENSIONS.includes(ext)) return undefined;
-  // csv/parquet are opened by bare path; sqlite needs its scheme.
-  return ext === "csv" || ext === "parquet" ? path : `sqlite://${path}`;
+  // csv/parquet/xlsx are opened by bare path; sqlite needs its scheme. List them explicitly so an
+  // unknown extension can't fall into the sqlite branch.
+  return ext === "csv" || ext === "parquet" || ext === "xlsx" ? path : `sqlite://${path}`;
 }
 
 /**
- * A connection string for one entry of what was dropped on a blueprint canvas, or undefined when
- * that entry names nothing this build can open.
- *
- * The canvas hands over whatever the drop carried verbatim, which on desktop is a `text/uri-list`
- * line (`file:///data/shop.sqlite`) rather than a path -- feeding that straight to
- * {@link connectionStringForPath} yields `sqlite://file:///data/shop.sqlite`, which opens nothing.
- * A bare name with no separator is a browser `File`, which has no path at all: those go through
- * the import picker's "as a data source" column instead, which reads their bytes.
+ * A connection string for one entry dropped on a blueprint canvas, or undefined when it names
+ * nothing this build can open. The canvas hands over the raw drop text (a `text/uri-list` line on
+ * desktop), so a `file://` URI must be decoded to a path before {@link connectionStringForPath}.
  */
 export function connectionForDroppedText(text: string): string | undefined {
   const decoded = fileUriToPath(text);
@@ -95,12 +74,8 @@ export type SourceRoute =
   | { kind: "connections"; connections: Record<string, string> };
 
 /**
- * Decide which route `conns` takes.
- *
- * Blank values are ignored throughout: `ConnectionsDialog` creates an empty row the moment it
- * opens, and a row naming nothing must neither pick a route nor count as a conflict.
- *
- * @throws when both kinds are present, naming each group -- see this module's header.
+ * Decide which route `conns` takes. Blank values (an added-but-unfilled row) are ignored.
+ * @throws when both kinds are present.
  */
 export function routeConnections(conns: Record<string, string>): SourceRoute {
   const sources: Record<string, string> = {};

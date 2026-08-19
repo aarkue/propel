@@ -1,6 +1,6 @@
 {
   "name": "@r4pm/components",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Reusable viewers (DFG, Petri net, dotted chart, OCEL, alignments) and inputs for process mining",
   "keywords": [
     "process-mining",
@@ -25,6 +25,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css",
+    "./rules.css": "./src/rules.css",
     "./ui": "./src/ui/index.ts",
     "./ui/styles.css": "./src/ui/styles.css",
     "./petri": "./src/petri/index.ts",
@@ -46,7 +47,7 @@
     "build:wasm": "wasm-pack build ../../engine/viz-layout-wasm --target web --out-dir ../../packages/components/src/rust-layout/pkg --out-name viz_layout_wasm --release && node scripts/gen-wasm-inline.mjs",
     "prepare": "node scripts/ensure-wasm.mjs --soft",
     "prebuild": "node scripts/ensure-wasm.mjs",
-    "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && tailwindcss -i src/ui/styles.css -o dist/ui/styles.css --minify",
+    "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && tailwindcss -i src/rules.css -o dist/rules.css --minify && tailwindcss -i src/ui/styles.css -o dist/ui/styles.css --minify",
     "prepack": "pnpm run build"
   },
   "dependencies": {
@@ -92,6 +93,7 @@
         "import": "./dist/index.js"
       },
       "./styles.css": "./dist/styles.css",
+      "./rules.css": "./dist/rules.css",
       "./ui": {
         "types": "./dist/ui/index.d.ts",
         "import": "./dist/ui/index.js"

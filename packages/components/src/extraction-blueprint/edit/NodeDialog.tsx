@@ -1,8 +1,6 @@
-// One dialog for adding *and* editing every non-Source node, opened by a node's `+` (add a child)
-// or its gear (edit itself). A card grid picks the kind, grouped into "Mappings" and "Transforms",
-// and the chosen kind's full configuration form renders directly underneath -- so choosing a kind
-// and configuring it is one step, not two. This is OCPQ's `AddChildNodeDialog` shape, which is the
-// interaction the previous editor got right.
+// One dialog for adding *and* editing every non-Source node, opened by a node's `+` (add child) or
+// gear (edit self). A card grid picks the kind, grouped into "Mappings" and "Transforms", with the
+// chosen kind's config form rendered directly underneath, so picking and configuring is one step.
 import {
   Button,
   CardSelector,
@@ -336,8 +334,7 @@ function OrderedGroupForm({
   return (
     <div className="flex flex-col gap-2">
       <Text size="1" color="gray">
-        Each row is matched against these in order; the first whose condition holds produces its target, and
-        the rest are skipped for that row.
+        Rows match in order; the first whose condition holds wins.
       </Text>
       {mappings.map((m, i) => (
         <div key={i} className="overflow-hidden rounded-md" style={{ border: "1px solid var(--gray-a6)" }}>
@@ -487,8 +484,7 @@ function TransformForm({
           </div>
           {!op.right && (
             <Text size="1" color="amber" className="text-[11px] leading-snug">
-              Drag an edge from another node onto this one's lower-left handle to connect the right input. Its
-              columns become available here once it is wired.
+              Drag an edge onto the lower-left handle to connect the right input.
             </Text>
           )}
         </FieldGroup>
@@ -496,7 +492,7 @@ function TransformForm({
         <div className="mt-3">
           <Field
             label="Matching rows"
-            hint="A row on the left is joined to a row on the right when every pair below is equal. Inner join: a row with no match on the other side is dropped."
+            hint="Rows match when every pair below is equal. Unmatched rows are dropped."
           >
             <div className="flex flex-col gap-1.5">
               {op.on.length === 0 && (
@@ -561,7 +557,7 @@ function TransformForm({
         <FieldGroup title={`Inputs (${op.inputs.length})`}>
           {op.inputs.length === 0 ? (
             <Text size="1" color="amber" className="text-[11px]">
-              Nothing connected yet. Drag edges from the nodes whose rows you want concatenated.
+              Nothing connected. Drag edges from the nodes to concatenate.
             </Text>
           ) : (
             <div className="flex flex-col gap-1.5">
@@ -578,9 +574,8 @@ function TransformForm({
           )}
         </FieldGroup>
         <Text size="1" color="gray" className="mt-2 block text-[11px] leading-snug">
-          Rows from every input, one after another. Duplicates are kept, because dropping them would drop the
-          entities they produce. Columns line up by name, and an input missing one contributes null for it --
-          so unioning two near-identical tables that differ by a column is fine.
+          Rows from every input, concatenated. Duplicates are kept; columns align by name, missing ones become
+          null.
         </Text>
       </>
     );

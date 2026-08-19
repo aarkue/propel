@@ -1,50 +1,41 @@
-// Pure formatting helpers for `CompilePanel`. `extraction_compile` returns `CompiledOcel`'s raw
-// data (dialect/shape/views/probes/errors) -- Rust's own `ddl`/`with_prelude`/`probe_statements`
-// methods are not part of the serialized payload, since a bindings boundary can only carry data,
-// not behavior -- so a UI has to reproduce them. Mirrors
-// process_mining::core::event_data::object_centric::extraction::compile's `dialect` module and
-// `CompiledOcel`'s own methods exactly. Only `SqlDialect::DuckDb` exists today; if a second
-// dialect ships, `quoteIdent` needs its own arm, exactly like the Rust side's `match`.
+// Reimplements `CompiledOcel::ddl`/`with_prelude`/`probe_statements` (compile.rs's `dialect`
+// module) client-side, since the bindings boundary only carries the raw compiled data, not those
+// Rust methods. Keep in sync with process_mining::...::extraction::compile.
 import type { CompiledOcel, CompileError, MappingRef, Probe, RejectReason } from "../types";
 
 function quoteIdent(dialect: CompiledOcel["dialect"], name: string): string {
   switch (dialect) {
+    // SQL-standard double quoting in both; the two engines diverge on types and function names,
+    // which are emitted Rust-side and never rebuilt here.
     case "DuckDb":
+    case "Postgres":
       return `"${name.replace(/"/g, '""')}"`;
   }
 }
 
-/** `CompiledOcel::ddl` -- every relation as `CREATE VIEW`, in dependency order. What most users
- *  want to copy: it presents the OCEL 2.0 surface with no materialization, but needs `CREATE
- *  VIEW` rights. */
+/** `CompiledOcel::ddl` -- every relation as `CREATE VIEW`, in dependency order. Needs `CREATE VIEW` rights. */
 export function compiledDdl(compiled: CompiledOcel): string {
   return compiled.views
     .map((v) => `CREATE VIEW ${quoteIdent(compiled.dialect, v.name)} AS\n${v.body};`)
     .join("\n");
 }
 
-/** `CompiledOcel::materialize_ddl` -- every relation as `CREATE TABLE ... AS`, for a caller with
- *  write rights who wants a relation computed once rather than re-inlined on every reference. */
+/** `CompiledOcel::materialize_ddl` -- every relation as `CREATE TABLE ... AS`, computed once instead of re-inlined per reference. */
 export function compiledMaterializeDdl(compiled: CompiledOcel): string {
   return compiled.views
     .map((v) => `CREATE TABLE ${quoteIdent(compiled.dialect, v.name)} AS\n${v.body};`)
     .join("\n");
 }
 
-/** `CompiledOcel::with_prelude` -- every relation bound as a `WITH` CTE in front of `analysisSql`,
- *  so it runs with no view or table ever created (no DDL right needed, so it runs against a
- *  read-only database). */
+/** `CompiledOcel::with_prelude` -- every relation bound as a `WITH` CTE in front of `analysisSql`, so it needs no DDL rights and runs against a read-only database. */
 export function withPrelude(compiled: CompiledOcel, analysisSql: string): string {
   if (compiled.views.length === 0) return analysisSql;
   const ctes = compiled.views.map((v) => `${quoteIdent(compiled.dialect, v.name)} AS (\n${v.body}\n)`);
   return `WITH ${ctes.join(",\n")}\n${analysisSql}`;
 }
 
-/** `CompiledOcel::probe_statements` -- each probe rewritten to run standalone, with the relation
- *  CTEs prepended instead of assuming any view exists. A probe's own `sql` often names a relation
- *  by its bare view name (e.g. `SELECT ocel_id FROM "object" ...`), so pasting `probe.sql` alone
- *  into a SQL client fails with "table not found" unless the views were created first -- this is
- *  the form that is actually runnable on its own. */
+/** `CompiledOcel::probe_statements` -- each probe with the relation CTEs prepended, so it runs
+ *  standalone instead of failing with "table not found" against a bare view name. */
 export function compiledProbeStatements(compiled: CompiledOcel): { probe: Probe; sql: string }[] {
   return compiled.probes.map((probe) => ({ probe, sql: withPrelude(compiled, probe.sql) }));
 }
@@ -143,15 +134,11 @@ export function describeRejectReason(reason: RejectReason): string {
     const { detail } = reason.Invalid;
     return `the blueprint does not validate: ${detail}`;
   }
-  // `RejectReason` is `#[non_exhaustive]` on the Rust side, so a future variant can arrive before
-  // this switch is updated -- fall back to the raw shape rather than throwing.
+  // `RejectReason` is `#[non_exhaustive]`, so fall back instead of throwing on an unhandled variant.
   return `unrecognized compile error: ${JSON.stringify(reason)}`;
 }
 
-/** A `MappingRef`'s label, falling back to its JSON path, or "(blueprint)" for a whole-log
- *  `CompileError`/`Probe` (`mapping: null`) -- a `CompileError` has one only for
- *  `RejectReason::Invalid`, fired before any mapping is read; a `Probe` has one for the object/
- *  event identity-ambiguity checks, which span every mapping rather than naming one. */
+/** A `MappingRef`'s label, falling back to its JSON path, or "(blueprint)" for a whole-log `CompileError`/`Probe` (`mapping: null`). */
 export function describeMappingTarget(ref: MappingRef | null | undefined): string {
   if (!ref) return "(blueprint)";
   return ref.label ?? ref.path;

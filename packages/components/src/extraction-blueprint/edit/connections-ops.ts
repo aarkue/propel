@@ -21,8 +21,10 @@ export function removeConnectionEntry(
 }
 
 export function addConnectionEntry(connections: Record<string, string>): Record<string, string> {
-  let id = "source";
-  let n = 1;
-  while (id in connections) id = `source${n++}`;
-  return { ...connections, [id]: "" };
+  // Same `source-N` scheme as `uniqueSourceId` in `ConnectionsDialog.tsx` — only ids matching
+  // `isAutoSourceId` are picked up by the auto-rename-from-path logic.
+  for (let i = 1; ; i++) {
+    const id = `source-${i}`;
+    if (!(id in connections)) return { ...connections, [id]: "" };
+  }
 }

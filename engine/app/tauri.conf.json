@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "propel",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "identifier": "eu.aarkue.propel",
   "build": {
     "beforeDevCommand": "pnpm --filter @r4pm/studio dev:tauri",
@@ -45,7 +45,9 @@
           "ocel.csv.gz",
           "ocel.zip",
           "ocel-parquet.zip",
-          "sqlite"
+          "sqlite",
+          "xes",
+          "xes.gz"
         ],
         "name": "OCEL file",
         "description": "OCEL file",
@@ -54,20 +56,12 @@
       },
       {
         "ext": [
-          "xes",
-          "xes.gz"
-        ],
-        "name": "EventLog file",
-        "description": "EventLog file",
-        "mimeType": "application/xml",
-        "role": "Editor"
-      },
-      {
-        "ext": [
           "sqlite3",
           "db",
           "csv",
-          "parquet"
+          "tsv",
+          "parquet",
+          "xlsx"
         ],
         "name": "TabularSource file",
         "description": "TabularSource file",

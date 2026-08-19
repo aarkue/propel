@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { PiDatabase } from "react-icons/pi";
+import toast from "react-hot-toast";
 import type { IDockviewPanelProps } from "dockview";
 import type {
   Blueprint as ClientBlueprint,
@@ -9,6 +11,7 @@ import {
   BlueprintGraph,
   newBlueprint,
   type BlueprintEditCallbacks,
+  type ConnectionKind,
   type Blueprint as ComponentBlueprint,
   type CompiledOcel as ComponentCompiledOcel,
   type EditorBlueprint,
@@ -19,16 +22,16 @@ import {
   type ValidationError as ComponentValidationError,
 } from "@r4pm/components/extraction-blueprint";
 import { backend } from "../backends";
+import { importFileAsSource } from "../data-import";
 import { connectionForDroppedText, routeConnections } from "../extraction-sources";
 import { uniqueDatasetLabel, useDatasets } from "../stores";
 import { usePanelDraft, usePanelState } from "../panels/panel-state";
 import { definePanel } from "./define-vis";
 
 /**
- * `@r4pm/components` hand-mirrors the Blueprint model (see extraction-blueprint/types.ts's header)
- * so the package has no `@r4pm/client` dependency and stays usable by OCPQ too. Both sides agree on
- * the same serde/schemars JSON shape (the same Rust types generate both), so crossing this seam is
- * a type-level bridge only, never a data transform -- see the plan's Task B9/Part C notes.
+ * `@r4pm/components` hand-mirrors the Blueprint model so the package has no `@r4pm/client`
+ * dependency and stays usable by OCPQ too. Both sides share the same serde/schemars JSON shape, so
+ * crossing this seam is a type-level bridge only, never a data transform.
  */
 const asClientBlueprint = (b: ComponentBlueprint) => b as unknown as ClientBlueprint;
 
@@ -36,22 +39,47 @@ const asClientBlueprint = (b: ComponentBlueprint) => b as unknown as ClientBluep
  *  column-resolution cache on the catalog's identity. */
 const NO_CATALOG = Object.freeze({ tables: {}, domains: {} }) as ComponentExtractionCatalog;
 
+/** A browser open dialog, resolving to the chosen `File` or undefined if cancelled. A throwaway
+ *  input rather than a mounted one, so no ref has to be threaded through the editor. */
+const pickLocalFile = (extensions: string[]) =>
+  new Promise<File | undefined>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    if (extensions.length) input.accept = extensions.map((e) => `.${e}`).join(",");
+    input.onchange = () => resolve(input.files?.[0] ?? undefined);
+    // Cancelling fires no `change` event in most browsers; `cancel` is the modern signal.
+    input.oncancel = () => resolve(undefined);
+    input.click();
+  });
+
 function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
-  // Both live in dockview `params`, so a blueprint survives closing the panel, switching layouts
-  // and reloading -- captured by the same `toJSON()` that persists every other panel's config.
-  // The blueprint goes through `usePanelDraft` rather than `usePanelState` because dragging a node
-  // fires per frame, and serialising the whole document into params that often is wasteful.
-  //
-  // Connection strings ride along. They are session config, not part of the blueprint (spec 1.7,
-  // 2.6), and this is not a file anyone shares -- but it does land in the saved session, so a
-  // password typed here is stored with the layout.
+  // `usePanelDraft` over `usePanelState`: dragging a node fires per frame, and serializing the
+  // whole document that often is wasteful. Connection strings ride along too, as session config
+  // rather than part of the blueprint, so a password typed here lands in the saved layout.
   const [value, setValue] = usePanelDraft<EditorBlueprint>(props, "blueprint", newBlueprint());
   const [connections, setConnections] = usePanelState<Record<string, string>>(props, "connections", {});
-  // Three tiers, not two. `extraction_validate`/`extraction_compile` are pure and work anywhere.
-  // Sources held in the registry (`item://`) need only `ocel-sqlite`, so they work on wasm too --
-  // and there they are the only option, since a browser has no filesystem. Connection strings
-  // need `process_mining`'s `extraction-dbcon` feature, which the webserver/tauri backends
-  // enable and the wasm build does not.
+  // Three tiers: validate/compile are pure and work anywhere; registry sources (`item://`) need
+  // only `ocel-sqlite` and work on wasm too; connection strings need the `extraction-dbcon`
+  // feature, absent from the wasm build. Not queried on wasm — `base` below fixes it there.
+  const connectorKinds = useQuery({
+    queryKey: ["extraction", "connection-kinds"],
+    queryFn: async () =>
+      (await backend.callBinding(
+        "process_mining::bindings::extraction_dbcon_bindings::extraction_connection_kinds",
+        {},
+      )) as string[],
+    enabled: backend.kind !== "wasm",
+    staleTime: Number.POSITIVE_INFINITY,
+  }).data;
+  const connectionKindAvailability = useMemo(() => {
+    if (!connectorKinds) return undefined;
+    const availability: Partial<Record<ConnectionKind, string>> = {};
+    for (const k of ["csv", "parquet", "xlsx", "sqlite", "duckdb", "postgres"] as const) {
+      if (!connectorKinds.includes(k)) availability[k] = "not enabled in this build";
+    }
+    return availability;
+  }, [connectorKinds]);
+
   const callbacks: BlueprintEditCallbacks = useMemo(() => {
     const discoverItems = async (sources: Record<string, string>) => {
       const catalog = await backend.callBinding(
@@ -85,15 +113,79 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       return { ocelHandle: id, datasetLabel };
     };
 
+    /** Distinct values of one column of a registry-held source. Available on every backend, so the
+     *  browser can show example values too -- it could not before, which is why every column
+     *  picker there listed bare names. */
+    const columnDomainItems = (
+      sources: Record<string, string>,
+      sourceId: string,
+      table: string,
+      column: string,
+    ) =>
+      backend.callBinding("process_mining::bindings::extraction_bindings::extraction_column_domain_items", {
+        sources,
+        source_id: sourceId,
+        table,
+        column,
+      });
+
+    const tablePreviewItems = async (
+      sources: Record<string, string>,
+      sourceId: string,
+      table: string,
+      limit?: number,
+    ) => {
+      const preview = await backend.callBinding(
+        "process_mining::bindings::extraction_bindings::extraction_table_preview_items",
+        { sources, source_id: sourceId, table, limit },
+      );
+      return preview as unknown as ComponentTablePreview;
+    };
+
     const NO_CONNECTOR =
       "This build has no database connector, so it cannot open a connection string. Drop the file itself to read it from memory instead.";
 
     const base: BlueprintEditCallbacks = {
+      // No filesystem, no network connector: the bytes route is the only one, so the kinds it
+      // cannot reach are shown disabled rather than hidden -- the desktop app opens them.
+      connectionKindAvailability: {
+        postgres: "desktop app or server",
+        // The `duckdb` crate links a native library and has no wasm32 build, so unlike CSV and
+        // SQLite it cannot be read in the browser even from dropped bytes.
+        duckdb: "desktop app or server",
+        custom: "desktop app or server",
+      },
+      // The bytes route reads CSV and the SQLite family, and nothing else here can be reached: no
+      // DuckDB in the wasm build, no `extraction-dbcon` for Postgres, and a hand-written connection
+      // string names something a browser cannot open at all.
+      onAddFileSource: async (extensions) => {
+        try {
+          const file = await pickLocalFile(extensions);
+          if (!file) return undefined;
+          const { connection } = await importFileAsSource(backend, file);
+          return connection;
+        } catch (e) {
+          toast.error(`Could not read that file: ${String(e)}`);
+          return undefined;
+        }
+      },
       onDiscoverCatalog: async (conns) => {
         const route = routeConnections(conns);
         if (route.kind === "none") return NO_CATALOG;
         if (route.kind === "items") return discoverItems(route.sources);
         throw new Error(NO_CONNECTOR);
+      },
+      // Only the items route exists here; a connection string names something this build cannot
+      // open at all, so there is nothing to read a domain or a preview out of.
+      onColumnDomain: async (conns, sourceId, table, column) => {
+        const route = routeConnections(conns);
+        if (route.kind !== "items") throw new Error(NO_CONNECTOR);
+        return columnDomainItems(route.sources, sourceId, table, column);
+      },
+      onTablePreview: async (conns, sourceId, table, limit) => {
+        const route = routeConnections(conns);
+        if (route.kind !== "items") throw new Error(NO_CONNECTOR);
+        return tablePreviewItems(route.sources, sourceId, table, limit);
       },
       // Available here too: `extraction_run_items` reads bytes the registry already holds, so a
       // build with no connector -- and no filesystem -- can still run a blueprint end to end.
@@ -113,14 +205,17 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
         );
         return errors as unknown as ComponentValidationError[];
       },
-      onCompile: async (blueprint, catalog, shape) => {
+      onCompile: async (blueprint, catalog, shape, dialect) => {
         const compiled = await backend.callBinding(
           "process_mining::bindings::extraction_bindings::extraction_compile",
           {
             blueprint: asClientBlueprint(blueprint),
             catalog: catalog as unknown as ComponentExtractionCatalog,
             shape: shape as unknown as ComponentEmissionShape,
-          },
+            // Omitted rather than defaulted here: the binding's own `#[bind(default)]` decides what
+            // "no dialect" means, so that default lives in one place.
+            ...(dialect ? { dialect } : {}),
+          } as never,
         );
         return compiled as unknown as ComponentCompiledOcel;
       },
@@ -128,6 +223,12 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
     if (backend.kind === "wasm") return base;
     return {
       ...base,
+      // The backend reports the kinds its build can open (its `extraction-dbcon*` features);
+      // anything it doesn't list is shown disabled instead of failing after the form is filled in.
+      connectionKindAvailability,
+      // A path field and its Browse button, not the byte route: a filesystem-backed build opens the
+      // file where it lies.
+      onAddFileSource: undefined,
       onDiscoverCatalog: async (conns) => {
         const route = routeConnections(conns);
         if (route.kind === "none") return NO_CATALOG;
@@ -138,13 +239,16 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
         );
         return catalog as unknown as ComponentExtractionCatalog;
       },
-      onColumnDomain: (connections, sourceId, table, column) =>
-        backend.callBinding("process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain", {
-          connections,
-          source_id: sourceId,
-          table,
-          column,
-        }),
+      // Which binding reads a source depends on the source, not on the build: a registry-held
+      // `item://` entry is unreadable by dbcon even here.
+      onColumnDomain: async (conns, sourceId, table, column) => {
+        const route = routeConnections(conns);
+        if (route.kind === "items") return columnDomainItems(route.sources, sourceId, table, column);
+        return backend.callBinding(
+          "process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain",
+          { connections: conns, source_id: sourceId, table, column },
+        );
+      },
       // A native path is opened where it lies; a browser `File` has only a name, and its
       // bytes route is the picker's "as a data source" option instead.
       onConnectionForDrop: connectionForDroppedText,
@@ -157,46 +261,41 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
             return paths?.[0];
           }
         : undefined,
-      onTablePreview: async (connections, sourceId, table, limit) => {
+      onTablePreview: async (conns, sourceId, table, limit) => {
+        const route = routeConnections(conns);
+        if (route.kind === "items") return tablePreviewItems(route.sources, sourceId, table, limit);
         const preview = await backend.callBinding(
           "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview",
-          { connections, source_id: sourceId, table, limit },
+          { connections: conns, source_id: sourceId, table, limit },
         );
         return preview as unknown as ComponentTablePreview;
       },
       onRun: async (blueprint, connections, catalog) => {
-        // One extraction opens one set of providers, so registry-held and connection-string
-        // sources cannot be combined in a single run; `routeConnections` refuses a mix outright
-        // rather than running half the blueprint. The message lands in the run dialog.
+        // One extraction opens one set of providers; `routeConnections` refuses a mix rather than
+        // running half the blueprint.
         const route = routeConnections(connections);
         if (route.kind === "none") throw new Error("Connect a source before running.");
         if (route.kind === "items") return runItems(blueprint, route.sources, catalog);
-        // `extraction_run` mutates an existing SlimLinkedOCEL handle in place rather than minting
-        // one itself (see extraction_bindings.rs's header on the macro's tuple-return gap), so the
-        // empty log is created first.
-        //
-        // Deliberately no `outputName`. Naming a binding's output re-keys it *and* records it as
-        // `ItemRole::Result` -- a pipeline intermediate -- and `get_objects_with_type` filters
-        // those out of `/objects`. The run then succeeded, its report rendered, and the log was
-        // never listed anywhere. Every panel that produces a user-facing dataset lets the handle
-        // be minted (keeping the default `Primary` role); `outputName` is for the pipeline editor,
-        // whose intermediates are meant to be hidden.
+        // `extraction_run` mutates an existing SlimLinkedOCEL handle rather than minting one, so
+        // the empty log is created first. No `outputName`: that would re-key the output and tag it
+        // `ItemRole::Result`, which `get_objects_with_type` hides from `/objects`.
         const ocelHandle = await backend.callBinding(
           "process_mining::bindings::slim_ocel_bindings::locel_new",
           {},
         );
-        const report = await backend.callBinding("process_mining::bindings::extraction_dbcon_bindings::extraction_run", {
-          ocel: ocelHandle,
-          blueprint: asClientBlueprint(blueprint),
-          connections: route.connections,
-          // The editor discovered this to validate against; without it the runner would connect to
-          // every source and read every schema again before reading a single row.
-          catalog: catalog as unknown as ClientExtractionCatalog,
-        });
-        // The engine lists the object, so it becomes a dataset on the next `objects-changed`
-        // sync either way; naming it here means it shows up already labelled rather than as a
-        // raw handle, and `renameDataset` persists that label engine-side so it survives a
-        // reload.
+        const report = await backend.callBinding(
+          "process_mining::bindings::extraction_dbcon_bindings::extraction_run",
+          {
+            ocel: ocelHandle,
+            blueprint: asClientBlueprint(blueprint),
+            connections: route.connections,
+            // The editor discovered this to validate against; without it the runner would connect to
+            // every source and read every schema again before reading a single row.
+            catalog: catalog as unknown as ClientExtractionCatalog,
+          },
+        );
+        // Naming it here shows it labelled immediately rather than as a raw handle;
+        // `renameDataset` persists the label engine-side so it survives a reload.
         const id = ocelHandle as string;
         const datasetLabel = uniqueDatasetLabel("Extracted OCEL");
         useDatasets.getState().addDataset({ id, kind: "SlimLinkedOCEL", label: datasetLabel });
@@ -208,7 +307,7 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
         };
       },
     };
-  }, []);
+  }, [connectionKindAvailability]);
 
   return (
     <div style={{ height: "100%", width: "100%", position: "relative" }}>

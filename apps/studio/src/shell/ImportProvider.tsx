@@ -81,11 +81,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   const importableKinds = useMemo<ItemKindInfo[]>(() => {
     const registry = (kindsQuery.data ?? [])
       .filter((k) => k.import_formats.length > 0)
-      // `TabularSource` is never a dataset: it holds the bytes an extraction reads, has no viewer
-      // and no export format, and its own affordance is the picker's "As a data source" column.
-      // Listing it here would put a raw kind name in the Import menu, in the command palette and
-      // beside the real kinds in the picker -- and would turn a bare `.db` drop, which used to open
-      // a blueprint outright, into a one-option dialog.
+      // `TabularSource` is never a dataset: it has no viewer or export format, and its own
+      // affordance is the picker's "As a data source" column, not the Import menu.
       .filter((k) => k.kind !== TABULAR_SOURCE_KIND)
       // Hide advanced/internal kinds (raw OCEL, IndexLinkedOCEL, activity projection) unless the expert toggle is on.
       .filter((k) => showExpertKinds || !EXPERT_IMPORT_KINDS.includes(k.kind))
@@ -171,9 +168,8 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   const handleDroppedFile = useCallback(
     (file: File) => {
       const cands = candidateKinds(importableKinds, file.name);
-      // Narrower than the path route's `isExtractionSource`: a `File` has only bytes, and only the
-      // SQLite family can be read back from memory. Offering "as a data source" for a dropped csv
-      // would open a blueprint that can never discover a catalog.
+      // The bytes route reads every format a `TabularSource` stores -- csv and parquet as well as
+      // the SQLite family -- so a dropped file of any of them can be opened as a data source.
       const asSource = isExtractionSourceFile(file.name);
       if (cands.length === 0 && !asSource) {
         toast.error(
@@ -297,16 +293,34 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     };
     // While the relink dialog is open, its per-row drop zones own the drop; stand down here.
     const relinkOpen = () => useRelink.getState().missing.length > 0;
+    // An open extraction-blueprint canvas owns drops over itself too, resolving a dropped file
+    // straight into a new source on the existing blueprint rather than this window-wide handler.
+    const overBlueprintDropTarget = (e: DragEvent) =>
+      e.target instanceof Element && !!e.target.closest("[data-blueprint-drop-target]");
     const onEnter = (e: Event) => {
-      const dt = (e as DragEvent).dataTransfer;
-      if (relinkOpen() || !looksLikeFile(dt)) return;
+      const de = e as DragEvent;
+      const dt = de.dataTransfer;
+      if (relinkOpen()) return;
+      if (overBlueprintDropTarget(de)) {
+        if (clearTimer) clearTimeout(clearTimer);
+        setDragging(false);
+        return;
+      }
+      if (!looksLikeFile(dt)) return;
       e.preventDefault();
       if (clearTimer) clearTimeout(clearTimer);
       setDragging(true);
     };
     const onOver = (e: Event) => {
-      const dt = (e as DragEvent).dataTransfer;
-      if (relinkOpen() || !looksLikeFile(dt)) return;
+      const de = e as DragEvent;
+      const dt = de.dataTransfer;
+      if (relinkOpen()) return;
+      if (overBlueprintDropTarget(de)) {
+        if (clearTimer) clearTimeout(clearTimer);
+        setDragging(false);
+        return;
+      }
+      if (!looksLikeFile(dt)) return;
       // Required or `drop` never fires; also stops WebKit from navigating to the dropped file://.
       e.preventDefault();
       if (dt) dt.dropEffect = "copy";
@@ -318,8 +332,10 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       clearTimer = setTimeout(() => setDragging(false), 120);
     };
     const onDrop = (e: Event) => {
-      const dt = (e as DragEvent).dataTransfer;
-      if (relinkOpen() || !looksLikeFile(dt)) return;
+      const de = e as DragEvent;
+      const dt = de.dataTransfer;
+      if (relinkOpen() || overBlueprintDropTarget(de)) return;
+      if (!looksLikeFile(dt)) return;
       e.preventDefault();
       setDragging(false);
 

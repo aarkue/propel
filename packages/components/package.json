@@ -1,6 +1,6 @@
 {
   "name": "@r4pm/components",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Reusable viewers (DFG, Petri net, dotted chart, OCEL, alignments) and inputs for process mining",
   "keywords": [
     "process-mining",
@@ -104,6 +104,11 @@
         "import": "./dist/petri/index.js"
       },
       "./petri/editor.css": "./dist/petri/index.css",
+      "./process-tree": {
+        "types": "./dist/process-tree/index.d.ts",
+        "import": "./dist/process-tree/index.js"
+      },
+      "./process-tree/editor.css": "./dist/process-tree/index.css",
       "./charts": {
         "types": "./dist/charts/index.d.ts",
         "import": "./dist/charts/index.js"

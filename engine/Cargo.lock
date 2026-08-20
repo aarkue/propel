@@ -2894,6 +2894,7 @@ version = "1.10505.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6cb514dab5e271e849235c1cb98bd65a2ae107fbd619a6740219319c54a71d95"
 dependencies = [
+ "cc",
  "flate2",
  "pkg-config",
  "serde",
@@ -3935,7 +3936,7 @@ dependencies = [
 
 [[package]]
 name = "propel-tauri"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "app-bindings",
  "backend-shared",

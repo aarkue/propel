@@ -1,0 +1,185 @@
+import { Canvas, Controls, Meta } from "@storybook/addon-docs/blocks";
+import * as Export from "../viewer/export.stories";
+
+<Meta title="Getting Started/Image Export" tags={["dev"]} />
+
+# Image export
+
+`<ViewerExportFrame>` renders the only export control in this package. Viewers never draw one
+themselves, so a viewer with no frame around it has no way to produce an image. Wrapping one puts a
+download menu in its corner.
+
+```tsx
+import { ViewerExportFrame, PetriNetViewer } from "@r4pm/components";
+
+<ViewerExportFrame filename="petri-net" style={{ height: 400 }}>
+  <PetriNetViewer data={net} />
+</ViewerExportFrame>;
+```
+
+The frame is `position: relative` and sizes nothing on its own, which also makes it the sizing box a
+graph viewer needs. See [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs).
+
+<Canvas of={Export.Default} />
+
+<Controls of={Export.Default} />
+
+## What the menu offers
+
+There are two ways to turn a viewer into an image, and the frame offers both whenever it can.
+
+The first group is headed with the viewer's own name (Petri net, Directly-follows graph, and so on).
+It redraws the viewer's model as SVG. The result stays crisp at any size and opens in Illustrator or
+Inkscape. Its PNG and JPEG entries rasterize that same SVG at the chosen scale.
+
+The **Screenshot** group is an html-to-image snapshot of the frame content. It captures what is
+actually on screen, including the chrome the SVG route leaves out: settings cards, legend overlays,
+selection highlights, hover state.
+
+The screenshot is the right choice for the panel as the user sees it, and the SVG for a figure. The
+raster entries honor the Scale submenu (1x, 2x, 4x); SVG ignores it.
+
+Content that registers no vector source at all works too. For a stat panel, a table, or your own
+markup, the menu shows the screenshot entries alone.
+
+<Canvas of={Export.Snapshot} />
+
+## Framing the screenshot
+
+The snapshot route reads two data attributes inside the frame.
+
+| Attribute | Effect |
+| --- | --- |
+| `data-export-root` | Snapshot this subtree instead of the whole frame. Put it on the content and leave selectors and toolbars outside it. Absent, the whole frame is captured. |
+| `data-export-ignore` | Drop this element from the snapshot. The export button already carries it and never appears in its own image. |
+
+```tsx
+<ViewerExportFrame filename="throughput">
+  <Toolbar data-export-ignore />
+  <div data-export-root>
+    <MyChart />
+  </div>
+</ViewerExportFrame>
+```
+
+## Which viewers register a vector source
+
+These register one as soon as they sit inside a frame.
+
+| Viewer | Registry key |
+| --- | --- |
+| `PetriNetViewer` | `petri-net` |
+| `ObjectCentricPetriNetViewer` | `ocpn` |
+| `PetriNetSimulator` | `petri-net-simulator` |
+| `ObjectCentricPetriNetSimulator` | `ocpn-simulator` |
+| `DFGViewer` / `OCDFGViewer` | `dfg` |
+| `OCDeclareViz` | `oc-declare` |
+| `OcelTypeGraph` | `ocel-type-graph` |
+| Process tree viewer and editor | `process-tree` |
+| `LogVariants` | `log-variants` |
+| `TraceAlignmentStrip` / `DeviationAlignmentStrip` | only when you pass `exportKey` |
+
+None of them require a particular layout engine. Graph viewers draw through the engine's `renderSvg`
+when one is configured (the wasm engine has it, ELK does not) and fall back to the package's own
+pure-TS drawer. The host renderer matches on-screen geometry more exactly, but SVG export works
+either way.
+
+## Several viewers in one frame
+
+Each registration key gets its own group, so a panel holding two viewers offers both plus the
+screenshot. Keys have to be unique inside a frame. Two viewers registering the same key collapse into
+one entry and one of them loses its export. `exportKey` is how you separate them:
+
+```tsx
+<ViewerExportFrame filename="comparison">
+  <PetriNetViewer data={before} exportKey="petri-before" />
+  <PetriNetViewer data={after} exportKey="petri-after" />
+</ViewerExportFrame>
+```
+
+`exportKey` exists on `PetriNetViewer`, `ObjectCentricPetriNetViewer`, both simulators, the process
+tree viewer and editor, and the alignment strips. The rest use a fixed key, so render at most one of
+each per frame.
+
+## Saving somewhere other than the downloads folder
+
+The frame triggers a browser download by default. `onSave` takes the bytes instead, for a native save
+dialog, an upload, or a blob in your own store.
+
+```tsx
+<ViewerExportFrame filename="dfg" onSave={(bytes, name, mime) => backend.saveBytes(bytes, name, mime)}>
+  <DFGViewer data={dfg} />
+</ViewerExportFrame>
+```
+
+## When an export fails
+
+The menu stays open across an export and closes itself only on success. A failure leaves the menu
+open on its error message, calls `onError`, and fires a `propel:export-error` window event with the
+message in `detail`.
+
+```tsx
+import { EXPORT_ERROR_EVENT } from "@r4pm/components";
+
+useEffect(() => {
+  const onErr = (e: Event) => toast.error((e as CustomEvent<string>).detail);
+  window.addEventListener(EXPORT_ERROR_EVENT, onErr);
+  return () => window.removeEventListener(EXPORT_ERROR_EVENT, onErr);
+}, []);
+```
+
+## Registering your own source
+
+Anything inside a frame can advertise an SVG, not only this package's viewers. Build the string and
+register it. `toSvg` runs at click time and always sees current state.
+
+<Canvas of={Export.CustomSource} />
+
+```tsx
+import { useRegisterExport, type VectorExportSource } from "@r4pm/components";
+
+function Sparkline({ values }) {
+  const svg = useMemo(() => buildSvg(values), [values]);
+  const source = useMemo<VectorExportSource>(
+    () => ({ label: "Throughput", toSvg: () => svg }),
+    [svg],
+  );
+  useRegisterExport("sparkline", source);
+  return <div dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+```
+
+Keep the `source` object identity stable, by memoizing it or reading live state through a ref. An
+object rebuilt every render re-registers every render. Return `null` from `toSvg` while there is
+nothing to draw and the menu reports that instead of downloading an empty file. `menuExtras` adds
+per-source menu content, which is how `LogVariants` offers its row-limit picker.
+
+## Moving the button
+
+The export button sits top-right at `z-index: 20`. Viewers with their own top-right controls (the DFG
+settings card, the blueprint toolbar) leave room for it. If yours collides, move it:
+
+```tsx
+<ViewerExportFrame menuPlacement="bottom-left">...</ViewerExportFrame>
+```
+
+`showMenu={false}` hides the control while keeping the export context alive, which is what compact
+previews use.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| No export button anywhere | no `ViewerExportFrame` around the viewer | wrap it |
+| Only "Screenshot" in the menu | that viewer registers no vector source, or the frame sits inside the viewer instead of around it | check the table above; move the frame outward |
+| "nothing to export (source produced null)" | `toSvg` ran before layout finished, or the viewer has no data yet | export once the graph has rendered |
+| Image includes the toolbar or selector | no `data-export-root` | mark the content subtree |
+| Two viewers, only one exportable | shared registration key | give each an `exportKey` |
+| Blank or clipped screenshot | the frame has no height and there is nothing to capture | give the frame or its child a real height |
+| Export button overlaps viewer controls | default `top-right` placement | pass `menuPlacement` |
+
+## See also
+
+- [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs): giving a viewer the box it needs.
+- [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config every viewer accepts.
+- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): where `renderSvg` comes from.

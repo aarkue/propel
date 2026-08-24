@@ -1,0 +1,81 @@
+import { Meta, Source } from "@storybook/addon-docs/blocks";
+import { CopyButton } from "../../.storybook/doc-blocks";
+import llmsTxt from "../../llms.txt?raw";
+
+export const STARTING_PROMPT = `Add the @r4pm/components React library to this project.
+
+@r4pm/components is a set of process-mining viewers (Petri nets, object-centric Petri nets,
+directly-follows graphs, dotted charts, alignments, OCEL/event-log summaries, process trees, ...) and
+the primitives they're built from. npm: https://www.npmjs.com/package/@r4pm/components. Source +
+Storybook stories (*.stories.tsx next to each component): https://github.com/aarkue/propel/tree/main/packages/components/src.
+
+1. Install it: \`npm add @r4pm/components react react-dom\` (react/react-dom are peer deps, >=18).
+2. Read \`node_modules/@r4pm/components/llms.txt\` in full before writing any code. It's the
+   authoritative reference: setup, every component with its import path, the shared config API,
+   image export, and a symptom-to-fix table for the mistakes that produce a blank screen.
+3. Four things it's easy to get wrong, covered in depth in llms.txt but worth restating up front:
+   - Import \`@r4pm/components/styles.css\` once and wrap the app in \`<Theme>\` from
+     \`@r4pm/components/ui\` (use \`rules.css\` instead of \`styles.css\` only if this project already
+     runs its own Tailwind build -- llms.txt has the exact setup for that case).
+   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri net, process tree) need a layout engine: pass one
+     via \`<ViewerConfigProvider value={{ layout: wasmLayout }}>\`, importing \`wasmLayout\` from
+     \`@r4pm/components/rust-layout/wasm\` (or \`elkLayout\` from \`@r4pm/components/elk-layout\` for a
+     pure-JS alternative with no wasm). Without one, graphs render with nodes stacked in a line.
+   - A viewer that "fills its parent" (most graph and chart viewers) needs an ancestor with a
+     definite height -- \`height: 100%\` resolves to nothing inside an auto-height parent.
+   - Wrap a viewer in \`<ViewerExportFrame>\` to get an SVG/PNG/JPEG export button; no viewer renders
+     one on its own.
+
+Confirm which component(s) fit the use case or project of the user before implementing, and ask if the data shape is unclear.`;
+
+<Meta title="Getting Started/For LLM Agents" tags={["dev"]} />
+
+# For LLM agents
+
+## Starting prompt
+
+Paste this into an agent (Claude Code, Cursor, Copilot, ...) in the project you want to add
+`@r4pm/components` to.
+
+<div style={{ position: "relative" }}>
+  <CopyButton text={STARTING_PROMPT} />
+  <Source code={STARTING_PROMPT} language="text" />
+</div>
+
+`llms.txt` is the file to hand a coding agent. It covers the working setup, the rules that are easy to
+get wrong, every entry point, every component with its import path and sizing behaviour, the shared
+config types, the export API, and a symptom-to-fix table, all in one self-contained file. Its tables
+come out of the source and cannot fall behind the code.
+
+The file is published inside the npm package. An agent with the dependency installed already has it:
+
+```
+node_modules/@r4pm/components/llms.txt
+```
+
+## What to point an agent at
+
+| Question | Source |
+| --- | --- |
+| How do I set this up, what exists, why is it blank? | `llms.txt` |
+| Exact props of one component | its Storybook page, generated from the TypeScript types |
+| Exact shape of a `data` prop | [Data Types](?path=/docs/getting-started-data-types--docs), generated from the Rust bindings |
+| A runnable example | the "Full example" block at the bottom of each component page |
+
+## Rules worth putting in a system prompt
+
+| Rule | Why |
+| --- | --- |
+| Wrap the app in `<Theme>` and import `@r4pm/components/styles.css` once | without it components render with layout and no styling |
+| Give graph viewers a `layout` engine through `ViewerConfigProvider` | the core includes none, so nodes stack in a line |
+| Give graph viewers a parent with a definite height | their root is `height: 100%` and collapses in an auto-height parent |
+| Wrap anything exportable in `<ViewerExportFrame>` | it is the only export control in the package |
+| Import UI primitives from `@r4pm/components/ui`, never `@radix-ui/themes` | the package lints this |
+| Memoize anything passed into `ViewerConfig` | a new identity every render makes viewers restyle and relayout |
+
+## llms.txt
+
+<div style={{ position: "relative" }}>
+  <CopyButton text={llmsTxt} />
+  <Source code={llmsTxt} language="markdown" />
+</div>

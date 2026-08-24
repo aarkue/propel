@@ -1,6 +1,6 @@
 {
   "name": "@r4pm/components",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Reusable viewers (DFG, Petri net, dotted chart, OCEL, alignments) and inputs for process mining",
   "keywords": [
     "process-mining",
@@ -41,7 +41,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "codegen:extraction-blueprint": "node scripts/gen-extraction-blueprint-types.mjs",
-    "docs:types": "node scripts/gen-data-types-doc.mjs && node scripts/gen-component-types-doc.mjs",
+    "docs:types": "node scripts/gen-data-types-doc.mjs && node scripts/gen-component-types-doc.mjs && node scripts/gen-catalog.mjs",
     "dev": "storybook dev -p 6006 --no-open",
     "showcase": "storybook build",
     "build:wasm": "wasm-pack build ../../engine/viz-layout-wasm --target web --out-dir ../../packages/components/src/rust-layout/pkg --out-name viz_layout_wasm --release && node scripts/gen-wasm-inline.mjs",
@@ -130,6 +130,7 @@
   "files": [
     "dist",
     "README.md",
+    "llms.txt",
     "LICENSE-MIT",
     "LICENSE-APACHE"
   ],

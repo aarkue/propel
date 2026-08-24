@@ -83,19 +83,36 @@ function involvementDescription(label: ConstraintLabel, objectTypeColor: ColorRe
 
   const segments: ReactNode[] = [];
 
-  for (const ref of label.each) {
-    if (ref.object_type) {
-      segments.push(<span key={`each-${ref.object_type}`}>for each involved {OT(ref.object_type)}</span>);
+  /** An O2O association names two types and no `object_type`; describe the pair it relates. */
+  const subject = (ref: ConstraintLabel["each"][number]): { key: string; node: ReactNode } | null => {
+    if (ref.type === "O2O" && ref.first && ref.second) {
+      const [from, to] = ref.reversed ? [ref.second, ref.first] : [ref.first, ref.second];
+      return {
+        key: `${from}-o2o-${to}`,
+        node: (
+          <>
+            {OT(from)} linked to {OT(to)}
+          </>
+        ),
+      };
     }
-  }
-  for (const ref of label.all) {
-    if (ref.object_type) {
-      segments.push(<span key={`all-${ref.object_type}`}>involving all the same {OT(ref.object_type)}</span>);
-    }
-  }
-  for (const ref of label.any) {
-    if (ref.object_type) {
-      segments.push(<span key={`any-${ref.object_type}`}>sharing at least one {OT(ref.object_type)}</span>);
+    return ref.object_type ? { key: ref.object_type, node: OT(ref.object_type) } : null;
+  };
+
+  for (const [refs, prefix, tag] of [
+    [label.each, "for each involved ", "each"],
+    [label.all, "involving all the same ", "all"],
+    [label.any, "sharing at least one ", "any"],
+  ] as const) {
+    for (const ref of refs) {
+      const s = subject(ref);
+      if (!s) continue;
+      segments.push(
+        <span key={`${tag}-${s.key}`}>
+          {prefix}
+          {s.node}
+        </span>,
+      );
     }
   }
 

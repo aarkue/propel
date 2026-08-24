@@ -527,6 +527,7 @@ function OcpnEditor({
   // overlays run at render in the DOM, so the SVG builder must re-derive them here).
   const exportSource = useMemo<VectorExportSource>(
     () => ({
+      label: "Object-centric Petri net",
       toSvg: async () => {
         const { nodes, edges } = liveRef.current;
         const placeIds = new Set(nodes.filter((n) => n.type === "place").map((n) => n.id));

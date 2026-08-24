@@ -418,6 +418,7 @@ export function PetriNetViewer({
   legendRef.current = legend;
   const exportSource = useMemo<VectorExportSource>(
     () => ({
+      label: "Petri net",
       toSvg: async () => {
         const { nodes, edges } = displayRef.current;
         const render = renderSvgRef.current;

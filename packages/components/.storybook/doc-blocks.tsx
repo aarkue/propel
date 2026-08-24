@@ -12,6 +12,7 @@ import manifest from "./component-types.generated.json";
  *   (imports + sample data included, unlike the render-fn-only "Show code" snippet).
  * Both derive everything from build artifacts (type manifest, raw story sources); nothing is
  * written per story.
+ * <CopyButton/> is also used by the agent-reference page to hand out `llms.txt` in one click.
  */
 
 interface TypeEntry {
@@ -208,7 +209,7 @@ function toAppExample(src: string): string | null {
   return `${res.replace(/\n{3,}/g, "\n\n").trim()}\n`;
 }
 
-function CopyButton({ text }: { text: string }) {
+export function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const theme = useTheme();
   return (

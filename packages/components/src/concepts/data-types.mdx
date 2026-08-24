@@ -20,6 +20,7 @@ Aggregated event counts per timestamp bin, grouped by activity.
 | --- | --- | --- |
 | `events_per_timestamp` | `object` | Event counts per bin timestamp (millis) per activity name. |
 | `activities` | `string[]` | All distinct activity names found in the log. |
+| `bin_width_ms` | `number` | Width of each bin in milliseconds, which is also the spacing of the bin centers. Bins are keyed by their center, so one spans `[center - bin_width_ms / 2, center + bin_width_ms / 2)`. `0` means there are no bins. |
 
 ### AlignmentAggregate
 

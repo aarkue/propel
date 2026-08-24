@@ -1,6 +1,8 @@
 export interface DotInfo {
   objectType: string;
   color: string;
+  /** Second colour for an O2O association: the disc is split, left half `color`, right half this. */
+  color2?: string;
   /** Edge-label semantic: "each" = one filled dot, "all" = three filled, "any" = one filled + two hollow. */
   quantifier?: "each" | "any" | "all";
   /** Node-dot semantic: "single" = one filled dot, "multi" = three filled dots. Takes precedence over `quantifier`. */
@@ -17,6 +19,45 @@ function border(color: string, amount = 0.35): string {
 }
 
 type Shape = "single-filled" | "three-filled" | "one-filled-two-hollow";
+
+/**
+ * One filled disc: a plain circle, or split down the middle when `color2` is set. That split is how
+ * an O2O association reads, left half the type the relation points from, right half the one it
+ * points to. Same footprint either way, which leaves the quantifier shapes below untouched.
+ */
+function Disc({
+  cx,
+  cy,
+  r,
+  color,
+  color2,
+  stroke,
+  sw,
+  dash,
+}: {
+  cx: number;
+  cy: number;
+  r: number;
+  color: string;
+  color2?: string;
+  stroke: string;
+  sw: number;
+  dash?: string;
+}) {
+  if (!color2) {
+    return (
+      <circle cx={cx} cy={cy} r={r} fill={color} stroke={stroke} strokeWidth={sw} strokeDasharray={dash} />
+    );
+  }
+  // Sweep 0 goes left from top to bottom, sweep 1 right.
+  return (
+    <>
+      <path d={`M ${cx},${cy - r} A ${r},${r} 0 0,0 ${cx},${cy + r} Z`} fill={color} />
+      <path d={`M ${cx},${cy - r} A ${r},${r} 0 0,1 ${cx},${cy + r} Z`} fill={color2} />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={stroke} strokeWidth={sw} strokeDasharray={dash} />
+    </>
+  );
+}
 
 /** Render a dot pill; `variant` (node involvement) takes precedence over `quantifier` (edge label) if both are set. */
 export function MultiDot({ dot }: { dot: DotInfo }) {
@@ -46,15 +87,16 @@ export function MultiDot({ dot }: { dot: DotInfo }) {
           aria-hidden="true"
         >
           {cxs.map((cx) => (
-            <circle
+            <Disc
               key={cx}
               cx={cx}
               cy={cy}
               r={r}
-              fill={dot.color}
+              color={dot.color}
+              color2={dot.color2}
               stroke={stroke}
-              strokeWidth={sw2}
-              strokeDasharray={dash}
+              sw={sw2}
+              dash={dash}
             />
           ))}
         </svg>
@@ -86,9 +128,18 @@ export function MultiDot({ dot }: { dot: DotInfo }) {
     return (
       <span title={title}>
         <svg width={w} height={h} style={{ flexShrink: 0, display: "block" }} aria-hidden="true">
-          <circle cx={x0 + step * 2} cy={cy} r={r} fill={dot.color} stroke={stroke} strokeWidth={sw} />
-          <circle cx={x0 + step} cy={cy} r={r} fill={dot.color} stroke={stroke} strokeWidth={sw} />
-          <circle cx={x0} cy={cy} r={r} fill={dot.color} stroke={stroke} strokeWidth={sw} />
+          {[x0 + step * 2, x0 + step, x0].map((cx) => (
+            <Disc
+              key={cx}
+              cx={cx}
+              cy={cy}
+              r={r}
+              color={dot.color}
+              color2={dot.color2}
+              stroke={stroke}
+              sw={sw}
+            />
+          ))}
         </svg>
       </span>
     );
@@ -99,7 +150,7 @@ export function MultiDot({ dot }: { dot: DotInfo }) {
         <svg width={w} height={h} style={{ flexShrink: 0, display: "block" }} aria-hidden="true">
           <circle cx={x0 + step * 2} cy={cy} r={r} fill="Canvas" stroke={stroke} strokeWidth={sw} />
           <circle cx={x0 + step} cy={cy} r={r} fill="Canvas" stroke={stroke} strokeWidth={sw} />
-          <circle cx={x0} cy={cy} r={r} fill={dot.color} stroke={stroke} strokeWidth={sw} />
+          <Disc cx={x0} cy={cy} r={r} color={dot.color} color2={dot.color2} stroke={stroke} sw={sw} />
         </svg>
       </span>
     );
@@ -108,7 +159,7 @@ export function MultiDot({ dot }: { dot: DotInfo }) {
   return (
     <span title={title}>
       <svg width={s} height={s} style={{ flexShrink: 0, display: "block" }} aria-hidden="true">
-        <circle cx={s / 2} cy={s / 2} r={r} fill={dot.color} stroke={stroke} strokeWidth={sw} />
+        <Disc cx={s / 2} cy={s / 2} r={r} color={dot.color} color2={dot.color2} stroke={stroke} sw={sw} />
       </svg>
     </span>
   );

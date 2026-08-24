@@ -130,9 +130,15 @@ export function mix(a: string, b: string, t: number): string {
 }
 
 /** Derive a text/border ("foreground") or fill ("light") shade from a hex, mixed against system Canvas/CanvasText so it follows the active theme. */
-export function shadeHex(hex: string, mode: "normal" | "foreground" | "light" = "normal"): string {
+export function shadeHex(
+  hex: string,
+  mode: "normal" | "foreground" | "light" | "surface" = "normal",
+): string {
   if (mode === "normal" || hex[0] !== "#" || hex.length < 7) return hex;
   if (mode === "foreground") return `color-mix(in srgb, ${hex} 75%, CanvasText)`;
+  // `surface` is the node fill, opaque, so a host can ask for a plain white box without washing out
+  // the border it would otherwise share a colour with.
+  if (mode === "surface") return `color-mix(in srgb, ${hex} 15%, Canvas)`;
   return `color-mix(in srgb, ${hex} 20%, Canvas)`;
 }
 

@@ -1,9 +1,18 @@
 import type { OCDeclareArc, OCDeclareArcLabel, ObjectTypeAssociation } from "./index";
-import type { ArcType, ConstraintLabel, RawConstraint } from "./types";
+import type { ArcType, ConstraintLabel, ObjectTypeRef, RawConstraint } from "./types";
 
-/** O2O associations collapse to their `first` object type for visualization (display-only). */
-export function normalizeAssoc(assocs: ObjectTypeAssociation[]) {
-  return assocs.map((a) => (a.type === "Simple" ? { object_type: a.object_type } : { object_type: a.first }));
+/**
+ * Backend association -> viz ref. `object_type` stays the single type everything downstream keys
+ * colour and visibility off, which for an O2O association is its `first`. The relation itself is
+ * carried alongside, which lets an O2O be drawn as what it is instead of passing for a plain
+ * involvement in `first`.
+ */
+export function normalizeAssoc(assocs: ObjectTypeAssociation[]): ObjectTypeRef[] {
+  return assocs.map((a) =>
+    a.type === "Simple"
+      ? { object_type: a.object_type, type: "Simple" }
+      : { object_type: a.first, type: "O2O", first: a.first, second: a.second, reversed: a.reversed },
+  );
 }
 
 /** Backend (tagged, O2O-lossless) label -> viz `ConstraintLabel` (object_type only). Display-only. */

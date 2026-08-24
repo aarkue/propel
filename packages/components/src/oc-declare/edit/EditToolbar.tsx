@@ -1,6 +1,6 @@
 import { Button, Dialog, DropdownMenu, Flex, IconButton, Tabs, TextArea } from "@r4pm/components/ui";
 import { useReactFlow } from "@xyflow/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   PiCopy,
   PiDownloadSimple,
@@ -166,21 +166,29 @@ function ExportDialog({
   const [text, setText] = useState("");
   const json = JSON.stringify(toArcs(model), null, 2);
 
-  // Fetch the template string lazily when the dialog opens.
-  const loadText = async () => {
-    if (!onTemplateString) return;
+  // Fetch the template string when the dialog opens. Keyed on `open`, because Radix fires
+  // `onOpenChange` only for changes it initiates, and the toolbar opens this by setting `open`
+  // itself.
+  useEffect(() => {
+    if (!open || !onTemplateString) return;
+    let cancelled = false;
     setText("Loading…");
-    setText(await onTemplateString(toArcs(model)));
-  };
+    onTemplateString(toArcs(model)).then(
+      (t) => {
+        if (!cancelled) setText(t);
+      },
+      (e) => {
+        // Without this a rejection leaves "Loading…" on screen for good.
+        if (!cancelled) setText(`Could not render the text export: ${e}`);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [open, onTemplateString, model]);
 
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(o) => {
-        onOpenChange(o);
-        if (o) void loadText();
-      }}
-    >
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="640px">
         <Flex justify="between" align="center" mb="2">
           <Dialog.Title mb="0">Export constraints</Dialog.Title>

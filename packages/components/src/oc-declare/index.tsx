@@ -72,9 +72,9 @@ export function OCDeclareViewer(
   const { data, layoutOverride, renderSvg, activityInvolvements, eventTypeCounts, onProjectActivities } =
     props;
   const cfg = useViewerConfig(props);
-  const activityColor = (name: string, mode: "normal" | "foreground" | "light" = "normal") =>
+  const activityColor = (name: string, mode: "normal" | "foreground" | "light" | "surface" = "normal") =>
     shadeHex(cfg.colorOf?.("activity", name) ?? "#888888", mode);
-  const objectTypeColor = (name: string, mode: "normal" | "foreground" | "light" = "normal") =>
+  const objectTypeColor = (name: string, mode: "normal" | "foreground" | "light" | "surface" = "normal") =>
     shadeHex(cfg.colorOf?.("objectType", name) ?? "#888888", mode);
   const vizRef = useRef<OCDeclareVizHandle>(null);
   const [layoutDirection, setLayoutDirection] = useViewSetting<"RIGHT" | "DOWN">("layoutDirection", "RIGHT");

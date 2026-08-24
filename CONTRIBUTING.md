@@ -45,7 +45,10 @@ for how the `Backend` trait and the `BackendContext` interface make that work.
 ## Conventions (the non-obvious ones)
 
 - **Codegen runs `meta-gen`.** `pnpm codegen` runs `cargo run -p meta-gen` then `gen.mjs`. **New bindings go in `app-bindings`.**
-- **Storybook type docs are snapshotted.** The prop/data-type definitions shown in the docs come from generated files; `dev` does not rebuild them. Run `pnpm --filter @r4pm/components docs:types` after changing a documented viewer prop or data-type shape.
+- **Storybook type docs are snapshotted.** The prop/data-type definitions shown in the docs, and the
+  component/export-key tables in `packages/components/llms.txt`, come from generated files; `dev`
+  does not rebuild them. Run `pnpm --filter @r4pm/components docs:types` after changing a documented
+  viewer prop or data-type shape, adding a component, or changing an export key.
 - **`verbatimModuleSyntax: true`**: use `import type` for type-only imports.
 - **Tailwind v4 is the standard** for UI, shipped to consumers via `@r4pm/components/styles.css`
   (Tailwind + Radix + the package's own rules). A host that runs its own Tailwind build imports

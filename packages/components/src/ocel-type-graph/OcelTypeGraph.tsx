@@ -369,7 +369,10 @@ function OcelTypeGraphInner({
   };
   const toSvgRef = useRef(toSvg);
   toSvgRef.current = toSvg;
-  const exportSource = useMemo<VectorExportSource>(() => ({ toSvg: () => toSvgRef.current() }), []);
+  const exportSource = useMemo<VectorExportSource>(
+    () => ({ label: "OCEL type graph", toSvg: () => toSvgRef.current() }),
+    [],
+  );
   useRegisterExport("ocel-type-graph", exportSource);
 
   // Refit only when a new layout lands (structure change), not on pan/zoom.

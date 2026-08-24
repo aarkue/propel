@@ -7,11 +7,60 @@ import { describeConstraintRich } from "./constraintText";
 import type { OCDeclareArcLabel, ObjectTypeAssociation } from "./index";
 import { deformPoints, roundedPointsToSvgPath, snapEndpointsToNodeBorders } from "./layout-util";
 import { type DotInfo, MultiDot } from "./MultiDot";
-import type { ActivityNodeData, ConstraintEdgeData, RenderArcType } from "./types";
+import type { ActivityNodeData, ConstraintEdgeData, ObjectTypeRef, RenderArcType } from "./types";
 import { type ColorResolver, useVizContext } from "./VizContext";
 import { useEditContext } from "./edit/edit-context";
 import { EdgeEditControl, MergedEdgeEditControl } from "./edit/EdgeEditControl";
 import { cardinalitySugar, type EdgeTemplate, TEMPLATE_TO_ARC } from "./model";
+
+/**
+ * The types an association references, and how to draw it. An O2O association carries no
+ * `object_type` at all, only `first`/`second`. It draws as a split disc whose left half is the type
+ * the relation points from; without the split it would be an unnamed dot in the fallback colour.
+ */
+function refToDot(
+  ref: ObjectTypeRef,
+  objectTypeColor: ColorResolver,
+): { objectType: string; color: string; color2?: string; types: string[] } {
+  if (ref.type === "O2O" && ref.first && ref.second) {
+    const [from, to] = ref.reversed ? [ref.second, ref.first] : [ref.first, ref.second];
+    return {
+      // The involvement editor's own notation, so the tooltip reads the way the arc was written.
+      objectType: `${ref.first} ${ref.reversed ? "◄" : "►"} ${ref.second}`,
+      color: objectTypeColor(from),
+      color2: objectTypeColor(to),
+      types: [ref.first, ref.second],
+    };
+  }
+  return { objectType: ref.object_type, color: objectTypeColor(ref.object_type), types: [ref.object_type] };
+}
+
+/**
+ * One decimal, because rounding to whole percent hid the difference between a handful of violations
+ * and none at all: whole percent prints 0.4% as "0%". Exact 0 and 100 stay short.
+ */
+function formatViolationPct(pct: number): string {
+  if (pct === 0 || pct === 100) return `${pct}%`;
+  return `${pct.toFixed(1)}%`;
+}
+
+/** Badge sits on top of the arc, so it carries its own ring to stay legible against the path. */
+function violationBadgeStyle(pct: number): React.CSSProperties {
+  return {
+    // Sets its own box: as a plain inline span the background would follow the font metrics instead
+    // of `lineHeight`, which renders it shorter under a non-flex parent than a flex one.
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#fff",
+    background: pct < 10 ? "#16a34a" : pct < 50 ? "#d97706" : "#dc2626",
+    borderRadius: 5,
+    padding: "0 5px",
+    lineHeight: "17px",
+    fontWeight: 700,
+    fontVariantNumeric: "tabular-nums",
+    boxShadow: "0 0 0 1.5px var(--color-panel-solid, #fff), 0 1px 2px rgba(0,0,0,0.28)",
+  };
+}
 
 type ConstraintEdgeType = Edge<ConstraintEdgeData, "constraint">;
 type Point = { x: number; y: number };
@@ -153,7 +202,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   if (hiddenArcTypes.has(data.arcType)) return null;
   const involvedTypes = new Set<string>();
   for (const refs of [data.label.each, data.label.any, data.label.all]) {
-    for (const ref of refs) if (ref.object_type) involvedTypes.add(ref.object_type);
+    for (const ref of refs) for (const t of refToDot(ref, objectTypeColor).types) if (t) involvedTypes.add(t);
   }
   if (involvedTypes.size > 0) {
     const allHidden = [...involvedTypes].every((t) => hiddenObjectTypes.has(t));
@@ -184,36 +233,30 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   const tgtCenterY = targetPos.y + th / 2;
 
   // Build the dot list in label order (each -> any -> all), filtering out hidden object types.
+  const quantified = (refs: ObjectTypeRef[], quantifier: "each" | "any" | "all"): DotInfo[] =>
+    refs
+      .map((r) => ({ ...refToDot(r, objectTypeColor), quantifier }))
+      // Hidden only when every type it references is hidden, matching the arc-level check above.
+      .filter((d) => !d.types.every((t) => hiddenObjectTypes.has(t)))
+      .map(({ types: _types, ...dot }) => dot);
+
   const dots: DotInfo[] = [
-    ...data.label.each
-      .filter((r) => !hiddenObjectTypes.has(r.object_type))
-      .map((r) => ({
-        objectType: r.object_type,
-        color: objectTypeColor(r.object_type),
-        quantifier: "each" as const,
-      })),
-    ...data.label.any
-      .filter((r) => !hiddenObjectTypes.has(r.object_type))
-      .map((r) => ({
-        objectType: r.object_type,
-        color: objectTypeColor(r.object_type),
-        quantifier: "any" as const,
-      })),
-    ...data.label.all
-      .filter((r) => !hiddenObjectTypes.has(r.object_type))
-      .map((r) => ({
-        objectType: r.object_type,
-        color: objectTypeColor(r.object_type),
-        quantifier: "all" as const,
-      })),
+    ...quantified(data.label.each, "each"),
+    ...quantified(data.label.any, "any"),
+    ...quantified(data.label.all, "all"),
   ];
 
-  // Edit model stashes the O2O-lossless `rawLabel`; read-only viewer falls back to Simple refs.
+  // The edit model stashes the O2O-lossless `rawLabel`; the read-only viewer rebuilds it from the
+  // refs, which carry the relation, keeping a text label from reading an O2O as a plain type.
+  const asAssoc = (r: ObjectTypeRef): ObjectTypeAssociation =>
+    r.type === "O2O" && r.first && r.second
+      ? { type: "O2O", first: r.first, second: r.second, reversed: r.reversed ?? false }
+      : { type: "Simple", object_type: r.object_type };
   const rawLabel = data.rawLabel as OCDeclareArcLabel | undefined;
   const textLabel: OCDeclareArcLabel = rawLabel ?? {
-    each: data.label.each.map((r) => ({ type: "Simple", object_type: r.object_type })),
-    all: data.label.all.map((r) => ({ type: "Simple", object_type: r.object_type })),
-    any: data.label.any.map((r) => ({ type: "Simple", object_type: r.object_type })),
+    each: data.label.each.map(asAssoc),
+    all: data.label.all.map(asAssoc),
+    any: data.label.any.map(asAssoc),
   };
 
   // Weighted gradient: each object type gets a stop proportional to its total weight (each/all = 4, any = 1).
@@ -518,17 +561,8 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
               </span>
             )}
             {violationPct != null && !isMerged && (
-              <span
-                style={{
-                  color: "#fff",
-                  background: violationPct < 10 ? "#16a34a" : violationPct < 50 ? "#d97706" : "#dc2626",
-                  borderRadius: 4,
-                  padding: "0 4px",
-                  lineHeight: "15px",
-                }}
-                title="Violation fraction"
-              >
-                {violationPct.toFixed(0)}%
+              <span style={violationBadgeStyle(violationPct)} title="Violation fraction">
+                {formatViolationPct(violationPct)}
               </span>
             )}
           </div>
@@ -558,17 +592,8 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
                   fontWeight: 700,
                 }}
               >
-                <span
-                  style={{
-                    color: "#fff",
-                    background: pct < 10 ? "#16a34a" : pct < 50 ? "#d97706" : "#dc2626",
-                    borderRadius: 4,
-                    padding: "0 4px",
-                    lineHeight: "15px",
-                  }}
-                  title={title}
-                >
-                  {pct.toFixed(0)}%
+                <span style={violationBadgeStyle(pct)} title={title}>
+                  {formatViolationPct(pct)}
                 </span>
               </div>
             );

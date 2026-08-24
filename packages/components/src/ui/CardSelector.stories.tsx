@@ -13,7 +13,7 @@ import { CardSelector, CardSelectorContent, type CardSelectorOption } from "./Ca
 import { Text, Theme } from "@radix-ui/themes";
 
 const meta: Meta<typeof CardSelector> = {
-  title: "ui/CardSelector",
+  title: "Inputs & Primitives/Card Selector",
   component: CardSelector,
   parameters: { layout: "centered" },
 };

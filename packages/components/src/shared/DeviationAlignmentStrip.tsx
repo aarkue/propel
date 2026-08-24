@@ -545,7 +545,10 @@ export function DeviationAlignmentStrip({
   const ambient = useColorOf("activity");
   const resolve = colorOf ?? ambient;
   const source = useMemo<VectorExportSource | null>(
-    () => (exportKey ? { toSvg: () => buildDeviationAlignmentSvg(moves, { colorOf: resolve }) } : null),
+    () =>
+      exportKey
+        ? { label: "Alignment", toSvg: () => buildDeviationAlignmentSvg(moves, { colorOf: resolve }) }
+        : null,
     [exportKey, moves, resolve],
   );
   useRegisterExport(exportKey ?? "deviation-alignment-strip", source);

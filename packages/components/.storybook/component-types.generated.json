@@ -7,6 +7,13 @@
     "code": "export interface ActivityChartProps {\n  /** Raw per-activity event counts (activity name -> count). */\n  counts: Record<string, number>;\n  /** Total number of events in the log; drives the \"Group Other\" (<1%) fold and the % labels. */\n  numEvents: number;\n}"
   },
   {
+    "name": "ActivityStatistics",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/edit/edit-context.ts",
+    "code": "/** Activity statistics payload (host-owned; mirrors backend `ActivityStatistics`). */\nexport interface ActivityStatistics {\n  num_evs_per_ot_type: Record<string, number[]>;\n  num_obs_of_ot_per_ev: Record<string, number[]>;\n}"
+  },
+  {
     "name": "AggregatedEventTimestamps",
     "kind": "interface",
     "entry": "@r4pm/components/charts",
@@ -81,7 +88,7 @@
     "kind": "type",
     "entry": "@r4pm/components/petri",
     "file": "src/petri/editor/helpers/layout-graph.ts",
-    "code": "/** Orthogonal bend-point routing captured for an arc. Points are in flow coordinates (graph\n *  top-left origin = flow space, node centers written as center). `srcPos`/`tgtPos` are the source/\n *  target node *center* positions at layout time, used to detect a later drag. */\nexport type ArcRouting = {\n  kind: \"polyline\";\n  points: { x: number; y: number }[];\n  srcPos: { x: number; y: number };\n  tgtPos: { x: number; y: number };\n};"
+    "code": "/** Orthogonal bend-point routing for an arc, in flow coordinates; `srcPos`/`tgtPos` are the source/\n *  target node *center* positions at layout time, used to detect a later drag. */\nexport type ArcRouting = {\n  kind: \"polyline\";\n  points: { x: number; y: number }[];\n  srcPos: { x: number; y: number };\n  tgtPos: { x: number; y: number };\n};"
   },
   {
     "name": "AsyncBoundaryProps",
@@ -119,11 +126,53 @@
     "code": "/** A single attribute value change at a point in time. */\nexport interface AttributeChange {\n  time: string;\n  value: number | boolean | string | null;\n}"
   },
   {
+    "name": "AttributeValueSelection",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/attribute-value-stats.tsx",
+    "code": "/** Structurally identical to the host app's `ValueFilter`, so selections feed straight into its filter model. */\nexport type AttributeValueSelection =\n  | { type: \"Float\" | \"Integer\"; min: number | null; max: number | null }\n  | { type: \"String\"; is_in: string[] }\n  | { type: \"Boolean\"; is_true: boolean }\n  | { type: \"Time\"; from: string | null; to: string | null };"
+  },
+  {
+    "name": "AttributeValueStatsProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/attribute-value-stats.tsx",
+    "code": "export interface AttributeValueStatsProps {\n  stat: OcelAttributeStats;\n  /** Current selection (controlled). Omit for a read-only display. */\n  value?: AttributeValueSelection;\n  onChange?: (sel: AttributeValueSelection) => void;\n}"
+  },
+  {
     "name": "AttrType",
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/log-editor/model.ts",
     "code": "export type AttrType = \"string\" | \"int\" | \"float\" | \"boolean\" | \"date\";"
+  },
+  {
+    "name": "AttrValueCount",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/attribute-value-stats.tsx",
+    "code": "/** Mirrors the backend `AttrValueCount`. */\nexport interface AttrValueCount {\n  value: string;\n  count: number;\n}"
+  },
+  {
+    "name": "BinnedEdgeDurationStats",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/edit/edit-context.ts",
+    "code": "/** Edge duration statistics payload (host-owned; mirrors backend `BinnedEdgeDurationStats`). */\nexport interface BinnedEdgeDurationStats {\n  bin_centers_ms: number[];\n  percentages: number[];\n  bin_labels: string[];\n  min_ms: number;\n  max_ms: number;\n}"
+  },
+  {
+    "name": "CardSelectorOption",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/CardSelector.tsx",
+    "code": "export interface CardSelectorOption<T extends string> {\n  value: T;\n  title: string;\n  description?: string;\n  icon?: ReactNode;\n  /** Radix color scale for this card when selected (e.g. \"pink\", \"indigo\"). Defaults to the\n   *  theme accent, so a caller that does not care about per-option color still looks coherent. */\n  accent?: string;\n  /** Radix color scale for the *icon only* (e.g. \"pink\", \"indigo\"). Separate from `accent`, so a\n   *  grid can be legible per option without a card changing four things at once when selected. */\n  iconColor?: string;\n  /** Greyed out but still selectable -- for an option that is legal yet discouraged in context. */\n  softDisabled?: boolean;\n  /** Options sharing a group render together under one heading, in first-seen order. */\n  group?: string;\n}"
+  },
+  {
+    "name": "CardSelectorProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/CardSelector.tsx",
+    "code": "export interface CardSelectorProps<T extends string> {\n  options: CardSelectorOption<T>[];\n  value: T;\n  onValueChange: (value: T) => void;\n  /** Rendered below the cards -- pair with `CardSelectorContent` to show the selected option's\n   *  own form, which is the pattern this component exists for. */\n  children?: ReactNode;\n  className?: string;\n  /** Cards per row at the widest breakpoint. Defaults to the option count, capped at 3. */\n  columns?: 2 | 3 | 4;\n  /** Heading per group key. A group with no entry here renders without a heading. */\n  groupLabels?: Record<string, string>;\n  /** Accessible name for the group. */\n  \"aria-label\"?: string;\n}"
   },
   {
     "name": "CaseDurations",
@@ -158,7 +207,28 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/oc-declare/types.ts",
-    "code": "export interface ConstraintEdgeData {\n  arcType: RenderArcType;\n  counts: [number, number | null];\n  label: ConstraintLabel;\n  bundleIndex: number;\n  bundleTotal: number;\n  constraintIndex: number;\n  /** Routed polyline vertices (Rust engine), drawn as a rounded polyline. */\n  routedPoints?: { x: number; y: number }[];\n  routedPath?: string;\n  /** Node positions captured at layout time, used to detect drag and deform. */\n  layoutSourcePos?: { x: number; y: number };\n  layoutTargetPos?: { x: number; y: number };\n  [key: string]: unknown;\n}"
+    "code": "export interface ConstraintEdgeData {\n  arcType: RenderArcType;\n  counts: [number, number | null];\n  label: ConstraintLabel;\n  bundleIndex: number;\n  bundleTotal: number;\n  constraintIndex: number;\n  /** Evaluation result for this arc (fraction of violating situations), when evaluated. */\n  violation?: number;\n  /** For a render-layer collapsed EFEP/DFDP arc: the two underlying model-edge ids it stands for\n   *  (`forward` = EF/DF, `backward` = EP/DP). Absent on plain single arcs. */\n  pair?: { forward: string; backward: string };\n  /** Per-direction evaluation results for a collapsed arc (mirrors {@link pair}). */\n  pairViolation?: { forward?: number; backward?: number };\n  /** Routed polyline vertices (Rust engine), drawn as a rounded polyline. */\n  routedPoints?: { x: number; y: number }[];\n  routedPath?: string;\n  /** Node positions captured at layout time, used to detect drag and deform. */\n  layoutSourcePos?: { x: number; y: number };\n  layoutTargetPos?: { x: number; y: number };\n  [key: string]: unknown;\n}"
+  },
+  {
+    "name": "DeclareEdge",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/model.ts",
+    "code": "export interface DeclareEdge {\n  id: string;\n  source: string;\n  target: string;\n  template: EdgeTemplate;\n  cardinality?: [number | null, number | null];\n  label: OCDeclareArcLabel;\n  violation?: number;\n  route?: DeclareEdgeRoute;\n}"
+  },
+  {
+    "name": "DeclareEdgeRoute",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/model.ts",
+    "code": "/** Routed edge geometry from a layout run, kept in the model so hosts can persist it. */\nexport interface DeclareEdgeRoute {\n  points: { x: number; y: number }[];\n  /** Source/target node top-left at layout time; drag deformation is relative to these. */\n  sourcePos: { x: number; y: number };\n  targetPos: { x: number; y: number };\n}"
+  },
+  {
+    "name": "DeclareFlowModel",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/model.ts",
+    "code": "export interface DeclareFlowModel {\n  nodes: DeclareNode[];\n  edges: DeclareEdge[];\n}"
   },
   {
     "name": "DeclareLayoutFn",
@@ -166,6 +236,13 @@
     "entry": "@r4pm/components",
     "file": "src/oc-declare/layout-util.ts",
     "code": "/** A pluggable OC-declare layout: positions `nodes` and writes routed-edge data. */\nexport type DeclareLayoutFn = <N extends Node>(\n  nodes: N[],\n  edges: Edge[],\n  options?: DeclareLayoutOptions<N>,\n) => Promise<{ nodes: N[]; edges: Edge[] }>;"
+  },
+  {
+    "name": "DeclareNode",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/model.ts",
+    "code": "export interface DeclareNode {\n  id: string;\n  type: string;\n  kind: \"activity\" | \"init\" | \"exit\";\n  position?: { x: number; y: number };\n}"
   },
   {
     "name": "DfgLayoutFn",
@@ -187,6 +264,13 @@
     "entry": "@r4pm/components",
     "file": "src/dfg/index.tsx",
     "code": "/** Local view-model. Kept explicit so the viewer has no `@r4pm/client` dependency. */\nexport interface DirectlyFollowsGraph {\n  activities: Record<string, number>;\n  directly_follows_relations: Array<[[string, string], number]>;\n  start_activities: Record<string, number>;\n  end_activities: Record<string, number>;\n}"
+  },
+  {
+    "name": "DiscoveryOptions",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/edit/edit-context.ts",
+    "code": "/** Options passed to `onDiscover` (mirrors OCPQ `OCDeclareDiscoveryOptions`; host-owned shape). */\nexport interface DiscoveryOptions {\n  o2o_mode: \"None\" | \"Direct\" | \"Reversed\" | \"Bidirectional\";\n  noise_threshold: number;\n  counts_for_generation: [number, number | null];\n  counts_for_filter: [number, number | null];\n  reduction: \"None\" | \"Lossless\" | \"Lossy\";\n  refinement: boolean;\n  considered_arrow_types: string[];\n  acts_to_use?: string[];\n}"
   },
   {
     "name": "DottedChartAxisConfig",
@@ -221,14 +305,14 @@
     "kind": "interface",
     "entry": "@r4pm/components/charts",
     "file": "src/charts/dotted-chart.tsx",
-    "code": "export interface DottedChartProps {\n  /** Computed dots (`dots_per_color` + `y_values`). Undefined while loading. */\n  data?: DottedChartData;\n  loading?: boolean;\n  error?: unknown;\n  onRetry?: () => void;\n  /** Controlled axis selection (the viz `controls`). Defaults to Time/Case/Activity when omitted. */\n  controls?: DottedChartAxisConfig;\n  /** When provided, the axis \"Configure\" popover is shown and changes are reported here (the host\n   *  refetches). When omitted (e.g. a pipeline viewer with no backend), the axis controls are\n   *  hidden and only presentation controls remain. */\n  onControlsChange?: (next: DottedChartAxisConfig) => void;\n  /** Optional bridge for downstream filtering (time-range selection). */\n  onSelect?: (s: { scope: string; key: string }) => void;\n  title?: string;\n}"
+    "code": "export interface DottedChartProps {\n  /** Computed dots (`dots_per_color` + `y_values`). Undefined while loading. */\n  data?: DottedChartData;\n  loading?: boolean;\n  error?: unknown;\n  onRetry?: () => void;\n  /** Controlled axis selection (the viz `controls`). Defaults to Time/Case/Activity when omitted. */\n  controls?: DottedChartAxisConfig;\n  /** When provided, shows the axis \"Configure\" popover and reports changes here; omit to hide axis controls (e.g. no backend). */\n  onControlsChange?: (next: DottedChartAxisConfig) => void;\n  /** Optional bridge for downstream filtering (time-range selection). */\n  onSelect?: (s: { scope: string; key: string }) => void;\n  title?: string;\n}"
   },
   {
     "name": "EdgeDot",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "export interface EdgeDot {\n  at: number;\n  color: string;\n  filled?: boolean;\n}"
+    "code": "export interface EdgeDot {\n  at: number;\n  color: string;\n  filled?: boolean;\n  /** Ring stroke (the on-screen `MultiDot` ring). Absent: hollow dots ring in `color`. */\n  stroke?: string;\n}"
   },
   {
     "name": "EdgeLabel",
@@ -242,7 +326,14 @@
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "export type EdgeMarker = \"none\" | \"arrow\" | \"ball\" | \"arrow_ball\";"
+    "code": "export type EdgeMarker =\n  | \"none\"\n  | \"arrow\"\n  | \"arrow_centered\"\n  | \"ball\"\n  | \"arrow_ball\"\n  | \"arrow_bar\"\n  | \"ball_arrow\"\n  | \"ball_bar_arrow\";"
+  },
+  {
+    "name": "EdgeTemplate",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/model.ts",
+    "code": "export type EdgeTemplate =\n  | \"as\"\n  | \"ef\"\n  | \"ef-rev\"\n  | \"df\"\n  | \"df-rev\"\n  | \"nas\"\n  | \"nef\"\n  | \"nef-rev\"\n  | \"ndf\"\n  | \"ndf-rev\";"
   },
   {
     "name": "EditableNode",
@@ -270,7 +361,7 @@
     "kind": "type",
     "entry": "@r4pm/components/petri",
     "file": "src/petri/editor/Editor.tsx",
-    "code": "export type EditorProps = {\n  readOnly?: boolean;\n  initialNodes?: PetriNetNode[];\n  initialEdges?: Edge<ArcData>[];\n  editorProps?: ReactFlowProps<PetriNetNode, Edge<ArcData>>;\n  /** Show the built-in PNG/SVG export buttons. Off when a host (e.g. a viewer frame) owns export. */\n  showExportControls?: boolean;\n  /** In-canvas controllers rendered inside the ReactFlow provider (e.g. an OCPN\n   *  inference effect). They can use `useReactFlow` to read/patch live nodes/edges. */\n  children?: React.ReactNode;\n  /** Turn on editing (drag-to-create, rename, delete, markings). Convenience for\n   *  `readOnly={false}`; `readOnly` still wins if both are set. */\n  editable?: boolean;\n  /** Fired (rAF-coalesced) on any node/edge change while editing. */\n  onChange?: (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => void;\n  /** After a node drag, re-run a *stable* relayout: only edges re-route and any node the drop\n   *  crowds yields; the dragged node stays where dropped and everything else stays put. On by\n   *  default (editable mode only); pass `false` for free-form dragging. */\n  relayoutOnDrag?: boolean;\n  /** Replace the default (Rust) Petri layout - e.g. with the ELK engine. The \"Layout\" button runs\n   *  it; stable drag-relayout only applies if the engine honors `options.seed` (ELK no-ops). */\n  layoutOverride?: PetriLayoutFn;\n  /** Controlled node set: when provided, the editor mirrors it into internal state\n   *  on change (no remount, positions preserved). Used by viewers/simulators that\n   *  push live data updates. Editable mode uses `initialNodes` instead. */\n  nodes?: PetriNetNode[];\n  edges?: Edge<ArcData>[];\n  /** Editable mode only: cosmetic data merged into the editor's live nodes by id,\n   *  so an overlay change never clobbers structure/positions/edits. Excludes\n   *  tokens/finalTokens (the user owns those via the marking stepper). */\n  overlayNodeData?: Map<string, Partial<TransitionData & PlaceData>>;\n  /** Editable mode only: cosmetic arc patches matched to live edges by endpoints. */\n  overlayEdgeData?: EditorEdgePatch[];\n  /** Live per-place presentation resolver, evaluated at render by every place node -\n   *  including ones added in-canvas - with the place's current data. Returns fields\n   *  to merge over that data (never tokens/finalTokens; the stepper owns those). */\n  placeOverlay?: (placeId: string, data: PlaceData) => Partial<PlaceData> | undefined;\n  /** Live per-arc presentation resolver, evaluated at render by every edge with its\n   *  current data and resolved endpoint kinds (so a consumer can tell place from\n   *  transition without re-deriving topology). */\n  arcOverlay?: (arc: ArcContext, data: ArcData) => ArcPresentation | undefined;\n};"
+    "code": "export type EditorProps = {\n  readOnly?: boolean;\n  initialNodes?: PetriNetNode[];\n  initialEdges?: Edge<ArcData>[];\n  editorProps?: ReactFlowProps<PetriNetNode, Edge<ArcData>>;\n  /** Show the built-in PNG/SVG export buttons. Off when a host (e.g. a viewer frame) owns export. */\n  showExportControls?: boolean;\n  /** In-canvas controllers rendered inside the ReactFlow provider (e.g. an OCPN\n   *  inference effect). They can use `useReactFlow` to read/patch live nodes/edges. */\n  children?: React.ReactNode;\n  /** Turn on editing (drag-to-create, rename, delete, markings). Convenience for\n   *  `readOnly={false}`; `readOnly` still wins if both are set. */\n  editable?: boolean;\n  /** Fired (rAF-coalesced) on any node/edge change while editing. */\n  onChange?: (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => void;\n  /** After a node drag, re-run a *stable* relayout: dragged node stays put, only crowded nodes/edges\n   *  re-route. On by default (editable mode only); pass `false` for free-form dragging. */\n  relayoutOnDrag?: boolean;\n  /** Replace the default (Rust) Petri layout - e.g. with the ELK engine. The \"Layout\" button runs\n   *  it; stable drag-relayout only applies if the engine honors `options.seed` (ELK no-ops). */\n  layoutOverride?: PetriLayoutFn;\n  /** Controlled node set: editor mirrors it into internal state on change, positions preserved.\n   *  Used by viewers/simulators pushing live data; editable mode uses `initialNodes` instead. */\n  nodes?: PetriNetNode[];\n  edges?: Edge<ArcData>[];\n  /** Editable mode only: cosmetic data merged into the editor's live nodes by id,\n   *  so an overlay change never clobbers structure/positions/edits. Excludes\n   *  tokens/finalTokens (the user owns those via the marking stepper). */\n  overlayNodeData?: Map<string, Partial<TransitionData & PlaceData>>;\n  /** Editable mode only: cosmetic arc patches matched to live edges by endpoints. */\n  overlayEdgeData?: EditorEdgePatch[];\n  /** Live per-place presentation resolver, evaluated at render; returns fields to merge over the\n   *  place's current data (never tokens/finalTokens, the stepper owns those). */\n  placeOverlay?: (placeId: string, data: PlaceData) => Partial<PlaceData> | undefined;\n  /** Live per-arc presentation resolver, evaluated at render with resolved endpoint kinds so a\n   *  consumer can tell place from transition without re-deriving topology. */\n  arcOverlay?: (arc: ArcContext, data: ArcData) => ArcPresentation | undefined;\n};"
   },
   {
     "name": "ElementInteractions",
@@ -322,6 +413,13 @@
     "code": "export interface EventRow {\n  rowId: string;\n  caseId: string;\n  activity: string;\n  /** RFC3339, or \"\" when unset (reflow fills non-manual rows). */\n  time: string;\n  /** True once the user edits the timestamp directly; reflow then leaves it alone. */\n  timeManual: boolean;\n  /** Raw string cell per attribute column name. */\n  attrs: Record<string, string>;\n}"
   },
   {
+    "name": "ExportMenuPlacement",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/export.tsx",
+    "code": "/** Where the export button sits inside the frame. Move it when a viewer has its own corner chrome. */\nexport type ExportMenuPlacement = \"top-right\" | \"top-left\" | \"bottom-right\" | \"bottom-left\";"
+  },
+  {
     "name": "FitnessResult",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -333,7 +431,14 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/inputs/FrequencyPicker.tsx",
-    "code": "export interface FrequencyPickerProps {\n  items: FreqItem[] | Record<string, number>;\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  mode?: \"multi\" | \"single\";\n  searchable?: boolean;\n  showBars?: boolean;\n  /** Show the draggable top-N cutoff rail. Turn off when items have no meaningful frequency. */\n  showCutoff?: boolean;\n  /** Scope passed to the shared colorOf resolver (e.g. \"activity\", \"objectType\"). */\n  scope?: string;\n  /** Override the color resolver; defaults to the shared ViewerConfig colorOf. */\n  colorOf?: ColorResolver;\n  emptyText?: string;\n  /** Focus the search box on mount (only when searchable). Off by default so embedded pickers\n   *  (e.g. inside a settings card) do not steal focus. */\n  autoFocus?: boolean;\n}"
+    "code": "export interface FrequencyPickerProps {\n  items: FreqItem[] | Record<string, number>;\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  mode?: \"multi\" | \"single\";\n  searchable?: boolean;\n  showBars?: boolean;\n  /** Show the draggable top-N cutoff rail. Turn off when items have no meaningful frequency. */\n  showCutoff?: boolean;\n  /** Show the per-row count number. Turn off for count-less items (name-only entities). */\n  showCounts?: boolean;\n  /** Row order. \"count\" (default) sorts by frequency desc; \"name\" sorts alphabetically -- use the\n   *  latter for count-less items, where a frequency order (and the cutoff rail) is meaningless. */\n  sort?: \"count\" | \"name\";\n  /** Scope passed to the shared colorOf resolver (e.g. \"activity\", \"objectType\"). */\n  scope?: string;\n  /** Override the color resolver; defaults to the shared ViewerConfig colorOf. */\n  colorOf?: ColorResolver;\n  emptyText?: string;\n  /** Focus the search box on mount (only when searchable). Off by default so embedded pickers\n   *  (e.g. inside a settings card) do not steal focus. */\n  autoFocus?: boolean;\n}"
+  },
+  {
+    "name": "GradientStop",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/graph-svg/styled-graph.ts",
+    "code": "export interface GradientStop {\n  /** Fraction (0..1) along the gradient axis. */\n  offset: number;\n  color: string;\n}"
   },
   {
     "name": "GraphLayout",
@@ -347,7 +452,7 @@
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/rust-layout/index.ts",
-    "code": "export type GraphNodeSpec = {\n  width: number;\n  height: number;\n  ellipse?: boolean;\n  pin?: \"first\" | \"last\";\n  /** Minimum clearance (px) to keep free right of the node (TB) for caller-drawn decorations the\n   *  layout can't see - e.g. DFG self-loops and their labels. */\n  clear_after?: number;\n  /** Optional grouping id (e.g. an object type). Same-category nodes are held in a consistent lane\n   *  across layers as a crossing-neutral tiebreak. Omit for no grouping. */\n  category?: number;\n  /** Optional seed centre `[x, y]` in final space. When any node has a seed, the layout keeps its\n   *  structural layer/order/layer-x but places the cross-axis at the seed - a stable relayout that\n   *  leaves un-dragged nodes put. Omit for classic layout. */\n  seed?: [number, number];\n  /** Hard-pin this node's seed cross-coordinate (others yield around it). Use for the just-dragged\n   *  node so it lands exactly where dropped. Only meaningful with `seed`. */\n  pinned?: boolean;\n};"
+    "code": "export type GraphNodeSpec = {\n  width: number;\n  height: number;\n  ellipse?: boolean;\n  pin?: \"first\" | \"last\";\n  /** Minimum clearance (px) to keep free right of the node (TB) for caller-drawn decorations, e.g. DFG self-loops. */\n  clear_after?: number;\n  /** Optional grouping id; same-category nodes stay in a consistent lane across layers as a tiebreak. */\n  category?: number;\n  /** Optional seed centre `[x, y]`; when set, layout keeps structural layer/order but places the cross-axis at the seed. */\n  seed?: [number, number];\n  /** Hard-pin this node's seed cross-coordinate so it lands exactly where dropped. Only meaningful with `seed`. */\n  pinned?: boolean;\n};"
   },
   {
     "name": "GridColumn",
@@ -375,21 +480,21 @@
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/rust-layout/index.ts",
-    "code": "/** Result of {@link layoutGraph}: node centers by index/id, and source->target-oriented routed points\n *  per kept edge (undefined for self-loops and edges with unknown endpoints). */\nexport type LaidOutGraph<E> = {\n  centerOfIndex: (i: number) => { x: number; y: number };\n  centerOf: (id: string) => { x: number; y: number };\n  routeOf: (e: E) => { x: number; y: number }[] | undefined;\n};"
+    "code": "/** Result of {@link layoutGraph}: node centers by index/id, and source->target-oriented routed points per kept edge. */\nexport type LaidOutGraph<E> = {\n  centerOfIndex: (i: number) => { x: number; y: number };\n  centerOf: (id: string) => { x: number; y: number };\n  routeOf: (e: E) => { x: number; y: number }[] | undefined;\n};"
   },
   {
     "name": "LayoutEngine",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/viewer/viewer-config.tsx",
-    "code": "/**\n * A layout engine for graph viewers: one layout fn per surface, plus `renderSvg` for image export.\n * The core ships no engine, so import a prebuilt bundle (`elkLayout` from `@r4pm/components/elk-layout`\n * or `wasmLayout` from `@r4pm/components/rust-layout/wasm`) and pass the whole object through\n * `ViewerConfigProvider`; a viewer's `layoutOverride`/`renderSvg` props still win. Any omitted surface\n * falls back to the engine-agnostic no-op. Advanced hosts can build one with `createRustLayout(transport)`.\n */\nexport interface LayoutEngine {\n  dfg?: DfgLayoutFn;\n  ocdfg?: DfgLayoutFn;\n  declare?: DeclareLayoutFn;\n  petri?: PetriLayoutFn;\n  processTree?: ProcessTreeLayoutFn;\n  renderSvg?: StyledGraphRenderer;\n}"
+    "code": "/** A layout engine for graph viewers: one layout fn per surface, plus `renderSvg` for image export.\n *  The core ships no engine; import a prebuilt bundle and pass it through `ViewerConfigProvider`. */\nexport interface LayoutEngine {\n  dfg?: DfgLayoutFn;\n  ocdfg?: DfgLayoutFn;\n  declare?: DeclareLayoutFn;\n  petri?: PetriLayoutFn;\n  processTree?: ProcessTreeLayoutFn;\n  typeGraph?: TypeGraphLayoutFn;\n  blueprint?: BlueprintLayoutFn;\n  renderSvg?: StyledGraphRenderer;\n}"
   },
   {
     "name": "LayoutTransport",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/rust-layout/index.ts",
-    "code": "/**\n * Pluggable layout transport: lays out (or re-routes) a `GraphSpec`, returning node centres + edge\n * routes. A concrete transport is passed explicitly to each `createRust*Layout` factory - there is no\n * global engine. `@r4pm/components/rust-layout/wasm` exports `wasmTransport` (runs the bundled Rust\n * engine in-browser via wasm); a host with a binding channel (the studio backends) supplies one that\n * calls the `layout_graph` / `reroute_graph` bindings so layout runs wherever the backend runs.\n */\nexport interface LayoutTransport {\n  layoutGraph(spec: unknown): Promise<GraphLayout>;\n  rerouteGraph(spec: unknown): Promise<GraphLayout>;\n}"
+    "code": "/** Pluggable layout transport: lays out (or re-routes) a `GraphSpec`, returning node centres + edge routes; passed explicitly, no global engine. */\nexport interface LayoutTransport {\n  layoutGraph(spec: unknown): Promise<GraphLayout>;\n  rerouteGraph(spec: unknown): Promise<GraphLayout>;\n}"
   },
   {
     "name": "LeafData",
@@ -473,7 +578,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "export interface MarkingGroup {\n  kind: MarkingKind;\n  color?: string;\n  count: number;\n}"
+    "code": "export interface MarkingGroup {\n  kind: MarkingKind;\n  color?: string;\n  count: number;\n  /** Dashed border on each dot (OC-Declare optional involvement, min 0). */\n  dashed?: boolean;\n  /** Fixed dot radius; setting it on any group switches the whole row to exact mode (fixed\n   *  sizes, tight per-group clusters, no fit-to-node scaling / numeral collapse). */\n  radius?: number;\n  /** Center-to-center dot spacing within the group (exact mode; below `2*radius` overlaps). */\n  step?: number;\n  /** Ring stroke around each dot (exact mode). Absent: ring only when `dashed`. */\n  stroke?: string;\n}"
   },
   {
     "name": "MarkingKind",
@@ -494,7 +599,7 @@
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "/**\n * TS mirror of the Rust `StyledGraph` binding types (`engine/app-bindings/src/viz/graph_svg.rs`).\n * A `StyledGraph` is a fully laid-out, fully styled diagram: viewers build one from their own\n * on-screen React Flow geometry, and a renderer (typically the `export_graph_svg` Rust binding,\n * injected by the host so this package stays backend-free) draws it with no further layout\n * decisions - guaranteeing the export matches the screen pixel-for-pixel.\n *\n * Field names/shapes must stay in sync with the generated `@r4pm/client` bindings; they are not\n * imported from there (this package has no backend dependency) but are structurally compatible.\n */\n\nexport type NodeShape = { kind: \"box\"; radius?: number } | { kind: \"ellipse\" } | { kind: \"circle\" };"
+    "code": "/** TS mirror of the Rust `StyledGraph` binding types; structurally compatible with `@r4pm/client` bindings but not imported from there (backend-free). */\n\nexport type NodeShape = { kind: \"box\"; radius?: number } | { kind: \"ellipse\" } | { kind: \"circle\" };"
   },
   {
     "name": "NumberOfTracesAndEvents",
@@ -574,6 +679,13 @@
     "code": "export interface OCDeclareArcLabel {\n  each: ObjectTypeAssociation[];\n  any: ObjectTypeAssociation[];\n  all: ObjectTypeAssociation[];\n}"
   },
   {
+    "name": "OCDeclareVizProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/OCDeclareViz.tsx",
+    "code": "export interface OCDeclareVizProps {\n  /** Constraint model to render; read-only hosts build it via `arcsToModel`, edit mode passes the controlled model. */\n  value?: DeclareFlowModel;\n  /** Collapse complementary EF/EP (and DF/DP) pairs into one both-ended arc (display-only). Default on. */\n  combineEfEp?: boolean;\n  editable?: boolean;\n  onChange?: (next: DeclareFlowModel) => void;\n  /** Palette + support sources (from the host OCEL info). */\n  eventTypes?: string[];\n  objectTypes?: string[];\n  /** Object types related to an activity, used for drag-connect auto-labels. */\n  relatedTypes?: (activity: string) => Record<string, number>;\n  getSupport?: (assoc: ObjectTypeAssociation, ctx: SupportCtx) => number | undefined;\n  /** Injected backend callbacks; a missing one hides its UI affordance. */\n  onDiscover?: EditCallbacks[\"onDiscover\"];\n  onEvaluate?: EditCallbacks[\"onEvaluate\"];\n  onActivityStatistics?: EditCallbacks[\"onActivityStatistics\"];\n  onEdgeStatistics?: EditCallbacks[\"onEdgeStatistics\"];\n  onTemplateString?: EditCallbacks[\"onTemplateString\"];\n  /**\n   * Whether the graph may re-arrange itself: after a node is dropped, and when a change such as\n   * switching the involvement notation alters how much room the arcs need. The Layout button and\n   * Alt+L keep working, so turning this off leaves the user in charge of the arrangement.\n   * @default true\n   */\n  relayoutOnChange?: boolean;\n  /** Render object involvement as text notation instead of dots; controlled when `onShowTextLabelsChange` is given. */\n  showTextLabels?: boolean;\n  onShowTextLabelsChange?: (value: boolean) => void;\n  /** Restore a saved pan/zoom on mount (else the view fits the graph). */\n  defaultViewport?: { x: number; y: number; zoom: number };\n  /** Fires on ReactFlow move-end with the current pan/zoom, for host persistence. */\n  onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;\n  /** Override the activity color resolver (defaults to the canonical `colorForKey` mapping). */\n  activityColor?: ColorResolver;\n  /** Override the object-type color resolver (same default mapping). */\n  objectTypeColor?: ColorResolver;\n  /** Per-activity object-type involvement counts from the OCEL; shape matches `get_ocel_activity_object_involvements`. */\n  activityInvolvements?: {\n    [activity: string]: { [objectType: string]: { min: number; max: number } | undefined } | undefined;\n  };\n  /** Event-type occurrence counts from the OCEL (activity -> count). */\n  eventTypeCounts?: Record<string, number>;\n  /** Filters are controlled when the matching `on...Change` is given; otherwise seed the built-in filter. */\n  hiddenArcTypes?: Set<string>;\n  onHiddenArcTypesChange?: (next: Set<string>) => void;\n  hiddenObjectTypes?: Set<string>;\n  onHiddenObjectTypesChange?: (next: Set<string>) => void;\n  /** Activity chips for the controls card; a host that filters the model itself must pass the FULL list so hidden chips stay toggleable. */\n  activities?: string[];\n  /** Hidden activities; when uncontrolled this is a visibility hide that never mutates the model. */\n  hiddenActivities?: Set<string>;\n  onHiddenActivitiesChange?: (next: Set<string>) => void;\n  /** Lossless projection onto kept activities; when given and some are hidden, shows a display-only\n   *  overlay (removed activities' constraints folded into survivors) and pauses editing until cleared. */\n  onProjectActivities?: (arcs: OCDeclareArc[], activities: string[]) => Promise<OCDeclareArc[]>;\n  /** Count shown in the controls card footer; defaults to the model's edge count. */\n  arcsCount?: number;\n  className?: string;\n  /** Optional callback when the focused node changes. */\n  onFocusChange?: (id: string | null) => void;\n  /** Layout direction; \"DOWN\" fits narrow, page-shaped surfaces. Controlled when `onDirectionChange` is given. */\n  direction?: \"RIGHT\" | \"DOWN\";\n  onDirectionChange?: (d: \"RIGHT\" | \"DOWN\") => void;\n  /** Replace the default Rust layout with a host-supplied one. Same contract: return\n   *  nodes with positions + edges with routing data. */\n  layoutOverride?: DeclareLayoutFn;\n  /** Draw the exact on-screen graph via a host renderer (typically `export_graph_svg`); falls back to the ambient config, then the DOM snapshot export. */\n  renderSvg?: StyledGraphRenderer;\n}"
+  },
+  {
     "name": "OCDFGViewerProps",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -586,6 +698,13 @@
     "entry": "@r4pm/components",
     "file": "src/dfg/index.tsx",
     "code": "/** Object-centric DFG: one `DirectlyFollowsGraph` per object type. Mirrors the\n *  generated `@r4pm/client` `OCDirectlyFollowsGraph` shape. */\nexport interface OCDirectlyFollowsGraph {\n  object_type_to_dfg: Record<string, DirectlyFollowsGraph>;\n  /** Object-instance count per type */\n  object_counts: Record<string, number>;\n}"
+  },
+  {
+    "name": "OcelAttributeStats",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/attribute-value-stats.tsx",
+    "code": "/** Mirrors the backend `OcelAttributeStats` (structurally assignable from the generated type). */\nexport type OcelAttributeStats =\n  | ({ kind: \"Float\" } & NumericFields)\n  | ({ kind: \"Integer\" } & NumericFields)\n  | { kind: \"Str\"; top_values: AttrValueCount[]; distinct: number; count: number; null_count: number }\n  | { kind: \"Bool\"; true_count: number; false_count: number; null_count: number }\n  | {\n      kind: \"Time\";\n      min: string;\n      max: string;\n      hist_bin_edges_ms: number[];\n      hist_counts: number[];\n      count: number;\n      null_count: number;\n    }\n  | { kind: \"Empty\" };"
   },
   {
     "name": "OcelEditorProps",
@@ -637,11 +756,74 @@
     "code": "export interface OcelRel {\n  objectId: string;\n  qualifier: string;\n}"
   },
   {
+    "name": "OcelSchemaPathConnector",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-schema-path/OcelSchemaPath.tsx",
+    "code": "/** The relation between two consecutive nodes: a qualified edge, optionally traversed backwards. */\nexport interface OcelSchemaPathConnector {\n  qualifier?: string;\n  /** The edge is followed against its direction, so the arrow points back to the previous node. */\n  reverse?: boolean;\n}"
+  },
+  {
+    "name": "OcelSchemaPathNode",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-schema-path/OcelSchemaPath.tsx",
+    "code": "export interface OcelSchemaPathNode {\n  name: string;\n  kind: \"event\" | \"object\";\n}"
+  },
+  {
+    "name": "OcelSchemaPathProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-schema-path/OcelSchemaPath.tsx",
+    "code": "export interface OcelSchemaPathProps {\n  /** Ordered nodes of the path (length N). */\n  nodes: OcelSchemaPathNode[];\n  /** Relations between consecutive nodes (length N - 1). */\n  connectors?: OcelSchemaPathConnector[];\n  /** Inline, denser variant (truncated names, no qualifier labels) for tables. */\n  compact?: boolean;\n  /** Shared color resolver `(scope, key) => hex`; defaults to the deterministic palette so a type\n   *  reads the same color here as in the `OcelTypeGraph`. */\n  colorOf?: ColorResolver;\n  className?: string;\n}"
+  },
+  {
+    "name": "OCELTypeAttr",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-count-info.tsx",
+    "code": "/** One declared attribute of an OCEL type: name + value-type label (e.g. \"string\", \"float\"). */\nexport interface OCELTypeAttr {\n  name: string;\n  type: string;\n}"
+  },
+  {
+    "name": "OCELTypeAttributes",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-count-info.tsx",
+    "code": "/** Declared attributes per type name, split by scope so event/object types with the same name\n *  don't collide. Optional: when absent, `OCELCountInfo` is a pure read-only counts display. */\nexport interface OCELTypeAttributes {\n  event?: Record<string, OCELTypeAttr[]>;\n  object?: Record<string, OCELTypeAttr[]>;\n}"
+  },
+  {
     "name": "OcelTypeDef",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/log-editor/ocel-model.ts",
     "code": "export interface OcelTypeDef {\n  name: string;\n  attributes: AttrColumn[];\n}"
+  },
+  {
+    "name": "OcelTypeGraphEdge",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-type-graph/OcelTypeGraph.tsx",
+    "code": "export interface OcelTypeGraphEdge {\n  id: string;\n  source: string;\n  target: string;\n  qualifier?: string;\n  kind?: \"e2o\" | \"o2o\";\n}"
+  },
+  {
+    "name": "OcelTypeGraphNode",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-type-graph/OcelTypeGraph.tsx",
+    "code": "export interface OcelTypeGraphNode {\n  id: string;\n  label: string;\n  kind: \"event\" | \"object\";\n  count?: number;\n}"
+  },
+  {
+    "name": "OcelTypeGraphProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-type-graph/OcelTypeGraph.tsx",
+    "code": "export interface OcelTypeGraphProps {\n  nodes: OcelTypeGraphNode[];\n  edges: OcelTypeGraphEdge[];\n  /** Ring color around a node (host-driven; e.g. path-schema source/target). */\n  nodeRingColor?: (id: string) => string | undefined;\n  /** Fade a node (host-driven; e.g. off-schema). */\n  nodeDimmed?: (id: string) => boolean;\n  /** Per-edge styling override (host-driven; e.g. schema highlight). */\n  edgeStyle?: (id: string) => { color?: string; width?: number; dimmed?: boolean } | undefined;\n  onNodeClick?: (id: string) => void;\n  onEdgeClick?: (id: string) => void;\n  /** Host-controlled visible node subset (scope). Omit to show all. Pair with a `TypeScopeSelector`. */\n  visibleNodeIds?: Iterable<string>;\n  /** Layout engine. Defaults to the bundled ELK layout; inject a rust/wasm-backed fn to override. */\n  layout?: TypeGraphLayoutFn;\n  /** Shared color resolver (`(scope, key) => hex`); defaults to the ViewerConfig / deterministic\n   *  palette, so node colors match the app's other viewers. */\n  colorOf?: ColorResolver;\n  className?: string;\n}"
+  },
+  {
+    "name": "OcelTypeGraphViewerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-type-graph/OcelTypeGraphViewer.tsx",
+    "code": "export interface OcelTypeGraphViewerProps extends Omit<OcelTypeGraphProps, \"visibleNodeIds\"> {\n  /** Above this many types, initial scope auto-limits to the top-N by count. Default 25. */\n  autoScopeLimit?: number;\n}"
   },
   {
     "name": "OCELTypeStats",
@@ -851,7 +1033,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/shared/RankedBarList.tsx",
-    "code": "export interface RankedBarListProps {\n  items: FreqItem[] | Record<string, number>;\n  /** Scope passed to the shared colorOf resolver (e.g. \"activity\", \"objectType\"). */\n  scope?: string;\n  /** Override the color resolver; defaults to the shared ViewerConfig colorOf. */\n  colorOf?: ColorResolver;\n  /** Show at most this many rows (highest counts first). */\n  max?: number;\n  /** Format the value shown on the right (default: localized integer). */\n  valueFormat?: (n: number) => string;\n  onItemClick?: (key: string) => void;\n  emptyText?: string;\n}"
+    "code": "export interface RankedBarListProps {\n  items: FreqItem[] | Record<string, number>;\n  /** Scope passed to the shared colorOf resolver (e.g. \"activity\", \"objectType\"). */\n  scope?: string;\n  /** Override the color resolver; defaults to the shared ViewerConfig colorOf. */\n  colorOf?: ColorResolver;\n  /** Show at most this many rows (highest counts first). */\n  max?: number;\n  /** Format the value shown on the right (default: localized integer). */\n  valueFormat?: (n: number) => string;\n  onItemClick?: (key: string) => void;\n  /** Key of the currently-selected row, highlighted with an accent background + ring. */\n  selectedKey?: string;\n  emptyText?: string;\n}"
   },
   {
     "name": "ResolvedMove",
@@ -935,14 +1117,14 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "export interface StyledEdge {\n  points: [number, number][];\n  color?: string;\n  width?: number;\n  dash?: string;\n  marker_start?: EdgeMarker;\n  marker_end?: EdgeMarker;\n  labels?: EdgeLabel[];\n  dots?: EdgeDot[];\n  /** Corner radius (px) for rounding the polyline's interior joins; 0 = straight segments. */\n  rounded?: number;\n}"
+    "code": "export interface StyledEdge {\n  points: [number, number][];\n  color?: string;\n  /** Linear gradient stroke (first -> last point); 2+ stops override `color` on the path. */\n  gradient?: GradientStop[];\n  width?: number;\n  dash?: string;\n  marker_start?: EdgeMarker;\n  marker_end?: EdgeMarker;\n  /** Marker fill; defaults to the edge color (OC-Declare uses one neutral gray for all markers). */\n  marker_color?: string;\n  /** Marker base size in px (side of the 12-unit marker viewBox); default scales with `width`. */\n  marker_size?: number;\n  labels?: EdgeLabel[];\n  dots?: EdgeDot[];\n  /** Corner radius (px) for rounding the polyline's interior joins; 0 = straight segments. */\n  rounded?: number;\n}"
   },
   {
     "name": "StyledGraph",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "export interface StyledGraph {\n  background?: string;\n  padding?: number;\n  nodes: StyledNode[];\n  edges: StyledEdge[];\n  legend?: LegendGroup[];\n}"
+    "code": "export interface StyledGraph {\n  background?: string;\n  padding?: number;\n  nodes: StyledNode[];\n  edges: StyledEdge[];\n  /** Draw edges/markers AFTER nodes so border-centered markers sit on top (OC-Declare). */\n  edges_on_top?: boolean;\n  legend?: LegendGroup[];\n}"
   },
   {
     "name": "StyledGraphRenderer",
@@ -963,14 +1145,21 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "export interface StyledLabel {\n  text: string;\n  size?: number;\n  weight?: number;\n  color?: string;\n  /** Vertical offset from the node center, in px. */\n  dy?: number;\n  /** Word-wrap to fit the node width (max 2 lines, ellipsized). */\n  wrap?: boolean;\n}"
+    "code": "export interface StyledLabel {\n  text: string;\n  size?: number;\n  weight?: number;\n  color?: string;\n  /** Vertical offset from the node center, in px. */\n  dy?: number;\n  /** Horizontal offset from the node center, in px (e.g. to re-center a text+bullet group). */\n  dx?: number;\n  /** Word-wrap to fit the node width (max 2 lines, ellipsized). */\n  wrap?: boolean;\n  /** Kind-indicator glyph left of the text (OCEL type graph: square = event, dot = object).\n   *  Ignored on wrapped labels; placement uses an estimated text width. */\n  bullet?: MarkingKind;\n  /** Bullet fill; defaults to the label color. */\n  bullet_color?: string;\n}"
   },
   {
     "name": "StyledNode",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/graph-svg/styled-graph.ts",
-    "code": "export interface StyledNode {\n  cx: number;\n  cy: number;\n  w: number;\n  h: number;\n  shape?: NodeShape;\n  fill?: string;\n  stroke?: string;\n  stroke_width?: number;\n  stroke_dash?: string;\n  labels?: StyledLabel[];\n  marking?: MarkingGroup[];\n  /** A single decorative glyph (e.g. DFG start/end terminal chrome). */\n  icon?: StyledIcon;\n}"
+    "code": "export interface StyledNode {\n  cx: number;\n  cy: number;\n  w: number;\n  h: number;\n  shape?: NodeShape;\n  fill?: string;\n  stroke?: string;\n  stroke_width?: number;\n  stroke_dash?: string;\n  labels?: StyledLabel[];\n  marking?: MarkingGroup[];\n  /** Vertical offset of the marking row from the node center, in px. */\n  marking_dy?: number;\n  /** A single decorative glyph (e.g. DFG start/end terminal chrome). */\n  icon?: StyledIcon;\n}"
+  },
+  {
+    "name": "SupportCtx",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare/edit/edit-context.ts",
+    "code": "export interface SupportCtx {\n  source: DeclareNode;\n  target: DeclareNode;\n}"
   },
   {
     "name": "SyncProdNetConstructionError",
@@ -978,6 +1167,13 @@
     "entry": "@r4pm/components",
     "file": "src/shared/alignment-types.ts",
     "code": "export type SyncProdNetConstructionError =\n  | { InvalidPlaceInMarking: PlaceID }\n  | \"NoFinalMarking\"\n  | \"NoInitialMarking\";"
+  },
+  {
+    "name": "ThemeColor",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/util/colors.ts",
+    "code": "export type ThemeColor = (typeof COLORS)[number];"
   },
   {
     "name": "TimeConfig",
@@ -991,7 +1187,7 @@
     "kind": "type",
     "entry": "@r4pm/components/petri",
     "file": "src/petri/editor/Editor.tsx",
-    "code": "/** One drawn token: a dot or square, optionally colored/faded. Both the DOM node\n *  and the SVG export render from this, so overlay/simulator markings (e.g. a green\n *  \"final reached\" square) appear in exports too - unlike JSX `renderMarking`, which\n *  the standalone SVG builder cannot run. Omitted `color` falls back to the node text. */\nexport type TokenMark = { shape: \"dot\" | \"square\"; color?: string; opacity?: number; title?: string };"
+    "code": "/** One drawn token: a dot or square, optionally colored/faded; both DOM and SVG export render from this. */\nexport type TokenMark = { shape: \"dot\" | \"square\"; color?: string; opacity?: number; title?: string };"
   },
   {
     "name": "TokenMarking",
@@ -1043,6 +1239,27 @@
     "code": "export type TreeNodePresentation = {\n  className?: string;\n  style?: React.CSSProperties;\n  onClick?: (e: React.MouseEvent) => void;\n};"
   },
   {
+    "name": "TypeGraphLayoutFn",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-type-graph/OcelTypeGraph.tsx",
+    "code": "/** Layout contract: node positions + routed edge paths; host can inject a rust/wasm-backed impl over the bundled ELK default. */\nexport type TypeGraphLayoutFn = (nodes: LayoutNode[], edges: LayoutEdge[]) => Promise<LayoutResult>;"
+  },
+  {
+    "name": "TypeScopeItem",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-type-graph/TypeScopeSelector.tsx",
+    "code": "export interface TypeScopeItem {\n  id: string;\n  label: string;\n  kind: \"event\" | \"object\";\n  count?: number;\n}"
+  },
+  {
+    "name": "TypeScopeSelectorProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/ocel-type-graph/TypeScopeSelector.tsx",
+    "code": "export interface TypeScopeSelectorProps {\n  items: TypeScopeItem[];\n  /** Currently-visible ids (the graph's `visibleNodeIds`). */\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  /** Optional host action: reset scope to the host's automatic default. */\n  onResetAuto?: () => void;\n  /** Whether the current scope equals the automatic default (labels the trigger). */\n  isAuto?: boolean;\n  /** Shared color resolver so the frequency bars match the graph node colors. */\n  colorOf?: ColorResolver;\n  triggerVariant?: \"soft\" | \"surface\" | \"outline\";\n}"
+  },
+  {
     "name": "VariantAlignmentResult",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -1054,7 +1271,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/viewer/export.tsx",
-    "code": "/**\n * One export control for every viewer.\n *\n * A viewer wrapped in `<ViewerExportFrame>` advertises a vector rendering of itself via\n * `useRegisterExport` (real `<svg>`, not a DOM snapshot); the frame turns that one source into the\n * SVG / PNG / JPEG menu entries (PNG/JPEG are the SVG rasterized client-side, honoring a scale\n * factor). A viewer that registers nothing still exports: the frame falls back to an html-to-image\n * snapshot of its content. Saving goes through the optional `onSave` (so a host can route it to a\n * native save dialog); the default is a browser download (no host wiring needed).\n */\n\n/** A viewer's self-contained vector rendering of its current state. */\nexport interface VectorExportSource {\n  /** Build the current view as a standalone SVG string, or null when not ready. Reads live state\n   *  at call time (not cached), so async renderers (e.g. a Rust-engine binding) see the exact\n   *  on-screen geometry as of the export click, drag included. */\n  toSvg: () => string | null | Promise<string | null>;\n  /** Optional extra menu content (e.g. a per-viewer row-limit picker). */\n  menuExtras?: ReactNode;\n}"
+    "code": "/** `<ViewerExportFrame>` renders the only export control in the package. Viewers advertise a vector\n *  rendering through `useRegisterExport` and the nearest frame turns it into an SVG/PNG/JPEG\n *  download, alongside an html-to-image snapshot of its content (`data-export-root` bounds the\n *  snapshot, `data-export-ignore` drops elements from it). Without a frame `useRegisterExport`\n *  no-ops and nothing is exportable. */\n\n/** A viewer's self-contained vector rendering of its current state. */\nexport interface VectorExportSource {\n  /** Build the current view as a standalone SVG string, or null when not ready; reads live state at\n   *  call time (not cached), so async renderers see exact on-screen geometry as of the export click. */\n  toSvg: () => string | null | Promise<string | null>;\n  /** Menu heading for this source's formats. Defaults to a humanized registration key. */\n  label?: string;\n  /** Optional extra menu content (e.g., a per-viewer row-limit picker), shown under the heading. */\n  menuExtras?: ReactNode;\n}"
   },
   {
     "name": "ViewerAction",
@@ -1068,7 +1285,14 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/viewer/viewer-config.tsx",
-    "code": "/**\n * Cross-cutting viewer configuration + interactivity. A host sets it via `ViewerConfigProvider`;\n * `ViewerProps` may override any field; unset fields fall back to viewer defaults.\n */\nexport interface ViewerConfig {\n  colorOf?: ColorResolver;\n  format?: ViewerFormat;\n  alignmentStyle?: AlignmentStyle;\n  actions?: ViewerAction[];\n  onSelect?: (target: ViewerTarget) => void;\n  onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;\n  /** Layout engine for graph viewers; explicit `layoutOverride`/`renderSvg` props still win. */\n  layout?: LayoutEngine;\n}"
+    "code": "/** Cross-cutting viewer configuration + interactivity, set via `ViewerConfigProvider`; `ViewerProps` may override any field. */\nexport interface ViewerConfig {\n  colorOf?: ColorResolver;\n  format?: ViewerFormat;\n  alignmentStyle?: AlignmentStyle;\n  actions?: ViewerAction[];\n  onSelect?: (target: ViewerTarget) => void;\n  onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;\n  /** Layout engine for graph viewers; explicit `layoutOverride`/`renderSvg` props still win. */\n  layout?: LayoutEngine;\n}"
+  },
+  {
+    "name": "ViewerExportFrameProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/viewer/export.tsx",
+    "code": "export interface ViewerExportFrameProps {\n  /** Base name of the downloaded file; the target's extension is appended. */\n  filename?: string;\n  /** Receive the bytes instead of triggering a browser download (e.g. a native save dialog). */\n  onSave?: SaveBytesFn;\n  /** Called when an export throws, in addition to the `propel:export-error` window event. */\n  onError?: (error: unknown) => void;\n  /** The viewer, or any content, to make exportable. The frame is `position: relative` and sizes\n   *  nothing on its own; give it a height through `style` and the viewer inside fills it. */\n  children: ReactNode;\n  style?: CSSProperties;\n  /** Show the export control. Off for compact previews; the export context stays active either way. */\n  showMenu?: boolean;\n  /** Corner the export button sits in. Move it off a viewer's own corner controls. */\n  menuPlacement?: ExportMenuPlacement;\n}"
   },
   {
     "name": "ViewerFormat",

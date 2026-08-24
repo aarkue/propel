@@ -297,7 +297,10 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
   const displayRef = useRef(display);
   displayRef.current = display;
   const exportSource = useMemo<VectorExportSource>(
-    () => ({ toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges) }),
+    () => ({
+      label: "Petri net (current marking)",
+      toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges),
+    }),
     [],
   );
   useRegisterExport(exportKey ?? "petri-net-simulator", exportSource);

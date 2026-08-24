@@ -1,0 +1,25 @@
+/* The components' stylesheet is loaded globally so stories render with real styling, and Tailwind's
+   Preflight in it strips list markers from the surrounding docs pages too. Put them back. */
+.sbdocs-content ul,
+.sbdocs-content ol {
+  margin: 16px 0;
+  padding-left: 1.75rem;
+}
+
+.sbdocs-content ul {
+  list-style: disc outside;
+}
+
+.sbdocs-content ol {
+  list-style: decimal outside;
+}
+
+.sbdocs-content li {
+  margin-bottom: 6px;
+  display: list-item;
+}
+
+.sbdocs-content li > ul,
+.sbdocs-content li > ol {
+  margin: 6px 0;
+}

@@ -51,6 +51,8 @@ function nodeToStyled(
   // Flattened to plain hex: the "foreground" mode is a color-mix()/CanvasText expression,
   // which SVG consumers outside the browser don't resolve.
   const colorFg = flattenColor(colorOf(n.data.label, "foreground"), bg);
+  // Same flattening for the fill: `surface` is a color-mix() expression too.
+  const colorSurface = flattenColor(colorOf(n.data.label, "surface"), bg);
   const display = `${PREFIX[kind]}${n.data.label}`;
   // Mirror the on-screen `MultiDot` clusters: r 4.33 dots overlapped at step 3.1, always ringed
   // (`border()` = 65% color toward CanvasText), dashed ring for optional (min 0) involvements.
@@ -76,7 +78,7 @@ function nodeToStyled(
     w: w - sw,
     h: h - sw,
     shape: { kind: "box", radius: 16 },
-    fill: `${colorBase}26`,
+    fill: colorSurface,
     stroke: `${colorBase}cc`,
     stroke_width: sw,
     stroke_dash: isObject ? "8 5" : undefined,

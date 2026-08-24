@@ -141,13 +141,21 @@ export function FrequencyPicker({
       if (shown[hi]) pick(shown[hi].key);
     }
   };
-  // Keep the highlighted row scrolled into view as it moves.
+  // Keep the highlighted row scrolled into view as it moves (arrow-key navigation), not on mount:
+  // an effect runs after the initial render too, and scrolling row 0 into view then can drag an
+  // embedded picker's page down to it if the list itself isn't a clipped scroll container.
+  const mountedRef = useRef(false);
   useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
     document.getElementById(`${listId}-row-${hi}`)?.scrollIntoView({ block: "nearest" });
   }, [hi, listId]);
   // Optional autofocus of the search box (opt-in; off by default for embedded pickers).
+  // preventScroll: focusing an input below the fold must not drag the page's scroll position to it.
   useEffect(() => {
-    if (autoFocus && searchable) rootRef.current?.querySelector("input")?.focus();
+    if (autoFocus && searchable) rootRef.current?.querySelector("input")?.focus({ preventScroll: true });
   }, [autoFocus, searchable]);
 
   const applyCutoff = (clientY: number) => {

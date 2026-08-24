@@ -512,6 +512,7 @@ export function LogVariants({
   };
   const exportSource = useMemo<VectorExportSource>(
     () => ({
+      label: "Trace variants",
       toSvg: () => toSvgRef.current(),
       menuExtras: (
         <DropdownMenu.Sub>

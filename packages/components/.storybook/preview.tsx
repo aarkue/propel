@@ -7,6 +7,8 @@ import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
 import { FullSource, ReferencedTypes } from "./doc-blocks";
 // Global styles so every story + autodocs canvas renders with the viewers' real styling.
 import "../src/styles.css";
+// After styles.css: undoes what its Tailwind Preflight does to the docs pages around the stories.
+import "./docs.css";
 
 /**
  * Per-story framing. `canvas` gives graph/plot viewers a fixed-height bordered box (height tuned
@@ -92,7 +94,11 @@ const preview: Preview = {
     controls: { expanded: true },
     docs: {
       theme: prefersDark ? themes.dark : themes.light,
-      toc: true,
+      // The addon's TOC defaults to `headingSelector: "h3"` alone: right for autodocs pages,
+      // whose per-story headings are h3, but wrong for our hand-written concept pages, whose
+      // top-level sections are h2 -- with the default, those pages' TOC shows only stray h3s
+      // (an aside heading, a showcase link) and skips every real section. Include both levels.
+      toc: { headingSelector: "h2, h3" },
       // Default autodocs template + two generated sections: inline declarations of the types the
       // props table references, and the full copy-paste-runnable story source (see doc-blocks.tsx).
       page: () => (
@@ -110,7 +116,25 @@ const preview: Preview = {
       ),
     },
     options: {
-      storySort: { order: ["Getting Started", "Viewers", "Inputs & Primitives", "*"] },
+      storySort: {
+        order: [
+          "Getting Started",
+          [
+            "Introduction",
+            "Sizing & Layout",
+            "Viewer Configuration",
+            "Coloring",
+            "Layout Engines",
+            "Image Export",
+            "Data Types",
+            "For LLM Agents",
+          ],
+          "Viewers",
+          "Editors",
+          "Inputs & Primitives",
+          "*",
+        ],
+      },
     },
   },
   decorators: [

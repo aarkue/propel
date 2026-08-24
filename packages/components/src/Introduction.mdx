@@ -3,10 +3,13 @@ import * as PetriNet from "./petri-net.stories";
 import * as OCPN from "./object-centric-petri-net.stories";
 import * as Freq from "./inputs/FrequencyPicker.stories";
 import * as DeviationAlignmentStrip from "./shared/DeviationAlignmentStrip.stories";
+import pkg from "../package.json";
 
 <Meta title="Getting Started/Introduction" tags={["dev"]} />
 
 # @r4pm/components
+
+<p style={{ margin: "-8px 0 16px", opacity: 0.6, fontSize: 13 }}>v{pkg.version}</p>
 
 React components for process mining: Petri nets, object-centric Petri nets,
 directly-follows graphs, dotted charts, alignments, etc.
@@ -14,35 +17,52 @@ directly-follows graphs, dotted charts, alignments, etc.
 ## Install
 
 ```sh
-pnpm add @r4pm/components
-# peer dependencies:
-pnpm add react react-dom
+npm install @r4pm/components
 ```
+
+Integrating with a coding agent? [For LLM Agents](?path=/docs/getting-started-for-llm-agents--docs)
+has a copy-paste starting prompt.
 
 ## Use
 
-Wrap your app (or any single viewer) in a Radix `Theme`, import the stylesheet once, then
-feed a viewer the typed binding result. Graph viewers also need a layout engine, since the core ships
-none: pick one and supply it via `ViewerConfigProvider` (see
-[Layout Engines](?path=/docs/getting-started-layout-engines--docs)).
+A viewer needs four things around it: the stylesheet, a Radix `Theme`, a layout engine for graph
+viewers, and a parent with a definite height.
 
 ```tsx
-import "@r4pm/components/styles.css";
+import "@r4pm/components/styles.css";                            // 1. the stylesheet, once
 import { Theme, PetriNetViewer, ViewerConfigProvider } from "@r4pm/components";
-import { elkLayout } from "@r4pm/components/elk-layout";
+import { wasmLayout } from "@r4pm/components/rust-layout/wasm";  // 2. a layout engine
 
 export function App({ net }) {
   return (
-    <Theme>
-      <ViewerConfigProvider value={{ layout: elkLayout }}>
-        <PetriNetViewer data={net} />
+    <Theme>                                                      {/* 3. the Radix theme */}
+      <ViewerConfigProvider value={{ layout: wasmLayout }}>
+        <div style={{ height: 400 }}>                            {/* 4. a definite height */}
+          <PetriNetViewer data={net} />
+        </div>
       </ViewerConfigProvider>
     </Theme>
   );
 }
 ```
 
-### If your app already runs Tailwind
+The core includes no layout engine, and a graph viewer without one stacks its nodes in a line. The
+height is required because a viewer's root is `height: 100%`, which resolves to nothing inside an
+auto-height parent.
+
+Wrap a viewer in [`ViewerExportFrame`](?path=/docs/getting-started-image-export--docs) and it gains an
+SVG / PNG / JPEG download menu. The frame takes a `style` and can replace the `div` above:
+
+```tsx
+<ViewerExportFrame filename="petri-net" style={{ height: 400 }}>
+  <PetriNetViewer data={net} />
+</ViewerExportFrame>
+```
+
+Nothing else in the package renders an export control. A viewer with no frame around it cannot be
+exported at all.
+
+### Using an app that already runs Tailwind
 
 Import `@r4pm/components/rules.css` instead of `styles.css`, and point your own Tailwind build at
 this package's source:
@@ -66,14 +86,7 @@ that render with their layout intact and their styling missing.
 Order matters: Tailwind's Preflight resets `button`, `input` and friends, so it has to load before
 Radix or it strips Radix's control styling.
 
-Coloring, value formatting, interactivity, and the layout engine are shared across viewers and
-configured once. See [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs)
-and [Layout Engines](?path=/docs/getting-started-layout-engines--docs). For the exact
-shape of each viewer's `data` prop (the binding return types, with field descriptions), see
-[Data Types](?path=/docs/getting-started-data-types--docs).
-
 ## Showcase
-
 
 ### [Deviation Alignment Strip](?path=/docs/inputs-primitives-deviation-alignment-strip--docs)
 
@@ -93,11 +106,19 @@ shape of each viewer's `data` prop (the binding return types, with field descrip
 
 ## Explore
 
-- [Getting Started > Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config types every viewer accepts.
-- [Getting Started > Layout Engines](?path=/docs/getting-started-layout-engines--docs): pick + wire a layout engine (ELK or Rust/wasm) for graph viewers.
-- [Getting Started > Data Types](?path=/docs/getting-started-data-types--docs): every binding return type a viewer takes as `data`, with field descriptions (generated from the Rust types).
-- [Getting Started > Composing Primitives](?path=/docs/getting-started-composing-primitives--docs): build rows from the low-level primitives.
-- **Viewers**: Petri net, object-centric Petri net, directly-follows graph, dotted chart, alignments, fitness, OC-DECLARE, activity / case-duration / events-per-time charts, OCEL counts, log summary, log variants.
-- **Inputs & Primitives**: frequency picker, dataset selector, choosers, selection actions, stat cards, ranked bar list, coverage bar, activity sequence, log-metadata card, JSON viewer.
+- [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs): the height rule, theme setup, every component's sizing behaviour.
+- [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config every viewer accepts, and persisted display settings.
+- [Coloring](?path=/docs/getting-started-coloring--docs): keeping colors consistent across viewers, palettes, shade helpers.
+- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): picking and wiring an engine (ELK or Rust/wasm) for graph viewers.
+- [Image Export](?path=/docs/getting-started-image-export--docs): `ViewerExportFrame`, SVG against screenshot, your own sources.
+- [Data Types](?path=/docs/getting-started-data-types--docs): every binding return type a viewer takes as `data`, generated from the Rust types.
+- [For LLM Agents](?path=/docs/getting-started-for-llm-agents--docs): the single-file reference to hand a coding agent, and a copy-paste starting prompt.
+
+Viewers cover Petri nets, object-centric Petri nets, directly-follows graphs, dotted charts,
+alignments, fitness, OC-DECLARE, activity / case-duration / events-per-time charts, OCEL counts, log
+summaries and log variants. Editors cover Petri nets, process trees, the event log and OCEL creators,
+the extraction blueprint and the workbenches. Inputs & Primitives holds the frequency picker,
+choosers, selection actions, stat cards, ranked bar list, coverage bar, activity sequence,
+log-metadata card and JSON viewer.
 
 Each component page lists its props (auto-generated from the TypeScript types) and a runnable example.

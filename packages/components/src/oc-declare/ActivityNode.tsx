@@ -65,6 +65,11 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
     (hoveredNodeId !== null && hoveredNodeId !== id && focusedNodeId === null);
 
   const colorBase = isObject ? objectTypeColor(data.label, "normal") : activityColor(data.label, "normal");
+  // Resolved separately from `colorBase`, which lets a host style the box independently of the
+  // border and text.
+  const colorSurface = isObject
+    ? objectTypeColor(data.label, "surface")
+    : activityColor(data.label, "surface");
   const colorFg = isObject
     ? objectTypeColor(data.label, "foreground")
     : activityColor(data.label, "foreground");
@@ -116,7 +121,7 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
           style={{
             width: ACT_NODE_WIDTH,
             height: ACT_NODE_HEIGHT,
-            backgroundColor: `${colorBase}26`,
+            backgroundColor: colorSurface,
             borderColor: isFocused ? colorBase : `${colorBase}cc`,
             borderStyle: isObject ? "dashed" : "solid",
             color: colorFg,

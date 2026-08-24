@@ -4,8 +4,9 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Layout engines
 
-Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri net) need a **layout engine** to place nodes and route
-edges. The core package ships none, so a consumer that never renders a graph bundles no layout code.
+Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri net, process tree) need a **layout engine** to place
+nodes and route edges. The core package ships none, so a consumer that never renders a graph bundles
+no layout code.
 You pick an engine, import it, and pass it in. Without one, graph viewers fall back to a no-op layout
 (nodes stacked in a line): nothing crashes, but nothing is laid out either.
 
@@ -76,6 +77,46 @@ const layout = {
 };
 ```
 
+## Calling the engine directly
+
+The `LayoutEngine` surfaces above all go through a viewer. To lay out your own graph, for a custom
+renderer or just to get coordinates, call the generic `layoutGraph` function the wasm engine's own
+layout functions are built on. Give it your nodes and edges plus a few accessor callbacks; it returns
+each node's center and each kept edge's routed points.
+
+```ts
+import { layoutGraph } from "@r4pm/components";
+import { wasmTransport } from "@r4pm/components/rust-layout/wasm";
+
+const nodes = [{ id: "register" }, { id: "decide" }, { id: "pay" }];
+const edges = [
+  { from: "register", to: "decide" },
+  { from: "decide", to: "pay" },
+];
+
+const laid = await layoutGraph(nodes, edges, {
+  transport: wasmTransport,
+  id: (n) => n.id,
+  source: (e) => e.from,
+  target: (e) => e.to,
+  nodeSpec: () => ({ width: 120, height: 40 }),
+  direction: "TB",
+  flowEdges: true,
+});
+
+laid.centerOf("decide"); // { x, y }
+laid.routeOf(edges[0]); // [{ x, y }, ...] polyline points, or undefined if the edge was dropped
+```
+
+`routeOf` looks the edge up by the same object reference you passed in, so keep the array around
+rather than rebuilding it before calling `routeOf`. `layoutGraph` speaks the Rust engine's own wire
+protocol, so it takes a `LayoutTransport` (`wasmTransport`, or your own backend as in
+[Custom transport](#custom-transport) above) -- it isn't available for ELK, whose implementation
+doesn't go through this shared abstraction. `layoutGraph`'s full option set (`tree`, `reroute`,
+`compact`, edge weights and label sizes, ...) is documented on the function itself; it's also what
+every `wasm{Dfg,Ocdfg,...}Layout` function in the table above calls internally, with viewer-specific
+node/edge shapes swapped for generic ones.
+
 ## `LayoutEngine`
 
 The object shape both bundles produce, and what `ViewerConfig.layout` accepts. Every surface is
@@ -87,9 +128,19 @@ interface LayoutEngine {
   ocdfg?: DfgLayoutFn; // object-centric DFG
   declare?: DeclareLayoutFn; // OC-DECLARE
   petri?: PetriLayoutFn; // Petri net + object-centric Petri net (editor/viewer/simulator)
+  processTree?: ProcessTreeLayoutFn; // process tree viewer/editor
+  typeGraph?: TypeGraphLayoutFn; // OCEL type graph (has its own ELK default)
+  blueprint?: BlueprintLayoutFn; // extraction blueprint (has its own ELK default)
   renderSvg?: StyledGraphRenderer; // draw the on-screen graph to SVG (image export)
 }
 ```
+
+`dfg`, `ocdfg`, `declare`, `petri` and `processTree` fall back to a no-op layout when unset. Those are
+the surfaces that visibly need an engine.
+
+Image export does not need `renderSvg`. Without one, viewers draw their SVG with the package's own
+pure-TS renderer. Supplying one, as the wasm engine does, makes the exported figure match the
+engine's own geometry exactly. See [Image Export](?path=/docs/getting-started-image-export--docs).
 
 ## See also
 

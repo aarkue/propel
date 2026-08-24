@@ -217,7 +217,10 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
   const displayRef = useRef(display);
   displayRef.current = display;
   const exportSource = useMemo<VectorExportSource>(
-    () => ({ toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges) }),
+    () => ({
+      label: "Object-centric Petri net (current marking)",
+      toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges),
+    }),
     [],
   );
   useRegisterExport(exportKey ?? "ocpn-simulator", exportSource);

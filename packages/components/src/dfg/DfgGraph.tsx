@@ -36,6 +36,7 @@ import DfgSettings, { metricDisplayName } from "./DfgSettings";
 import { buildDfgStyledGraph } from "./util/styled-graph";
 import { noopDfgLayout } from "../rust-layout";
 import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
+import { styledGraphToSvg } from "../graph-svg/styled-graph-svg";
 
 export type { DfgArc } from "./util/dfg-model";
 
@@ -783,12 +784,16 @@ export function DfgGraph({
     const inputs = buildSvgInputs();
     if (!inputs) return null;
     const graph = buildDfgStyledGraph(inputs);
-    // No host renderer => SVG export unavailable.
-    return graph && renderSvg ? renderSvg(graph) : null;
+    if (!graph) return null;
+    // The pure-TS drawer covers the ELK engine, which has no `renderSvg`.
+    return renderSvg ? renderSvg(graph) : styledGraphToSvg(graph);
   };
   const toSvgRef = useRef(toSvg);
   toSvgRef.current = toSvg;
-  const exportSource = useMemo<VectorExportSource>(() => ({ toSvg: () => toSvgRef.current() }), []);
+  const exportSource = useMemo<VectorExportSource>(
+    () => ({ label: "Directly-follows graph", toSvg: () => toSvgRef.current() }),
+    [],
+  );
   useRegisterExport("dfg", exportSource);
   const colorMode = useIsDarkMode() ? "dark" : "light";
 

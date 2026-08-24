@@ -20,6 +20,7 @@ import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH, ActivityNode } from "./ActivityNode";
 import { ConstraintEdge } from "./ConstraintEdge";
 import { type DeclareLayoutFn, noopDeclareLayout, roundedPointsToSvgPath } from "./layout-util";
 import { ocDeclareModelToStyledGraph } from "./styled-graph";
+import { styledGraphToSvg } from "../graph-svg/styled-graph-svg";
 import type { ActivityNodeData, ConstraintEdgeData } from "./types";
 import { collapseFlowEdges } from "./collapse";
 import { type ColorResolver, VizProvider } from "./VizContext";
@@ -89,6 +90,13 @@ export interface OCDeclareVizProps {
   onActivityStatistics?: EditCallbacks["onActivityStatistics"];
   onEdgeStatistics?: EditCallbacks["onEdgeStatistics"];
   onTemplateString?: EditCallbacks["onTemplateString"];
+  /**
+   * Whether the graph may re-arrange itself: after a node is dropped, and when a change such as
+   * switching the involvement notation alters how much room the arcs need. The Layout button and
+   * Alt+L keep working, so turning this off leaves the user in charge of the arrangement.
+   * @default true
+   */
+  relayoutOnChange?: boolean;
   /** Render object involvement as text notation instead of dots; controlled when `onShowTextLabelsChange` is given. */
   showTextLabels?: boolean;
   onShowTextLabelsChange?: (value: boolean) => void;
@@ -257,6 +265,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     onActivityStatistics,
     onEdgeStatistics,
     onTemplateString,
+    relayoutOnChange = true,
     showTextLabels,
     onShowTextLabelsChange,
     defaultViewport,
@@ -362,21 +371,19 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
   colorsRef.current = { activityColor, objectTypeColor };
   const textLabelsRef = useRef(textLabels);
   textLabelsRef.current = textLabels;
-  // An always-on source yielding null would block the frame's DOM-snapshot fallback.
-  const exportSource = useMemo<VectorExportSource | null>(
-    () =>
-      svgRenderer
-        ? {
-            toSvg: async () => {
-              const render = renderSvgRef.current;
-              if (!render) return null;
-              const { activityColor: ac, objectTypeColor: oc } = colorsRef.current;
-              const graph = ocDeclareModelToStyledGraph(nodes, edges, ac, oc, textLabelsRef.current);
-              return graph ? render(graph) : null;
-            },
-          }
-        : null,
-    [nodes, edges, svgRenderer],
+  const exportSource = useMemo<VectorExportSource>(
+    () => ({
+      label: "OC-DECLARE",
+      toSvg: async () => {
+        const { activityColor: ac, objectTypeColor: oc } = colorsRef.current;
+        const graph = ocDeclareModelToStyledGraph(nodes, edges, ac, oc, textLabelsRef.current);
+        if (!graph) return null;
+        // The pure-TS drawer covers the ELK engine, which has no `renderSvg`.
+        const render = renderSvgRef.current;
+        return render ? render(graph) : styledGraphToSvg(graph);
+      },
+    }),
+    [nodes, edges],
   );
   useRegisterExport("oc-declare", exportSource);
 
@@ -426,6 +433,39 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     [onChange],
   );
 
+  /**
+   * Writes layout output back to the model. Positions and routes both have to land here: a route
+   * left only in flow state is lost on reload, and the stored one, computed against the previous
+   * geometry, renders as stray bendpoints. Collapsed EFEP/DFDP edges keep the forward edge's id.
+   */
+  const persistLayout = useCallback(
+    (laid: {
+      nodes: readonly { id: string; position: { x: number; y: number } }[];
+      edges: readonly FlowEdge[];
+    }) => {
+      const posById = new Map(laid.nodes.map((n) => [n.id, n.position]));
+      const routeById = new Map<string, DeclareEdgeRoute>();
+      for (const e of laid.edges) {
+        const d = e.data;
+        if (d?.routedPoints && d.layoutSourcePos && d.layoutTargetPos) {
+          routeById.set(e.id, {
+            points: d.routedPoints,
+            sourcePos: d.layoutSourcePos,
+            targetPos: d.layoutTargetPos,
+          });
+        }
+      }
+      mutate((m) => ({
+        nodes: m.nodes.map((n) => ({ ...n, position: posById.get(n.id) ?? n.position })),
+        edges: m.edges.map((e) => {
+          const route = routeById.get(e.id);
+          return route ? { ...e, route } : e;
+        }),
+      }));
+    },
+    [mutate],
+  );
+
   const runFullLayout = useCallback(
     (fit = true) => {
       const v = valueRef.current;
@@ -435,30 +475,21 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       runLayout(initNodes, bundled, { direction: dir, textLabels }).then((r) => {
         setNodes(r.nodes as FlowNode[]);
         setEdges(r.edges as FlowEdge[]);
-        // Write layout output back to the model to persist it; collapsed EFEP/DFDP edges keep the forward edge's id.
-        const posById = new Map(r.nodes.map((n) => [n.id, n.position]));
-        const routeById = new Map<string, DeclareEdgeRoute>();
-        for (const e of r.edges as FlowEdge[]) {
-          const d = e.data;
-          if (d?.routedPoints && d.layoutSourcePos && d.layoutTargetPos) {
-            routeById.set(e.id, {
-              points: d.routedPoints,
-              sourcePos: d.layoutSourcePos,
-              targetPos: d.layoutTargetPos,
-            });
-          }
-        }
-        mutate((m) => ({
-          nodes: m.nodes.map((n) => ({ ...n, position: posById.get(n.id) ?? n.position })),
-          edges: m.edges.map((e) => {
-            const route = routeById.get(e.id);
-            return route ? { ...e, route } : e;
-          }),
-        }));
+        persistLayout({ nodes: r.nodes, edges: r.edges as FlowEdge[] });
         if (fit) setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50);
       });
     },
-    [activityInvolvements, dir, textLabels, combineEfEp, runLayout, setNodes, setEdges, fitView, mutate],
+    [
+      activityInvolvements,
+      dir,
+      textLabels,
+      combineEfEp,
+      runLayout,
+      setNodes,
+      setEdges,
+      fitView,
+      persistLayout,
+    ],
   );
 
   // Effect, not inline in the caller, so the layout reads the model AFTER the mutation committed.
@@ -469,14 +500,16 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
   }, [relayoutTick]);
 
   // Label width / per-pair arc count change spacing, so re-layout on toggle (edit mode only).
+  // Skipped when the host has turned automatic relayout off. Starting one and undoing it afterwards
+  // still shows the graph jump and settle back.
   const prevSpacingKey = useRef(`${textLabels}|${combineEfEp}`);
   useEffect(() => {
     const key = `${textLabels}|${combineEfEp}`;
     if (prevSpacingKey.current !== key) {
       prevSpacingKey.current = key;
-      if (isEdit) setRelayoutTick((t) => t + 1);
+      if (isEdit && relayoutOnChange) setRelayoutTick((t) => t + 1);
     }
-  }, [textLabels, combineEfEp, isEdit]);
+  }, [textLabels, combineEfEp, isEdit, relayoutOnChange]);
 
   // Edit mode: layout once on first mount if positions are missing, then reconcile in place so user-placed nodes stay put.
   const didInitialLayout = useRef(false);
@@ -617,6 +650,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       e.preventDefault();
       if ("arcs" in parsed) {
         mutate((m) => mergeArcs(m, parsed.arcs, () => uid()));
+        // Pasted arcs arrive without positions, so this one runs regardless.
         setRelayoutTick((t) => t + 1);
         return;
       }
@@ -798,6 +832,9 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
           nodes: m.nodes.map((n) => (n.id === dragged.id ? { ...n, position: dragged.position } : n)),
         }));
       }
+      // The drop is persisted above. Re-routing the arcs over the new geometry is the optional part,
+      // and a host with automatic relayout off keeps the arcs it had.
+      if (!relayoutOnChange) return;
       const curNodes = getNodes() as Node<ActivityNodeData, "activity">[];
       const curEdges = getEdges() as Edge<ConstraintEdgeData, "constraint">[];
       void runLayout(curNodes, curEdges, {
@@ -813,10 +850,23 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
         .then((r) => {
           setNodes(r.nodes);
           setEdges(r.edges as Edge<ConstraintEdgeData, "constraint">[]);
+          persistLayout({ nodes: r.nodes, edges: r.edges as FlowEdge[] });
         })
         .catch((e) => console.error("[oc-declare] reroute failed:", e));
     },
-    [runLayout, dir, textLabels, getNodes, getEdges, setNodes, setEdges, isEdit, mutate],
+    [
+      runLayout,
+      dir,
+      textLabels,
+      getNodes,
+      getEdges,
+      setNodes,
+      setEdges,
+      isEdit,
+      mutate,
+      relayoutOnChange,
+      persistLayout,
+    ],
   );
 
   const ctxValue = useMemo(

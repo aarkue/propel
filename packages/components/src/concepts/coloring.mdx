@@ -1,0 +1,134 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Getting Started/Coloring" tags={["dev"]} />
+
+# Coloring
+
+An activity should look the same in the DFG, the variant list, the dotted chart and the figure you
+export from any of them. One function does that job for every viewer: `colorOf`.
+
+## Out of the box
+
+You get consistency without configuring anything. With no `colorOf`, viewers call `colorForKey`,
+which hashes the scope and the key into an OKLCH color and converts it to hex. The same key produces
+the same color in every viewer and across sessions, with no palette to maintain.
+
+```ts
+import { colorForKey, colorForSeed } from "@r4pm/components";
+
+colorForKey("activity", "register request"); // "#..." stable across runs
+colorForSeed("register request"); // the same hash without the scope prefix
+```
+
+The lightness and chroma tiers are picked in OKLCH, which is perceptually uniform. Neighbouring keys
+land on visibly different hues instead of clustering, and no generated color is much paler or louder
+than the rest. On a graph with thirty activities that is the difference between a legend you can read
+and one you cannot.
+
+## Supplying your own palette
+
+`colorOf` is a `ColorResolver`. Return a CSS color to override a key, `undefined` to leave it to the
+hash. Partial palettes are the normal case: pin the five activities you care about and let the rest
+fall out of the hash.
+
+```ts
+type ColorResolver = (scope: string, key: string) => string | undefined;
+
+const palette: Record<string, string> = {
+  "register request": "#3358d4",
+  "reject request": "#dc3e42",
+};
+
+const colorOf: ColorResolver = (scope, key) => (scope === "activity" ? palette[key] : undefined);
+```
+
+Set it once for the whole app:
+
+```tsx
+import { ViewerConfigProvider } from "@r4pm/components";
+
+<ViewerConfigProvider value={{ colorOf }}>
+  <App />
+</ViewerConfigProvider>;
+```
+
+One viewer can override it: `<DFGViewer data={dfg} colorOf={otherPalette} />`. The prop wins over the
+provider, and unset fields fall back to the provider and then to the hash.
+
+## Scopes
+
+`scope` says what kind of thing is being colored. The same string can be an activity in one place and
+an object type in another without the two sharing a color.
+
+| Scope | Used by |
+| --- | --- |
+| `"activity"` | DFG / OC-DFG nodes, variant and alignment chips, activity charts, OC-DECLARE nodes |
+| `"objectType"` | OC-DFG edges, object-centric Petri net places, OCEL type graph, OC-DECLARE object involvements |
+
+Inside your own components, resolve through the same context and you match the viewers:
+
+```tsx
+import { useColorOf } from "@r4pm/components";
+
+function ActivityDot({ activity }) {
+  const colorOf = useColorOf("activity"); // bound to the scope, never undefined
+  return <span style={{ background: colorOf(activity) }} />;
+}
+```
+
+`useColorOf(scope)` always produces a color. It applies the ambient `colorOf` and falls back to the
+hash whenever that returns `undefined`.
+
+## Deriving shades
+
+One color per key is not enough. A viewer needs a fill, text that stays readable on top of it, and a
+soft tint for badges. Two helpers derive those from a hex, both built on `color-mix` against the CSS
+system colors `Canvas` and `CanvasText`. They adapt to light and dark mode with no class detection
+and no second palette.
+
+```ts
+import { shadeHex, softBadgeStyle } from "@r4pm/components";
+
+shadeHex("#3358d4"); // unchanged
+shadeHex("#3358d4", "foreground"); // toward the text color: readable on the page background
+shadeHex("#3358d4", "light"); // toward the page background: fills, lanes, hover states
+
+<span style={softBadgeStyle("#3358d4")}>register request</span>; // tinted background + matching text
+```
+
+To pick from the Radix Themes accent scale instead of hex, `colorToHex` maps a `ThemeColor` name
+through the same three modes:
+
+```ts
+import { colorToHex, type ThemeColor } from "@r4pm/components";
+
+colorToHex("indigo"); // "#3358d4"
+colorToHex("indigo", "foreground");
+colorToHex("indigo", "light");
+```
+
+## Coloring and image export
+
+SVG export resolves colors to concrete sRGB values at export time, which is what carries `color-mix`,
+`var(--gray-11)` and the rest of the theme-dependent values into a file. A palette returning raw hex
+is always safe. One returning CSS variables works as long as those variables are defined on the page
+when the export runs. See [Image Export](?path=/docs/getting-started-image-export--docs).
+
+## Keeping colors stable
+
+The hash is a pure function of the key, so a color changes only when the key does. Two consequences:
+
+- Renaming an activity gives it a new color. Where that matters, a figure in a paper or a saved
+  report, pin the affected keys in an explicit palette.
+- Memoize `colorOf`. An inline arrow builds a new resolver every render, and viewers read a new
+  resolver identity as a reason to restyle.
+
+```tsx
+const colorOf = useCallback<ColorResolver>((scope, key) => palette[key], [palette]);
+```
+
+## See also
+
+- [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the config object `colorOf` lives on.
+- [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs): theme setup and dark mode.
+- [Image Export](?path=/docs/getting-started-image-export--docs): how colors reach an exported file.

@@ -1,0 +1,187 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Getting Started/Sizing & Layout" tags={["dev"]} />
+
+# Sizing & layout
+
+Almost every component here is in one of two groups. Putting one in the wrong kind of container is
+the usual reason a viewer comes up empty.
+
+| | Behaviour | You supply |
+| --- | --- | --- |
+| **Fills its parent** | root is `width: 100%; height: 100%` with a small `min-height` floor | a parent with a definite height |
+| **Content-sized** | grows to fit its content | nothing; drop it in a flow layout |
+
+Graph viewers, charts and editors fill their parent. Chips, bars, strips, inputs and stat cards are
+content-sized. The [per-component list](#component-sizing) is at the bottom of this page.
+
+## The height rule
+
+`height: 100%` against a parent of `height: auto` resolves to nothing. A viewer in that position
+collapses to its `min-height` floor, which reads as a squashed graph, or to zero, which reads as a
+blank box.
+
+```tsx
+// Works: the box has a definite height.
+<div style={{ height: 480 }}>
+  <DFGViewer data={dfg} />
+</div>
+
+// Works: flex child with minHeight: 0 inside a sized column.
+<div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+  <Toolbar />
+  <div style={{ flex: 1, minHeight: 0 }}>
+    <DFGViewer data={dfg} />
+  </div>
+</div>
+
+// Collapses: nothing above resolves to a height.
+<div>
+  <DFGViewer data={dfg} />
+</div>
+```
+
+`minHeight: 0` on the flex child is not optional. A flex item defaults to `min-height: auto` and
+refuses to shrink below its content. Without it, a tall graph pushes the column past its bounds and
+the page scrolls instead of the viewer.
+
+## Where the export frame fits
+
+[`ViewerExportFrame`](?path=/docs/getting-started-image-export--docs) is `position: relative` and
+takes a `style`, so it can be the sizing box instead of another nested `div`:
+
+```tsx
+<ViewerExportFrame filename="dfg" style={{ height: 480 }}>
+  <DFGViewer data={dfg} />
+</ViewerExportFrame>
+```
+
+In a dockable panel or a full-height shell, hand it the panel's size:
+
+```tsx
+<ViewerExportFrame style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+  <div data-export-root style={{ flex: 1, minHeight: 0, position: "relative" }}>
+    <OCDFGViewer data={ocdfg} />
+  </div>
+</ViewerExportFrame>
+```
+
+## Theme and stylesheet
+
+Everything renders inside a Radix `Theme`. One at the app root covers it. Nest another only to run a
+subtree in the opposite color scheme.
+
+```tsx
+import "@r4pm/components/styles.css";
+import { Theme } from "@r4pm/components";
+
+<Theme>
+  <App />
+</Theme>;
+```
+
+The root `Theme` carries `min-height: 100vh`. That is right for a full-page app and wrong when you
+embed a single viewer in someone else's page, where it stretches the whole viewport. Override it
+there:
+
+```tsx
+<Theme style={{ minHeight: 0 }}>
+  <div style={{ height: 400 }}>
+    <PetriNetViewer data={net} />
+  </div>
+</Theme>
+```
+
+Components with their layout intact and no styling mean the stylesheet is missing or imported in the
+wrong order. See [Introduction](?path=/docs/getting-started-introduction--docs).
+
+## Scrolling and overflow
+
+Viewers that fill their parent handle their own interior scrolling, whether that is a pan-and-zoom
+canvas or virtualized rows. Wrapping one in an `overflow: auto` container defeats that. The outer
+scroller resolves to the content height and takes over. Content-sized components are the opposite and
+expect the page to scroll.
+
+## Dark mode
+
+Color scheme comes from the Radix `Theme` (`appearance="light" | "dark" | "inherit"`). Viewers read
+the resolved scheme, and graphs, charts and exported images follow it with no extra wiring. Charts
+and SVG export resolve theme tokens to concrete colors while rendering, so an exported image keeps
+the colors it had on screen.
+
+## Common failure modes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Viewer blank or a few pixels tall | no definite height above it | give an ancestor a height |
+| Graph squashed to ~256px | collapsed to the `min-height` floor | same |
+| Page scrolls instead of the viewer | flex child without `minHeight: 0` | add it |
+| Layout right, styling missing | `styles.css` not imported, or imported before your Tailwind entry | fix the import order |
+| Viewer stretches to the whole viewport | root `Theme`'s `min-height: 100vh` | `<Theme style={{ minHeight: 0 }}>` |
+| Nodes stacked in a line | no layout engine configured | see [Layout Engines](?path=/docs/getting-started-layout-engines--docs) |
+
+## Component sizing
+
+Generated from the stories, so it stays in step with what each component does.
+
+{/* @generated:sizing-table */}
+
+| Page | Component | Import from | Sizing |
+| --- | --- | --- | --- |
+| [Activity Chart](?path=/docs/viewers-activity-chart--docs) | `ActivityChart` | `@r4pm/components/charts` | fills parent |
+| [Alignment List](?path=/docs/viewers-alignment-list--docs) | `AlignmentListViewer` | `@r4pm/components` | fills parent |
+| [Alignment Net](?path=/docs/viewers-alignment-net--docs) | `AlignmentNetViewer` | `@r4pm/components` | fills parent |
+| [Attribute Value Stats](?path=/docs/viewers-attribute-value-stats--docs) | `AttributeValueStats` | `@r4pm/components` | content-sized |
+| [Case Duration](?path=/docs/viewers-case-duration--docs) | `CaseDurationChart` | `@r4pm/components/charts` | fills parent |
+| [Directly-Follows Graph](?path=/docs/viewers-directly-follows-graph--docs) | `DFGViewer` | `@r4pm/components` | fills parent |
+| [Dotted Chart](?path=/docs/viewers-dotted-chart--docs) | `DottedChart` | `@r4pm/components/charts` | fills parent |
+| [Events per Time](?path=/docs/viewers-events-per-time--docs) | `EventsPerTimeChart` | `@r4pm/components/charts` | fills parent |
+| [Fitness](?path=/docs/viewers-fitness--docs) | `FitnessView` | `@r4pm/components` | content-sized |
+| [Log Summary](?path=/docs/viewers-log-summary--docs) | `LogSummary` | `@r4pm/components` | content-sized |
+| [Log Variants](?path=/docs/viewers-log-variants--docs) | `LogVariants` | `@r4pm/components` | fills parent |
+| [Object Attribute Changes](?path=/docs/viewers-object-attribute-changes--docs) | `ObjectAttributeChangesChart` | `@r4pm/components/charts` | fills parent |
+| [Object-Centric DFG](?path=/docs/viewers-object-centric-dfg--docs) | `OCDFGViewer` | `@r4pm/components` | fills parent |
+| [Object-Centric Petri Net](?path=/docs/viewers-object-centric-petri-net--docs) | `ObjectCentricPetriNetViewer` | `@r4pm/components` | fills parent |
+| [Object-Centric Petri Net Simulator](?path=/docs/viewers-object-centric-petri-net-simulator--docs) | `ObjectCentricPetriNetSimulator` | `@r4pm/components` | fills parent |
+| [OC-DECLARE](?path=/docs/viewers-oc-declare--docs) | `OCDeclareViewer` | `@r4pm/components` | fills parent |
+| [OCEL Counts](?path=/docs/viewers-ocel-counts--docs) | `OCELCountInfo` | `@r4pm/components` | content-sized |
+| [OCEL Schema Path](?path=/docs/viewers-ocel-schema-path--docs) | `OcelSchemaPath` | `@r4pm/components` | fills parent |
+| [OCEL Type Graph](?path=/docs/viewers-ocel-type-graph--docs) | `OcelTypeGraph` | `@r4pm/components` | fills parent |
+| [Petri Net](?path=/docs/viewers-petri-net--docs) | `PetriNetViewer` | `@r4pm/components` | fills parent |
+| [Petri Net Simulator](?path=/docs/viewers-petri-net-simulator--docs) | `PetriNetSimulator` | `@r4pm/components` | fills parent |
+| [Process Tree](?path=/docs/viewers-process-tree--docs) | `ProcessTreeViewer` | `@r4pm/components` | fills parent |
+| [Themed Plot](?path=/docs/viewers-themed-plot--docs) | `ThemedPlot` | `@r4pm/components/charts` | fills parent |
+| [Editable Grid](?path=/docs/editors-editable-grid--docs) | `EditableGrid` | `@r4pm/components` | content-sized |
+| [Event Log Creator](?path=/docs/editors-event-log-creator--docs) | `EventLogEditor` | `@r4pm/components` | fills parent |
+| [Extraction Blueprint](?path=/docs/editors-extraction-blueprint--docs) | `BlueprintGraph` | `@r4pm/components/extraction-blueprint` | fills parent |
+| [Object-Centric Petri Net Workbench](?path=/docs/editors-object-centric-petri-net-workbench--docs) | `ObjectCentricPetriNetWorkbench` | `@r4pm/components` | fills parent |
+| [OCEL Creator](?path=/docs/editors-ocel-creator--docs) | `OcelEditor` | `@r4pm/components` | fills parent |
+| [Petri Net Editor](?path=/docs/editors-petri-net-editor--docs) | `Editor` | `@r4pm/components/petri` | fills parent |
+| [Petri Net Workbench](?path=/docs/editors-petri-net-workbench--docs) | `PetriNetWorkbench` | `@r4pm/components` | fills parent |
+| [Process Tree Editor](?path=/docs/editors-process-tree-editor--docs) | `Editor` | `@r4pm/components/process-tree` | fills parent |
+| [Process Tree Workbench](?path=/docs/editors-process-tree-workbench--docs) | `ProcessTreeWorkbench` | `@r4pm/components` | fills parent |
+| [Activity Sequence](?path=/docs/inputs-primitives-activity-sequence--docs) | `ActivitySequence` | `@r4pm/components` | content-sized |
+| [Alignment Strip](?path=/docs/inputs-primitives-alignment-strip--docs) | `AlignmentStrip` | `@r4pm/components` | content-sized |
+| [Async State](?path=/docs/inputs-primitives-async-state--docs) | `LoadingState` | `@r4pm/components` | content-sized |
+| [Card Selector](?path=/docs/inputs-primitives-card-selector--docs) | `CardSelector` | `@r4pm/components/ui` | content-sized |
+| [Choosers](?path=/docs/inputs-primitives-choosers--docs) | `ActivityChooser` | `@r4pm/components` | content-sized |
+| [Combobox](?path=/docs/inputs-primitives-combobox--docs) | `Combobox` | `@r4pm/components/ui` | content-sized |
+| [Confirm Button](?path=/docs/inputs-primitives-confirm-button--docs) | `ConfirmButton` | `@r4pm/components/ui` | content-sized |
+| [Coverage Bar](?path=/docs/inputs-primitives-coverage-bar--docs) | `CoverageBar` | `@r4pm/components` | content-sized |
+| [Deviation Alignment Strip](?path=/docs/inputs-primitives-deviation-alignment-strip--docs) | `DeviationAlignmentStrip` | `@r4pm/components` | content-sized |
+| [Frequency Picker](?path=/docs/inputs-primitives-frequency-picker--docs) | `FrequencyPicker` | `@r4pm/components` | content-sized |
+| [JSON Viewer](?path=/docs/inputs-primitives-json-viewer--docs) | `JSONViewer` | `@r4pm/components` | content-sized |
+| [Log Metadata Card](?path=/docs/inputs-primitives-log-metadata-card--docs) | `LogMetadataCard` | `@r4pm/components` | content-sized |
+| [Object-Centric Sequence](?path=/docs/inputs-primitives-object-centric-sequence--docs) | `ObjectCentricSequence` | `@r4pm/components` | content-sized |
+| [Ranked Bar List](?path=/docs/inputs-primitives-ranked-bar-list--docs) | `RankedBarList` | `@r4pm/components` | content-sized |
+| [Selection Actions](?path=/docs/inputs-primitives-selection-actions--docs) | `SelectionActions` | `@r4pm/components` | content-sized |
+| [Stat Cards](?path=/docs/inputs-primitives-stat-cards--docs) | `StatCards` | `@r4pm/components` | content-sized |
+| [Trace Alignment Strip](?path=/docs/inputs-primitives-trace-alignment-strip--docs) | `TraceAlignmentStrip` | `@r4pm/components` | content-sized |
+
+{/* @end */}
+
+## See also
+
+- [Image Export](?path=/docs/getting-started-image-export--docs): the wrapper that makes a viewer exportable.
+- [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): coloring, formatting, interactivity.
+- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): node placement for graph viewers.

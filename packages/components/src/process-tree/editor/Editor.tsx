@@ -10,6 +10,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { StyledGraphRenderer } from "../../graph-svg/styled-graph";
+import { styledGraphToSvg } from "../../graph-svg/styled-graph-svg";
 import { useRegisterExport, type VectorExportSource } from "../../viewer/export";
 import { useViewerConfig } from "../../viewer/viewer-config";
 import {
@@ -174,11 +175,13 @@ function InnerEditor(props: TreeEditorProps & { readOnly: boolean }) {
   renderSvgRef.current = props.renderSvg ?? cfg.layout?.renderSvg;
   const exportSource = useMemo<VectorExportSource>(
     () => ({
+      label: "Process tree",
       toSvg: async () => {
-        const render = renderSvgRef.current;
-        if (!render) return null;
         const graph = treeModelToStyledGraph(nodesRef.current, edgesRef.current);
-        return graph ? render(graph) : null;
+        if (!graph) return null;
+        // The pure-TS drawer covers the ELK engine, which has no `renderSvg`.
+        const render = renderSvgRef.current;
+        return render ? render(graph) : styledGraphToSvg(graph);
       },
     }),
     [],

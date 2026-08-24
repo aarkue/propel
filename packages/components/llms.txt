@@ -1,0 +1,302 @@
+# @r4pm/components
+
+> React components for process mining: Petri nets, object-centric Petri nets, directly-follows
+> graphs, dotted charts, alignments, OCEL summaries, process trees, log editors, and the pieces the
+> viewers are built from. Peer deps: react >= 18, react-dom >= 18. License: MIT OR Apache-2.0.
+
+This is the condensed reference for coding agents. `scripts/gen-catalog.mjs` builds the tables
+between the generated markers out of the source; the prose around them is hand-written. The
+Storybook gallery (`pnpm --filter @r4pm/components dev`) adds live examples and generated props
+tables.
+
+## Minimal working setup
+
+All four parts below are required. Anything missing renders as an empty box.
+
+```tsx
+import "@r4pm/components/styles.css";                     // 1. stylesheet, once
+import { Theme, ViewerConfigProvider, ViewerExportFrame, DFGViewer } from "@r4pm/components";
+import { wasmLayout } from "@r4pm/components/rust-layout/wasm";  // 2. a layout engine
+
+export function App({ dfg }) {
+  return (
+    <Theme>                                                {/* 3. Radix theme wrapper */}
+      <ViewerConfigProvider value={{ layout: wasmLayout }}>
+        <ViewerExportFrame filename="dfg" style={{ height: 480 }}>  {/* 4. size + export */}
+          <DFGViewer data={dfg} />
+        </ViewerExportFrame>
+      </ViewerConfigProvider>
+    </Theme>
+  );
+}
+```
+
+## Rules that are easy to get wrong
+
+1. **A graph viewer needs a parent with a definite height.** Its root is `height: 100%`. In an
+   auto-height parent it collapses to a `min-height` floor or to zero. Inside a flex column the
+   wrapper needs `flex: 1; min-height: 0`.
+2. **Graph viewers need a `layout` engine.** The core includes none and without one the nodes stack in a
+   line. Set it once on `ViewerConfigProvider`. Applies to DFG, OC-DFG, OC-DECLARE, Petri net and
+   process tree. The OCEL type graph and extraction blueprint carry their own default.
+3. **Image export exists only inside `<ViewerExportFrame>`.** No viewer renders an export control on
+   its own. See "Image export" below.
+4. **Import UI primitives from `@r4pm/components/ui`**, never from `@radix-ui/themes` directly. The
+   package lints this.
+5. **`styles.css` or `rules.css`, never both.** Use `rules.css` only when your app runs its own
+   Tailwind build, and import it after your Tailwind entry. Preflight resets the controls Radix then
+   restyles.
+6. **Memoize `colorOf`, `format`, `actions` and the `ViewerConfigProvider` value.** A fresh object
+   identity every render makes viewers restyle and relayout.
+
+## Entry points
+
+| Import | Contents |
+| --- | --- |
+| `@r4pm/components` | viewers, primitives, feedback states, `ViewerExportFrame`, and the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`) |
+| `@r4pm/components/ui` | the Radix Themes seam: `Theme`, `Button`, `Card`, `Combobox`, `CardSelector`, `ConfirmButton`, ... |
+| `@r4pm/components/charts` | Plotly-backed viewers: `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot` |
+| `@r4pm/components/petri` | the React Flow + ELK Petri-net editor |
+| `@r4pm/components/process-tree` | the process-tree editor |
+| `@r4pm/components/extraction-blueprint` | the extraction blueprint editor |
+| `@r4pm/components/elk-layout` | `elkLayout`: pure-JS layout engine (elkjs), no `renderSvg` |
+| `@r4pm/components/rust-layout/wasm` | `wasmLayout`: Rust/wasm layout engine, including `renderSvg` |
+| `@r4pm/components/styles.css` | precompiled stylesheet (Tailwind + Radix theme + package rules) |
+| `@r4pm/components/rules.css` | the same minus Tailwind, for apps with their own Tailwind build |
+
+Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in Plotly or the editors.
+
+## Components
+
+"Fills parent" needs an ancestor with a definite height. "Content-sized" can go anywhere.
+
+<!-- @generated:components-table -->
+
+| Component | Import from | Group | Sizing | Docs page |
+| --- | --- | --- | --- | --- |
+| `ActivityChart` | `@r4pm/components/charts` | Viewers | fills parent | Activity Chart |
+| `AlignmentListViewer` | `@r4pm/components` | Viewers | fills parent | Alignment List |
+| `AlignmentNetViewer` | `@r4pm/components` | Viewers | fills parent | Alignment Net |
+| `AttributeValueStats` | `@r4pm/components` | Viewers | content-sized | Attribute Value Stats |
+| `CaseDurationChart` | `@r4pm/components/charts` | Viewers | fills parent | Case Duration |
+| `DFGViewer` | `@r4pm/components` | Viewers | fills parent | Directly-Follows Graph |
+| `DottedChart` | `@r4pm/components/charts` | Viewers | fills parent | Dotted Chart |
+| `EventsPerTimeChart` | `@r4pm/components/charts` | Viewers | fills parent | Events per Time |
+| `FitnessView` | `@r4pm/components` | Viewers | content-sized | Fitness |
+| `LogSummary` | `@r4pm/components` | Viewers | content-sized | Log Summary |
+| `LogVariants` | `@r4pm/components` | Viewers | fills parent | Log Variants |
+| `ObjectAttributeChangesChart` | `@r4pm/components/charts` | Viewers | fills parent | Object Attribute Changes |
+| `OCDFGViewer` | `@r4pm/components` | Viewers | fills parent | Object-Centric DFG |
+| `ObjectCentricPetriNetViewer` | `@r4pm/components` | Viewers | fills parent | Object-Centric Petri Net |
+| `ObjectCentricPetriNetSimulator` | `@r4pm/components` | Viewers | fills parent | Object-Centric Petri Net Simulator |
+| `OCDeclareViewer` | `@r4pm/components` | Viewers | fills parent | OC-DECLARE |
+| `OCELCountInfo` | `@r4pm/components` | Viewers | content-sized | OCEL Counts |
+| `OcelSchemaPath` | `@r4pm/components` | Viewers | fills parent | OCEL Schema Path |
+| `OcelTypeGraph` | `@r4pm/components` | Viewers | fills parent | OCEL Type Graph |
+| `PetriNetViewer` | `@r4pm/components` | Viewers | fills parent | Petri Net |
+| `PetriNetSimulator` | `@r4pm/components` | Viewers | fills parent | Petri Net Simulator |
+| `ProcessTreeViewer` | `@r4pm/components` | Viewers | fills parent | Process Tree |
+| `ThemedPlot` | `@r4pm/components/charts` | Viewers | fills parent | Themed Plot |
+| `EditableGrid` | `@r4pm/components` | Editors | content-sized | Editable Grid |
+| `EventLogEditor` | `@r4pm/components` | Editors | fills parent | Event Log Creator |
+| `BlueprintGraph` | `@r4pm/components/extraction-blueprint` | Editors | fills parent | Extraction Blueprint |
+| `ObjectCentricPetriNetWorkbench` | `@r4pm/components` | Editors | fills parent | Object-Centric Petri Net Workbench |
+| `OcelEditor` | `@r4pm/components` | Editors | fills parent | OCEL Creator |
+| `Editor` | `@r4pm/components/petri` | Editors | fills parent | Petri Net Editor |
+| `PetriNetWorkbench` | `@r4pm/components` | Editors | fills parent | Petri Net Workbench |
+| `Editor` | `@r4pm/components/process-tree` | Editors | fills parent | Process Tree Editor |
+| `ProcessTreeWorkbench` | `@r4pm/components` | Editors | fills parent | Process Tree Workbench |
+| `ActivitySequence` | `@r4pm/components` | Inputs & Primitives | content-sized | Activity Sequence |
+| `AlignmentStrip` | `@r4pm/components` | Inputs & Primitives | content-sized | Alignment Strip |
+| `LoadingState` | `@r4pm/components` | Inputs & Primitives | content-sized | Async State |
+| `CardSelector` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Card Selector |
+| `ActivityChooser` | `@r4pm/components` | Inputs & Primitives | content-sized | Choosers |
+| `Combobox` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Combobox |
+| `ConfirmButton` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Confirm Button |
+| `CoverageBar` | `@r4pm/components` | Inputs & Primitives | content-sized | Coverage Bar |
+| `DeviationAlignmentStrip` | `@r4pm/components` | Inputs & Primitives | content-sized | Deviation Alignment Strip |
+| `FrequencyPicker` | `@r4pm/components` | Inputs & Primitives | content-sized | Frequency Picker |
+| `JSONViewer` | `@r4pm/components` | Inputs & Primitives | content-sized | JSON Viewer |
+| `LogMetadataCard` | `@r4pm/components` | Inputs & Primitives | content-sized | Log Metadata Card |
+| `ObjectCentricSequence` | `@r4pm/components` | Inputs & Primitives | content-sized | Object-Centric Sequence |
+| `RankedBarList` | `@r4pm/components` | Inputs & Primitives | content-sized | Ranked Bar List |
+| `SelectionActions` | `@r4pm/components` | Inputs & Primitives | content-sized | Selection Actions |
+| `StatCards` | `@r4pm/components` | Inputs & Primitives | content-sized | Stat Cards |
+| `TraceAlignmentStrip` | `@r4pm/components` | Inputs & Primitives | content-sized | Trace Alignment Strip |
+
+<!-- @end -->
+
+## Shared configuration
+
+Set once via `ViewerConfigProvider`. Any viewer overrides any field with a prop of the same name.
+
+```ts
+interface ViewerConfig {
+  colorOf?: (scope: string, key: string) => string | undefined;
+  format?: { number?: (n: number) => string; date?: (ms: number) => string; duration?: (ms: number) => string };
+  actions?: ViewerAction[];              // context-menu entries on elements
+  alignmentStyle?: "trace" | "deviation";
+  onSelect?: (target: ViewerTarget) => void;
+  onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
+  layout?: LayoutEngine;
+}
+
+interface ViewerProps<T> extends ViewerConfig { data: T; handle?: string }
+type StaticViewerProps<T> = { data: T };   // viewers with no interactive surface
+interface ViewerTarget { scope: string; key: string; data?: unknown }
+```
+
+`ViewerTarget.scope` values emitted today: `"activity"` (DFG / OC-DFG clicks and context menus) and
+`"time-range"` with key `"<startMs>/<endMs>"` (dotted chart selection). Treat it as an open string.
+
+Between provider and prop, `format` merges field by field. The other fields replace wholesale.
+
+## Coloring
+
+Without a `colorOf`, viewers call `colorForKey(scope, key)`, a deterministic OKLCH hash. The same
+activity gets the same color in every viewer and across sessions, with no palette to maintain.
+
+```ts
+import { colorForKey, colorForSeed, useColorOf, shadeHex, softBadgeStyle, colorToHex } from "@r4pm/components";
+
+colorForKey("activity", "register request"); // deterministic hex
+colorForSeed("register request");            // same hash, no scope prefix
+useColorOf("activity");                      // hook: scope-bound resolver, never returns undefined
+shadeHex(hex, "foreground");                 // readable text shade  ("normal" | "foreground" | "light")
+softBadgeStyle(hex);                         // { backgroundColor, color } for a tinted badge
+colorToHex("indigo", "light");               // Radix accent name -> hex, same three modes
+```
+
+Color scopes in use: `"activity"`, `"objectType"`. Returning `undefined` from `colorOf` falls back to
+the hash for that key, which is how partial palettes work.
+
+The shade helpers mix against the CSS system colors `Canvas` and `CanvasText`. They adapt to light
+and dark mode with no class detection.
+
+## Image export
+
+`<ViewerExportFrame>` is the only export control in the package. Wrap a viewer, or any content, and a
+download menu appears in the corner.
+
+```tsx
+<ViewerExportFrame
+  filename="dfg"                              // base name; extension appended
+  onSave={(bytes, name, mime) => save(bytes)} // optional: take the bytes instead of downloading
+  onError={(err) => toast(err)}               // optional; also fires the EXPORT_ERROR_EVENT window event
+  menuPlacement="top-right"                   // "top-right" | "top-left" | "bottom-right" | "bottom-left"
+  showMenu                                    // false hides the control, keeps the context alive
+  style={{ height: 480 }}                     // the frame can be the sizing box
+>
+  <DFGViewer data={dfg} />
+</ViewerExportFrame>
+```
+
+The menu offers two routes whenever it can. The viewer's own group (SVG, PNG, JPEG) redraws the
+viewer's model as SVG, crisp at any size; its PNG and JPEG entries rasterize that SVG at the chosen
+scale (1x, 2x, 4x). The **Screenshot** group (PNG, JPEG) is an html-to-image snapshot of the frame
+content, always available, and catches the on-screen chrome the SVG route omits: settings cards,
+legend overlays, selection.
+
+Two attributes bound the snapshot. `data-export-root` marks the subtree to capture and defaults to
+the whole frame; `data-export-ignore` drops an element from it.
+
+Viewers registering a vector source, and whether a prop can override the key:
+
+<!-- @generated:export-keys -->
+
+| Registry key | `exportKey` prop overrides it | Source |
+| --- | --- | --- |
+| `deviation-alignment-strip` | yes | `src/shared/DeviationAlignmentStrip.tsx` |
+| `dfg` | no | `src/dfg/DfgGraph.tsx` |
+| `log-variants` | no | `src/log-variants.tsx` |
+| `oc-declare` | no | `src/oc-declare/OCDeclareViz.tsx` |
+| `ocel-type-graph` | no | `src/ocel-type-graph/OcelTypeGraph.tsx` |
+| `ocpn` | yes | `src/object-centric-petri-net.tsx` |
+| `ocpn-simulator` | yes | `src/object-centric-petri-net-simulator.tsx` |
+| `petri-net` | yes | `src/petri-net.tsx` |
+| `petri-net-simulator` | yes | `src/petri-net-simulator.tsx` |
+| `process-tree` | yes | `src/process-tree/editor/Editor.tsx` |
+| `trace-alignment-strip` | yes | `src/shared/TraceAlignmentStrip.tsx` |
+
+<!-- @end -->
+
+Keys have to be unique within a frame. Two viewers sharing one key collapse into a single menu entry;
+`exportKey` separates them. Any component can register its own source:
+
+```tsx
+import { useRegisterExport, type VectorExportSource } from "@r4pm/components";
+
+const source = useMemo<VectorExportSource>(() => ({ label: "Throughput", toSvg: () => svgString }), [svgString]);
+useRegisterExport("sparkline", source);  // keep `source` identity stable
+```
+
+`toSvg` runs at click time and sees current state. Returning `null` while nothing is ready makes the
+menu report that instead of downloading an empty file.
+
+## Layout engines
+
+```tsx
+import { wasmLayout } from "@r4pm/components/rust-layout/wasm"; // Rust/wasm, orthogonal routing, has renderSvg
+import { elkLayout } from "@r4pm/components/elk-layout";        // pure JS (elkjs), spline routing, no renderSvg
+
+<ViewerConfigProvider value={{ layout: wasmLayout }}>...</ViewerConfigProvider>
+```
+
+Both load lazily on first layout and stay out of the core bundle. SVG export does not need
+`renderSvg`; it falls back to the package's own pure-TS renderer and works on either engine. A host
+renderer matches the engine's geometry more exactly.
+
+Per-instance override: `<DFGViewer layoutOverride={fn} renderSvg={fn} />` beats the provider.
+
+Custom transport, to run the Rust engine on your own backend instead of in-browser wasm:
+
+```ts
+import { createRustLayout, type LayoutTransport } from "@r4pm/components";
+
+const layout = createRustLayout({
+  layoutGraph: (spec) => callBackend("layout_graph", spec),
+  rerouteGraph: (spec) => callBackend("reroute_graph", spec),
+});
+```
+
+## Persisted display settings
+
+Viewers hold small display choices in local state: DFG metric and direction, edge cutoff, export row
+limit. `ViewStateProvider` hoists them to the host.
+
+```tsx
+<ViewStateProvider viewState={saved} onViewStateChange={setSaved}>...</ViewStateProvider>
+```
+
+`viewState` is an opaque `Record<string, unknown>`; persist it as JSON. Without a provider the
+underlying `useViewSetting(key, initial)` behaves as plain `useState`.
+
+## Async, loading, error and empty states
+
+`@r4pm/components` exports `AsyncBoundary`, `LoadingState`, `ErrorState`, `EmptyState`,
+`IndeterminateBar` and skeletons for the panels around viewers.
+
+## Diagnosing a broken render
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Viewer blank or a few pixels tall | no definite height above it | give an ancestor a height; `flex: 1; min-height: 0` in a flex column |
+| Nodes stacked in a line | no layout engine | set `ViewerConfig.layout` |
+| Layout right, styling missing | `styles.css` not imported, or `rules.css` before your Tailwind entry | fix imports and order |
+| Whole viewport stretched | root `Theme` has `min-height: 100vh` | `<Theme style={{ minHeight: 0 }}>` for embedded use |
+| No export button | no `ViewerExportFrame` | wrap the viewer |
+| Only "Screenshot" in the export menu | that component registers no vector source, or the frame sits inside the viewer | check the export table; move the frame outward |
+| "nothing to export (source produced null)" | `toSvg` ran before layout finished | export once the graph has rendered |
+| Export image includes the toolbar | no `data-export-root` | mark the content subtree |
+| Colors change every render | `colorOf` rebuilt inline | memoize it |
+| Relayout on every render | `data`, `categoryOf` or `layout` identity changes | memoize them |
+
+## Repo commands
+
+```sh
+pnpm --filter @r4pm/components dev        # Storybook gallery on :6006
+pnpm --filter @r4pm/components showcase   # static Storybook build
+pnpm --filter @r4pm/components typecheck
+pnpm --filter @r4pm/components docs:types # regenerate data-type docs + this file's tables
+pnpm --filter @r4pm/components build
+```

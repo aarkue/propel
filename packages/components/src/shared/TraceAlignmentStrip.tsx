@@ -299,7 +299,10 @@ export function TraceAlignmentStrip({
   const ambient = useColorOf("activity");
   const resolve = colorOf ?? ambient;
   const source = useMemo<VectorExportSource | null>(
-    () => (exportKey ? { toSvg: () => buildTraceAlignmentSvg(moves, { colorOf: resolve }) } : null),
+    () =>
+      exportKey
+        ? { label: "Alignment", toSvg: () => buildTraceAlignmentSvg(moves, { colorOf: resolve }) }
+        : null,
     [exportKey, moves, resolve],
   );
   useRegisterExport(exportKey ?? "trace-alignment-strip", source);

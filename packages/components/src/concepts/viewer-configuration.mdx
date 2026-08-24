@@ -4,11 +4,24 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Viewer configuration
 
-Every viewer in `@r4pm/components` takes a typed `data` prop plus an optional, shared
-configuration for coloring, formatting, interactivity, and the layout engine. A host sets the config
-once (via `ViewerConfigProvider`); individual viewers may override any field. Most config is optional
-with sensible fallbacks; the exception is `layout`, which graph viewers (DFG, OC-DFG, OC-DECLARE,
-Petri net) need to place nodes, since the core ships no engine. See
+Every viewer takes a typed `data` prop plus a shared configuration covering coloring, formatting,
+interactivity and the layout engine. Set it once with `ViewerConfigProvider`. Any viewer can override
+any field with a prop of the same name.
+
+```tsx
+import { ViewerConfigProvider } from "@r4pm/components";
+import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
+
+<ViewerConfigProvider value={{ layout: wasmLayout, colorOf, format, onSelect }}>
+  <PetriNetViewer data={net} />
+  <DFGViewer data={dfg} colorOf={otherPalette} /> {/* prop beats provider */}
+</ViewerConfigProvider>;
+```
+
+Every field is optional and falls back to a sensible default, with one exception. DFG, OC-DFG,
+OC-DECLARE, Petri net and process tree need `layout` to place their nodes, because the core includes
+no engine. Without one they stack their nodes in a line. The OCEL type graph and the extraction
+blueprint bring their own default and lay out either way. See
 [Layout Engines](?path=/docs/getting-started-layout-engines--docs).
 
 ## `ViewerProps<T>`
@@ -24,9 +37,11 @@ interface ViewerProps<T> extends ViewerConfig {
 }
 ```
 
-## `ViewerConfig`
+A few viewers are pure renderers with no interactive surface. Those take `StaticViewerProps<T>`
+(`{ data: T }`). `colorOf`, `onSelect`, `actions` and `format` do nothing there, and the type says so
+before you try.
 
-Cross-cutting config and interactivity, shared by all viewers.
+## `ViewerConfig`
 
 ```ts
 interface ViewerConfig {
@@ -42,19 +57,20 @@ interface ViewerConfig {
 
 ### `colorOf` (`ColorResolver`)
 
-Resolves a CSS color for a domain key, so the same activity or object type is colored
-consistently across every viewer. Return `undefined` to fall back to the viewer's own palette.
+Resolves a CSS color for a domain key. The same activity or object type then looks the same in every
+viewer. Return `undefined` to fall back to the built-in deterministic palette.
 
 ```ts
 type ColorResolver = (scope: string, key: string) => string | undefined;
-
-const colorOf: ColorResolver = (scope, key) =>
-  scope === "activity" ? activityPalette[key] : undefined;
 ```
+
+Full guide, with the shade helpers and the scope list:
+[Coloring](?path=/docs/getting-started-coloring--docs).
 
 ### `format` (`ViewerFormat`)
 
-Shared value formatters so numbers, dates, and durations render consistently.
+Shared value formatters. Unset fields keep the viewer's own formatting. Between provider and prop
+`format` merges field by field; the other config fields replace wholesale.
 
 ```ts
 interface ViewerFormat {
@@ -66,7 +82,7 @@ interface ViewerFormat {
 
 ### `actions` (`ViewerAction[]`)
 
-Right-click menu entries the viewer renders on its elements.
+Entries the viewer adds to the context menu of its elements.
 
 ```ts
 interface ViewerAction {
@@ -80,54 +96,58 @@ interface ViewerAction {
 
 ### `onSelect` and `onElementContextMenu`
 
-`onSelect` reports a plain left-click. `onElementContextMenu` is the escape hatch to build a
-fully custom menu. Both receive a [`ViewerTarget`](#viewertarget).
+`onSelect` reports a plain left-click on an element. `onElementContextMenu` is the escape hatch for
+building a fully custom menu instead of using `actions`. Both receive a
+[`ViewerTarget`](#viewertarget).
 
 ### `layout` (`LayoutEngine`)
 
-The layout engine for graph viewers: one function per surface, plus `renderSvg` for image export.
-The core ships no engine, so graph viewers render a no-op layout (nodes in a line) until you supply
-one. Pass a ready bundle (`elkLayout` or `wasmLayout`) through the provider. Full guide:
-[Layout Engines](?path=/docs/getting-started-layout-engines--docs).
-
-```ts
-interface LayoutEngine {
-  dfg?: DfgLayoutFn;
-  ocdfg?: DfgLayoutFn;
-  declare?: DeclareLayoutFn;
-  petri?: PetriLayoutFn;
-  renderSvg?: StyledGraphRenderer;
-}
-```
+The layout engine for graph viewers: one function per surface, plus `renderSvg`, which image export
+uses to draw the graph the way the engine laid it out. Pass a ready bundle (`wasmLayout` or
+`elkLayout`). Full guide: [Layout Engines](?path=/docs/getting-started-layout-engines--docs).
 
 ## `ViewerTarget`
 
-A domain element a host can act on.
+The element a host acts on, handed to `onSelect`, `onElementContextMenu` and `ViewerAction.run`.
 
 ```ts
 interface ViewerTarget {
-  scope: string; // element kind: "activity" | "objectType" | "case" | "timeRange" | ...
-  key: string; // identifies the element
+  scope: string; // element kind
+  key: string; // identifies the element within that kind
   data?: unknown; // optional raw payload for richer host handlers
 }
 ```
 
-## Setting config once with `ViewerConfigProvider`
+Scopes emitted today:
+
+| Scope | Key | Emitted by |
+| --- | --- | --- |
+| `"activity"` | activity name | DFG / OC-DFG node click and context menu |
+| `"time-range"` | `"<startMs>/<endMs>"` | dotted chart selection |
+
+Treat `scope` as an open string. Match the ones you handle and ignore the rest.
+
+## Persisted display settings
+
+Viewers keep small display choices in local state: DFG metric and direction, edge cutoff, export row
+limit. Wrap them in a `ViewStateProvider` to own that state yourself and a panel comes back the way
+the user left it.
 
 ```tsx
-import { ViewerConfigProvider } from "@r4pm/components";
+import { ViewStateProvider } from "@r4pm/components";
 
-<ViewerConfigProvider value={{ colorOf, format, onSelect }}>
-  <PetriNetViewer data={net} />
+<ViewStateProvider viewState={saved} onViewStateChange={setSaved}>
   <DFGViewer data={dfg} />
-</ViewerConfigProvider>;
+</ViewStateProvider>;
 ```
 
-Per-viewer props override the provider; unset fields fall back to the viewer's defaults.
+`viewState` is an opaque `Record<string, unknown>`. Persist it as JSON. With no provider the
+underlying `useViewSetting(key, initial)` hook behaves as plain `useState` and viewers work unwrapped.
+Use the same hook in your own components to keep their settings in the same bag.
 
 ## See also
 
+- [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs): giving a viewer a box to render into.
+- [Coloring](?path=/docs/getting-started-coloring--docs): palettes, scopes and shade helpers.
 - [Layout Engines](?path=/docs/getting-started-layout-engines--docs): wiring the `layout` field.
-- [Petri Net](?path=/docs/viewers-petri-net--docs)
-- [Directly-Follows Graph](?path=/docs/viewers-directly-follows-graph--docs)
-- [Alignment Net](?path=/docs/viewers-alignment-net--docs)
+- [Image Export](?path=/docs/getting-started-image-export--docs): making a viewer exportable.

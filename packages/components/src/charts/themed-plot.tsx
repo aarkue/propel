@@ -1,6 +1,11 @@
+import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
-import Plot, { type PlotParams } from "react-plotly.js";
+import PlotImport, { type PlotParams } from "react-plotly.js";
 import { observeThemeChange } from "../viewer/dark-mode";
+
+/** `react-plotly.js` is CommonJS. Bundlers apply Node ESM interop to this package's built `.js`
+ *  (it is `"type": "module"`), so the default import arrives as `module.exports`, not the component. */
+const Plot = ((PlotImport as { default?: unknown }).default ?? PlotImport) as ComponentType<PlotParams>;
 
 interface ThemeColors {
   font: string;

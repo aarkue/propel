@@ -5,7 +5,7 @@ export { Theme } from "@r4pm/components/ui";
 export * from "./viewer/viewer-config";
 // Persisted viewer display settings: `useViewSetting` (drop-in for useState) + host `ViewStateProvider`.
 export * from "./viewer/view-state";
-export { shadeHex, softBadgeStyle, colorToHex } from "./dfg/util/colors";
+export { shadeHex, softBadgeStyle, colorToHex, type ThemeColor } from "./dfg/util/colors";
 // Plotly-backed viewers (DottedChart, CaseDuration, EventsPerTime, ObjectAttributeChanges,
 // ActivityChart, ThemedPlot) live behind the `@r4pm/components/charts` subpath to keep
 // react-plotly.js out of the core entry. Import them from "@r4pm/components/charts".

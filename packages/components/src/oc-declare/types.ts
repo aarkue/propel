@@ -6,10 +6,14 @@ export type ArcType = "AS" | "EF" | "EP" | "DF" | "DP";
 export type RenderArcType = ArcType | "EFEP" | "DFDP";
 
 export interface ObjectTypeRef {
-  /** Name of the object type (used as the key for color lookup). */
+  /** Name of the object type (used as the key for color lookup). Absent on an O2O association. */
   object_type: string;
-  /** Kind of association ("Simple" | "O2O"). Only `object_type` is rendered. */
+  /** Kind of association ("Simple" | "O2O"). */
   type?: string;
+  /** O2O only: the two related object types, and which way the relation points. */
+  first?: string;
+  second?: string;
+  reversed?: boolean;
 }
 
 export interface ConstraintLabel {

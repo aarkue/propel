@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 
 /** Resolve a name (activity or object type) to a hex color. */
-export type ColorResolver = (name: string, mode?: "normal" | "foreground" | "light") => string;
+export type ColorResolver = (name: string, mode?: "normal" | "foreground" | "light" | "surface") => string;
 
 interface VizContextValue {
   /** Resolver for activity colors, provided by the host app (e.g. a persisted store). */

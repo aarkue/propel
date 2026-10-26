@@ -14,6 +14,7 @@ use std::collections::HashSet;
 use std::sync::RwLock;
 pub mod artifact;
 pub mod meta;
+pub mod oc_declare_file;
 pub use meta::{ItemMeta, ItemRole, ObjMeta, Provenance};
 pub use state::{Backend, ExtendedAppState};
 pub mod state {

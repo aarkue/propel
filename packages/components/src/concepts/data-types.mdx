@@ -12,6 +12,17 @@ See also [Introduction](?path=/docs/getting-started-introduction--docs) and [Vie
 
 ## Objects
 
+### AcceptingPetriNet
+
+A `PetriNet` with an initial and a final marking In JSON, the net's fields sit next to `initial_marking` and `final_marking`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `places` | `Place[]` | The places, indexed by `PlaceID` |
+| `transitions` | `Transition[]` | The transitions, indexed by `TransitionID` |
+| `initial_marking` | `object` | The marking the net starts in |
+| `final_marking` | `object` | The marking a complete run ends in |
+
 ### AggregatedEventTimestamps
 
 Aggregated event counts per timestamp bin, grouped by activity.
@@ -28,7 +39,7 @@ Aggregated alignment statistics over the whole log; lets a net view show a devia
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `transition_stats` | `{ [key: string]: TransitionFireStats }` | Per transition id (matches `PetriNet.transitions` keys): sync vs model-only firings. |
+| `transition_stats` | `{ [key: string]: TransitionFireStats }` | Per transition index (position in `net.transitions`): sync vs model-only firings. |
 | `log_move_counts` | `{ [key: string]: number }` | Per activity: total log-moves (logged events with no matching model step) across all traces. |
 | `total_traces` | `number` | Total number of aligned traces. |
 
@@ -40,16 +51,7 @@ Alignment Result
 | --- | --- | --- |
 | `moves` | `AlignmentMove[]` | The sequence of alignment moves |
 | `cost` | `number` | Total cost of the alignment |
-| `states_visited` | `number` | Number of states visited during search |
-
-### Arc
-
-Arc in a Petri net Connecting a transition and a place (or the other way around)
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `from_to` | `ArcType` | Source and target of Arc |
-| `weight` | `number` | Weight (i.e., how many tokens this arc moves) |
+| `states_visited` | `number` | Number of states visited during search, summed over both search directions |
 
 ### AttributeChange
 
@@ -95,14 +97,14 @@ Per-arc duration statistics.
 
 ### DirectlyFollowsGraph
 
-A directly-follows graph of `Activity`s. Graph containing a set of activities, a set of directly-follows relations, a set of start activities, and a set of end activities. Both, the number of occurrences of activities and of directly follows relations are annotated with their frequency.
+A directly-follows graph of `Activity`s. Graph containing a set of activities, a set of directly-follows relations, a set of start activities, and a set of end activities. Activities and directly-follows relations are annotated with their frequency, and start and end activities with how many traces start or end with them.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `activities` | `{ [key: string]: number }` | Activities |
 | `directly_follows_relations` | `[[string, string], number][]` | Directly-follows relations |
-| `start_activities` | `string[]` | Start activities |
-| `end_activities` | `string[]` | End activities |
+| `start_activities` | `{ [key: string]: number }` | Start activities, with how many traces start with each |
+| `end_activities` | `{ [key: string]: number }` | End activities, with how many traces end with each |
 
 ### DottedChartData
 
@@ -133,13 +135,50 @@ Alignment Fitness Result
 | `perfectly_fitting_frac` | `number` | Fraction of traces that perfectly fit (i.e., have an alignment cost of `0`) |
 | `total_costs` | `number` | The total cost, summed up from all traces |
 
+### JsonArc
+
+An arc from a place to a transition or the other way round.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `source` | `string` | Name of the place or transition the arc leaves. |
+| `target` | `string` | Name of the place or transition the arc enters. |
+| `type?` | `JsonArcType` | Whether the arc moves one object or a whole set of them. |
+| `weight?` | `number` | How many tokens the arc moves. |
+
+### JsonPlace
+
+A place of one object type.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Unique among all places and transitions. |
+| `object_type` | `string` | The object type whose tokens this place holds. |
+
+### JsonTransition
+
+A transition, silent if it has no label.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Unique among all places and transitions. For a labeled transition, the activity itself. |
+| `label?` | `string \| null` | The activity, or `None` for a silent transition. |
+
+### Leaf
+
+A leaf in a process tree
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `activity_label` | `LeafLabel` | The silent or non-silent activity label `LeafLabel` |
+
 ### LogAlignments
 
 Everything the alignment visualizations need, computed in one call.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `net` | `PetriNet` | The process model the log was aligned against (the caller-supplied net, echoed back). |
+| `net` | `AcceptingPetriNet` | The process model the log was aligned against (the caller-supplied net, echoed back). |
 | `variant_alignments` | `VariantAlignmentResult[]` | Per-variant alignment (activity sequence, frequency, the move sequence + cost). |
 | `fitness?` | `FitnessResult \| null` | Aggregate alignment fitness (`None` if fitness could not be computed). |
 | `aggregated` | `AlignmentAggregate` | Pre-aggregated per-transition / per-activity deviation counts (for a net heatmap). |
@@ -183,6 +222,18 @@ Time-stamped attribute change history for a single OCEL object.
 | Field | Type | Description |
 | --- | --- | --- |
 | `traces` | `{ [key: string]: AttributeChange[] }` | Attribute change traces keyed by attribute name. Each entry contains the chronological list of value changes for that attribute. |
+
+### ObjectCentricPetriNetJson
+
+An object-centric Petri net as a flat list of places, transitions and arcs. A transition appears once no matter how many object types share it, and an arc takes its object type from the place it connects.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `places` | `JsonPlace[]` | The places, each belonging to one object type. |
+| `transitions` | `JsonTransition[]` | The transitions, each appearing once even when several object types share it. |
+| `arcs` | `JsonArc[]` | The arcs, each between a place and a transition. |
+| `initial_marking` | `{ [key: string]: number }` | Tokens per place at the start, by place name. |
+| `final_marking` | `{ [key: string]: number }` | Tokens per place at the end, by place name. |
 
 ### OCDeclareArc
 
@@ -231,25 +282,30 @@ Statistics on the event and object types of an OCEL
 | `event_type_counts` | `{ [key: string]: number }` | Number of events per event type/activity |
 | `object_type_counts` | `{ [key: string]: number }` | Number of objects per object type |
 
-### PetriNet
+### Operator
 
-A Petri net of `Place`s and `Transition`s Bipartite graph of `Place`s and `Transition`s with `Arc`s connecting them, as well as initial and final `Marking`s
+An operator node in a process tree
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `places` | `{ [key: string]: Place }` | Places |
-| `transitions` | `{ [key: string]: Transition }` | Transitions |
-| `arcs` | `Arc[]` | Arcs |
-| `initial_marking?` | `object \| null` | Initial marking |
-| `final_markings?` | `array \| null` | Final markings (any of them are accepted as a final marking) |
+| `operator_type` | `OperatorType` | The `OperatorType` of the tree itself |
+| `children` | `Node[]` | The children nodes of the operator node |
 
 ### Place
 
-Place in a Petri net
+Place in a `PetriNet`
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | `string` |  |
+| `name?` | `string \| null` | External identifier (e.g., the PNML id), not used for identity |
+
+### ProcessTree
+
+Object-centric process tree struct that contains `Node` as root
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `root` | `Node` | The root of the object-centric process tree |
 
 ### TraceVariants
 
@@ -263,12 +319,14 @@ Activity-trace variants (sorted by frequency).
 
 ### Transition
 
-Transition in a Petri net
+Transition in a `PetriNet`
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `label?` | `string \| null` | Transition label (None if this transition is _invisible_) |
-| `id` | `string` |  |
+| `label?` | `string \| null` | Activity label (`None` if this transition is silent) |
+| `name?` | `string \| null` | External identifier (e.g., the PNML id), not used for identity |
+| `inputs` | `[number, number][]` | The places this transition takes tokens from, with the number of tokens |
+| `outputs` | `[number, number][]` | The places this transition puts tokens into, with the number of tokens |
 
 ### TransitionFireStats
 
@@ -294,11 +352,14 @@ Alignment result for a single trace variant
 | Type | Definition | Description |
 | --- | --- | --- |
 | `AlignmentError` | `{ SearchError: SearchError } \| { SyncProdNetConstructionFailed: SyncProdNetConstructionError }` | Alignment Error |
-| `AlignmentMove` | `{ SyncMove: { transition: string; trace_event_index: number } } \| { ModelMove: { transition: string } } \| { LogMove: { trace_event_index: number } }` | A single alignment step |
-| `ArcType` | `{ type: "PlaceTransition"; nodes: [string, string] } \| { type: "TransitionPlace"; nodes: [string, string] }` | Arc type in a Petri net |
+| `AlignmentMove` | `{ SyncMove: { transition: number; label: string; trace_event_index: number } } \| { ModelMove: { transition: number; label: string \| null } } \| { LogMove: { trace_event_index: number } }` | A single alignment step |
+| `JsonArcType` | `"normal" \| "variable"` | Whether an arc moves a single object or all of them at once. |
+| `LeafLabel` | `{ Activity: string } \| "Tau"` | Leaf in a process tree |
+| `Node` | `{ Operator: Operator } \| { Leaf: Leaf }` | Node in a process tree |
 | `ObjectTypeAssociation` | `{ object_type: string; type: "Simple" } \| { first: string; second: string; reversed: boolean; type: "O2O" }` | Object Type Association: Direct or O2O Object Types |
 | `OCDeclareArcType` | `"AS" \| "EF" \| "EP" \| "DF" \| "DP"` | OC-DECLARE Arc Direction/Type Models temporal relationships |
 | `OCELAttributeValue` | `number \| number \| boolean \| string \| string \| null` | OCEL Attribute Values |
+| `OperatorType` | `"Sequence" \| "ExclusiveChoice" \| "Concurrency" \| "Loop" \| "Interleaving" \| "InclusiveChoice"` | Operator type enum for `Operator` |
 | `Result_of_AlignmentResult_or_AlignmentError` | `{ Ok: AlignmentResult } \| { Err: AlignmentError }` |  |
-| `SearchError` | `"LimitReached" \| "Unreachable" \| "MaxEdgeCostTooLarge"` | Reason `search` found no path |
-| `SyncProdNetConstructionError` | `{ InvalidPlaceInMarking: string } \| "NoFinalMarking" \| "NoInitialMarking"` | Error when constructing the sync product net |
+| `SearchError` | `"LimitReached" \| "MemoryLimitReached" \| "Unreachable" \| "MaxEdgeCostTooLarge"` | Reason `search` found no path |
+| `SyncProdNetConstructionError` | `{ InvalidPlaceInMarking: number } \| { ArcWeightTooLarge: number } \| { MarkingTooLarge: [number, number] } \| { TraceTooLong: number }` | Error when constructing the sync product net |

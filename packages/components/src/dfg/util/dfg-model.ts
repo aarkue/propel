@@ -1,7 +1,5 @@
 import { formatDurationMs } from "./duration";
 
-export type GraphMode = "frequency" | "performance";
-
 export type DfgMetric = "count" | "pct_source" | "mean" | "median" | "p90" | "min" | "max";
 
 export interface DfgArcDuration {
@@ -16,18 +14,17 @@ export function isPerformanceMetric(m: DfgMetric): boolean {
   return m === "mean" || m === "median" || m === "p90" || m === "min" || m === "max";
 }
 
+/** `sourceCount` is how often the arc's source occurred, for `pct_source`. */
 export function computeMetricValue(
-  arc: { count: number; from: string; duration?: DfgArcDuration },
+  arc: { count: number; duration?: DfgArcDuration },
   metric: DfgMetric,
-  activityCounts: Record<string, number>,
+  sourceCount: number,
 ): number | null {
   switch (metric) {
     case "count":
       return arc.count;
-    case "pct_source": {
-      const src = activityCounts[arc.from] ?? 0;
-      return src > 0 ? (arc.count / src) * 100 : null;
-    }
+    case "pct_source":
+      return sourceCount > 0 ? (arc.count / sourceCount) * 100 : null;
     case "mean":
       return arc.duration?.mean_ms ?? null;
     case "median":
@@ -51,39 +48,24 @@ export function formatMetricValue(
   return fmtDuration(value);
 }
 
-/** Synthetic node ids representing process start / end. */
+/** The source of a start arc and the target of an end arc. */
 export const DFG_START_ID = "__START";
 export const DFG_END_ID = "__END";
-export const TERM_NODE_SIZE = 36;
 
-// Kept in sync so OCEL and case-centric DFG panels render identical cards.
-export const OCEL_NODE_WIDTH = 150;
-export const OCEL_NODE_HEIGHT = 58;
+export type DfgArcKind = "follows" | "start" | "end";
 
-/** Read-only view of an arc; multiple arcs with the same (from, to) render as separate parallel edges. Callers must provide a stable `key`. */
+/** One edge of a (per object type) DFG: a directly-follows relation, or a start or end arc. */
 export interface DfgArc {
   key: string;
+  kind: DfgArcKind;
+  /** The source activity, {@link DFG_START_ID} for a start arc. */
   from: string;
+  /** The target activity, {@link DFG_END_ID} for an end arc. */
   to: string;
   count: number;
-  /** Stroke / arrowhead color. Defaults to mid-gray. */
-  color?: string;
-  /** Hover title shown to the user, e.g. the contributing object type. */
-  title?: string;
-  /** Full duration statistics for performance metrics. */
-  duration?: DfgArcDuration;
-  /** Frequency-filter group; when set, cutoff is computed per-group so sparse groups aren't dominated by dense ones. */
+  /** The object type of an OC-DFG arc. The edge slider ranks arcs per group. */
   group?: string;
-  /** Routed polyline; carried through to the SVG exporter. */
-  routing?: {
-    points: { x: number; y: number }[];
-    srcPos: { x: number; y: number };
-    tgtPos: { x: number; y: number };
-  };
-  /** Pre-computed stroke width from the live UI. */
-  strokeWidth?: number;
-  /** Label displacement from the on-screen de-overlap pass; carried through to the SVG exporter. */
-  labelOffset?: { dx: number; dy: number };
+  duration?: DfgArcDuration;
 }
 
 /** Coverage stats shown next to the edge slider. */

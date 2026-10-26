@@ -2,7 +2,7 @@ import { Handle, type Node, type NodeProps, NodeToolbar, Position } from "@xyflo
 import { useEffect, useState } from "react";
 import { remove, setLabel, setTau } from "../tree";
 import { type LeafData, useTreeEditor } from "./Editor";
-import { LEAF_SIZE } from "./helpers/layout-graph";
+import { leafLines } from "./helpers/leaf-lines";
 import { InsertParentButton } from "./menus";
 
 export default function LeafNode({ data, id, selected }: NodeProps<Node<LeafData>>) {
@@ -55,8 +55,10 @@ export default function LeafNode({ data, id, selected }: NodeProps<Node<LeafData
           ov?.className ?? data.className ?? ""
         }`}
         style={{
-          width: LEAF_SIZE.width,
-          height: LEAF_SIZE.height,
+          width: data.size.width,
+          height: data.size.height,
+          // A silent leaf is too small to type a name into.
+          minWidth: editing ? 120 : undefined,
           cursor: onClick ? "pointer" : undefined,
           ...data.style,
           ...ov?.style,
@@ -84,8 +86,14 @@ export default function LeafNode({ data, id, selected }: NodeProps<Node<LeafData
           />
         ) : tau ? (
           <span className="tau-symbol">τ</span>
+        ) : label ? (
+          <span className="leaf-label">
+            {leafLines(label).map((line, i) => (
+              <span key={`${i}:${line}`}>{line}</span>
+            ))}
+          </span>
         ) : (
-          <span className="leaf-label">{label || (readOnly ? "" : "activity")}</span>
+          <span className="leaf-label">{readOnly ? "" : "activity"}</span>
         )}
         <Handle type="target" position={Position.Top} isConnectable={false} />
         <Handle type="source" position={Position.Bottom} isConnectable={false} />

@@ -3,6 +3,8 @@ import { useContext } from "react";
 import DeleteButton from "./DeleteButton";
 import { EditorPropsContext, type PlaceData } from "./Editor";
 import { PLACE_SIZE } from "./helpers/layout-graph";
+import { nodeStyleCss } from "./helpers/element-style";
+import ExtraLabel from "./ExtraLabel";
 
 export default function PlaceNode({ id, selected, data: liveData }: NodeProps<Node<PlaceData>>) {
   const { readOnly, placeOverlay } = useContext(EditorPropsContext);
@@ -50,9 +52,10 @@ export default function PlaceNode({ id, selected, data: liveData }: NodeProps<No
       {...buttonProps}
       className={`node place-node flex flex-wrap gap-0.5 place-content-center items-center justify-center ${selected ? "selected" : ""} ${data.className ?? ""}`}
       style={{
-        width: PLACE_SIZE.width,
-        height: PLACE_SIZE.height,
+        width: (data.size ?? PLACE_SIZE).width,
+        height: (data.size ?? PLACE_SIZE).height,
         cursor: data.onClick ? "pointer" : undefined,
+        ...nodeStyleCss(data.elementStyle),
         ...data.style,
       }}
       onClick={data.onClick}
@@ -136,6 +139,7 @@ export default function PlaceNode({ id, selected, data: liveData }: NodeProps<No
           ))}
         </div>
       )}
+      <ExtraLabel style={data.elementStyle} />
       <DeleteButton nodeID={id} />
       <div className="dragHandle" />
       <Handle onConnect={(c) => (c.sourceHandle = "place")} type="target" position={Position.Top} />

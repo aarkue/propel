@@ -23,7 +23,7 @@ export interface MappingNodeData {
   [key: string]: unknown;
 }
 
-/** Widths used for both rendering and ELK layout. Heights are content-driven (a node grows with
+/** Widths used for both rendering and layout. Heights are content-driven (a node grows with
  *  its column list / summary lines), so layout uses these as an estimate rather than a fixed
  *  value. */
 export const NODE_SIZE = {

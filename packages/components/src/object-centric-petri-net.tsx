@@ -1,46 +1,26 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEdges, useNodes, useReactFlow, type Edge } from "@xyflow/react";
 import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "./viewer/export";
-import type { LegendGroup, StyledGraphRenderer } from "./graph-svg/styled-graph";
-import { shadeHex } from "./dfg/util/colors";
-import { PetriNetViewer, normalizePetriNet, type PetriNet, type PetriNetOverlay } from "./petri-net";
 import {
   Editor,
-  buildPetriNetSvg,
-  nodesToPetriNet,
-  petriModelToStyledGraph,
-  usePetriLayout,
+  elementsToOcpn,
+  ocpnElementsSvg,
+  withGeometryOf,
   type ArcContext,
   type ArcData,
   type ArcPresentation,
+  type PetriElements,
   type PetriNetNode,
   type PlaceData,
 } from "@r4pm/components/petri";
+import { layoutOcpn, NEUTRAL, ocpnOverlays, useOtColor, type OtColor } from "./petri/ocpn-view";
 import { Card, Combobox, Flex, Text, Tooltip } from "@r4pm/components/ui";
+import type { Ocpn, VizTransport } from "./viz";
 
-/**
- * Object-centric Petri net (OCPN): a plain {@link PetriNet} plus the object
- * type each place belongs to, and (optionally) which place<->transition arcs are
- * "variable" (consume/produce a variable number of tokens).
- */
-export interface ObjectCentricPetriNet {
-  petri_net: PetriNet;
-  /** place id -> object type id. */
-  place_object_type: Record<string, string>;
-  /**
-   * Per place id: `[incoming, outgoing]` variable-arc maps, each keyed by the
-   * connected transition id. A `true` marks that arc as variable (drawn bold +
-   * dashed). Optional; omit for a uniform look.
-   */
-  place_in_out_mult?: Record<string, [Record<string, boolean>, Record<string, boolean>]>;
-}
+export type { Ocpn, OcpnArcRef, OcpnNodeRef } from "./viz";
 
-/** Border/token color for a place with no object type; a theme token since it's not derived from data. */
-const NEUTRAL = "var(--gray-12)";
-
-/** Object-type color resolver: object type -> a hex color, optionally shaded. */
-type OtColor = (ot: string, mode?: "normal" | "foreground" | "light") => string;
+const NO_ELEMENTS: PetriElements = { nodes: [], edges: [] };
 
 function NumberedTokens({ count, color, isFinal }: { count: number; color: string; isFinal?: boolean }) {
   if (count <= 0) return null;
@@ -81,26 +61,13 @@ function NumberedTokens({ count, color, isFinal }: { count: number; color: strin
   );
 }
 
-/** Adapt the flat `{type,color}` legend rows into a `StyledGraph` `LegendGroup`. */
-function toStyledLegend(rows: { type: string; color: string }[]): LegendGroup[] {
-  if (rows.length === 0) return [];
-  return [{ title: "Object types", items: rows.map((r) => ({ label: r.type, color: r.color })) }];
+/** Distinct object types, in first-seen order. */
+function distinctTypes(types: (string | undefined)[]): string[] {
+  return [...new Set(types.filter((t): t is string => !!t))];
 }
 
-/** Distinct object types, in first-seen order, paired with their color. */
-function objectTypeLegend(types: string[], otColor: OtColor): { type: string; color: string }[] {
-  const seen = new Set<string>();
-  const out: { type: string; color: string }[] = [];
-  for (const ot of types) {
-    if (!ot || seen.has(ot)) continue;
-    seen.add(ot);
-    out.push({ type: ot, color: otColor(ot) });
-  }
-  return out;
-}
-
-function LegendBox({ legend }: { legend: { type: string; color: string }[] }) {
-  if (legend.length === 0) return null;
+function LegendBox({ types, otColor }: { types: string[]; otColor: OtColor }) {
+  if (types.length === 0) return null;
   return (
     <Card
       size="1"
@@ -111,9 +78,11 @@ function LegendBox({ legend }: { legend: { type: string; color: string }[] }) {
         <Text size="1" color="gray" weight="medium">
           Object types
         </Text>
-        {legend.map(({ type, color }) => (
+        {types.map((type) => (
           <Flex key={type} align="center" gap="2">
-            <span style={{ width: 11, height: 11, borderRadius: 3, background: color, flexShrink: 0 }} />
+            <span
+              style={{ width: 11, height: 11, borderRadius: 3, background: otColor(type), flexShrink: 0 }}
+            />
             <Text size="1">{type}</Text>
           </Flex>
         ))}
@@ -122,123 +91,113 @@ function LegendBox({ legend }: { legend: { type: string; color: string }[] }) {
   );
 }
 
-// Static (read-only) overlay: colors places/arcs from the OCPN's own maps.
+/** Read-only view: places and arcs in their object type's color, the markings as numbered tokens. */
+function OcpnView({
+  data,
+  viz,
+  otColor,
+  typeColor,
+  exportKey,
+}: {
+  data: Ocpn;
+  viz?: VizTransport;
+  otColor: OtColor;
+  typeColor: (objectType: string) => string | undefined;
+  exportKey?: string;
+}) {
+  const [base, setBase] = useState<PetriElements>(NO_ELEMENTS);
+  const [seedKey, setSeedKey] = useState(0);
 
-/** Is the place<->transition arc variable, per `place_in_out_mult`? */
-function isVariableArc(ocpn: ObjectCentricPetriNet, from: string, to: string): boolean {
-  const placeID = ocpn.petri_net.places.find((p) => p.id === from || p.id === to)?.id;
-  if (!placeID) return false;
-  const transId = to === placeID ? from : to;
-  const mult = ocpn.place_in_out_mult?.[placeID];
-  if (!mult) return false;
-  const [incoming, outgoing] = mult;
-  return from === placeID ? !!outgoing[transId] : !!incoming[transId];
-}
-
-/** Stroke styling for an arc by its variable flag: bold + dashed when variable. */
-const arcVariableStyle = (variable: boolean): CSSProperties => ({
-  strokeWidth: variable ? 4 : 2,
-  strokeDasharray: variable ? "6 3" : undefined,
-});
-
-function buildStaticOverlay(ocpn: ObjectCentricPetriNet, otColor: OtColor): PetriNetOverlay {
-  const typeOf = (id: string) => ocpn.place_object_type[id];
-  const color = (id: string, mode?: "normal" | "foreground" | "light") => {
-    const ot = typeOf(id);
-    return ot ? otColor(ot, mode) : NEUTRAL;
-  };
-  return {
-    place: (p) => ({
-      label: typeOf(p.id),
-      objectType: typeOf(p.id),
-      renderMarking: () => (
-        <>
-          <NumberedTokens count={p.tokens} color={color(p.id, "foreground")} />
-          <NumberedTokens count={p.finalTokens} color={color(p.id, "foreground")} isFinal />
-        </>
-      ),
-      tokenColor: color(p.id, "foreground"),
-      style: { borderColor: color(p.id), borderWidth: 3, background: color(p.id, "light") },
-    }),
-    arc: (a) => {
-      const placeID = ocpn.petri_net.places.find((p) => p.id === a.from || p.id === a.to)?.id;
-      if (!placeID) return undefined;
-      const variable = isVariableArc(ocpn, a.from, a.to);
-      return { style: { stroke: color(placeID), ...arcVariableStyle(variable) } };
-    },
-  };
-}
-
-// Editable: OCPN attributes live in the editor's node/edge data.
-
-/** Lay-out-free conversion of an OCPN into editor elements, carrying `objectType`
- *  onto place data and `variable` onto arc data (the editor is the source of truth). */
-function ocpnToElements(ocpn: ObjectCentricPetriNet): { nodes: PetriNetNode[]; edges: Edge<ArcData>[] } {
-  const net = normalizePetriNet(ocpn.petri_net);
-  const nodes: PetriNetNode[] = [
-    ...net.transitions.map(
-      (t): PetriNetNode => ({
-        id: t.id,
-        type: "transition",
-        data: { label: t.label ?? undefined },
-        position: { x: 0, y: 0 },
-      }),
-    ),
-    ...net.places.map(
-      (p): PetriNetNode => ({
-        id: p.id,
-        type: "place",
-        data: {
-          tokens: net.initial_marking?.[p.id],
-          finalTokens: net.final_marking?.[p.id],
-          objectType: ocpn.place_object_type[p.id],
-        },
-        position: { x: 0, y: 0 },
-      }),
-    ),
-  ];
-  const edges: Edge<ArcData>[] = net.arcs.map((a, i) => {
-    const [from, to] = a.nodes;
-    return {
-      id: `${from} ${to}#${i}`,
-      source: from,
-      target: to,
-      type: "custom",
-      data: { weight: a.weight, variable: isVariableArc(ocpn, from, to) },
+  useEffect(() => {
+    let cancelled = false;
+    layoutOcpn(viz, data)
+      .then(({ nodes, edges }) => {
+        if (cancelled) return;
+        setBase({ nodes, edges });
+        setSeedKey((k) => k + 1);
+      })
+      .catch((e) => console.error("[ocpn] layout failed:", e));
+    return () => {
+      cancelled = true;
     };
-  });
-  return { nodes, edges };
+  }, [data, viz]);
+
+  // A drag or "Layout" the editor applied survives the next render.
+  const keepLayout = useCallback(
+    (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => setBase((b) => withGeometryOf(b, { nodes, edges })),
+    [],
+  );
+
+  const { placeOverlay, arcOverlay } = useMemo(() => {
+    const typeOf = new Map(data.places.map((p) => [p.name, p.object_type]));
+    const overlays = ocpnOverlays(otColor, (id) => typeOf.get(id));
+    return {
+      arcOverlay: overlays.arcOverlay,
+      placeOverlay: (id: string, d: PlaceData): Partial<PlaceData> => {
+        const style = overlays.placeOverlay(id, d);
+        const color = style.tokenColor ?? NEUTRAL;
+        return {
+          ...style,
+          renderMarking: () => (
+            <>
+              <NumberedTokens count={d.tokens ?? 0} color={color} />
+              <NumberedTokens count={d.finalTokens ?? 0} color={color} isFinal />
+            </>
+          ),
+        };
+      },
+    };
+  }, [data, otColor]);
+
+  // Reads the latest net and on-screen graph at export-click time through refs so the registered
+  // source stays stable.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const baseRef = useRef(base);
+  baseRef.current = base;
+  const typeColorRef = useRef(typeColor);
+  typeColorRef.current = typeColor;
+  const exportSource = useMemo<VectorExportSource | null>(
+    () =>
+      viz
+        ? {
+            label: "Object-centric Petri net",
+            toSvg: () => ocpnElementsSvg(viz, dataRef.current, baseRef.current, typeColorRef.current),
+          }
+        : null,
+    [viz],
+  );
+  useRegisterExport(exportKey ?? "ocpn", exportSource);
+
+  const types = useMemo(() => distinctTypes(data.places.map((p) => p.object_type)), [data]);
+
+  // The absolute inner layer gives the Editor a definite height, so a host that
+  // sizes us only via min-height doesn't collapse the height:100% chain to 0.
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 256 }}>
+      <div style={{ position: "absolute", inset: 0 }}>
+        <Editor
+          key={seedKey}
+          readOnly
+          viz={viz}
+          ocpn={data}
+          onLayoutChange={keepLayout}
+          showExportControls={false}
+          nodes={base.nodes}
+          edges={base.edges}
+          placeOverlay={placeOverlay}
+          arcOverlay={arcOverlay}
+        />
+      </div>
+      <LegendBox types={types} otColor={otColor} />
+    </div>
+  );
 }
 
-/** Serialize editor elements back to an OCPN: object types from place data, variable
- *  flags from arc data (endpoint kind decides incoming vs outgoing). */
-function nodesToOcpn(nodes: PetriNetNode[], edges: Edge<ArcData>[]): ObjectCentricPetriNet {
-  const petri_net = nodesToPetriNet(nodes, edges);
-  const placeIds = new Set(nodes.filter((n) => n.type === "place").map((n) => n.id));
-  const place_object_type: Record<string, string> = {};
-  for (const n of nodes) {
-    if (n.type === "place" && n.data.objectType) place_object_type[n.id] = n.data.objectType;
-  }
-  const place_in_out_mult: Record<string, [Record<string, boolean>, Record<string, boolean>]> = {};
-  for (const e of edges) {
-    if (!e.data?.variable) continue;
-    const fromIsPlace = placeIds.has(e.source);
-    const place = fromIsPlace ? e.source : e.target;
-    const trans = fromIsPlace ? e.target : e.source;
-    let slot = place_in_out_mult[place];
-    if (!slot) {
-      slot = [{}, {}];
-      place_in_out_mult[place] = slot;
-    }
-    slot[fromIsPlace ? 1 : 0][trans] = true;
-  }
-  return { petri_net, place_object_type, place_in_out_mult };
-}
+// Editable: the editor's node and edge data carries the object types and variable flags.
 
 const placeTypes = (nodes: PetriNetNode[]): string[] =>
-  Array.from(
-    new Set(nodes.flatMap((n) => (n.type === "place" && n.data.objectType ? [n.data.objectType] : []))),
-  );
+  distinctTypes(nodes.map((n) => (n.type === "place" ? n.data.objectType : undefined)));
 
 /** In-place object-type picker for a place: pick an existing type or type a new name to
  *  create it. Writes directly to the place node's data (single source of truth). */
@@ -433,122 +392,118 @@ function ArcVariableToggle({ edgeId, variable }: { edgeId: string; variable: boo
 }
 
 /** Editable OCPN: a generic petri Editor whose live node/edge data carries the OCPN
- *  attributes, plus object-type pickers and per-arc variable toggles. */
+ *  attributes, plus object-type pickers, per-arc variable toggles and a "Place" control that asks
+ *  for the new place's object type. */
 function OcpnEditor({
   data,
+  viz,
   otColor,
+  typeColor,
   onChange,
-  renderSvg,
   exportKey,
 }: {
-  data: ObjectCentricPetriNet;
+  data: Ocpn;
+  viz?: VizTransport;
   otColor: OtColor;
-  onChange?: (ocpn: ObjectCentricPetriNet) => void;
-  renderSvg?: StyledGraphRenderer;
+  typeColor: (objectType: string) => string | undefined;
+  onChange?: (ocpn: Ocpn) => void;
   exportKey?: string;
 }) {
-  const [seed, setSeed] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] } | null>(null);
-  const [objectTypes, setObjectTypes] = useState<string[]>(() => placeTypes(ocpnToElements(data).nodes));
-  const liveRef = useRef<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>({ nodes: [], edges: [] });
-  const petriLayout = usePetriLayout();
+  const [seed, setSeed] = useState<PetriElements | null>(null);
+  const [objectTypes, setObjectTypes] = useState<string[]>(() =>
+    distinctTypes(data.places.map((p) => p.object_type)),
+  );
+  const liveRef = useRef<PetriElements>(NO_ELEMENTS);
 
   // Lay out the seed once per incoming net; the editor owns it (uncontrolled) after.
   useEffect(() => {
     let cancelled = false;
-    const elements = ocpnToElements(data);
-    liveRef.current = elements;
-    petriLayout(elements.nodes, elements.edges).then((res) => {
-      if (cancelled) return;
-      liveRef.current = res;
-      setSeed(res);
-    });
+    layoutOcpn(viz, data)
+      .then(({ nodes, edges }) => {
+        if (cancelled) return;
+        liveRef.current = { nodes, edges };
+        setSeed({ nodes, edges });
+      })
+      .catch((e) => console.error("[ocpn] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [data, petriLayout]);
+  }, [data, viz]);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const handleChange = useCallback((nodes: PetriNetNode[], edges: Edge<ArcData>[]) => {
     liveRef.current = { nodes, edges };
     setObjectTypes(placeTypes(nodes));
-    onChangeRef.current?.(nodesToOcpn(nodes, edges));
+    onChangeRef.current?.(elementsToOcpn({ nodes, edges }));
   }, []);
 
-  const placeOverlay = useCallback(
-    (id: string, d: PlaceData): Partial<PlaceData> => {
-      const ot = d.objectType;
-      const color = ot ? otColor(ot) : NEUTRAL;
-      return {
-        label: ot,
-        tokenColor: ot ? otColor(ot, "foreground") : NEUTRAL,
-        style: { borderColor: color, borderWidth: 3, background: ot ? otColor(ot, "light") : undefined },
-        renderControls: () => (
-          <PlaceObjectTypeSelect
-            placeId={id}
-            value={ot ?? ""}
-            objectTypes={objectTypes}
-            colorOf={(t) => otColor(t)}
-          />
-        ),
-      };
-    },
-    [otColor, objectTypes],
-  );
+  const colorOf = useCallback((t: string) => otColor(t), [otColor]);
 
-  // Color an arc by its place endpoint's object type (like the read-only overlay). The place side
-  // is whichever end is a place; its objectType lives on the live node data.
-  const arcStroke = useCallback(
-    (placeId: string | undefined): string | undefined => {
-      if (!placeId) return undefined;
-      const node = liveRef.current.nodes.find((n) => n.id === placeId && n.type === "place");
-      const ot = (node?.data as PlaceData | undefined)?.objectType;
-      return ot ? otColor(ot) : undefined;
-    },
+  // An arc's place is whichever end is a place. Its object type lives on the live node data.
+  const overlays = useMemo(
+    () =>
+      ocpnOverlays(otColor, (id) => {
+        const node = liveRef.current.nodes.find((n) => n.id === id && n.type === "place");
+        return (node?.data as PlaceData | undefined)?.objectType;
+      }),
     [otColor],
   );
 
-  const arcOverlay = useCallback(
-    (arc: ArcContext, d: ArcData): ArcPresentation => {
-      const variable = !!d.variable;
-      const stroke = arcStroke(arc.fromType === "place" ? arc.from : arc.to);
-      return {
-        style: { ...arcVariableStyle(variable), ...(stroke ? { stroke } : {}) },
-        badge: <ArcVariableToggle edgeId={arc.id} variable={variable} />,
-      };
-    },
-    [arcStroke],
+  const placeOverlay = useCallback(
+    (id: string, d: PlaceData): Partial<PlaceData> => ({
+      ...overlays.placeOverlay(id, d),
+      renderControls: () => (
+        <PlaceObjectTypeSelect
+          placeId={id}
+          value={d.objectType ?? ""}
+          objectTypes={objectTypes}
+          colorOf={colorOf}
+        />
+      ),
+    }),
+    [overlays, objectTypes, colorOf],
   );
 
-  const legend = useMemo(() => objectTypeLegend(objectTypes, otColor), [objectTypes, otColor]);
-  const styledLegend = useMemo(() => toStyledLegend(legend), [legend]);
-
-  // Export honors styling by re-applying the place + arc overlays to the live net (the
-  // overlays run at render in the DOM, so the SVG builder must re-derive them here).
-  const exportSource = useMemo<VectorExportSource>(
-    () => ({
-      label: "Object-centric Petri net",
-      toSvg: async () => {
-        const { nodes, edges } = liveRef.current;
-        const placeIds = new Set(nodes.filter((n) => n.type === "place").map((n) => n.id));
-        const styledNodes = nodes.map((n) =>
-          n.type === "place" ? { ...n, data: { ...n.data, ...placeOverlay(n.id, n.data) } } : n,
-        );
-        const styledEdges = edges.map((e) => {
-          const stroke = arcStroke(placeIds.has(e.source) ? e.source : e.target);
-          return {
-            ...e,
-            style: { ...e.style, ...arcVariableStyle(!!e.data?.variable), ...(stroke ? { stroke } : {}) },
-          };
-        });
-        if (renderSvg) {
-          const graph = petriModelToStyledGraph(styledNodes, styledEdges, styledLegend);
-          return graph ? renderSvg(graph) : null;
-        }
-        return buildPetriNetSvg(styledNodes, styledEdges);
-      },
+  const arcOverlay = useCallback(
+    (arc: ArcContext, d: ArcData): ArcPresentation => ({
+      ...overlays.arcOverlay(arc, d),
+      badge: <ArcVariableToggle edgeId={arc.id} variable={!!d.variable} />,
     }),
-    [placeOverlay, arcStroke, renderSvg, styledLegend],
+    [overlays],
+  );
+
+  const renderAddPlace = useCallback(
+    (add: (place: PlaceData) => void) => (
+      <Combobox
+        size="1"
+        value=""
+        options={objectTypes}
+        onValueChange={(objectType) => add({ objectType })}
+        optionColor={colorOf}
+        allowCreate
+        placeholder="Place"
+        searchPlaceholder="Object type of the place..."
+        aria-label="Add a place of an object type"
+      />
+    ),
+    [objectTypes, colorOf],
+  );
+
+  const typeColorRef = useRef(typeColor);
+  typeColorRef.current = typeColor;
+  const exportSource = useMemo<VectorExportSource | null>(
+    () =>
+      viz
+        ? {
+            label: "Object-centric Petri net",
+            toSvg: () => {
+              const live = liveRef.current;
+              return ocpnElementsSvg(viz, elementsToOcpn(live), live, typeColorRef.current);
+            },
+          }
+        : null,
+    [viz],
   );
   useRegisterExport(exportKey ?? "ocpn", exportSource);
 
@@ -557,71 +512,53 @@ function OcpnEditor({
       {seed && (
         <Editor
           editable
+          viz={viz}
+          ocpn
           showExportControls={false}
           initialNodes={seed.nodes}
           initialEdges={seed.edges}
           placeOverlay={placeOverlay}
           arcOverlay={arcOverlay}
+          renderAddPlace={renderAddPlace}
           onChange={handleChange}
         >
           <OcpnAutoInfer />
         </Editor>
       )}
-      <LegendBox legend={legend} />
+      <LegendBox types={objectTypes} otColor={otColor} />
     </div>
   );
 }
 
 /**
- * Object-centric Petri net viewer. Read-only: a thin overlay over {@link PetriNetViewer}
- * coloring places/arcs by object type. Editable: a dedicated editor that keeps the OCPN
- * attributes on the editor's nodes/edges and serializes them back on every change.
+ * Object-centric Petri net viewer, drawn like rust4pm's `ocpn` export: places and arcs in their object
+ * type's color (`ViewerConfig.colorOf`), variable arcs bold and dashed. Laid out and exported with
+ * rust4pm's visualization (`ViewerConfig.viz`). The editable viewer is uncontrolled: it lays out
+ * `data` on mount and reports edits via `onChange`.
  */
-export interface ObjectCentricPetriNetViewerProps extends ViewerProps<ObjectCentricPetriNet> {
+export interface ObjectCentricPetriNetViewerProps extends ViewerProps<Ocpn> {
   editable?: boolean;
-  onChange?: (ocpn: ObjectCentricPetriNet) => void;
-  /** Draw the exact on-screen graph through a host-supplied renderer (typically the
-   *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. */
-  renderSvg?: StyledGraphRenderer;
+  onChange?: (ocpn: Ocpn) => void;
   /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
   exportKey?: string;
 }
 
 export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerProps) {
-  const { data, editable, onChange, renderSvg, exportKey } = props;
-  const cfg = useViewerConfig(props);
-  const otColor = useCallback<OtColor>(
-    (ot, mode = "normal") => shadeHex(cfg.colorOf?.("objectType", ot) ?? "#888888", mode),
-    [cfg.colorOf],
-  );
-  // Memoized so its stable identity doesn't retrigger the viewer's layout effect.
-  const placeTypes = data.place_object_type;
-  const categoryOf = useCallback((placeId: string) => placeTypes[placeId], [placeTypes]);
+  const { data, editable, onChange, exportKey } = props;
+  const { colorOf, viz } = useViewerConfig(props);
+  const otColor = useOtColor(colorOf);
+  const typeColor = useCallback((objectType: string) => colorOf?.("objectType", objectType), [colorOf]);
 
   if (editable)
     return (
       <OcpnEditor
         data={data}
+        viz={viz}
         otColor={otColor}
+        typeColor={typeColor}
         onChange={onChange}
-        renderSvg={renderSvg}
         exportKey={exportKey}
       />
     );
-
-  const normNet = normalizePetriNet(data.petri_net);
-  const overlay = buildStaticOverlay({ ...data, petri_net: normNet }, otColor);
-  const legend = objectTypeLegend(Object.values(data.place_object_type), otColor);
-  return (
-    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 256 }}>
-      <PetriNetViewer
-        data={normNet}
-        overlay={overlay}
-        categoryOf={categoryOf}
-        renderSvg={renderSvg}
-        legend={toStyledLegend(legend)}
-      />
-      <LegendBox legend={legend} />
-    </div>
-  );
+  return <OcpnView data={data} viz={viz} otColor={otColor} typeColor={typeColor} exportKey={exportKey} />;
 }

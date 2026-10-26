@@ -12,7 +12,7 @@ import { getTypeColor } from "./utils";
 export const FILE_IMPORT_KINDS = [
   {
     kind: "PetriNet",
-    returnType: "PetriNet",
+    returnType: "AcceptingPetriNet",
     formats: [{ extension: "pnml", mime: "text/plain" }],
   },
 ] as const;

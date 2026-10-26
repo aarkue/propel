@@ -1,7 +1,7 @@
 import { getDockviewApi } from "../shell/dockviewApi";
 import type { PipelineHandle } from "../pipeline";
 import { backend } from "../backends";
-import { ioKindByName } from "../io-kinds";
+import { artifactViewerData, ioKindByName } from "../io-kinds";
 import type { AppNode } from "../pipeline/components/pipeline/editor/types";
 import type { Edge } from "@xyflow/react";
 // Shared imperative hooks between panels and the pipeline.
@@ -50,7 +50,7 @@ export function sendToPipeline(handle: { id: string; kind: string }) {
  * Fetches the value, then adds an `artifact` node carrying it (containing the artifact value).
  */
 export async function sendArtifactToPipeline(a: { id: string; kind: string; label: string }) {
-  const value = await backend.getArtifact(a.id);
+  const value = artifactViewerData(a.kind, await backend.getArtifact(a.id));
   const returnType = ioKindByName(a.kind)?.returnType ?? a.kind;
   openOrFocusPipeline();
   applyOrQueue((h) => h.addArtifactNode({ value, returnType, label: a.label }));

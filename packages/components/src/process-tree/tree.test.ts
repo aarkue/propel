@@ -9,7 +9,7 @@ import {
   moveSubtrees,
   newLeaf,
   newOperator,
-  type ProcessTree,
+  nodeAtPath,
   remove,
   reorder,
   setLabel,
@@ -21,31 +21,79 @@ import {
   toProcessTree,
   wrap,
 } from "./tree";
+import type { ProcessTree } from "../viz/types";
 
+// rust4pm's JSON: ->( a, X( b, tau ) )
 const sample: ProcessTree = {
   root: {
-    type: "Operator",
-    operator_type: "Sequence",
-    children: [
-      { type: "Leaf", activity_label: { type: "Activity", value: "a" } },
-      {
-        type: "Operator",
-        operator_type: "ExclusiveChoice",
-        children: [
-          { type: "Leaf", activity_label: { type: "Activity", value: "b" } },
-          { type: "Leaf", activity_label: { type: "Tau" } },
-        ],
-      },
-    ],
+    Operator: {
+      operator_type: "Sequence",
+      children: [
+        { Leaf: { activity_label: { Activity: "a" } } },
+        {
+          Operator: {
+            operator_type: "ExclusiveChoice",
+            children: [{ Leaf: { activity_label: { Activity: "b" } } }, { Leaf: { activity_label: "Tau" } }],
+          },
+        },
+      ],
+    },
   },
 };
 
 const editable = () => toEditable(sample);
 const childId = (t: EditableTree, i: number) => (t.root.type === "Operator" ? t.root.children[i].id : "");
+const wireChildren = (t: EditableTree) => {
+  const root = toProcessTree(t).root;
+  return "Operator" in root ? root.Operator.children : [];
+};
 
 describe("conversion", () => {
   test("toEditable -> toProcessTree is identity", () => {
     expect(toProcessTree(toEditable(sample))).toEqual(sample);
+  });
+
+  test("toEditable reads rust4pm's externally tagged nodes", () => {
+    expect(editable().root).toMatchObject({
+      type: "Operator",
+      operator_type: "Sequence",
+      children: [
+        { type: "Leaf", activity_label: { type: "Activity", value: "a" } },
+        {
+          type: "Operator",
+          operator_type: "ExclusiveChoice",
+          children: [
+            { activity_label: { type: "Activity", value: "b" } },
+            { activity_label: { type: "Tau" } },
+          ],
+        },
+      ],
+    });
+  });
+
+  test("Interleaving and InclusiveChoice round-trip", () => {
+    const tree: ProcessTree = {
+      root: {
+        Operator: {
+          operator_type: "Interleaving",
+          children: [
+            {
+              Operator: { operator_type: "InclusiveChoice", children: [{ Leaf: { activity_label: "Tau" } }] },
+            },
+          ],
+        },
+      },
+    };
+    expect(toProcessTree(toEditable(tree))).toEqual(tree);
+    expect(isValid(toEditable(tree))).toBe(true);
+  });
+
+  test("nodeAtPath follows child indices from the root", () => {
+    const t = editable();
+    expect(nodeAtPath(t, [])).toBe(t.root);
+    expect(nodeAtPath(t, [1, 1])).toMatchObject({ type: "Leaf", activity_label: { type: "Tau" } });
+    expect(nodeAtPath(t, [0, 0])).toBeUndefined();
+    expect(nodeAtPath(t, [2])).toBeUndefined();
   });
 
   test("editable ids are unique", () => {
@@ -87,7 +135,7 @@ describe("structural ops", () => {
     const base = editable();
     const next = addChild(base, base.root.id, newLeaf("c"));
     expect(next.root.type === "Operator" && next.root.children).toHaveLength(3);
-    expect(toProcessTree(next).root).toMatchObject({
+    expect(next.root).toMatchObject({
       children: [{}, {}, { type: "Leaf", activity_label: { type: "Activity", value: "c" } }],
     });
   });
@@ -95,8 +143,7 @@ describe("structural ops", () => {
   test("wrap puts the node under a new operator in its place", () => {
     const base = editable();
     const next = wrap(base, childId(base, 0), "Loop");
-    const root = toProcessTree(next).root;
-    expect(root).toMatchObject({
+    expect(next.root).toMatchObject({
       children: [
         {
           type: "Operator",
@@ -118,7 +165,7 @@ describe("structural ops", () => {
   test("remove deletes a subtree", () => {
     const base = editable();
     const next = remove(base, childId(base, 1));
-    expect(toProcessTree(next).root).toMatchObject({
+    expect(next.root).toMatchObject({
       children: [{ type: "Leaf", activity_label: { type: "Activity", value: "a" } }],
     });
   });
@@ -145,8 +192,7 @@ describe("structural ops", () => {
     const inner = base.root.type === "Operator" ? base.root.children[1] : base.root;
     const tauId = inner.type === "Operator" ? inner.children[1].id : "";
     const next = setLabel(base, tauId, "z");
-    const root = toProcessTree(next).root;
-    expect(root).toMatchObject({
+    expect(next.root).toMatchObject({
       children: [{}, { children: [{}, { activity_label: { type: "Activity", value: "z" } }] }],
     });
   });
@@ -155,11 +201,11 @@ describe("structural ops", () => {
     const base = editable();
     const a = childId(base, 0);
     const silent = setTau(base, a, true);
-    expect(toProcessTree(silent).root).toMatchObject({
+    expect(silent.root).toMatchObject({
       children: [{ activity_label: { type: "Tau" } }, {}],
     });
     const named = setTau(silent, a, false);
-    expect(toProcessTree(named).root).toMatchObject({
+    expect(named.root).toMatchObject({
       children: [{ activity_label: { type: "Activity", value: "" } }, {}],
     });
   });
@@ -178,7 +224,7 @@ describe("subtree move/copy", () => {
   test("moveSubtrees re-parents a leaf into a nested operator", () => {
     const base = editable();
     const next = moveSubtrees(base, [childId(base, 0)], xorId(base), 0);
-    expect(toProcessTree(next).root).toMatchObject({
+    expect(next.root).toMatchObject({
       children: [
         {
           type: "Operator",
@@ -192,8 +238,7 @@ describe("subtree move/copy", () => {
   test("moveSubtrees clamps the index", () => {
     const base = editable();
     const next = moveSubtrees(base, [childId(base, 0)], xorId(base), 99);
-    const xor = toProcessTree(next).root as { children: { children: unknown[] }[] };
-    expect(xor.children[0].children).toHaveLength(3);
+    expect(nodeAtPath(next, [0])).toMatchObject({ children: [{}, {}, {}] });
   });
 
   test("moveSubtrees within the same parent reorders", () => {
@@ -222,8 +267,7 @@ describe("subtree move/copy", () => {
     expect(next.root.type === "Operator" && next.root.children).toHaveLength(3);
     const all = subtreeIds(next.root);
     expect(all.size).toBe(8);
-    const wire = toProcessTree(next).root as { children: unknown[] };
-    expect(wire.children[2]).toEqual(wire.children[1]);
+    expect(wireChildren(next)[2]).toEqual(wireChildren(next)[1]);
   });
 
   test("copySubtrees onto a leaf is a no-op", () => {
@@ -249,7 +293,7 @@ describe("multi-node ops", () => {
   test("moveSubtrees moves several roots keeping order", () => {
     const base = editable();
     const next = moveSubtrees(base, [childId(base, 0), xorChild(base, 1)], xorId(base), 0);
-    expect(toProcessTree(next).root).toMatchObject({
+    expect(next.root).toMatchObject({
       children: [
         {
           operator_type: "ExclusiveChoice",
@@ -272,20 +316,15 @@ describe("multi-node ops", () => {
   test("copySubtrees inserts fresh copies of all roots", () => {
     const base = editable();
     const next = copySubtrees(base, [childId(base, 0), xorChild(base, 0)], base.root.id, 2);
-    const root = toProcessTree(next).root as { children: unknown[] };
-    expect(root.children).toHaveLength(4);
-    expect(root.children[2]).toEqual(
-      toProcessTree(base).root.type === "Operator"
-        ? (toProcessTree(base).root as { children: unknown[] }).children[0]
-        : null,
-    );
+    expect(wireChildren(next)).toHaveLength(4);
+    expect(wireChildren(next)[2]).toEqual(wireChildren(base)[0]);
     expect(subtreeIds(next.root).size).toBe(7);
   });
 
   test("groupNodes wraps siblings in place, keeping sibling order", () => {
     const base = editable();
     const next = groupNodes(base, [xorChild(base, 1), xorChild(base, 0)], "Concurrency");
-    expect(toProcessTree(next).root).toMatchObject({
+    expect(next.root).toMatchObject({
       children: [
         {},
         {

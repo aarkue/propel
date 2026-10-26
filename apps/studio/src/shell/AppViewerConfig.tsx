@@ -2,7 +2,7 @@ import { type ReactNode, useMemo } from "react";
 import toast from "react-hot-toast";
 import { makeColorResolver, makeFormat, registerColorKey, stableColor, usePreferences } from "../stores";
 import { ViewerConfigProvider, type ViewerAction } from "@r4pm/components";
-import { useLayoutDefaults } from "../vis/components/use-layout-engine";
+import { vizTransport } from "../backends";
 
 /** Propel-provided right-click actions, available on any viewer element. */
 const APP_ACTIONS: ViewerAction[] = [
@@ -42,7 +42,7 @@ export function AppViewerConfig({ children }: { children: ReactNode }) {
   const colorOverrides = usePreferences((s) => s.colorOverrides);
   const durationStyle = usePreferences((s) => s.durationStyle);
   const alignmentStyle = usePreferences((s) => s.alignmentStyle);
-  const layout = useLayoutDefaults();
+  const routing = usePreferences((s) => s.dfgRouting);
 
   const value = useMemo(() => {
     const base = makeColorResolver(colorOverrides);
@@ -56,9 +56,10 @@ export function AppViewerConfig({ children }: { children: ReactNode }) {
       format: makeFormat({ durationStyle }),
       alignmentStyle,
       actions: APP_ACTIONS,
-      layout,
+      viz: vizTransport,
+      routing,
     };
-  }, [colorOverrides, durationStyle, alignmentStyle, layout]);
+  }, [colorOverrides, durationStyle, alignmentStyle, routing]);
 
   return <ViewerConfigProvider value={value}>{children}</ViewerConfigProvider>;
 }

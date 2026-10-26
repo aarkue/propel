@@ -1,5 +1,5 @@
-import type { ObjectCentricPetriNet } from "../object-centric-petri-net";
 import { uid } from "../shared/id";
+import type { Ocpn } from "../viz";
 
 export type TokenMarking = Record<string, string[]>;
 
@@ -25,43 +25,31 @@ export interface OcpnFireGuardArgs {
  *  transition cannot fire. */
 export type OcpnFireGuard = (args: OcpnFireGuardArgs) => OcpnFiring | false;
 
-// place_in_out_mult[place] = [incoming, outgoing] keyed by transition.
-// incoming: transition->place arc is variable. outgoing: place->transition arc is variable.
-function variableOf(ocpn: ObjectCentricPetriNet, place: string, trans: string, dir: "in" | "out"): boolean {
-  const m = ocpn.place_in_out_mult?.[place];
-  if (!m) return false;
-  const [inc, out] = m;
-  return dir === "in" ? !!inc[trans] : !!out[trans];
-}
-
+/** The input arcs (with the tokens they could take) and output arcs of a transition, by its name. */
 function arcsOf(
-  ocpn: ObjectCentricPetriNet,
+  ocpn: Ocpn,
   marking: TokenMarking,
   transitionId: string,
 ): { inputs: OcpnArc[]; outputs: Omit<OcpnArc, "tokens">[] } {
-  const placeIds = new Set(ocpn.petri_net.places.map((p) => p.id));
-  const ot = ocpn.place_object_type;
+  const typeOf = new Map(ocpn.places.map((p) => [p.name, p.object_type]));
   const inputs: OcpnArc[] = [];
   const outputs: Omit<OcpnArc, "tokens">[] = [];
-  for (const a of ocpn.petri_net.arcs) {
-    const [from, to] = a.nodes;
+  for (const a of ocpn.arcs) {
     const weight = a.weight ?? 1;
-    if (to === transitionId && placeIds.has(from)) {
+    const variable = a.type === "variable";
+    const sourceType = typeOf.get(a.source);
+    const targetType = typeOf.get(a.target);
+    if (a.target === transitionId && sourceType !== undefined) {
       inputs.push({
-        place: from,
-        objectType: ot[from] ?? "",
+        place: a.source,
+        objectType: sourceType,
         weight,
-        variable: variableOf(ocpn, from, transitionId, "out"),
-        tokens: marking[from] ?? [],
+        variable,
+        tokens: marking[a.source] ?? [],
       });
     }
-    if (from === transitionId && placeIds.has(to)) {
-      outputs.push({
-        place: to,
-        objectType: ot[to] ?? "",
-        weight,
-        variable: variableOf(ocpn, to, transitionId, "in"),
-      });
+    if (a.source === transitionId && targetType !== undefined) {
+      outputs.push({ place: a.target, objectType: targetType, weight, variable });
     }
   }
   return { inputs, outputs };
@@ -104,7 +92,7 @@ function defaultGuard(args: OcpnFireGuardArgs): OcpnFiring | false {
 }
 
 export function isOcpnEnabled(
-  ocpn: ObjectCentricPetriNet,
+  ocpn: Ocpn,
   marking: TokenMarking,
   transitionId: string,
   guard?: OcpnFireGuard,
@@ -116,7 +104,7 @@ export function isOcpnEnabled(
 /** Fire a transition and return both the resulting marking and the firing (which token ids
  *  were consumed/produced per place), or null when it cannot fire. */
 export function fireOcpnDetailed(
-  ocpn: ObjectCentricPetriNet,
+  ocpn: Ocpn,
   marking: TokenMarking,
   transitionId: string,
   opts?: { guard?: OcpnFireGuard },
@@ -143,7 +131,7 @@ export function fireOcpnDetailed(
 }
 
 export function fireOcpn(
-  ocpn: ObjectCentricPetriNet,
+  ocpn: Ocpn,
   marking: TokenMarking,
   transitionId: string,
   opts?: { guard?: OcpnFireGuard },

@@ -1,20 +1,21 @@
 import {
   Editor,
-  usePetriLayout,
-  buildPetriNetSvg,
   fireOcpnDetailed,
   isOcpnEnabled,
+  ocpnElementsSvg,
+  withGeometryOf,
   type OcpnFireGuard,
   type OcpnFiring,
   type TokenMarking,
   type ArcData,
+  type PetriElements,
   type PetriNetNode,
+  type PlaceData,
 } from "@r4pm/components/petri";
 import type { Edge } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { applyOverlay, baseElements, normalizePetriNet, type PetriNetOverlay } from "./petri-net";
-import type { ObjectCentricPetriNet } from "./object-centric-petri-net";
-import { shadeHex } from "./dfg/util/colors";
+import type { Ocpn } from "./viz";
+import { layoutOcpn, ocpnOverlays, useOtColor } from "./petri/ocpn-view";
 import { colorForSeed, useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "./viewer/export";
 import {
@@ -28,18 +29,18 @@ const ENABLED_RING = "0 0 0 2px #16a34a";
 
 /** The objects a firing touched: consumed + produced token ids, deduped, tagged by the
  *  object type of their place. */
-function firingObjects(ocpn: ObjectCentricPetriNet, firing: OcpnFiring): OcSequenceObject[] {
+function firingObjects(typeOf: Map<string, string>, firing: OcpnFiring): OcSequenceObject[] {
   const typeById = new Map<string, string>();
   for (const rec of [firing.consume, firing.produce]) {
     for (const [place, ids] of Object.entries(rec)) {
-      const ot = ocpn.place_object_type[place] ?? "";
+      const ot = typeOf.get(place) ?? "";
       for (const id of ids) typeById.set(id, ot);
     }
   }
   return [...typeById].map(([id, objectType]) => ({ id, objectType }));
 }
 
-export interface ObjectCentricPetriNetSimulatorProps extends ViewerProps<ObjectCentricPetriNet> {
+export interface ObjectCentricPetriNetSimulatorProps extends ViewerProps<Ocpn> {
   /** Decide which tokens fire together; defaults to consume-all on variable arcs. */
   fire?: OcpnFireGuard;
   /** Explicit, meaningful initial token ids per place (overrides generated ids). */
@@ -53,10 +54,10 @@ export interface ObjectCentricPetriNetSimulatorProps extends ViewerProps<ObjectC
   exportKey?: string;
 }
 
-function seedMarking(ocpn: ObjectCentricPetriNet, explicit?: Record<string, string[]>): TokenMarking {
+function seedMarking(ocpn: Ocpn, explicit?: Record<string, string[]>): TokenMarking {
   if (explicit) return { ...explicit };
   const out: TokenMarking = {};
-  for (const [place, count] of Object.entries(ocpn.petri_net.initial_marking ?? {})) {
+  for (const [place, count] of Object.entries(ocpn.initial_marking)) {
     out[place] = Array.from({ length: count }, (_, i) => `${place}#${i}`);
   }
   return out;
@@ -67,40 +68,21 @@ const shortId = (id: string): string => {
   return i >= 0 ? id.slice(i + 1) : id.slice(0, 3);
 };
 
-function isVariable(ocpn: ObjectCentricPetriNet, from: string, to: string): boolean {
-  const place = ocpn.petri_net.places.find((p) => p.id === from || p.id === to)?.id;
-  if (!place) return false;
-  const trans = to === place ? from : to;
-  const m = ocpn.place_in_out_mult?.[place];
-  if (!m) return false;
-  const [inc, out] = m;
-  return from === place ? !!out[trans] : !!inc[trans];
-}
-
 /**
  * Readonly object-centric Petri net where clicking an enabled transition fires it.
  * Tokens carry ids (object instances); variable arcs consume all tokens by default,
  * overridable via the `fire` guard.
  */
 export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimulatorProps) {
-  const { data, fire, initialTokens, renderToken, onSaveAsLog, exportKey } = props;
+  const { data: ocpn, fire, initialTokens, renderToken, onSaveAsLog, exportKey } = props;
   const cfg = useViewerConfig(props);
-  const colorOf = useCallback(
-    (ot: string, mode: "normal" | "foreground" | "light" = "normal") =>
-      shadeHex(cfg.colorOf?.("objectType", ot) ?? "#888888", mode),
-    [cfg.colorOf],
-  );
-
-  // Normalize the inner net to array shape (studio passes the client record shape).
-  const ocpn = useMemo(() => ({ ...data, petri_net: normalizePetriNet(data.petri_net) }), [data]);
+  const { viz } = cfg;
+  const otColor = useOtColor(cfg.colorOf);
 
   const initial = useMemo(() => seedMarking(ocpn, initialTokens), [ocpn, initialTokens]);
   const [marking, setMarking] = useState<TokenMarking>(initial);
   const [trace, setTrace] = useState<OcSequenceStep[]>([]);
-  const [base, setBase] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>({
-    nodes: [],
-    edges: [],
-  });
+  const [base, setBase] = useState<PetriElements>({ nodes: [], edges: [] });
 
   const reset = useCallback(() => {
     setMarking(initial);
@@ -111,51 +93,34 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
     setTrace([]);
   }, [initial]);
 
-  const labelOf = useCallback(
-    (transitionId: string): string | null =>
-      ocpn.petri_net.transitions.find((t) => t.id === transitionId)?.label ?? null,
-    [ocpn],
-  );
-
-  const petriLayout = usePetriLayout();
   useEffect(() => {
     let cancelled = false;
-    const { nodes, edges } = baseElements(ocpn.petri_net);
-    petriLayout(nodes, edges).then((res) => {
-      if (!cancelled) setBase(res);
-    });
+    layoutOcpn(viz, ocpn)
+      .then(({ nodes, edges }) => {
+        if (!cancelled) setBase({ nodes, edges });
+      })
+      .catch((e) => console.error("[ocpn] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [ocpn, petriLayout]);
+  }, [ocpn, viz]);
+  const keepLayout = useCallback(
+    (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => setBase((b) => withGeometryOf(b, { nodes, edges })),
+    [],
+  );
 
-  const typeOf = useCallback((placeId: string): string => ocpn.place_object_type[placeId] ?? "", [ocpn]);
+  const typeOf = useMemo(() => new Map(ocpn.places.map((p) => [p.name, p.object_type])), [ocpn]);
+  const labelOf = useMemo(() => new Map(ocpn.transitions.map((t) => [t.name, t.label ?? null])), [ocpn]);
 
-  const overlay = useMemo<PetriNetOverlay>(
-    () => ({
-      transition: (t) => {
-        const enabled = isOcpnEnabled(ocpn, marking, t.id, fire);
-        return enabled
-          ? {
-              style: { cursor: "pointer", boxShadow: ENABLED_RING },
-              onClick: () => {
-                const res = fireOcpnDetailed(ocpn, marking, t.id, { guard: fire });
-                if (!res) return;
-                setMarking(res.marking);
-                setTrace((tr) => [
-                  ...tr,
-                  { transitionId: t.id, label: labelOf(t.id), objects: firingObjects(ocpn, res.firing) },
-                ]);
-              },
-            }
-          : { style: { opacity: 0.4 } };
-      },
-      place: (p) => {
-        const ot = typeOf(p.id);
-        const ids: string[] = marking[p.id] ?? [];
+  const { placeOverlay, arcOverlay } = useMemo(() => {
+    const overlays = ocpnOverlays(otColor, (id) => typeOf.get(id));
+    return {
+      arcOverlay: overlays.arcOverlay,
+      placeOverlay: (id: string, d: PlaceData): Partial<PlaceData> => {
+        const ot = d.objectType ?? "";
+        const ids: string[] = marking[id] ?? [];
         return {
-          label: ot,
-          style: { borderColor: colorOf(ot), borderWidth: 3, background: colorOf(ot, "light") },
+          ...overlays.placeOverlay(id, d),
           renderMarking: () => (
             <div
               style={{
@@ -167,18 +132,18 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
                 maxWidth: 44,
               }}
             >
-              {ids.map((id) =>
+              {ids.map((tokenId) =>
                 renderToken ? (
-                  <span key={id}>{renderToken(id, ot)}</span>
+                  <span key={tokenId}>{renderToken(tokenId, ot)}</span>
                 ) : (
                   <span
-                    key={id}
-                    title={id}
+                    key={tokenId}
+                    title={tokenId}
                     style={{
                       width: 14,
                       height: 14,
                       borderRadius: "100%",
-                      background: colorOf(ot, "foreground"),
+                      background: otColor(ot, "foreground"),
                       color: "#fff",
                       fontSize: 8,
                       fontFamily: "monospace",
@@ -188,7 +153,7 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
                       justifyContent: "center",
                     }}
                   >
-                    {shortId(id)}
+                    {shortId(tokenId)}
                   </span>
                 ),
               )}
@@ -196,32 +161,72 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
           ),
         };
       },
-      arc: (a) => {
-        const place = ocpn.petri_net.places.find((p) => p.id === a.from || p.id === a.to)?.id;
-        const ot = place ? typeOf(place) : "";
-        const variable = isVariable(ocpn, a.from, a.to);
+    };
+  }, [marking, otColor, renderToken, typeOf]);
+
+  // Transitions: enabled ones get a ring and fire on click, the others are dimmed.
+  const display = useMemo<PetriElements>(
+    () => ({
+      edges: base.edges,
+      nodes: base.nodes.map((n): PetriNetNode => {
+        if (n.type !== "transition") return n;
+        if (!isOcpnEnabled(ocpn, marking, n.id, fire))
+          return { ...n, data: { ...n.data, elementStyle: { opacity: 0.4 } } };
         return {
-          style: {
-            stroke: colorOf(ot),
-            strokeWidth: variable ? 4 : 2,
-            strokeDasharray: variable ? "6 3" : undefined,
+          ...n,
+          data: {
+            ...n.data,
+            style: { cursor: "pointer", boxShadow: ENABLED_RING },
+            onClick: () => {
+              const res = fireOcpnDetailed(ocpn, marking, n.id, { guard: fire });
+              if (!res) return;
+              setMarking(res.marking);
+              setTrace((tr) => [
+                ...tr,
+                {
+                  transitionId: n.id,
+                  label: labelOf.get(n.id) ?? null,
+                  objects: firingObjects(typeOf, res.firing),
+                },
+              ]);
+            },
           },
         };
-      },
+      }),
     }),
-    [marking, fire, colorOf, renderToken, typeOf, labelOf, ocpn],
+    [base, ocpn, marking, fire, labelOf, typeOf],
   );
-
-  const display = useMemo(() => applyOverlay(base, ocpn.petri_net, overlay), [base, ocpn, overlay]);
 
   const displayRef = useRef(display);
   displayRef.current = display;
-  const exportSource = useMemo<VectorExportSource>(
-    () => ({
-      label: "Object-centric Petri net (current marking)",
-      toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges),
-    }),
-    [],
+  const ocpnRef = useRef(ocpn);
+  ocpnRef.current = ocpn;
+  const markingRef = useRef(marking);
+  markingRef.current = marking;
+  const colorOfRef = useRef(cfg.colorOf);
+  colorOfRef.current = cfg.colorOf;
+  const exportSource = useMemo<VectorExportSource | null>(
+    () =>
+      viz
+        ? {
+            label: "Object-centric Petri net (current marking)",
+            // The current marking is drawn as the initial one.
+            toSvg: () => {
+              const current = Object.fromEntries(
+                Object.entries(markingRef.current)
+                  .filter(([, ids]) => ids.length > 0)
+                  .map(([place, ids]) => [place, ids.length]),
+              );
+              return ocpnElementsSvg(
+                viz,
+                { ...ocpnRef.current, initial_marking: current },
+                displayRef.current,
+                (ot) => colorOfRef.current?.("objectType", ot),
+              );
+            },
+          }
+        : null,
+    [viz],
   );
   useRegisterExport(exportKey ?? "ocpn-simulator", exportSource);
 
@@ -230,9 +235,14 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
       <div style={{ position: "absolute", inset: 0 }}>
         <Editor
           readOnly
+          viz={viz}
+          ocpn={ocpn}
+          onLayoutChange={keepLayout}
           showExportControls={false}
           nodes={display.nodes}
           edges={display.edges}
+          placeOverlay={placeOverlay}
+          arcOverlay={arcOverlay}
           editorProps={{ nodesDraggable: false, zoomOnDoubleClick: false }}
         />
       </div>
@@ -262,7 +272,7 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
           ) : (
             <ObjectCentricSequence
               steps={trace}
-              colorOf={(ot) => colorOf(ot)}
+              colorOf={(ot) => otColor(ot)}
               activityColorOf={(a) => cfg.colorOf?.("activity", a) ?? colorForSeed(a)}
             />
           )}

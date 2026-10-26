@@ -16,13 +16,14 @@ const nodes: OcelTypeGraphNode[] = [
 ];
 
 const edges: OcelTypeGraphEdge[] = [
-  { id: "1", source: "e:place order", target: "o:order", qualifier: "creates", kind: "e2o" },
-  { id: "2", source: "e:place order", target: "o:customer", qualifier: "by", kind: "e2o" },
-  { id: "3", source: "e:confirm order", target: "o:order", qualifier: "confirms", kind: "e2o" },
-  { id: "4", source: "e:pick item", target: "o:item", qualifier: "picks", kind: "e2o" },
-  { id: "5", source: "e:pay order", target: "o:order", qualifier: "pays", kind: "e2o" },
-  { id: "6", source: "o:order", target: "o:item", qualifier: "contains", kind: "o2o" },
-  { id: "7", source: "o:order", target: "o:customer", qualifier: "placed-by", kind: "o2o" },
+  { id: "1", source: "e:place order", target: "o:order", qualifier: "creates" },
+  { id: "2", source: "e:place order", target: "o:customer", qualifier: "by" },
+  { id: "3", source: "e:confirm order", target: "o:order", qualifier: "confirms" },
+  { id: "4", source: "e:pick item", target: "o:item", qualifier: "picks" },
+  { id: "5", source: "e:pay order", target: "o:order", qualifier: "pays" },
+  { id: "6", source: "o:order", target: "o:item", qualifier: "contains" },
+  { id: "7", source: "o:order", target: "o:customer", qualifier: "placed-by" },
+  { id: "8", source: "o:item", target: "o:item", qualifier: "replaces" },
 ];
 
 // The preview decorator provides <Theme> + a sized canvas frame; render components directly.
@@ -81,6 +82,23 @@ export const HostSelection: StoryObj = {
             setTarget(id);
           }
         }}
+      />
+    );
+  },
+};
+
+/** Dimmed types and highlighted relations carry over into the image export. */
+export const HostHighlight: StoryObj = {
+  name: "Host-driven highlight (dimmed types, colored relations)",
+  render: () => {
+    const onPath = new Set(["e:place order", "o:order", "o:item"]);
+    return (
+      <OcelTypeGraph
+        nodes={nodes}
+        edges={edges}
+        nodeRingColor={(id) => (id === "e:place order" ? "#10b981" : id === "o:item" ? "#f43f5e" : undefined)}
+        nodeDimmed={(id) => !onPath.has(id)}
+        edgeStyle={(id) => (id === "1" || id === "6" ? { color: "#2563eb", width: 3 } : { dimmed: true })}
       />
     );
   },

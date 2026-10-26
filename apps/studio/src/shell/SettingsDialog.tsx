@@ -58,8 +58,6 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const setDurationStyle = usePreferences((s) => s.setDurationStyle);
   const alignmentStyle = usePreferences((s) => s.alignmentStyle);
   const setAlignmentStyle = usePreferences((s) => s.setAlignmentStyle);
-  const layoutEngine = usePreferences((s) => s.layoutEngine);
-  const setLayoutEngine = usePreferences((s) => s.setLayoutEngine);
   const dfgRouting = usePreferences((s) => s.dfgRouting);
   const setDfgRouting = usePreferences((s) => s.setDfgRouting);
   const colorOverrides = usePreferences((s) => s.colorOverrides);
@@ -217,31 +215,17 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
                       </Flex>
                     </SectionBlock>
                     <SectionBlock
-                      title="Layout engine"
-                      hint="Which engine positions graph nodes in the DFG, OC-DFG, Petri net, and OC-declare viewers. ELK does not re-layout on drag; Rust is tuned and re-layouts stably on drag (and its SVG export is byte-identical to the on-screen graph)."
+                      title="Edge routing"
+                      hint="How the DFG, OC-DFG and OCEL type graph viewers route edges. Diagonal draws flowing edges, Orthogonal draws straight channels with right-angle bends."
                     >
                       <SegmentedControl.Root
-                        value={layoutEngine}
-                        onValueChange={(v) => setLayoutEngine(v === "rust" ? "rust" : "elk")}
+                        value={dfgRouting}
+                        onValueChange={(v) => setDfgRouting(v === "orthogonal" ? "orthogonal" : "diagonal")}
                       >
-                        <SegmentedControl.Item value="elk">ELK</SegmentedControl.Item>
-                        <SegmentedControl.Item value="rust">Rust (default)</SegmentedControl.Item>
+                        <SegmentedControl.Item value="diagonal">Diagonal (default)</SegmentedControl.Item>
+                        <SegmentedControl.Item value="orthogonal">Orthogonal</SegmentedControl.Item>
                       </SegmentedControl.Root>
                     </SectionBlock>
-                    {layoutEngine === "rust" && (
-                      <SectionBlock
-                        title="DFG edge routing"
-                        hint="How the Rust engine routes DFG / OC-DFG edges. Diagonal draws flowing edges; Orthogonal draws straight vertical channels with L-bends (ELK-like)."
-                      >
-                        <SegmentedControl.Root
-                          value={dfgRouting}
-                          onValueChange={(v) => setDfgRouting(v === "orthogonal" ? "orthogonal" : "diagonal")}
-                        >
-                          <SegmentedControl.Item value="diagonal">Diagonal (default)</SegmentedControl.Item>
-                          <SegmentedControl.Item value="orthogonal">Orthogonal</SegmentedControl.Item>
-                        </SegmentedControl.Root>
-                      </SectionBlock>
-                    )}
                   </Flex>
                 )}
 

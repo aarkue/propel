@@ -1,4 +1,13 @@
-import { Button, Dialog, DropdownMenu, Flex, IconButton, Tabs, TextArea } from "@r4pm/components/ui";
+import {
+  Button,
+  Dialog,
+  Flex,
+  IconButton,
+  Popover,
+  SegmentedControl,
+  Tabs,
+  TextArea,
+} from "@r4pm/components/ui";
 import { useReactFlow } from "@xyflow/react";
 import { useEffect, useState } from "react";
 import {
@@ -13,7 +22,10 @@ import {
 import { downloadBlob } from "../../dfg/util/svg-export";
 import type { OCDeclareArc } from "../index";
 import { type DeclareFlowModel, type DeclareNode, mergeArcs, toArcs } from "../model";
-import { DiscoveryPanel } from "./DiscoveryPanel";
+import { FrequencyPicker } from "../../inputs/FrequencyPicker";
+import { DISCOVERY_DEFAULTS } from "./discovery-summary";
+import { DiscoveryForm } from "./DiscoveryForm";
+import type { DiscoveryOptions } from "./edit-context";
 import { useEditContext } from "./edit-context";
 import { uid } from "../../shared/id";
 
@@ -24,9 +36,13 @@ export function EditToolbar() {
   const rf = useReactFlow();
   const [exportOpen, setExportOpen] = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoveryOptions, setDiscoveryOptions] = useState<DiscoveryOptions>(DISCOVERY_DEFAULTS);
+  const [discovering, setDiscovering] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addKind, setAddKind] = useState<DeclareNode["kind"]>("activity");
   const [evaluating, setEvaluating] = useState(false);
   if (!edit) return null;
-  const { eventTypes, objectTypes } = edit.palette;
+  const { eventTypes, objectTypes, eventTypeCounts, objectTypeCounts } = edit.palette;
   const { onDiscover, onEvaluate, onTemplateString } = edit.callbacks;
 
   // Merge discovered arcs into the model, then re-layout (positionless additions get arranged).
@@ -35,19 +51,28 @@ export function EditToolbar() {
     edit.runLayout();
   };
 
+  // One node per name, as rust4pm knows nodes by name. Placed, so the next mount keeps the layout.
   const add = (type: string, kind: DeclareNode["kind"]) =>
-    edit.mutate((m) => ({ ...m, nodes: [...m.nodes, { id: uid(), type, kind }] }));
-
-  const typeList = (types: string[], kind: DeclareNode["kind"]) =>
-    types.length === 0 ? (
-      <DropdownMenu.Item disabled>none</DropdownMenu.Item>
-    ) : (
-      types.map((t) => (
-        <DropdownMenu.Item key={t} onSelect={() => add(t, kind)}>
-          {t}
-        </DropdownMenu.Item>
-      ))
+    edit.mutate((m) =>
+      m.nodes.some((n) => n.type === type && n.kind === kind)
+        ? m
+        : { ...m, nodes: [...m.nodes, { id: uid(), type, kind, position: edit.newNodePosition() }] },
     );
+
+  const addTypes = addKind === "activity" ? eventTypes : objectTypes;
+  const addCounts = addKind === "activity" ? eventTypeCounts : objectTypeCounts;
+  const addHasCounts = !!addCounts && addTypes.some((t) => (addCounts[t] ?? 0) > 0);
+
+  const discover = async () => {
+    if (!onDiscover) return;
+    setDiscovering(true);
+    try {
+      mergeDiscovered(await onDiscover(discoveryOptions));
+      setDiscoverOpen(false);
+    } finally {
+      setDiscovering(false);
+    }
+  };
 
   // Evaluate the selected edges (or all when none selected). Only edges with both endpoints present
   // produce an arc; the fractions come back aligned to that filtered list.
@@ -85,32 +110,69 @@ export function EditToolbar() {
 
   return (
     <Flex align="center" style={{ gap: 6 }}>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger>
+      <Popover.Root open={addOpen} onOpenChange={setAddOpen}>
+        <Popover.Trigger>
           <Button size="1" variant="surface" color="gray">
             <PiPlus /> Add
           </Button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Content size="1">
-          <DropdownMenu.Sub>
-            <DropdownMenu.SubTrigger>Activity</DropdownMenu.SubTrigger>
-            <DropdownMenu.SubContent>{typeList(eventTypes, "activity")}</DropdownMenu.SubContent>
-          </DropdownMenu.Sub>
-          <DropdownMenu.Sub>
-            <DropdownMenu.SubTrigger>Object Init</DropdownMenu.SubTrigger>
-            <DropdownMenu.SubContent>{typeList(objectTypes, "init")}</DropdownMenu.SubContent>
-          </DropdownMenu.Sub>
-          <DropdownMenu.Sub>
-            <DropdownMenu.SubTrigger>Object Exit</DropdownMenu.SubTrigger>
-            <DropdownMenu.SubContent>{typeList(objectTypes, "exit")}</DropdownMenu.SubContent>
-          </DropdownMenu.Sub>
-        </DropdownMenu.Content>
-      </DropdownMenu.Root>
+        </Popover.Trigger>
+        <Popover.Content size="1" style={{ width: 300 }}>
+          <SegmentedControl.Root
+            size="1"
+            value={addKind}
+            onValueChange={(k) => setAddKind(k as DeclareNode["kind"])}
+            style={{ width: "100%" }}
+          >
+            <SegmentedControl.Item value="activity">Activity</SegmentedControl.Item>
+            <SegmentedControl.Item value="init">Object init</SegmentedControl.Item>
+            <SegmentedControl.Item value="exit">Object exit</SegmentedControl.Item>
+          </SegmentedControl.Root>
+          <div className="mt-2">
+            <FrequencyPicker
+              key={addKind}
+              items={Object.fromEntries(addTypes.map((t) => [t, addCounts?.[t] ?? 0]))}
+              value={new Set()}
+              onChange={(next) => {
+                const [type] = next;
+                if (type === undefined) return;
+                add(type, addKind);
+                setAddOpen(false);
+              }}
+              mode="single"
+              scope={addKind === "activity" ? "activity" : "objectType"}
+              searchable
+              autoFocus
+              showBars={addHasCounts}
+              showCounts={addHasCounts}
+              showCutoff={false}
+              sort={addHasCounts ? "count" : "name"}
+              emptyText={addKind === "activity" ? "No activities" : "No object types"}
+            />
+          </div>
+        </Popover.Content>
+      </Popover.Root>
 
       {onDiscover && (
-        <Button size="1" variant="surface" color="iris" onClick={() => setDiscoverOpen(true)}>
-          <PiRobotBold /> Discover
-        </Button>
+        <Popover.Root open={discoverOpen} onOpenChange={setDiscoverOpen}>
+          <Popover.Trigger>
+            <Button size="1" variant="surface" color="iris">
+              <PiRobotBold /> Discover
+            </Button>
+          </Popover.Trigger>
+          <Popover.Content size="1" width="340px" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <DiscoveryForm
+              value={discoveryOptions}
+              onChange={setDiscoveryOptions}
+              eventTypeCounts={Object.fromEntries(eventTypes.map((t) => [t, eventTypeCounts?.[t] ?? 0]))}
+              objectTypeCounts={Object.fromEntries(objectTypes.map((t) => [t, objectTypeCounts?.[t] ?? 0]))}
+            />
+            <Flex justify="end" mt="2">
+              <Button size="1" disabled={discovering} onClick={() => void discover()}>
+                <PiRobotBold /> {discovering ? "Discovering..." : "Discover"}
+              </Button>
+            </Flex>
+          </Popover.Content>
+        </Popover.Root>
       )}
 
       {onEvaluate && (
@@ -138,15 +200,6 @@ export function EditToolbar() {
         model={edit.model}
         onTemplateString={onTemplateString}
       />
-      {onDiscover && (
-        <DiscoveryPanel
-          open={discoverOpen}
-          onOpenChange={setDiscoverOpen}
-          eventTypes={eventTypes}
-          onDiscover={onDiscover}
-          onResult={mergeDiscovered}
-        />
-      )}
     </Flex>
   );
 }

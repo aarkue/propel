@@ -16,12 +16,12 @@ All four parts below are required. Anything missing renders as an empty box.
 ```tsx
 import "@r4pm/components/styles.css";                     // 1. stylesheet, once
 import { Theme, ViewerConfigProvider, ViewerExportFrame, DFGViewer } from "@r4pm/components";
-import { wasmLayout } from "@r4pm/components/rust-layout/wasm";  // 2. a layout engine
+import { wasmViz } from "@r4pm/components/viz/wasm";     // 2. graph layout and export
 
 export function App({ dfg }) {
   return (
     <Theme>                                                {/* 3. Radix theme wrapper */}
-      <ViewerConfigProvider value={{ layout: wasmLayout }}>
+      <ViewerConfigProvider value={{ viz: wasmViz }}>
         <ViewerExportFrame filename="dfg" style={{ height: 480 }}>  {/* 4. size + export */}
           <DFGViewer data={dfg} />
         </ViewerExportFrame>
@@ -36,9 +36,10 @@ export function App({ dfg }) {
 1. **A graph viewer needs a parent with a definite height.** Its root is `height: 100%`. In an
    auto-height parent it collapses to a `min-height` floor or to zero. Inside a flex column the
    wrapper needs `flex: 1; min-height: 0`.
-2. **Graph viewers need a `layout` engine.** The core includes none and without one the nodes stack in a
-   line. Set it once on `ViewerConfigProvider`. Applies to DFG, OC-DFG, OC-DECLARE, Petri net and
-   process tree. The OCEL type graph and extraction blueprint carry their own default.
+2. **Graph viewers need `viz`.** They lay out and export SVG with rust4pm's visualization, which the
+   core does not include. Without it their nodes sit in a plain row, column or grid and there is no
+   SVG export. Set it once on `ViewerConfigProvider`, usually to `wasmViz`. Applies to DFG, OC-DFG,
+   OC-DECLARE, Petri nets, process tree, OCEL type graph and extraction blueprint.
 3. **Image export exists only inside `<ViewerExportFrame>`.** No viewer renders an export control on
    its own. See "Image export" below.
 4. **Import UI primitives from `@r4pm/components/ui`**, never from `@radix-ui/themes` directly. The
@@ -53,14 +54,13 @@ export function App({ dfg }) {
 
 | Import | Contents |
 | --- | --- |
-| `@r4pm/components` | viewers, primitives, feedback states, `ViewerExportFrame`, and the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`) |
+| `@r4pm/components` | viewers, primitives, feedback states, `ViewerExportFrame`, the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`), and the layout helpers over a `VizTransport` (`layoutModel`, `modelLayoutRequest`, `rerouteModel`, `modelSvg`, `layoutGraph`, `rerouteGraph`, `layoutTree`) |
 | `@r4pm/components/ui` | the Radix Themes seam: `Theme`, `Button`, `Card`, `Combobox`, `CardSelector`, `ConfirmButton`, ... |
 | `@r4pm/components/charts` | Plotly-backed viewers: `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot` |
-| `@r4pm/components/petri` | the React Flow + ELK Petri-net editor |
+| `@r4pm/components/petri` | the React Flow Petri-net editor |
 | `@r4pm/components/process-tree` | the process-tree editor |
 | `@r4pm/components/extraction-blueprint` | the extraction blueprint editor |
-| `@r4pm/components/elk-layout` | `elkLayout`: pure-JS layout engine (elkjs), no `renderSvg` |
-| `@r4pm/components/rust-layout/wasm` | `wasmLayout`: Rust/wasm layout engine, including `renderSvg` |
+| `@r4pm/components/viz/wasm` | `wasmViz`: rust4pm's visualization as embedded wasm, for graph layout and SVG export. `setVizWasm` loads the `.wasm` from elsewhere |
 | `@r4pm/components/styles.css` | precompiled stylesheet (Tailwind + Radix theme + package rules) |
 | `@r4pm/components/rules.css` | the same minus Tailwind, for apps with their own Tailwind build |
 
@@ -90,6 +90,7 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `ObjectCentricPetriNetViewer` | `@r4pm/components` | Viewers | fills parent | Object-Centric Petri Net |
 | `ObjectCentricPetriNetSimulator` | `@r4pm/components` | Viewers | fills parent | Object-Centric Petri Net Simulator |
 | `OCDeclareViewer` | `@r4pm/components` | Viewers | fills parent | OC-DECLARE |
+| `DiscoveryForm` | `@r4pm/components` | Viewers | content-sized | OC-DECLARE/Discovery Form |
 | `OCELCountInfo` | `@r4pm/components` | Viewers | content-sized | OCEL Counts |
 | `OcelSchemaPath` | `@r4pm/components` | Viewers | fills parent | OCEL Schema Path |
 | `OcelTypeGraph` | `@r4pm/components` | Viewers | fills parent | OCEL Type Graph |
@@ -118,6 +119,7 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `FrequencyPicker` | `@r4pm/components` | Inputs & Primitives | content-sized | Frequency Picker |
 | `JSONViewer` | `@r4pm/components` | Inputs & Primitives | content-sized | JSON Viewer |
 | `LogMetadataCard` | `@r4pm/components` | Inputs & Primitives | content-sized | Log Metadata Card |
+| `NumberField` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Number Field |
 | `ObjectCentricSequence` | `@r4pm/components` | Inputs & Primitives | content-sized | Object-Centric Sequence |
 | `RankedBarList` | `@r4pm/components` | Inputs & Primitives | content-sized | Ranked Bar List |
 | `SelectionActions` | `@r4pm/components` | Inputs & Primitives | content-sized | Selection Actions |
@@ -138,7 +140,8 @@ interface ViewerConfig {
   alignmentStyle?: "trace" | "deviation";
   onSelect?: (target: ViewerTarget) => void;
   onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
-  layout?: LayoutEngine;
+  viz?: VizTransport;                    // rust4pm's visualization: graph layout and SVG export
+  routing?: "diagonal" | "orthogonal";   // edge routing of DFG, OC-DFG and OCEL type graph
 }
 
 interface ViewerProps<T> extends ViewerConfig { data: T; handle?: string }
@@ -195,7 +198,7 @@ The menu offers two routes whenever it can. The viewer's own group (SVG, PNG, JP
 viewer's model as SVG, crisp at any size; its PNG and JPEG entries rasterize that SVG at the chosen
 scale (1x, 2x, 4x). The **Screenshot** group (PNG, JPEG) is an html-to-image snapshot of the frame
 content, always available, and catches the on-screen chrome the SVG route omits: settings cards,
-legend overlays, selection.
+legend overlays, selection. Graph viewers draw their SVG with rust4pm, so it needs `viz`.
 
 Two attributes bound the snapshot. `data-export-root` marks the subtree to capture and defaults to
 the whole frame; `data-export-ignore` drops an element from it.
@@ -211,6 +214,7 @@ Viewers registering a vector source, and whether a prop can override the key:
 | `log-variants` | no | `src/log-variants.tsx` |
 | `oc-declare` | no | `src/oc-declare/OCDeclareViz.tsx` |
 | `ocel-type-graph` | no | `src/ocel-type-graph/OcelTypeGraph.tsx` |
+| `ocpn` | yes | `src/object-centric-petri-net.tsx` |
 | `ocpn` | yes | `src/object-centric-petri-net.tsx` |
 | `ocpn-simulator` | yes | `src/object-centric-petri-net-simulator.tsx` |
 | `petri-net` | yes | `src/petri-net.tsx` |
@@ -233,31 +237,51 @@ useRegisterExport("sparkline", source);  // keep `source` identity stable
 `toSvg` runs at click time and sees current state. Returning `null` while nothing is ready makes the
 menu report that instead of downloading an empty file.
 
-## Layout engines
+## Graph layout
+
+Graph viewers place nodes, route edges and draw their SVG export with rust4pm's visualization,
+reached through a `VizTransport` on `ViewerConfig.viz`:
 
 ```tsx
-import { wasmLayout } from "@r4pm/components/rust-layout/wasm"; // Rust/wasm, orthogonal routing, has renderSvg
-import { elkLayout } from "@r4pm/components/elk-layout";        // pure JS (elkjs), spline routing, no renderSvg
+import { wasmViz } from "@r4pm/components/viz/wasm"; // embedded wasm, loads on first layout
 
-<ViewerConfigProvider value={{ layout: wasmLayout }}>...</ViewerConfigProvider>
+<ViewerConfigProvider value={{ viz: wasmViz }}>...</ViewerConfigProvider>
 ```
 
-Both load lazily on first layout and stay out of the core bundle. SVG export does not need
-`renderSvg`; it falls back to the package's own pure-TS renderer and works on either engine. A host
-renderer matches the engine's geometry more exactly.
-
-Per-instance override: `<DFGViewer layoutOverride={fn} renderSvg={fn} />` beats the provider.
-
-Custom transport, to run the Rust engine on your own backend instead of in-browser wasm:
+The wasm is inlined as base64 (roughly 700 KB gzipped) and stays out of the core bundle.
+`setVizWasm(source)` from the same subpath loads it from a URL or bytes instead, if called before the
+first layout. A host whose backend runs rust4pm passes a transport to it and ships no wasm:
 
 ```ts
-import { createRustLayout, type LayoutTransport } from "@r4pm/components";
+import type { VizTransport } from "@r4pm/components";
 
-const layout = createRustLayout({
-  layoutGraph: (spec) => callBackend("layout_graph", spec),
-  rerouteGraph: (spec) => callBackend("reroute_graph", spec),
-});
+const viz: VizTransport = {
+  call: (fn, args) => callBackend(`process_mining::visualization::bindings::${fn}`, args),
+};
 ```
+
+The SVG export draws the model with rust4pm over the on-screen layout (dragged nodes included), with
+highlights, dimming and heatmaps carried over. The same helpers are exported for your own use.
+`layoutModel(viz, model, data)` and `modelSvg(viz, model, data, layout)` take the model kinds `dfg`,
+`ocdfg`, `oc_declare`, `petri_net`, `ocpn`, `process_tree` and `type_graph`, and `rerouteModel`
+routes a model's edges again after a drag. `layoutGraph`, `rerouteGraph` and `layoutTree` take a
+caller-built graphlay `GraphRequest`.
+
+## OC-DECLARE editing
+
+`OCDeclareViz` shows a `DeclareFlowModel` and, with `editable` and `onChange`, edits it.
+`editTools={false}` keeps the arrangement editable (drags, Layout) but offers no content editing.
+`onHideActivity` and `onFocusActivity` add Hide and Focus to an activity's hover, for a host that
+projects activities away. `activityPicker={false}` drops the side panel's activity picker when the
+host has its own.
+
+- `DiscoveryForm` edits rust4pm's discovery options. `DISCOVERY_DEFAULTS` are its defaults and
+  `discoverySummary(options)` is the one-line summary for a bar.
+- `toModelFile(model)` and `fromModelFile(json)` write and read `.ocdeclare` files
+  (`OC_DECLARE_FILE_EXTENSION`): rust4pm's arcs plus every node and its position.
+- `projectionTargets(arcs, hidden)`, `isProjected`, `focusHidden` and `visibleArcCount` work out
+  what a projection onto the shown activities needs. `OC_DECLARE_HIDDEN_ACTIVITIES_KEY` is the view
+  setting that holds the hidden ones.
 
 ## Persisted display settings
 
@@ -281,15 +305,15 @@ underlying `useViewSetting(key, initial)` behaves as plain `useState`.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Viewer blank or a few pixels tall | no definite height above it | give an ancestor a height; `flex: 1; min-height: 0` in a flex column |
-| Nodes stacked in a line | no layout engine | set `ViewerConfig.layout` |
+| Graph nodes in a plain row or column | no `viz` | set `ViewerConfig.viz`, e.g., to `wasmViz` |
 | Layout right, styling missing | `styles.css` not imported, or `rules.css` before your Tailwind entry | fix imports and order |
 | Whole viewport stretched | root `Theme` has `min-height: 100vh` | `<Theme style={{ minHeight: 0 }}>` for embedded use |
 | No export button | no `ViewerExportFrame` | wrap the viewer |
 | Only "Screenshot" in the export menu | that component registers no vector source, or the frame sits inside the viewer | check the export table; move the frame outward |
-| "nothing to export (source produced null)" | `toSvg` ran before layout finished | export once the graph has rendered |
+| "nothing to export (source produced null)" | `toSvg` ran before layout finished, or a graph viewer has no `viz` | export once the graph has rendered; set `ViewerConfig.viz` |
 | Export image includes the toolbar | no `data-export-root` | mark the content subtree |
 | Colors change every render | `colorOf` rebuilt inline | memoize it |
-| Relayout on every render | `data`, `categoryOf` or `layout` identity changes | memoize them |
+| Relayout on every render | `data`, `categoryOf` or `viz` identity changes | memoize them |
 
 ## Repo commands
 

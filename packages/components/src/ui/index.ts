@@ -10,3 +10,4 @@ export {
 } from "./CardSelector";
 export { Combobox, type ComboboxProps } from "./Combobox";
 export { ConfirmButton, type ConfirmButtonProps } from "./ConfirmButton";
+export { NumberField } from "./NumberField";

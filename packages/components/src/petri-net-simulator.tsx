@@ -1,10 +1,13 @@
 import {
   Editor,
-  usePetriLayout,
-  buildPetriNetSvg,
   isEnabled,
+  layoutPetriElements,
+  noopPetriLayout,
+  petriElementsSvg,
+  withGeometryOf,
   type Marking,
   type ArcData,
+  type PetriElements,
   type PetriNetNode,
   type TokenMark,
 } from "@r4pm/components/petri";
@@ -150,10 +153,7 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
   const committed = traces.slice(0, -1);
   const activityColor = (a: string) =>
     a === SILENT ? "#9ca3af" : (cfg.colorOf?.("activity", a) ?? colorForSeed(a));
-  const [base, setBase] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>({
-    nodes: [],
-    edges: [],
-  });
+  const [base, setBase] = useState<PetriElements>({ nodes: [], edges: [] });
 
   const reset = () => {
     setMarking(initial);
@@ -226,28 +226,33 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
   const exportTraces = () => finalizeActive(traces).filter((t) => t.steps.length > 0);
   const hasRecordedTrace = traces.some((t) => t.steps.length > 0);
 
-  const petriLayout = usePetriLayout();
+  const { viz } = cfg;
   useEffect(() => {
     let cancelled = false;
-    const { nodes, edges } = baseElements(net);
-    petriLayout(nodes, edges).then((res) => {
-      if (!cancelled) setBase(res);
-    });
+    const elements = baseElements(net);
+    (viz ? layoutPetriElements(viz, net, elements) : noopPetriLayout(elements.nodes, elements.edges))
+      .then(({ nodes, edges }) => {
+        if (!cancelled) setBase({ nodes, edges });
+      })
+      .catch((e) => console.error("[petri] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [net, petriLayout]);
+  }, [net, viz]);
+  const keepLayout = useCallback(
+    (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => setBase((b) => withGeometryOf(b, { nodes, edges })),
+    [],
+  );
 
   const overlay = useMemo<PetriNetOverlay>(
     () => ({
       transition: (t) => {
         const enabled = isEnabled(net, marking, t.id);
         // Not enabled and forced firing off: dim and inert.
-        if (!enabled && !allowForcedFiring) return { style: { opacity: 0.4 } };
+        if (!enabled && !allowForcedFiring) return { elementStyle: { opacity: 0.4 } };
         return {
-          style: enabled
-            ? { cursor: "pointer", boxShadow: ENABLED_RING }
-            : { cursor: "pointer", boxShadow: FORCED_RING, opacity: 0.6 },
+          style: { cursor: "pointer", boxShadow: enabled ? ENABLED_RING : FORCED_RING },
+          elementStyle: enabled ? undefined : { opacity: 0.6 },
           onClick: () => {
             const { next, produced, consumed, missing } = replayFire(net, marking, t.id);
             setMarking(next);
@@ -272,7 +277,6 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
         const reached = Math.min(cur, goal);
         const extra = Math.max(0, cur - goal);
         const unreached = Math.max(0, goal - cur);
-        // tokenMarks rather than JSX so these also render in the SVG export.
         const marks: TokenMark[] = [
           ...Array.from({ length: reached }, () => ({
             shape: "square" as const,
@@ -296,12 +300,25 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
 
   const displayRef = useRef(display);
   displayRef.current = display;
-  const exportSource = useMemo<VectorExportSource>(
-    () => ({
-      label: "Petri net (current marking)",
-      toSvg: () => buildPetriNetSvg(displayRef.current.nodes, displayRef.current.edges),
-    }),
-    [],
+  const netRef = useRef(net);
+  netRef.current = net;
+  const markingRef = useRef(marking);
+  markingRef.current = marking;
+  const exportSource = useMemo<VectorExportSource | null>(
+    () =>
+      viz
+        ? {
+            label: "Petri net (current marking)",
+            // The current marking is drawn as the initial one.
+            toSvg: () =>
+              petriElementsSvg(
+                viz,
+                { ...netRef.current, initial_marking: markingRef.current },
+                displayRef.current,
+              ),
+          }
+        : null,
+    [viz],
   );
   useRegisterExport(exportKey ?? "petri-net-simulator", exportSource);
 
@@ -310,6 +327,9 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
       <div style={{ position: "absolute", inset: 0 }}>
         <Editor
           readOnly
+          viz={viz}
+          net={net}
+          onLayoutChange={keepLayout}
           showExportControls={false}
           nodes={display.nodes}
           edges={display.edges}

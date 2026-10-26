@@ -18,7 +18,7 @@ function collapseByPair(edges: OcelTypeGraphEdge[]): OcelTypeGraphEdge[] {
   const byPair = new Map<string, OcelTypeGraphEdge>();
   for (const e of edges) {
     const key = `${e.source}->${e.target}`;
-    if (!byPair.has(key)) byPair.set(key, { id: key, source: e.source, target: e.target, kind: e.kind });
+    if (!byPair.has(key)) byPair.set(key, { id: key, source: e.source, target: e.target });
   }
   return [...byPair.values()];
 }

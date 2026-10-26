@@ -2,21 +2,11 @@ export { default as Editor, useTreeEditor } from "./editor/Editor";
 export type {
   LeafData,
   OperatorData,
-  ProcessTreeNode,
   TreeEditorProps,
+  TreeFlowNode,
   TreeNodePresentation,
 } from "./editor/Editor";
-export { useProcessTreeLayout } from "./editor/helpers/layout-context";
-export {
-  createRustProcessTreeLayout,
-  LEAF_SIZE,
-  nodeSize,
-  noopProcessTreeLayout,
-  OPERATOR_SIZE,
-  type ProcessTreeLayoutFn,
-} from "./editor/helpers/layout-graph";
-export { treeToNodes } from "./editor/helpers/serialize";
-export { treeModelToStyledGraph } from "./editor/helpers/tree-styled-graph";
+export type { ProcessTree, ProcessTreeNode, ProcessTreeOperatorType } from "../viz/types";
 export {
   addChild,
   cloneWithNewIds,
@@ -31,13 +21,12 @@ export {
   moveSubtrees,
   newLeaf,
   newOperator,
+  nodeAtPath,
   OPERATOR_SYMBOL,
   OPERATOR_TITLE,
   OPERATOR_TYPES,
   type OperatorType,
   parentOf,
-  type ProcessTree,
-  type PTNode,
   remove,
   reorder,
   setLabel,

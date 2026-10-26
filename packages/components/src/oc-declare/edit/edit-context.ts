@@ -19,7 +19,10 @@ export interface DiscoveryOptions {
   reduction: "None" | "Lossless" | "Lossy";
   refinement: boolean;
   considered_arrow_types: string[];
-  acts_to_use?: string[];
+  /** Activities to discover from. Null or absent means all. */
+  acts_to_use?: string[] | null;
+  /** Object types to discover from. Null or absent means all. */
+  object_types_to_use?: string[] | null;
 }
 
 /** Activity statistics payload (host-owned; mirrors backend `ActivityStatistics`). */
@@ -48,7 +51,13 @@ export type StatsRequest = { kind: "activity"; activity: string } | { kind: "edg
 export interface EditContextValue {
   model: DeclareFlowModel;
   mutate: (fn: (m: DeclareFlowModel) => DeclareFlowModel) => void;
-  palette: { eventTypes: string[]; objectTypes: string[] };
+  palette: {
+    eventTypes: string[];
+    objectTypes: string[];
+    /** Events per activity and objects per object type, when the host knows them. */
+    eventTypeCounts?: Record<string, number>;
+    objectTypeCounts?: Record<string, number>;
+  };
   relatedTypes?: (activity: string) => Record<string, number>;
   getSupport?: (assoc: ObjectTypeAssociation, ctx: SupportCtx) => number | undefined;
   callbacks: EditCallbacks;
@@ -56,6 +65,8 @@ export interface EditContextValue {
   openStats: (req: StatsRequest) => void;
   /** Re-run the full layout engine over the current model + fit. */
   runLayout: () => void;
+  /** Where a node added without a drop point goes: the middle of the visible canvas. */
+  newNodePosition: () => { x: number; y: number };
 }
 
 export const EditContext = createContext<EditContextValue | null>(null);

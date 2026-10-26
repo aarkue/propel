@@ -7,49 +7,53 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
-  type ReactFlowInstance,
-  type ReactFlowProps,
+  useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useViewSetting } from "../viewer/view-state";
-import type { ViewerAction, ViewerTarget } from "../viewer/viewer-config";
-import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { useIsDarkMode } from "../viewer/dark-mode";
-import { colorToHex, DEFAULT_ARC_COLOR } from "./util/colors";
-import { durationColor } from "./util/duration";
-import {
-  type DfgArc,
-  type DfgCoverage,
-  type DfgMetric,
-  DFG_END_ID,
-  DFG_START_ID,
-  OCEL_NODE_HEIGHT,
-  OCEL_NODE_WIDTH,
-  TERM_NODE_SIZE,
-  computeMetricValue,
-  formatMetricValue,
-  isPerformanceMetric,
-} from "./util/dfg-model";
+import { useRegisterExport, type VectorExportSource } from "../viewer/export";
+import { useViewSetting } from "../viewer/view-state";
+import { colorForKey, type ViewerAction, type ViewerTarget } from "../viewer/viewer-config";
+import type { Point, VizTransport } from "../viz";
 import { DFG_EDGE_TYPES, type DfgEdgeType } from "./DfgEdge";
-import DfgSettings, { metricDisplayName } from "./DfgSettings";
-import { buildDfgStyledGraph } from "./util/styled-graph";
-import { noopDfgLayout } from "../rust-layout";
-import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
-import { styledGraphToSvg } from "../graph-svg/styled-graph-svg";
+import DfgSettings from "./DfgSettings";
+import { DEFAULT_ARC_COLOR, flattenColor, mix } from "./util/colors";
+import type { DfgArc, DfgMetric } from "./util/dfg-model";
+import {
+  type ArcLook,
+  arcLooks,
+  type DfgRouting,
+  type DfgSource,
+  dfgBuildOptions,
+  dfgOverrides,
+  dfgSvg,
+  type EdgeRoute,
+  edgeRoutes,
+  type LaidDfg,
+  layoutDfg,
+  rerouteDfg,
+  type ShownDfg,
+  selectArcs,
+  shownModel,
+  shownRoute,
+  sourceCounter,
+} from "./viz-layout";
 
-export type { DfgArc } from "./util/dfg-model";
-
-/** Node / edge types shared by every DFG-style panel. */
-export type DfgActivityNode = Node<{ activity: string; count: number }, "activity">;
-export type DfgTerminalNode = Node<{ kind: "start" | "end"; count: number }, "terminal">;
-export type DfgNode = DfgActivityNode | DfgTerminalNode;
+type ActivityNodeData = { activity: string; count: number };
+/** `group` is the object type of an OC-DFG terminal. */
+type TerminalNodeData = { kind: "start" | "end"; group?: string };
+type DfgActivityNode = Node<ActivityNodeData, "activity">;
+type DfgTerminalNode = Node<TerminalNodeData, "terminal">;
+type DfgFlowNode = DfgActivityNode | DfgTerminalNode;
 
 /** ReactFlow node components can't take arbitrary props, so their color resolver + click/menu
  *  handlers arrive through context. */
 interface DfgNodeContextValue {
   activityColor: (act: string) => string;
   activityForeground: (act: string) => string;
+  typeColor?: (objectType: string) => string;
   onActivityClick?: (act: string) => void;
   onActivityContextMenu?: (act: string, e: { clientX: number; clientY: number }) => void;
 }
@@ -58,20 +62,25 @@ const DfgNodeContext = createContext<DfgNodeContextValue>({
   activityForeground: () => "#374151",
 });
 
-function ActivityNode({ data }: NodeProps<DfgActivityNode>) {
+const hiddenHandles = (
+  <>
+    <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} isConnectableStart={false} />
+    <Handle type="target" position={Position.Top} style={{ opacity: 0 }} isConnectableStart={false} />
+  </>
+);
+
+function ActivityNode({ data, width, height }: NodeProps<DfgActivityNode>) {
   const ctx = useContext(DfgNodeContext);
   const base = ctx.activityColor(data.activity);
-  const longName = data.activity.length >= 20;
-  const displayName = data.activity.length > 32 ? `${data.activity.slice(0, 31)}…` : data.activity;
   return (
     <div
-      className="font-semibold border-2 rounded-lg px-2 py-1 shadow-sm flex flex-col items-center justify-center box-border overflow-hidden"
+      className="font-semibold border-2 rounded-lg px-2 shadow-sm flex flex-col items-center justify-center box-border overflow-hidden"
       style={{
         backgroundColor: `${base}26`,
         borderColor: `${base}cc`,
         color: "CanvasText",
-        width: OCEL_NODE_WIDTH,
-        height: OCEL_NODE_HEIGHT,
+        width,
+        height,
         cursor: ctx.onActivityClick ? "pointer" : undefined,
       }}
       title={data.activity}
@@ -86,7 +95,7 @@ function ActivityNode({ data }: NodeProps<DfgActivityNode>) {
       }
     >
       <div
-        className={`text-center leading-tight font-bold ${longName ? "text-[10px]" : "text-[12px]"}`}
+        className="text-center leading-tight font-bold text-[12px]"
         style={{
           color: ctx.activityForeground(data.activity),
           wordBreak: "break-word",
@@ -96,622 +105,238 @@ function ActivityNode({ data }: NodeProps<DfgActivityNode>) {
           overflow: "hidden",
         }}
       >
-        {displayName}
+        {data.activity}
       </div>
       <span className="text-[10px] opacity-80 tabular-nums">{data.count.toLocaleString("en")}</span>
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="s"
-        style={{ opacity: 0 }}
-        isConnectableStart={false}
-      />
-      <Handle
-        type="target"
-        position={Position.Top}
-        id="t"
-        style={{ opacity: 0 }}
-        isConnectableStart={false}
-      />
+      {hiddenHandles}
     </div>
   );
 }
 
-function TerminalNode({ data }: NodeProps<DfgTerminalNode>) {
-  const isStart = data.kind === "start";
-  const bg = isStart ? "#a855f7" : "#ef4444";
-  const title = isStart
-    ? `Start: ${data.count.toLocaleString("en")}`
-    : `End: ${data.count.toLocaleString("en")}`;
+/** rust4pm's DFG terminal fills. An OC-DFG's are its object type's color. */
+const START_FILL = "#4B9969";
+const END_FILL = "#D4001F";
+
+/** rust4pm's terminal: a filled box with a play triangle (start) or a stop square (end). */
+function TerminalNode({ data, width, height }: NodeProps<DfgTerminalNode>) {
+  const ctx = useContext(DfgNodeContext);
+  const start = data.kind === "start";
+  let fill = start ? START_FILL : END_FILL;
+  let mark = "#ffffff";
+  if (data.group !== undefined) {
+    fill = ctx.typeColor?.(data.group) ?? colorForKey("objectType", data.group) ?? "#888888";
+    mark = mix(flattenColor(fill), "#ffffff", 0.86);
+  }
+  const r = (height ?? 36) / 4;
   return (
     <div
-      title={title}
-      className="relative flex items-center justify-center rounded-full shadow-sm"
-      style={{ width: TERM_NODE_SIZE, height: TERM_NODE_SIZE, backgroundColor: bg }}
+      title={`${start ? "Start" : "End"}${data.group !== undefined ? `: ${data.group}` : ""}`}
+      className="flex items-center justify-center shadow-sm"
+      style={{ width, height, backgroundColor: fill, borderRadius: 4 }}
     >
-      {isStart ? (
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <polygon points="3,2 3,12 12,7" fill="#ffffff" />
-        </svg>
-      ) : (
-        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-          <rect x="0" y="0" width="12" height="12" rx="1" fill="#ffffff" />
-        </svg>
-      )}
-      {isStart ? (
-        <Handle
-          className="customHandle"
-          position={Position.Bottom}
-          type="source"
-          isConnectableStart={false}
-          style={{ opacity: 0 }}
-        />
-      ) : (
-        <Handle
-          className="customHandle"
-          position={Position.Top}
-          type="target"
-          isConnectableStart={false}
-          style={{ opacity: 0 }}
-        />
-      )}
+      <svg width={2 * r} height={2 * r} viewBox={`${-r} ${-r} ${2 * r} ${2 * r}`} aria-hidden="true">
+        {start ? (
+          <polygon points={`${-r},${-r} ${-r},${r} ${r},0`} fill={mark} />
+        ) : (
+          <rect x={-r} y={-r} width={2 * r} height={2 * r} fill={mark} />
+        )}
+      </svg>
+      {hiddenHandles}
     </div>
   );
 }
 
-/** Node type registry shared by every DFG-style panel. */
-export const DFG_NODE_TYPES = { activity: ActivityNode, terminal: TerminalNode };
-
-/** Fallback when no `layoutOverride` and no `ViewerConfig.layout` engine: engine-agnostic no-op. Import
- *  an engine bundle (`@r4pm/components/elk-layout` or `@r4pm/components/rust-layout/wasm`) for a real layout. */
-const defaultDfgLayout = noopDfgLayout;
-
-/** Edge cap for the auto-seeded initial view (across all groups) so dense graphs don't overload;
- *  the slider can widen past it. */
-const MAX_INITIAL_EDGES = 25;
-
-export interface UseDfgPanelReturn {
-  onNodeDragStop: NonNullable<ReactFlowProps["onNodeDragStop"]>;
-  attachRef: (instance: unknown) => void;
-  edgeSlider: number;
-  setEdgeSlider: (v: number | ((prev: number) => number)) => void;
-  coverage: DfgCoverage;
-  selection: {
-    filteredArcs: DfgArc[];
-    keptActivities: Set<string>;
-  };
-  getLayoutedNodes: () => DfgNode[] | null;
-  getLayoutedEdges: () => DfgEdgeType[] | null;
-}
-
-interface LayoutedNodeMinimal {
-  id: string;
-  position: { x: number; y: number };
-  type?: string;
-}
-
-function edgeLabelMidpoint(
-  edge: DfgEdgeType,
-  nodeById: Map<string, LayoutedNodeMinimal>,
-  nodeSize: (n: LayoutedNodeMinimal) => { w: number; h: number },
-): { x: number; y: number } | null {
-  const src = nodeById.get(edge.source);
-  const tgt = nodeById.get(edge.target);
-  if (!src || !tgt) return null;
-
-  const { w: srcW, h: srcH } = nodeSize(src);
-  const { w: tgtW } = nodeSize(tgt);
-
-  if (edge.source === edge.target) {
-    const pIdx = edge.data?.parallelIndex ?? 0;
-    const loopW = 36 + pIdx * 24;
-    return {
-      x: src.position.x + srcW + loopW * 0.75,
-      y: src.position.y + srcH / 2,
-    };
-  }
-
-  const routing = edge.data?.routing;
-  if (routing?.kind === "polyline" && routing.points.length >= 2) {
-    const anchors = routing.points;
-    let total = 0;
-    const segs: number[] = [];
-    for (let i = 1; i < anchors.length; i++) {
-      const dx = anchors[i].x - anchors[i - 1].x;
-      const dy = anchors[i].y - anchors[i - 1].y;
-      segs.push(Math.sqrt(dx * dx + dy * dy));
-      total += segs[segs.length - 1];
-    }
-    let acc = 0;
-    for (let i = 0; i < segs.length; i++) {
-      if (acc + segs[i] >= total / 2) {
-        const t = segs[i] === 0 ? 0 : (total / 2 - acc) / segs[i];
-        return {
-          x: anchors[i].x + (anchors[i + 1].x - anchors[i].x) * t,
-          y: anchors[i].y + (anchors[i + 1].y - anchors[i].y) * t,
-        };
-      }
-      acc += segs[i];
-    }
-    return anchors[anchors.length - 1];
-  }
-
-  const srcCx = src.position.x + srcW / 2;
-  const tgtCx = tgt.position.x + tgtW / 2;
-  return {
-    x: (srcCx + tgtCx) / 2,
-    y: (src.position.y + srcH + tgt.position.y) / 2,
-  };
-}
-
-const LABEL_CHAR_W = 7;
-const LABEL_H = 16;
-const LABEL_PAD = 6;
-
-/** Post-layout: place edge labels and nudge overlapping ones apart (writes `labelOffset`). */
-export function deOverlapEdgeLabels(
-  nodes: LayoutedNodeMinimal[],
-  edges: DfgEdgeType[],
-  nodeSize: (n: LayoutedNodeMinimal) => { w: number; h: number },
-): void {
-  const nodeById = new Map(nodes.map((n) => [n.id, n]));
-
-  interface LabelInfo {
-    edge: DfgEdgeType;
-    x: number;
-    y: number;
-    w: number;
-    anchored: boolean;
-  }
-
-  const labels: LabelInfo[] = [];
-  for (const e of edges) {
-    const text = e.data?.label;
-    if (!text) continue;
-    const mid = edgeLabelMidpoint(e, nodeById, nodeSize);
-    if (!mid) continue;
-    labels.push({
-      edge: e,
-      x: mid.x,
-      y: mid.y,
-      w: text.length * LABEL_CHAR_W + LABEL_PAD * 2,
-      anchored: e.source === e.target,
-    });
-  }
-
-  labels.sort((a, b) => (a.anchored === b.anchored ? 0 : a.anchored ? -1 : 1));
-
-  const placed: { x: number; y: number; w: number }[] = [];
-  for (const lbl of labels) {
-    if (lbl.anchored) {
-      placed.push({ x: lbl.x, y: lbl.y, w: lbl.w });
-      continue;
-    }
-    let ly = lbl.y;
-    for (let iter = 0; iter < 12; iter++) {
-      let overlap = false;
-      for (const p of placed) {
-        if (Math.abs(lbl.x - p.x) < (lbl.w + p.w) / 2 + 2 && Math.abs(ly - p.y) < LABEL_H + 1) {
-          overlap = true;
-          ly += ly >= p.y ? LABEL_H + 2 : -(LABEL_H + 2);
-          break;
-        }
-      }
-      if (!overlap) break;
-    }
-    const dy = ly - lbl.y;
-    if (lbl.edge.data) {
-      // Always write, so a stale offset from an earlier layout is cleared (else the label sits off its edge).
-      lbl.edge.data.labelOffset = dy !== 0 ? { dx: 0, dy } : undefined;
-    }
-    placed.push({ x: lbl.x, y: ly, w: lbl.w });
-  }
-}
-
-/** Owns the edge slider, the ReactFlow ref, and the layout-and-apply effect. */
-export function useDfgPanel({
-  activityCounts,
-  arcs,
-  metric = "count",
-  formatDuration,
-  heatmap = false,
-  layoutOverride,
-  direction = "TB",
-}: {
-  activityCounts: Record<string, number>;
-  arcs: DfgArc[];
-  metric?: DfgMetric;
-  formatDuration?: (ms: number) => string;
-  heatmap?: boolean;
-  layoutOverride?: DfgLayoutFn;
-  direction?: "TB" | "LR";
-}): UseDfgPanelReturn {
-  const flowRef = useRef<ReactFlowInstance<DfgNode, DfgEdgeType>>();
-  // A layout that resolves before `onInit` fires is buffered here and flushed by `attachRef`; else the
-  // imperative `setNodes` no-ops against a null ref and the graph lands empty.
-  const pendingApply = useRef<((inst: NonNullable<typeof flowRef.current>) => void) | null>(null);
-  // Nodes the user manually placed; they stay pinned across drag-relayouts. A fresh layout clears them.
-  const pinnedIds = useRef<Set<string>>(new Set());
-  const [userEdgeSlider, setUserEdgeSlider] = useViewSetting<number | null>("edgeSlider", null);
-
-  const selection = useMemo(() => {
-    const arcsByGroup = new Map<string, DfgArc[]>();
-    for (const a of arcs) {
-      const g = a.group ?? "_default";
-      const list = arcsByGroup.get(g) ?? [];
-      list.push(a);
-      arcsByGroup.set(g, list);
-    }
-    for (const list of arcsByGroup.values()) {
-      list.sort((x, y) => y.count - x.count || x.key.localeCompare(y.key));
-    }
-    const maxGroupSize = Math.max(1, ...[...arcsByGroup.values()].map((list) => list.length));
-
-    let effectiveSlider: number;
-    if (userEdgeSlider === null) {
-      // Seed the initial top-N-per-group: grow N until the union across groups would exceed the cap,
-      // keeping the last N that fits (always >= 1 so every group shows an arc).
-      const groupSizes = [...arcsByGroup.values()].map((list) => list.length);
-      const unionAt = (n: number) => groupSizes.reduce((s, len) => s + Math.min(n, len), 0);
-      let seed = 1;
-      for (let n = 1; n <= maxGroupSize; n++) {
-        if (n > 1 && unionAt(n) > MAX_INITIAL_EDGES) break;
-        seed = n;
-      }
-      effectiveSlider = Math.min(Math.max(seed, 1), maxGroupSize);
-    } else {
-      effectiveSlider = userEdgeSlider;
-    }
-    const edgeN = Math.min(Math.max(0, effectiveSlider), maxGroupSize);
-    const filteredArcs: DfgArc[] = [];
-    for (const list of arcsByGroup.values()) {
-      filteredArcs.push(...list.slice(0, edgeN));
-    }
-    const keptActivities = new Set<string>();
-    for (const a of filteredArcs) {
-      keptActivities.add(a.from);
-      keptActivities.add(a.to);
-    }
-
-    const totalActs = Object.keys(activityCounts).length;
-    const totalActivityEvents = Object.values(activityCounts).reduce((s, v) => s + (v ?? 0), 0);
-    const shownActivityEvents = [...keptActivities].reduce((s, k) => s + (activityCounts[k] ?? 0), 0);
-    const totalArcCount = arcs.reduce((s, a) => s + a.count, 0);
-    const shownArcCount = filteredArcs.reduce((s, a) => s + a.count, 0);
-    const edgePct =
-      totalArcCount > 0
-        ? filteredArcs.length >= arcs.length
-          ? 100
-          : Math.min(99, Math.round((100 * shownArcCount) / totalArcCount))
-        : 0;
-    const actPct =
-      totalActivityEvents > 0
-        ? keptActivities.size >= totalActs
-          ? 100
-          : Math.min(99, Math.round((100 * shownActivityEvents) / totalActivityEvents))
-        : 0;
-    const coverage: DfgCoverage = {
-      edges: {
-        shown: filteredArcs.length,
-        total: arcs.length,
-        sliderMax: maxGroupSize,
-        pct: edgePct,
-      },
-      activities: {
-        shown: keptActivities.size,
-        total: totalActs,
-        pct: actPct,
-      },
-    };
-    return {
-      filteredArcs,
-      keptActivities,
-      coverage,
-      effectiveSlider,
-      maxPerGroup: new Map<string, number>(
-        [...arcsByGroup.entries()].map(([g, list]) => [g, Math.max(1, ...list.map((a) => a.count))]),
-      ),
-    };
-  }, [userEdgeSlider, arcs, activityCounts]);
-
-  useEffect(() => {
-    // The async layout ends by replacing the whole graph; `cancelled` guards against a slower older
-    // run resolving after a newer one and overwriting it with a stale selection.
-    let cancelled = false;
-    pinnedIds.current.clear();
-    const { filteredArcs, keptActivities, maxPerGroup } = selection;
-
-    const nodes: DfgNode[] = [...keptActivities].map((act): DfgNode => {
-      if (act === DFG_START_ID || act === DFG_END_ID) {
-        const kind: "start" | "end" = act === DFG_START_ID ? "start" : "end";
-        return {
-          id: act,
-          type: "terminal",
-          position: { x: 0, y: 0 },
-          data: { kind, count: activityCounts[act] ?? 0 },
-        };
-      }
-      return {
-        id: act,
-        type: "activity",
-        position: { x: 0, y: 0 },
-        data: { activity: act, count: activityCounts[act] ?? 0 },
-      };
-    });
-
-    const metricValues = new Map<string, number>();
-    for (const a of filteredArcs) {
-      const val = computeMetricValue(a, metric, activityCounts);
-      if (val != null) metricValues.set(a.key, val);
-    }
-    const allVals = [...metricValues.values()];
-    const valMin = allVals.length > 0 ? Math.min(...allVals) : 0;
-    const valMax = allVals.length > 0 ? Math.max(...allVals) : 1;
-    const isPerf = isPerformanceMetric(metric);
-
-    const parallelCountByPair = new Map<string, number>();
-    const parallelIndexByKey = new Map<string, number>();
-    for (const a of filteredArcs) {
-      const pair = `${a.from}\u0000${a.to}`;
-      const idx = parallelCountByPair.get(pair) ?? 0;
-      parallelIndexByKey.set(a.key, idx);
-      parallelCountByPair.set(pair, idx + 1);
-    }
-
-    const edges: DfgEdgeType[] = filteredArcs.map((a) => {
-      const maxInGroup = maxPerGroup.get(a.group ?? "_default") ?? 1;
-      let color = a.color ?? DEFAULT_ARC_COLOR;
-      const val = metricValues.get(a.key);
-      let label: string;
-      let strokeWidth: number;
-
-      if (val != null) {
-        label = formatMetricValue(val, metric, formatDuration);
-        if (isPerf || metric === "pct_source") {
-          const t = valMax > valMin ? (val - valMin) / (valMax - valMin) : 0.5;
-          strokeWidth = 1.5 + 4.5 * Math.sqrt(t);
-          if (heatmap && isPerf && a.duration != null) color = durationColor(t);
-        } else {
-          // sqrt scaling (1..8px): spreads mid-range frequencies visibly, keeps rare arcs thin.
-          strokeWidth = 1 + 7 * Math.sqrt(Math.min(1, a.count / maxInGroup));
-        }
-      } else {
-        label = "";
-        strokeWidth = 1.5;
-      }
-
-      const pair = `${a.from}\u0000${a.to}`;
-      return {
-        id: a.key,
-        source: a.from,
-        target: a.to,
-        type: "default",
-        data: {
-          label,
-          color,
-          count: a.count,
-          group: a.group,
-          parallelIndex: parallelIndexByKey.get(a.key) ?? 0,
-          parallelCount: parallelCountByPair.get(pair) ?? 1,
-          direction,
-        },
-        style: {
-          stroke: color,
-          strokeWidth,
-        },
-        ...(a.title ? { ariaLabel: a.title } : {}),
-      };
-    });
-    const nodeSize = (n: DfgNode) =>
-      n.type === "terminal"
-        ? { width: TERM_NODE_SIZE, height: TERM_NODE_SIZE }
-        : { width: OCEL_NODE_WIDTH, height: OCEL_NODE_HEIGHT };
-    const runLayout = (layoutOverride ?? defaultDfgLayout)(nodes, edges, nodeSize, { direction });
-    runLayout
-      .then(() => {
-        if (cancelled) return;
-        deOverlapEdgeLabels(nodes, edges, (n) =>
-          n.type === "terminal"
-            ? { w: TERM_NODE_SIZE, h: TERM_NODE_SIZE }
-            : { w: OCEL_NODE_WIDTH, h: OCEL_NODE_HEIGHT },
-        );
-
-        const apply = (inst: NonNullable<typeof flowRef.current>) => {
-          inst.deleteElements({ nodes: inst.getNodes(), edges: inst.getEdges() }).finally(() => {
-            if (cancelled) return;
-            inst.setNodes(nodes);
-            inst.setEdges(edges);
-            inst.fitView();
-          });
-        };
-        if (flowRef.current) apply(flowRef.current);
-        else pendingApply.current = apply;
-      })
-      .catch((e: unknown) => console.error("[useDfgPanel] layout failed:", e));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selection, activityCounts, metric, formatDuration, heatmap, layoutOverride, direction]);
-
-  // Relayout after a drag: seed every node at its current centre (un-dragged nodes stay put), pin the
-  // dragged one, no fitView so the view doesn't jump.
-  const onNodeDragStop = useCallback<NonNullable<ReactFlowProps["onNodeDragStop"]>>(
-    (_e, dragged) => {
-      const instance = flowRef.current;
-      if (!instance) return;
-      pinnedIds.current.add(dragged.id);
-      const nodes = instance.getNodes().map((n) => ({ ...n })) as DfgNode[];
-      const edges = instance.getEdges().map((e) => ({ ...e })) as DfgEdgeType[];
-      const nodeSize = (n: DfgNode) =>
-        n.type === "terminal"
-          ? { width: TERM_NODE_SIZE, height: TERM_NODE_SIZE }
-          : { width: OCEL_NODE_WIDTH, height: OCEL_NODE_HEIGHT };
-      void (layoutOverride ?? defaultDfgLayout)(nodes, edges, nodeSize, {
-        direction,
-        // Re-route from the dropped positions so edges route around boxes, not a stale topological chain.
-        reroute: true,
-        seed: (n) => {
-          const { width, height } = nodeSize(n);
-          return {
-            x: n.position.x + width / 2,
-            y: n.position.y + height / 2,
-            pinned: pinnedIds.current.has(n.id),
-          };
-        },
-      })
-        .then(() => {
-          deOverlapEdgeLabels(nodes, edges, (n) =>
-            n.type === "terminal"
-              ? { w: TERM_NODE_SIZE, h: TERM_NODE_SIZE }
-              : { w: OCEL_NODE_WIDTH, h: OCEL_NODE_HEIGHT },
-          );
-          instance.setNodes(nodes);
-          instance.setEdges(edges);
-        })
-        .catch((e: unknown) => console.error("[useDfgPanel] relayout failed:", e));
-    },
-    [layoutOverride, direction],
-  );
-
-  return {
-    onNodeDragStop,
-    attachRef: (instance) => {
-      const inst = instance as ReactFlowInstance<DfgNode, DfgEdgeType>;
-      flowRef.current = inst;
-      // Flush a layout that resolved before init.
-      const pending = pendingApply.current;
-      pendingApply.current = null;
-      pending?.(inst);
-    },
-    edgeSlider: selection.effectiveSlider,
-    setEdgeSlider: (v) => {
-      setUserEdgeSlider((prev) => {
-        const current = prev ?? selection.effectiveSlider;
-        return typeof v === "function" ? v(current) : v;
-      });
-    },
-    coverage: selection.coverage,
-    selection: {
-      filteredArcs: selection.filteredArcs,
-      keptActivities: selection.keptActivities,
-    },
-    getLayoutedNodes: () => {
-      const instance = flowRef.current;
-      if (!instance) return null;
-      return instance.getNodes();
-    },
-    getLayoutedEdges: () => {
-      const instance = flowRef.current;
-      if (!instance) return null;
-      return instance.getEdges();
-    },
-  };
-}
+const DFG_NODE_TYPES = { activity: ActivityNode, terminal: TerminalNode };
 
 export interface DfgGraphProps {
-  activityCounts: Record<string, number>;
+  source: DfgSource;
+  /** Every arc of the source (of the shown object types), ranked by the edge slider. */
   arcs: DfgArc[];
+  /** How often each activity occurred: shown under its name and the base of `pct_source`. */
+  activityCounts: Record<string, number>;
   metric: DfgMetric;
   setMetric: (m: DfgMetric) => void;
   hasPerformanceData: boolean;
-  /** Recolor edges with a duration heatmap (blue->red) when a performance metric is
-   *  active. Case-centric only; OC keeps its object-type edge coloring. */
+  /** Recolor arcs with a duration heatmap (blue->red) under a performance metric. */
   heatmap?: boolean;
   /** Resolves the base color (`#rrggbb`) for an activity node. */
   activityColor: (act: string) => string;
   /** Resolves the foreground/text color for an activity node. */
   activityForeground: (act: string) => string;
+  /** An OC-DFG object type's color, for its arcs and terminals. */
+  typeColor?: (objectType: string) => string;
   /** Duration formatter for performance metric labels (from shared `format.duration`). */
   formatDuration?: (ms: number) => string;
-  /** Extra legend rows for the SVG export (e.g. object-type chips). */
-  legend?: { title: string; items: { label: string; color: string; hideDot?: boolean }[] }[];
-  /** Optional extra UI rendered inside the top-right settings card (e.g. the
-   *  object-type chip selector for the OC-DFG). */
+  /** Extra UI in the top-right settings card, e.g., the OC-DFG object-type chips. */
   topRightExtra?: React.ReactNode;
-  /** Emit a selection when an activity node is clicked. */
   onSelect?: (s: ViewerTarget) => void;
   /** Right-click actions shown on activity nodes (declarative; viewer renders the menu). */
   actions?: ViewerAction[];
   /** Escape hatch: report a right-click and let the host build a fully custom menu. */
   onElementContextMenu?: (t: ViewerTarget, e: { clientX: number; clientY: number }) => void;
-  /** Draw the on-screen `StyledGraph` through a host-supplied renderer (e.g. the Rust `export_graph_svg` binding) instead of the built-in JS drawer. */
-  renderSvg?: StyledGraphRenderer;
-  /** Called with the raw *shown* arcs (after the threshold filter), keeping each arc's `group`, so
-   *  a grouped host (OC-DFG) can rebuild a filtered per-group graph for export. */
-  onShownArcsChange?: (arcs: DfgArc[]) => void;
-  /** Replace the built-in elkjs layout with a host-supplied one; must write `node.position`/`edge.data.routing` in place like `applyLayoutToNodes`. */
-  layoutOverride?: DfgLayoutFn;
+  viz?: VizTransport;
+  routing?: DfgRouting;
 }
 
-/** Stable-relayout options for a {@link DfgLayoutFn}: seed each node's position, pin the just-dragged one. */
-export type DfgLayoutOptions = {
-  /** Layout flow direction: "TB" (top-to-bottom, default) or "LR" (left-to-right). */
-  direction?: "TB" | "LR";
-  seed?: (node: DfgNode) => { x: number; y: number; pinned?: boolean } | undefined;
-  /** On-drop relayout: re-route edges from each node's `seed` position without recomputing layout. Requires `seed` to cover every node. */
-  reroute?: boolean;
-};
+/** A laid-out model and what it was laid out from. `routes` are the edges' current routes. `fresh`
+ *  counts full layouts, so a re-route keeps the nodes where they are. */
+interface Shown {
+  model: ShownDfg;
+  options: Record<string, unknown>;
+  looks: Map<string, ArcLook>;
+  laid: LaidDfg;
+  routes: EdgeRoute[];
+  fresh: number;
+}
 
-/** A pluggable layout: positions `nodes` (top-left) and writes `edge.data.routing` in place. */
-export type DfgLayoutFn = (
-  nodes: DfgNode[],
-  edges: DfgEdgeType[],
-  nodeSize: (n: DfgNode) => { width: number; height: number },
-  options?: DfgLayoutOptions,
-) => Promise<void>;
+function flowNodes(laid: LaidDfg, activityCounts: Record<string, number>): DfgFlowNode[] {
+  return laid.nodes.map((n, i): DfgFlowNode => {
+    const { center, size } = laid.layout.nodes[i];
+    const common = {
+      id: n.id,
+      position: { x: center.x - size.width / 2, y: center.y - size.height / 2 },
+      width: size.width,
+      height: size.height,
+    };
+    if (n.kind === "activity") {
+      return { ...common, type: "activity", data: { activity: n.name, count: activityCounts[n.name] ?? 0 } };
+    }
+    return {
+      ...common,
+      type: "terminal",
+      data: { kind: n.kind === "end" ? "end" : "start", group: n.group },
+    };
+  });
+}
+
+const centreOf = (n: { position: Point; width?: number; height?: number }): Point => ({
+  x: n.position.x + (n.width ?? 0) / 2,
+  y: n.position.y + (n.height ?? 0) / 2,
+});
 
 /** The full DFG render shell: ReactFlow graph + settings card, advertising a vector export via `useRegisterExport`. */
-export function DfgGraph({
-  activityCounts,
+export function DfgGraph(props: DfgGraphProps) {
+  return (
+    <ReactFlowProvider>
+      <DfgGraphInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function DfgGraphInner({
+  source,
   arcs,
+  activityCounts,
   metric,
   setMetric,
   hasPerformanceData,
   heatmap,
   activityColor,
   activityForeground,
+  typeColor,
   formatDuration,
-  legend = [],
   topRightExtra,
   onSelect,
   actions,
   onElementContextMenu,
-  renderSvg,
-  onShownArcsChange,
-  layoutOverride,
+  viz,
+  routing,
 }: DfgGraphProps) {
+  const { fitView, getNodes } = useReactFlow<DfgFlowNode, DfgEdgeType>();
   const [direction, setDirection] = useViewSetting<"TB" | "LR">("direction", "TB");
-  const {
-    onNodeDragStop,
-    attachRef,
-    edgeSlider,
-    setEdgeSlider,
-    coverage,
-    selection,
-    getLayoutedNodes,
-    getLayoutedEdges,
-  } = useDfgPanel({
-    activityCounts,
-    arcs,
-    metric,
-    formatDuration,
-    heatmap,
-    layoutOverride,
-    direction,
-  });
+  const [userEdgeSlider, setUserEdgeSlider] = useViewSetting<number | null>("edgeSlider", null);
 
-  const lastArcsSig = useRef<string>("");
+  const selection = useMemo(
+    () => selectArcs(arcs, userEdgeSlider, activityCounts),
+    [arcs, userEdgeSlider, activityCounts],
+  );
+  const sourceCount = useMemo(() => sourceCounter(arcs, activityCounts), [arcs, activityCounts]);
+  const looks = useMemo(
+    () => arcLooks(selection.kept, metric, sourceCount, { formatDuration, heatmap }),
+    [selection.kept, metric, sourceCount, formatDuration, heatmap],
+  );
+  const model = useMemo(() => shownModel(source, selection.kept), [source, selection.kept]);
+  const options = useMemo(
+    () => dfgBuildOptions(model, selection.kept, looks, activityCounts, { direction, routing }),
+    [model, selection.kept, looks, activityCounts, direction, routing],
+  );
+  const requestKey = useMemo(() => JSON.stringify([model, options]), [model, options]);
+
+  const [shown, setShown] = useState<Shown | null>(null);
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+  const [nodes, setNodes, onNodesChange] = useNodesState<DfgFlowNode>([]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: requestKey captures model and options; relayout only when they change.
   useEffect(() => {
-    if (!onShownArcsChange) return;
-    const sig = selection.filteredArcs
-      .map((a) => `${a.group ?? ""}\0${a.from}>${a.to}=${a.count}`)
-      .sort()
-      .join("|");
-    if (sig === lastArcsSig.current) return;
-    lastArcsSig.current = sig;
-    onShownArcsChange(selection.filteredArcs);
-  }, [selection, onShownArcsChange]);
+    if (selection.kept.length === 0) {
+      setShown(null);
+      return;
+    }
+    let cancelled = false;
+    layoutDfg(viz, model, options, selection.kept)
+      .then((laid) => {
+        if (cancelled) return;
+        setShown((prev) => ({
+          model,
+          options,
+          looks,
+          laid,
+          routes: edgeRoutes(laid, laid.layout),
+          fresh: (prev?.fresh ?? 0) + 1,
+        }));
+      })
+      .catch((e: unknown) => console.error("[DfgGraph] layout failed:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [requestKey, viz]);
+
+  // A full layout places every node anew. A re-route after a drag leaves them where they are.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new layout (`fresh`) resets the nodes.
+  useEffect(() => {
+    if (!shown) {
+      setNodes([]);
+      return;
+    }
+    setNodes(flowNodes(shown.laid, activityCounts));
+    requestAnimationFrame(() => fitView());
+  }, [shown?.fresh]);
+
+  const edges = useMemo<DfgEdgeType[]>(() => {
+    if (!shown) return [];
+    return shown.laid.edges.map((e, i) => {
+      const look = shown.looks.get(e.key);
+      const color =
+        look?.heat ??
+        (e.group !== undefined ? (typeColor?.(e.group) ?? DEFAULT_ARC_COLOR) : DEFAULT_ARC_COLOR);
+      return {
+        id: `e${i}`,
+        source: e.source,
+        target: e.target,
+        type: "dfg",
+        data: { route: shown.routes[i], label: look?.label ?? "", color, width: look?.width ?? 1.5 },
+      };
+    });
+  }, [shown, typeColor]);
+
+  // After a drop, rust4pm re-routes every edge over the current centres. The nodes stay where they
+  // were dropped.
+  const onNodeDragStop = useCallback(() => {
+    const s = shownRef.current;
+    if (!s || !viz) return;
+    const byId = new Map(getNodes().map((n) => [n.id, n]));
+    const centres = s.laid.nodes.map((n, i) => {
+      const f = byId.get(n.id);
+      return f ? centreOf(f) : s.laid.layout.nodes[i].center;
+    });
+    rerouteDfg(viz, s.laid, centres)
+      .then((layout) => {
+        if (!layout || shownRef.current !== s) return;
+        setShown({ ...s, routes: edgeRoutes(s.laid, layout) });
+      })
+      .catch((e: unknown) => console.error("[DfgGraph] reroute failed:", e));
+  }, [viz, getNodes]);
 
   const [menu, setMenu] = useState<{ x: number; y: number; act: string } | null>(null);
   const activityActions = useMemo(
@@ -723,6 +348,7 @@ export function DfgGraph({
     () => ({
       activityColor,
       activityForeground,
+      typeColor,
       onActivityClick: onSelect ? (act: string) => onSelect({ scope: "activity", key: act }) : undefined,
       onActivityContextMenu:
         activityActions.length || onElementContextMenu
@@ -732,61 +358,32 @@ export function DfgGraph({
             }
           : undefined,
     }),
-    [activityColor, activityForeground, onSelect, activityActions, onElementContextMenu],
+    [activityColor, activityForeground, typeColor, onSelect, activityActions, onElementContextMenu],
   );
 
-  const buildSvgInputs = () => {
-    const layoutedNodes = getLayoutedNodes();
-    if (!layoutedNodes) return null;
-    const rfEdges = getLayoutedEdges();
-    const routingByKey = new Map<string, DfgArc["routing"]>();
-    const swByKey = new Map<string, number>();
-    const labelOffsetByKey = new Map<string, { dx: number; dy: number }>();
-    if (rfEdges) {
-      for (const e of rfEdges) {
-        const r = e.data?.routing;
-        if (r?.kind === "polyline") {
-          routingByKey.set(e.id, { points: r.points, srcPos: r.srcPos, tgtPos: r.tgtPos });
-        }
-        if (typeof e.style?.strokeWidth === "number") {
-          swByKey.set(e.id, e.style.strokeWidth);
-        }
-        if (e.data?.labelOffset) {
-          labelOffsetByKey.set(e.id, e.data.labelOffset);
-        }
-      }
-    }
-    const arcsWithRouting = selection.filteredArcs.map((a) => ({
-      ...a,
-      routing: routingByKey.get(a.key) ?? a.routing,
-      strokeWidth: swByKey.get(a.key) ?? a.strokeWidth,
-      labelOffset: labelOffsetByKey.get(a.key) ?? a.labelOffset,
-    }));
-    return {
-      layoutedNodes,
-      filteredArcs: arcsWithRouting,
-      activityCounts,
+  // rust4pm's drawing over the shown positions and polylines, with the screen's colors as overrides.
+  // Read live at export time through a ref, so the registered source stays stable.
+  const toSvg = async (): Promise<string | null> => {
+    const s = shownRef.current;
+    if (!s || !viz) return null;
+    const byId = new Map(getNodes().map((n) => [n.id, n]));
+    const centres = s.laid.nodes.map((n, i) => {
+      const f = byId.get(n.id);
+      return f ? centreOf(f) : s.laid.layout.nodes[i].center;
+    });
+    const index = new Map(s.laid.nodes.map((n, i) => [n.id, i]));
+    const shownEdges = s.laid.edges.map((e, i) =>
+      shownRoute(s.routes[i], centres[index.get(e.source) ?? 0], centres[index.get(e.target) ?? 0]),
+    );
+    const overrides = dfgOverrides(s.laid, {
       activityColor,
-      formatDuration,
-      metric,
-      heatmap,
-      direction,
-      legend: [
-        ...legend,
-        { title: "Metric", items: [{ label: metricDisplayName(metric), color: "#6b7280", hideDot: true }] },
-      ],
-    };
-  };
-
-  // Read live at export-click time (not cached): `useRegisterExport` re-registers only when
-  // `exportSource` identity changes, so route through a ref to keep that identity stable.
-  const toSvg = async () => {
-    const inputs = buildSvgInputs();
-    if (!inputs) return null;
-    const graph = buildDfgStyledGraph(inputs);
-    if (!graph) return null;
-    // The pure-TS drawer covers the ELK engine, which has no `renderSvg`.
-    return renderSvg ? renderSvg(graph) : styledGraphToSvg(graph);
+      typeColor: (t) => {
+        const color = typeColor?.(t);
+        return color && color !== colorForKey("objectType", t) ? color : undefined;
+      },
+      heat: (key) => s.looks.get(key)?.heat,
+    });
+    return dfgSvg(viz, s.model, s.options, s.laid, { centres, edges: shownEdges }, overrides);
   };
   const toSvgRef = useRef(toSvg);
   toSvgRef.current = toSvg;
@@ -806,40 +403,43 @@ export function DfgGraph({
           className="inner-flow relative"
           style={{ flex: "1 1 auto", width: "100%", height: "100%", minHeight: 0 }}
         >
-          <ReactFlowProvider>
-            <ReactFlow
-              colorMode={colorMode}
-              defaultEdges={[]}
-              defaultNodes={[]}
-              nodeTypes={DFG_NODE_TYPES}
-              edgeTypes={DFG_EDGE_TYPES}
-              onBeforeDelete={async () => false}
-              onNodeDragStop={onNodeDragStop}
-              onInit={attachRef}
-              className="node-dfg"
-              fitView
-              proOptions={{ hideAttribution: true }}
-            >
-              <Panel position="top-right">
-                <Card
-                  className=" mt-4 p-1! bg-(--color-panel-translucent) backdrop-blur-sm"
-                  style={{ width: topRightExtra ? 180 : 100 }}
-                >
-                  {topRightExtra}
-                  <DfgSettings
-                    metric={metric}
-                    onMetricChange={setMetric}
-                    edgeSlider={edgeSlider}
-                    setEdgeSlider={setEdgeSlider}
-                    coverage={coverage}
-                    hasPerformanceData={hasPerformanceData}
-                    direction={direction}
-                    onDirectionChange={setDirection}
-                  />
-                </Card>
-              </Panel>
-            </ReactFlow>
-          </ReactFlowProvider>
+          <ReactFlow
+            colorMode={colorMode}
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            nodeTypes={DFG_NODE_TYPES}
+            edgeTypes={DFG_EDGE_TYPES}
+            onBeforeDelete={async () => false}
+            onNodeDragStop={onNodeDragStop}
+            nodesConnectable={false}
+            className="node-dfg"
+            proOptions={{ hideAttribution: true }}
+          >
+            <Panel position="top-right">
+              <Card
+                className=" mt-4 p-1! bg-(--color-panel-translucent) backdrop-blur-sm"
+                style={{ width: topRightExtra ? 180 : 100 }}
+              >
+                {topRightExtra}
+                <DfgSettings
+                  metric={metric}
+                  onMetricChange={setMetric}
+                  edgeSlider={selection.slider}
+                  setEdgeSlider={(v) =>
+                    setUserEdgeSlider((prev) => {
+                      const current = prev ?? selection.slider;
+                      return typeof v === "function" ? v(current) : v;
+                    })
+                  }
+                  coverage={selection.coverage}
+                  hasPerformanceData={hasPerformanceData}
+                  direction={direction}
+                  onDirectionChange={setDirection}
+                />
+              </Card>
+            </Panel>
+          </ReactFlow>
         </div>
         {menu && (
           <>
@@ -897,5 +497,3 @@ export function DfgGraph({
     </DfgNodeContext.Provider>
   );
 }
-
-export { colorToHex };

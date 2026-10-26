@@ -1,7 +1,7 @@
 import { Button } from "@r4pm/components/ui";
 import {
-  Background,
   type Edge,
+  EdgeLabelRenderer,
   type EdgeProps,
   type EdgeTypes,
   Handle,
@@ -15,25 +15,27 @@ import {
 import "@xyflow/react/dist/style.css";
 import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { PiArrowsOut } from "react-icons/pi";
-import { softBadgeStyle } from "../dfg/util/colors";
-import { styledGraphToSvg } from "../graph-svg/styled-graph-svg";
 import { useIsDarkMode } from "../viewer/dark-mode";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { type ColorResolver, colorForKey, useViewerConfig } from "../viewer/viewer-config";
-import { type LayoutEdge, type LayoutNode, type LayoutResult, layoutTypeGraph } from "./elk-layout";
+import { modelSvg, type VizTransport } from "../viz";
+import type { Point } from "../viz/types";
 import {
-  ocelTypeGraphToStyledGraph,
-  type StyledTypeGraphEdge,
-  type StyledTypeGraphNode,
-} from "./styled-graph";
+  DIMMED_EDGE_OPACITY,
+  DIMMED_NODE_OPACITY,
+  type IndexedTypeGraph,
+  type LaidTypeGraph,
+  layoutTypeGraph,
+  pointAlong,
+  roundedPath,
+  toTypeGraph,
+  typeGraphOverrides,
+} from "./type-graph";
 
-/** Layout contract: node positions + routed edge paths; host can inject a rust/wasm-backed impl over the bundled ELK default. */
-export type TypeGraphLayoutFn = (nodes: LayoutNode[], edges: LayoutEdge[]) => Promise<LayoutResult>;
-
-const NODE_WIDTH = 150;
-const NODE_HEIGHT = 40;
 // Above this many visible nodes, warn + cap (top-count first) instead of silently dropping.
 const VISIBLE_CAP = 60;
+const EDGE_WIDTH = 1.6;
+const EDGE_COLOR = "var(--gray-11)";
 
 export interface OcelTypeGraphNode {
   id: string;
@@ -42,12 +44,13 @@ export interface OcelTypeGraphNode {
   count?: number;
 }
 
+/** A qualified relation between two types. One from an object type is drawn as O2O (dashed), one
+ *  from an event type as E2O. */
 export interface OcelTypeGraphEdge {
   id: string;
   source: string;
   target: string;
   qualifier?: string;
-  kind?: "e2o" | "o2o";
 }
 
 export interface OcelTypeGraphProps {
@@ -63,11 +66,12 @@ export interface OcelTypeGraphProps {
   onEdgeClick?: (id: string) => void;
   /** Host-controlled visible node subset (scope). Omit to show all. Pair with a `TypeScopeSelector`. */
   visibleNodeIds?: Iterable<string>;
-  /** Layout engine. Defaults to the bundled ELK layout; inject a rust/wasm-backed fn to override. */
-  layout?: TypeGraphLayoutFn;
   /** Shared color resolver (`(scope, key) => hex`); defaults to the ViewerConfig / deterministic
    *  palette, so node colors match the app's other viewers. */
   colorOf?: ColorResolver;
+  /** rust4pm's visualization, for the layout and the image export. Defaults to `ViewerConfig.viz`.
+   *  Without one the event types sit in a row above the object types and there is no vector export. */
+  viz?: VizTransport;
   className?: string;
 }
 
@@ -86,57 +90,55 @@ interface TypeNodeData {
   count?: number;
   color: string;
   ring?: string;
+  width: number;
+  height: number;
   [key: string]: unknown;
 }
 
+/** A type as rust4pm draws it: a tinted box (event type) or pill (object type) in the type's color,
+ *  with the count under the name. */
 function TypeNode({ data }: { data: TypeNodeData }) {
-  const isEvent = data.kind === "event";
-  const soft = softBadgeStyle(data.color);
   return (
     <div
       title={data.label}
       style={{
-        ...soft,
-        border: `2.5px solid color-mix(in srgb, ${data.color} 45%, transparent)`,
-        borderRadius: isEvent ? 6 : 999,
-        padding: "6px 13px",
+        backgroundColor: `color-mix(in srgb, ${data.color} 15%, Canvas)`,
+        color: `color-mix(in srgb, ${data.color} 75%, CanvasText)`,
+        border: `2px solid color-mix(in srgb, ${data.color} 80%, transparent)`,
+        borderRadius: data.kind === "event" ? 6 : data.height / 2,
+        padding: "0 10px",
         boxSizing: "border-box",
-        width: NODE_WIDTH,
-        minHeight: NODE_HEIGHT,
+        width: data.width,
+        height: data.height,
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        gap: 7,
         justifyContent: "center",
         fontFamily: "ui-sans-serif, system-ui, sans-serif",
-        fontSize: 12.5,
-        fontWeight: 600,
-        whiteSpace: "nowrap",
         boxShadow: data.ring ? `0 0 0 4px ${data.ring}` : "none",
         cursor: "pointer",
       }}
     >
       <Handle type="target" position={Position.Left} style={HIDDEN_HANDLE} />
       <Handle type="source" position={Position.Right} style={HIDDEN_HANDLE} />
-      <div className="flex flex-col w-full items-center">
-        <div className="flex w-fit max-w-full items-center gap-x-1">
-          <span
-            aria-hidden
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: isEvent ? 1 : 999,
-              background: data.color,
-              flex: "0 0 auto",
-            }}
-          />
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{data.label}</span>
-        </div>
-        {data.count != null && (
-          <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, flex: "0 0 auto" }}>
-            {data.count.toLocaleString("en")}
-          </span>
-        )}
-      </div>
+      <span
+        style={{
+          maxWidth: "100%",
+          fontSize: 12.5,
+          fontWeight: 600,
+          lineHeight: "15px",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {data.label}
+      </span>
+      {data.count != null && (
+        <span style={{ fontSize: 9.5, fontWeight: 700, lineHeight: "12px" }}>
+          {data.count.toLocaleString("en")}
+        </span>
+      )}
     </div>
   );
 }
@@ -144,75 +146,88 @@ function TypeNode({ data }: { data: TypeNodeData }) {
 const nodeTypes: NodeTypes = { typeNode: TypeNode };
 
 interface TypeEdgeData {
-  routedPath?: string;
+  /** The layout's route, border to border, source first. */
+  points: Point[];
+  labelAt?: Point;
   label?: string;
   color: string;
   width: number;
   opacity: number;
-  isO2O: boolean;
+  o2o: boolean;
   [key: string]: unknown;
 }
 
-function TypeEdge({ data }: EdgeProps) {
+function TypeEdge({ data }: EdgeProps<Edge<TypeEdgeData>>) {
   // Edge `id` can contain chars that break an SVG id/url() fragment; derive a sanitized id instead.
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  if (!data || data.points.length < 2) return null;
   const markerId = `otg-arrow-${uid}`;
-  const labelId = `otg-elabel-${uid}`;
-  const d = data as TypeEdgeData | undefined;
-  const path = d?.routedPath;
-  if (!path || !d) return null;
-  // Same filled arrowhead the SVG exporter draws, so on-screen and export match.
-  const ms = Math.max(12, 2.5 * d.width);
+  const path = roundedPath(data.points, 4);
+  const ms = Math.max(12, 2.5 * data.width);
   return (
-    // color is set here so currentColor resolves inside the marker; a var() on marker content won't resolve.
-    <g opacity={d.opacity} style={{ color: d.color }}>
-      <defs>
-        <marker
-          id={markerId}
-          markerWidth={ms}
-          markerHeight={ms}
-          viewBox="0 0 12 12"
-          refX={11}
-          refY={6}
-          orient="auto"
-          markerUnits="userSpaceOnUse"
-        >
-          <path d="M 1,1 L 11,6 L 1,11 Z" fill="currentColor" stroke="currentColor" strokeLinejoin="round" />
-        </marker>
-      </defs>
-      <path d={path} fill="none" stroke="transparent" strokeWidth={12} />
-      <path
-        d={path}
-        style={{
-          fill: "none",
-          stroke: d.color,
-          strokeWidth: d.width,
-          strokeDasharray: d.isO2O ? "6 3" : undefined,
-        }}
-        markerEnd={`url(#${markerId})`}
-      />
-      {d.label && (
-        <>
-          <path id={labelId} d={path} fill="none" stroke="none" />
-          <text
-            dy={-5}
-            fontSize={9}
-            fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-            paintOrder="stroke"
-            // Panel-colored halo (not white) keeps the label legible over the pane in both themes.
-            style={{ fill: d.color, stroke: "var(--color-panel-solid)", strokeWidth: 3 }}
+    <>
+      {/* color is set here so currentColor resolves inside the marker. A var() on marker content won't resolve. */}
+      <g opacity={data.opacity} style={{ color: data.color }}>
+        <defs>
+          <marker
+            id={markerId}
+            markerWidth={ms}
+            markerHeight={ms}
+            viewBox="0 0 12 12"
+            refX={11}
+            refY={6}
+            orient="auto"
+            markerUnits="userSpaceOnUse"
           >
-            <textPath href={`#${labelId}`} startOffset="50%" textAnchor="middle">
-              {d.label}
-            </textPath>
-          </text>
-        </>
+            <path
+              d="M 1,1 L 11,6 L 1,11 Z"
+              fill="currentColor"
+              stroke="currentColor"
+              strokeLinejoin="round"
+            />
+          </marker>
+        </defs>
+        <path d={path} fill="none" stroke="transparent" strokeWidth={12} />
+        <path
+          d={path}
+          style={{
+            fill: "none",
+            stroke: data.color,
+            strokeWidth: data.width,
+            strokeDasharray: data.o2o ? "6 3" : undefined,
+          }}
+          markerEnd={`url(#${markerId})`}
+        />
+      </g>
+      {data.label && data.labelAt && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${data.labelAt.x}px, ${data.labelAt.y}px)`,
+              padding: "0 2px",
+              borderRadius: 2,
+              background: "var(--color-panel-solid)",
+              color: "var(--gray-12)",
+              fontFamily: "ui-sans-serif, system-ui, sans-serif",
+              fontSize: 10.5,
+              lineHeight: "14px",
+              whiteSpace: "nowrap",
+              opacity: data.opacity,
+              pointerEvents: "none",
+            }}
+          >
+            {data.label}
+          </div>
+        </EdgeLabelRenderer>
       )}
-    </g>
+    </>
   );
 }
 
 const edgeTypes: EdgeTypes = { typeEdge: TypeEdge };
+
+const scopeOf = (kind: "event" | "object") => (kind === "event" ? "activity" : "objectType");
 
 function OcelTypeGraphInner({
   nodes,
@@ -222,23 +237,19 @@ function OcelTypeGraphInner({
   edgeStyle,
   onNodeClick,
   onEdgeClick,
-  layout: layoutProp,
   colorOf,
+  viz,
   visibleNodeIds,
 }: OcelTypeGraphProps) {
   const { fitView } = useReactFlow();
-  const cfg = useViewerConfig({ colorOf });
+  const cfg = useViewerConfig({ colorOf, viz });
   const isDark = useIsDarkMode();
-  // Explicit prop wins, else the ambient engine (Rust/wasm when a host injects it), else bundled ELK.
-  const layoutFn = layoutProp ?? cfg.layout?.typeGraph ?? layoutTypeGraph;
   const colorFor = useCallback(
-    (n: OcelTypeGraphNode): string => {
-      const scope = n.kind === "event" ? "activity" : "objectType";
-      return cfg.colorOf?.(scope, n.label) ?? colorForKey(scope, n.label) ?? "#6366f1";
-    },
+    (kind: "event" | "object", label: string): string =>
+      cfg.colorOf?.(scopeOf(kind), label) ?? colorForKey(scopeOf(kind), label) ?? "#6366f1",
     [cfg.colorOf],
   );
-  const [layout, setLayout] = useState<LayoutResult | null>(null);
+  const [shown, setShown] = useState<{ indexed: IndexedTypeGraph; laid: LaidTypeGraph } | null>(null);
 
   const allIds = useMemo(() => nodes.map((n) => n.id), [nodes]);
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -257,115 +268,105 @@ function OcelTypeGraphInner({
     return { visibleIds: new Set(ids), capped };
   }, [scopeSet, allIds, nodeById]);
 
-  const visibleEdges = useMemo(
-    () => edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target)),
-    [edges, visibleIds],
-  );
-
-  const structureKey = useMemo(
+  // In the order of `nodes`, so the same scope gives the same graph whatever order it was picked in.
+  const indexed = useMemo(
     () =>
-      `${[...visibleIds].sort().join(",")}|${visibleEdges
-        .map((e) => e.id)
-        .sort()
-        .join(",")}`,
-    [visibleIds, visibleEdges],
+      toTypeGraph(
+        nodes.filter((n) => visibleIds.has(n.id)),
+        edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target)),
+      ),
+    [nodes, edges, visibleIds],
   );
+  const graphKey = useMemo(() => JSON.stringify(indexed), [indexed]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: structureKey captures the visible structure; relayout only on structural change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: graphKey captures the visible graph; relayout only when it changes.
   useEffect(() => {
-    if (visibleIds.size === 0) {
-      setLayout(null);
+    if (indexed.graph.nodes.length === 0) {
+      setShown(null);
       return;
     }
-    const layoutNodes = [...visibleIds].map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT }));
-    const layoutEdges = visibleEdges.map((e) => ({ id: e.id, source: e.source, target: e.target }));
     let cancelled = false;
-    layoutFn(layoutNodes, layoutEdges).then((res) => {
-      if (!cancelled) setLayout(res);
-    });
+    layoutTypeGraph(cfg.viz, indexed.graph, cfg.routing)
+      .then((laid) => {
+        if (!cancelled) setShown({ indexed, laid });
+      })
+      .catch((e) => console.error("[ocel-type-graph] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [structureKey]);
+  }, [graphKey, cfg.viz, cfg.routing]);
 
   const rfNodes: Node[] = useMemo(() => {
-    if (!layout) return [];
-    return [...visibleIds].map((id) => {
-      const n = nodeById.get(id);
+    if (!shown) return [];
+    const { indexed, laid } = shown;
+    return laid.nodes.map((i, k) => {
+      const id = indexed.nodeIds[i];
+      const n = indexed.graph.nodes[i];
+      const { center, size } = laid.layout.nodes[k];
       return {
         id,
         type: "typeNode",
-        position: layout.nodes.get(id) ?? { x: 0, y: 0 },
+        position: { x: center.x - size.width / 2, y: center.y - size.height / 2 },
         data: {
-          label: n?.label ?? id,
-          kind: n?.kind ?? "object",
-          count: n?.count,
-          color: n ? colorFor(n) : (colorForKey("objectType", id) ?? "#6366f1"),
+          label: n.label,
+          kind: n.kind,
+          count: n.count ?? undefined,
+          color: colorFor(n.kind, n.label),
           ring: nodeRingColor?.(id),
+          width: size.width,
+          height: size.height,
         } satisfies TypeNodeData,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        style: { opacity: nodeDimmed?.(id) ? 0.35 : 1 },
+        width: size.width,
+        height: size.height,
+        style: { opacity: nodeDimmed?.(id) ? DIMMED_NODE_OPACITY : 1 },
       };
     });
-  }, [layout, visibleIds, nodeById, nodeRingColor, nodeDimmed, colorFor]);
+  }, [shown, nodeRingColor, nodeDimmed, colorFor]);
 
-  const rfEdges: Edge[] = useMemo(() => {
-    if (!layout) return [];
-    return visibleEdges.map((e) => {
-      const override = edgeStyle?.(e.id);
-      return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        type: "typeEdge",
-        data: {
-          routedPath: layout.edges.get(e.id)?.path,
-          label: e.qualifier,
-          color: override?.color ?? "var(--gray-11)",
-          width: override?.width ?? 1.6,
-          opacity: override?.dimmed ? 0.3 : 1,
-          isO2O: e.kind === "o2o",
-        } satisfies TypeEdgeData,
-      };
-    });
-  }, [layout, visibleEdges, edgeStyle]);
-
-  // Rebuilds a StyledGraph from live geometry at export time; kept behind a ref so the registered source stays stable.
-  const buildStyled = () => {
-    if (!layout) return null;
-    const sNodes: StyledTypeGraphNode[] = [...visibleIds].map((id) => {
-      const n = nodeById.get(id);
+  const rfEdges: Edge<TypeEdgeData>[] = useMemo(() => {
+    if (!shown) return [];
+    const { indexed, laid } = shown;
+    return laid.edges.map((e, k) => {
+      const id = indexed.edgeIds[e];
+      const edge = indexed.graph.edges[e];
+      const route = laid.layout.edges[k];
+      const override = edgeStyle?.(id);
       return {
         id,
-        label: n?.label ?? id,
-        kind: n?.kind ?? "object",
-        count: n?.count,
-        color: n ? colorFor(n) : (colorForKey("objectType", id) ?? "#6366f1"),
-        ring: nodeRingColor?.(id),
-        dimmed: nodeDimmed?.(id),
+        source: indexed.nodeIds[edge.source],
+        target: indexed.nodeIds[edge.target],
+        type: "typeEdge",
+        data: {
+          points: route.points,
+          labelAt: route.label_anchor ?? pointAlong(route.points, 0.5),
+          label: edge.qualifier ?? undefined,
+          color: override?.color ?? EDGE_COLOR,
+          width: override?.width ?? EDGE_WIDTH,
+          opacity: override?.dimmed ? DIMMED_EDGE_OPACITY : 1,
+          o2o: indexed.graph.nodes[edge.source].kind === "object",
+        },
       };
     });
-    const sEdges: StyledTypeGraphEdge[] = visibleEdges.map((e) => {
-      const o = edgeStyle?.(e.id);
-      return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        qualifier: e.qualifier,
-        isO2O: e.kind === "o2o",
-        color: o?.color ?? "var(--gray-11)",
-        width: o?.width ?? 1.6,
-        dimmed: o?.dimmed,
-      };
-    });
-    return ocelTypeGraphToStyledGraph(sNodes, sEdges, layout);
-  };
+  }, [shown, edgeStyle]);
+
+  // rust4pm's drawing over the shown layout, with the host styling as overrides. Behind a ref so
+  // the registered source stays stable.
   const toSvg = async (): Promise<string | null> => {
-    const graph = buildStyled();
-    if (!graph) return null;
-    const render = cfg.layout?.renderSvg;
-    return render ? render(graph) : styledGraphToSvg(graph);
+    if (!shown || !cfg.viz) return null;
+    const { indexed, laid } = shown;
+    const typeOf = new Map(indexed.nodeIds.map((id, i) => [id, indexed.graph.nodes[i]]));
+    const overrides = typeGraphOverrides(indexed, laid, {
+      colorOf: (id) => {
+        const n = typeOf.get(id);
+        if (!n) return undefined;
+        const color = colorFor(n.kind, n.label);
+        return color === colorForKey(scopeOf(n.kind), n.label) ? undefined : color;
+      },
+      ringOf: nodeRingColor,
+      dimmed: nodeDimmed,
+      edgeStyle,
+    });
+    return modelSvg(cfg.viz, "oc_type_graph", indexed.graph, laid.layout, { overrides });
   };
   const toSvgRef = useRef(toSvg);
   toSvgRef.current = toSvg;
@@ -378,10 +379,10 @@ function OcelTypeGraphInner({
   // Refit only when a new layout lands (structure change), not on pan/zoom.
   // biome-ignore lint/correctness/useExhaustiveDependencies: fit only when a new layout lands.
   useEffect(() => {
-    if (layout && rfNodes.length > 0) {
+    if (shown && rfNodes.length > 0) {
       requestAnimationFrame(() => fitView({ padding: 0.15 }));
     }
-  }, [layout]);
+  }, [shown]);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -419,9 +420,7 @@ function OcelTypeGraphInner({
         selectionOnDrag={false}
         elementsSelectable={false}
         proOptions={{ hideAttribution: true }}
-      >
-        <Background gap={20} size={0.8} color="rgba(128,128,128,0.12)" />
-      </ReactFlow>
+      />
     </div>
   );
 }

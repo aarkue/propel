@@ -5,7 +5,8 @@ import { useArtifacts } from "../stores";
 import { backend } from "../backends";
 import { unloadArtifact } from "../persistence/session";
 import { ioKindByName } from "../io-kinds";
-import { openOutputAsPanel, sendArtifactToPipeline } from "../panels/pipeline-bridge";
+import { openArtifact } from "../panels/open-artifact";
+import { sendArtifactToPipeline } from "../panels/pipeline-bridge";
 import { ChipAction, ChipStrip, EntityChip, ExportLineageChipAction } from "./chips";
 
 /**
@@ -41,15 +42,15 @@ function ArtifactChip({
   const renameArtifact = useArtifacts((s) => s.renameArtifact);
   const formats = ioKindByName(kind)?.export_formats ?? [];
 
-  const openViewer = async (close: () => void) => {
+  const open = async (close: () => void) => {
     close();
     try {
-      const v = await backend.getArtifact(id);
-      openOutputAsPanel(ioKindByName(kind)?.returnType ?? kind, v);
+      openArtifact(kind, await backend.getArtifact(id));
     } catch (e) {
       toast.error(`Open failed: ${String(e)}`);
     }
   };
+  const hasPanel = !!ioKindByName(kind)?.editorPanel;
   const runExport = async (ext: string, mime: string, close: () => void) => {
     close();
     try {
@@ -74,7 +75,7 @@ function ArtifactChip({
     >
       {(close) => (
         <>
-          <ChipAction onClick={() => void openViewer(close)}>Open viewer</ChipAction>
+          <ChipAction onClick={() => void open(close)}>{hasPanel ? "Open" : "Open viewer"}</ChipAction>
           <ChipAction
             icon={<PiFlowArrow />}
             onClick={() => {

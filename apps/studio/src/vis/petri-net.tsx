@@ -1,21 +1,56 @@
-import type { EventLogHandle } from "@r4pm/client";
+import { Flex } from "@r4pm/components/ui";
 import { PiTreeStructure } from "react-icons/pi";
-import { defineVis } from "./define-vis";
+import {
+  DEFAULT_MINER,
+  discoverPetriNet,
+  type MinerChoice,
+  type MinerVariant,
+  minerChoice,
+} from "./_discovery";
+import { defineResolvedVis } from "./define-vis";
+import { MinerPicker } from "./components/MinerPicker";
 import { PetriNetPanel } from "./components/PetriNetPanel";
 
-export const vis = defineVis({
+const VARIANTS: readonly MinerVariant[] = ["IM", "IMf", "IMa", "IMd", "IMfd", "Alpha"];
+
+export const vis = defineResolvedVis({
   type: "petriNet",
   name: "Petri Net",
-  description: "Discover a Petri net (Alpha+++) from the log.",
+  description: "Discover a Petri net (Inductive Miner or Alpha+++) from the log.",
   category: "models",
   icon: PiTreeStructure,
   supports: ["EventLog"],
-  keywords: ["petri", "net", "model", "discovery", "alpha", "simulate", "edit"],
+  keywords: [
+    "petri",
+    "net",
+    "model",
+    "discovery",
+    "inductive",
+    "miner",
+    "imf",
+    "imd",
+    "alpha",
+    "simulate",
+    "edit",
+  ],
   order: 7,
+  controls: { initial: DEFAULT_MINER as MinerChoice },
   source: {
-    binding: "app_bindings::discover_petri_net",
     needs: "EventLog",
-    args: (ctx) => ({ event_log: ctx.datasetId as EventLogHandle }),
+    resolve: (ctx, c) => discoverPetriNet(ctx.backend, ctx.datasetId, minerChoice(c, VARIANTS)),
   },
+  viewer: { AcceptingPetriNet: (net) => net },
+  panelControlsBar: (c, set) => (
+    <Flex
+      align="center"
+      gap="3"
+      px="2"
+      py="1"
+      wrap="wrap"
+      style={{ borderBottom: "1px solid var(--gray-5)" }}
+    >
+      <MinerPicker value={minerChoice(c, VARIANTS)} onChange={set} variants={VARIANTS} />
+    </Flex>
+  ),
   component: PetriNetPanel,
 });

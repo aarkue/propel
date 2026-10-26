@@ -1,9 +1,11 @@
-import { ContextMenu } from "@r4pm/components/ui";
+import { Button, ContextMenu } from "@r4pm/components/ui";
 import { Handle, type Node, type NodeProps, Position, useConnection } from "@xyflow/react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { PiCrosshair, PiEyeSlash } from "react-icons/pi";
 import { useEditContext } from "./edit/edit-context";
 import { type DeclareNode, parseNodeName } from "./model";
+import { stripFit } from "./involvement-strip";
 import { MultiDot } from "./MultiDot";
 import type { ActivityNodeData } from "./types";
 import { useVizContext } from "./VizContext";
@@ -16,8 +18,15 @@ const CONNECT_RING = 10;
 
 type ActivityNodeType = Node<ActivityNodeData, "activity">;
 
-/** Display prefix per node kind. Exported for the SVG exporter (`styled-graph.ts`). */
-export const PREFIX: Record<DeclareNode["kind"], string> = { activity: "", init: "<init> ", exit: "<exit> " };
+/** A hover button's click handler: React Flow would otherwise also take the click as focusing the node. */
+export const hoverAction =
+  (action: (activity: string) => void, activity: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    action(activity);
+  };
+
+/** Display prefix per node kind. */
+const PREFIX: Record<DeclareNode["kind"], string> = { activity: "", init: "<init> ", exit: "<exit> " };
 
 /** Collapse an involvement (min,max) into one of the four cardinality classes. */
 function cardClass(min: number, max: number): "0..1" | "0..*" | "1..1" | "1..*" {
@@ -45,7 +54,7 @@ function fullCoverHandle(edit: boolean): React.CSSProperties {
   };
 }
 
-export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
+export function ActivityNode({ id, data, width, height }: NodeProps<ActivityNodeType>) {
   const {
     activityColor,
     objectTypeColor,
@@ -54,6 +63,8 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
     hiddenObjectTypes,
     eventTypeCounts,
     showTextLabels,
+    onHideActivity,
+    onFocusActivity,
   } = useVizContext();
   const edit = useEditContext();
   const kind = (data.kind as DeclareNode["kind"] | undefined) ?? "activity";
@@ -75,6 +86,11 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
     : activityColor(data.label, "foreground");
 
   const visibleTypes = data.objectTypes.filter((t) => !hiddenObjectTypes.has(t.name));
+  const strip = stripFit(
+    visibleTypes.map((t) => ({ name: t.name, many: t.max > 1 })),
+    showTextLabels ? "names" : "dots",
+  );
+  const moreTypes = visibleTypes.slice(strip.rows.flat().length);
   const eventCount = eventTypeCounts[data.label] ?? 0;
   const display = `${PREFIX[kind]}${data.label}`;
 
@@ -96,6 +112,8 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
     setRenaming(false);
     const { type, kind: newKind } = parseNodeName(draft);
     if (!type || !edit) return;
+    // Another node of that name would share its place in rust4pm's layout, so the name is refused.
+    if (edit.model.nodes.some((n) => n.id !== id && n.type === type && n.kind === newKind)) return;
     edit.mutate((m) => ({
       ...m,
       nodes: m.nodes.map((n) => (n.id === id ? { ...n, type, kind: newKind } : n)),
@@ -109,6 +127,7 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
   };
 
   const connectable = !!edit;
+  const showHoverActions = !edit && isHovered && kind === "activity" && !!(onHideActivity || onFocusActivity);
   // Must let pointer events through during a drag: xyflow validates the drop via elementFromPoint, which only accepts a handle element.
   const connecting = useConnection((c) => c.inProgress);
 
@@ -119,8 +138,9 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
           // Label + involvement strip center together as one block, including wrapped rows.
           className="font-semibold border-2 rounded-2xl flex flex-col justify-center items-stretch px-2 shadow-sm box-border transition-opacity text-center leading-tight text-[12px]"
           style={{
-            width: ACT_NODE_WIDTH,
-            height: ACT_NODE_HEIGHT,
+            // 0 until React Flow has measured a node that came without a size.
+            width: width || ACT_NODE_WIDTH,
+            height: height || ACT_NODE_HEIGHT,
             backgroundColor: colorSurface,
             borderColor: isFocused ? colorBase : `${colorBase}cc`,
             borderStyle: isObject ? "dashed" : "solid",
@@ -157,34 +177,45 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
             </span>
           )}
           {visibleTypes.length > 0 && (
-            <div
-              className="mt-0.5 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5"
-              style={{ minHeight: 12 }}
-            >
-              {visibleTypes.map((t) =>
-                showTextLabels ? (
-                  <span
-                    key={t.name}
-                    className="inline-flex items-center gap-0.5 text-[9px] leading-none font-semibold"
-                    title={`${t.name}: ${t.min}..${t.max} per event`}
-                  >
-                    <span style={{ color: objectTypeColor(t.name) }} className="truncate max-w-[52px]">
-                      {t.name}
+            // Rows as the shared packing gives them, so "+k" ends the second and never wraps.
+            <div className="mt-0.5 flex flex-col items-center gap-y-0.5" style={{ minHeight: 12 }}>
+              {strip.rows.map((row, ri) => (
+                <div key={row[0]} className="flex flex-nowrap items-center justify-center gap-x-1">
+                  {row.map((i) => {
+                    const t = visibleTypes[i];
+                    return showTextLabels ? (
+                      <span
+                        key={t.name}
+                        className="inline-flex items-center gap-0.5 text-[9px] leading-none font-semibold"
+                        title={`${t.name}: ${t.min}..${t.max} per event`}
+                      >
+                        <span style={{ color: objectTypeColor(t.name) }} className="truncate max-w-[52px]">
+                          {t.name}
+                        </span>
+                        <span className="text-(--gray-9) font-normal">{cardClass(t.min, t.max)}</span>
+                      </span>
+                    ) : (
+                      <MultiDot
+                        key={t.name}
+                        dot={{
+                          objectType: t.name,
+                          color: objectTypeColor(t.name),
+                          card: cardClass(t.min, t.max),
+                          title: `${t.name}: ${t.min}..${t.max} per event`,
+                        }}
+                      />
+                    );
+                  })}
+                  {ri === strip.rows.length - 1 && moreTypes.length > 0 && (
+                    <span
+                      className="text-[9px] leading-none font-semibold text-(--gray-10)"
+                      title={moreTypes.map((t) => `${t.name}: ${t.min}..${t.max} per event`).join("\n")}
+                    >
+                      +{moreTypes.length}
                     </span>
-                    <span className="text-(--gray-9) font-normal">{cardClass(t.min, t.max)}</span>
-                  </span>
-                ) : (
-                  <MultiDot
-                    key={t.name}
-                    dot={{
-                      objectType: t.name,
-                      color: objectTypeColor(t.name),
-                      card: cardClass(t.min, t.max),
-                      title: `${t.name}: ${t.min}..${t.max} per event`,
-                    }}
-                  />
-                ),
-              )}
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -203,6 +234,48 @@ export function ActivityNode({ id, data }: NodeProps<ActivityNodeType>) {
             isConnectable={connectable}
             style={fullCoverHandle(!!edit)}
           />
+          {showHoverActions && (
+            // Flush with the node (the gap is padding), so moving onto the buttons keeps the hover.
+            <div
+              className="nodrag nopan"
+              style={{
+                position: "absolute",
+                bottom: "100%",
+                left: "50%",
+                transform: "translateX(-50%)",
+                paddingBottom: 6,
+                zIndex: 2,
+              }}
+            >
+              <div
+                className="flex items-center gap-0.5 rounded-md p-0.5 shadow-md"
+                style={{ background: "var(--color-panel-solid)", border: "1px solid var(--gray-a5)" }}
+              >
+                {onHideActivity && (
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="gray"
+                    title="Hide this activity"
+                    onClick={hoverAction(onHideActivity, data.label)}
+                  >
+                    <PiEyeSlash /> Hide
+                  </Button>
+                )}
+                {onFocusActivity && (
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="gray"
+                    title="Show only this activity and its neighbors"
+                    onClick={hoverAction(onFocusActivity, data.label)}
+                  >
+                    <PiCrosshair /> Focus
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           {edit && !renaming && (
             <div
               style={{

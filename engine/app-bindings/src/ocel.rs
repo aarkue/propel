@@ -13,7 +13,6 @@ use process_mining::core::event_data::object_centric::{
     OCELRelationship, OCELType, OCELTypeAttribute, OCEL,
 };
 use process_mining::ReadableOCEL;
-use rayon::prelude::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +20,7 @@ use crate::types::{
     AttributeCatalogEntry, AttributeKind, AttributeScope, AttributeValues, DfArcDuration,
     EventTimeHistogram, NumericStats, OCELInfo, OCELObjectAttributeChanges, ObjectBrowserPage,
     ObjectBrowserRow, ObjectDetail, ObjectEventRow, ObjectInvolvementCounts, ObjectSortField,
-    OcDfgCounts, OcelAttributeInfo, OcelAttributeLevel, OcelAttributeSummary, OcelDfPerformance,
+    OcelAttributeInfo, OcelAttributeLevel, OcelAttributeSummary, OcelDfPerformance,
     ATTR_VALUES_CAP,
 };
 
@@ -953,94 +952,6 @@ pub fn get_ocel_activity_object_involvements(
             (act, converted)
         })
         .collect()
-}
-
-/// Object-centric DFG counts: per type, objects are reduced in parallel over interned
-/// event-type indices. Start/end carry event-based frequencies.
-#[register_binding]
-pub fn get_ocel_df(ocel: &SlimLinkedOCEL) -> OcDfgCounts {
-    let ev_type_names: Vec<&str> = ocel.get_ev_types().collect();
-    let mut result = OcDfgCounts::default();
-
-    type TypeAcc = (
-        HashMap<usize, u32>,
-        HashMap<usize, u32>,
-        HashMap<usize, u32>,
-        HashMap<(usize, usize), u32>,
-    );
-    let new_acc = || {
-        (
-            HashMap::new(),
-            HashMap::new(),
-            HashMap::new(),
-            HashMap::new(),
-        )
-    };
-
-    let ob_types: Vec<String> = ocel.get_ob_types().map(|s| s.to_string()).collect();
-    for ob_type in ob_types {
-        let obs: Vec<ObjectIndex> = ocel.get_obs_of_type(&ob_type).copied().collect();
-        result
-            .object_counts
-            .insert(ob_type.clone(), obs.len() as u32);
-
-        let (activities, starts, ends, dfs): TypeAcc = obs
-            .into_par_iter()
-            .fold(new_acc, |mut acc, ob| {
-                let trace: Vec<usize> = ob.get_obj_activity_trace_evtype_indices(ocel).collect();
-                if let (Some(&first), Some(&last)) = (trace.first(), trace.last()) {
-                    for &a in &trace {
-                        *acc.0.entry(a).or_default() += 1;
-                    }
-                    *acc.1.entry(first).or_default() += 1;
-                    *acc.2.entry(last).or_default() += 1;
-                    for w in trace.windows(2) {
-                        *acc.3.entry((w[0], w[1])).or_default() += 1;
-                    }
-                }
-                acc
-            })
-            .reduce(new_acc, |mut a, b| {
-                for (k, v) in b.0 {
-                    *a.0.entry(k).or_default() += v;
-                }
-                for (k, v) in b.1 {
-                    *a.1.entry(k).or_default() += v;
-                }
-                for (k, v) in b.2 {
-                    *a.2.entry(k).or_default() += v;
-                }
-                for (k, v) in b.3 {
-                    *a.3.entry(k).or_default() += v;
-                }
-                a
-            });
-
-        if activities.is_empty() {
-            continue;
-        }
-        let dfg = result.object_type_to_dfg.entry(ob_type).or_default();
-        for (a, c) in activities {
-            dfg.activities.insert(ev_type_names[a].to_string(), c);
-        }
-        for (s, c) in starts {
-            dfg.start_activities.insert(ev_type_names[s].to_string(), c);
-        }
-        for (e, c) in ends {
-            dfg.end_activities.insert(ev_type_names[e].to_string(), c);
-        }
-        dfg.directly_follows_relations = dfs
-            .into_iter()
-            .map(|((f, t), c)| {
-                (
-                    (ev_type_names[f].to_string(), ev_type_names[t].to_string()),
-                    c,
-                )
-            })
-            .collect();
-    }
-
-    result
 }
 
 /// A qualifier and its instance count.

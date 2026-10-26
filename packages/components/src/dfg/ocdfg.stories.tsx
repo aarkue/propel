@@ -1,10 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { OCDFGViewer, type OCDirectlyFollowsGraph } from "@r4pm/components";
+import { OCDFGViewer, type OcDfg } from "@r4pm/components";
 import type { OcelDfPerformance } from "./util/performance-types";
 import "@r4pm/components/styles.css";
 
-const ocSample: OCDirectlyFollowsGraph = {
-  object_counts: { order: 3, item: 5 },
+const ocSample: OcDfg = {
   object_type_to_dfg: {
     order: {
       activities: { "place order": 3, "confirm order": 3, ship: 2 },
@@ -26,6 +25,8 @@ const ocSample: OCDirectlyFollowsGraph = {
     },
   },
 };
+
+const objectCounts = { order: 3, item: 5 };
 
 const ocPerformance: OcelDfPerformance = {
   arcs_per_object_type: {
@@ -90,5 +91,5 @@ export const OCDFG: StoryObj = {
 
 export const OCDFGPerformance: StoryObj = {
   name: "With performance",
-  render: () => <OCDFGViewer data={ocSample} performance={ocPerformance} />,
+  render: () => <OCDFGViewer data={ocSample} performance={ocPerformance} objectCounts={objectCounts} />,
 };

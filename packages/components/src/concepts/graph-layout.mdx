@@ -1,0 +1,129 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Getting Started/Graph Layout" tags={["dev"]} />
+
+# Graph layout
+
+Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri net, object-centric Petri net, process tree, OCEL type
+graph, extraction blueprint) place their nodes, route their edges and draw their SVG export with
+rust4pm's visualization module. The core package does not include it. You pass the viewers a
+`VizTransport`, the channel that runs rust4pm's visualization bindings, through
+[`ViewerConfig.viz`](?path=/docs/getting-started-viewer-configuration--docs).
+
+Without a transport the graph viewers still render, but they place their nodes in a plain row, column
+or grid and have no SVG export.
+
+## In the browser
+
+`wasmViz` runs the bindings in the browser, from a wasm build that ships inside the package:
+
+```tsx
+import { ViewerConfigProvider, DFGViewer, PetriNetViewer } from "@r4pm/components";
+import { wasmViz } from "@r4pm/components/viz/wasm";
+
+<ViewerConfigProvider value={{ viz: wasmViz }}>
+  <DFGViewer data={dfg} />
+  <PetriNetViewer data={net} />
+</ViewerConfigProvider>;
+```
+
+The wasm sits behind its own subpath, so an app that never imports `@r4pm/components/viz/wasm`
+bundles none of it. It is inlined as base64, which works in any bundler without asset configuration,
+and loads on the first layout. The inlined module is roughly 700 KB gzipped. To load the `.wasm`
+from somewhere else, e.g., a URL your server hosts, call `setVizWasm(source)` from the same subpath
+before the first layout. It takes anything wasm-bindgen's init takes: a URL, a `Response`, bytes or a
+compiled `WebAssembly.Module`.
+
+## On a backend
+
+A host that already runs rust4pm (a server, a desktop app, a worker) can run the bindings there and
+ship no wasm at all. A `VizTransport` has one method: call the binding
+`process_mining::visualization::bindings::<fn>` with the given JSON arguments and return its JSON
+result.
+
+```ts
+import type { VizTransport } from "@r4pm/components";
+
+const viz: VizTransport = {
+  call: (fn, args) => callMyBackend(`process_mining::visualization::bindings::${fn}`, args),
+};
+```
+
+A host with a rust4pm backend passes it this way. The embedded wasm and a backend give the same layouts and
+the same SVG.
+
+## Edge routing
+
+`ViewerConfig.routing` sets how the process maps (DFG, OC-DFG, OCEL type graph) route their edges:
+`"diagonal"` for flowing edges, `"orthogonal"` for straight channels with right-angle bends. Unset,
+each model keeps its own default.
+
+## Dragging and export
+
+In the DFG, Petri net and OC-DECLARE viewers, a dragged node stays where the user drops it and its
+edges are routed again around it. The SVG export draws the model with rust4pm over the layout on
+screen, dragged nodes included, and carries on-screen styling such as highlights, dimming and
+heatmaps over. See [Image Export](?path=/docs/getting-started-image-export--docs).
+
+## Laying out a model yourself
+
+The helpers the viewers use are exported too, for a custom renderer or just for coordinates.
+`layoutModel` lays out a rust4pm model: `dfg`, `ocdfg`, `oc_declare`, `petri_net`, `ocpn`,
+`process_tree` or `type_graph`. The result holds the layout and, per graph node and edge, the model
+element behind it.
+
+```ts
+import { layoutModel, modelSvg } from "@r4pm/components";
+import { wasmViz } from "@r4pm/components/viz/wasm";
+
+const laid = await layoutModel(wasmViz, "dfg", dfg);
+laid.nodes[0]; // the activity (or start/end) behind graph node 0
+laid.layout.nodes[0].center; // { x, y }
+laid.layout.edges[0].points; // [{ x, y }, ...] border to border, source first
+
+const svg = await modelSvg(wasmViz, "dfg", dfg, laid.layout);
+```
+
+`rerouteModel(viz, laid, positions)` routes the edges again over new node centres, one per node in
+graph order, e.g., after a drag. `modelSvg` takes `overrides` (per node and per edge: `fill`,
+`stroke`, `stroke_width`, `opacity`, `dash`, `extra_label`) to draw single elements differently
+from the model's own style.
+
+## Graphs without a model
+
+To lay out a graph no rust4pm model covers, build a graphlay `GraphRequest` and pass it to
+`layoutGraph`. Nodes and edges are addressed by index, and the layout holds one placement per node
+and one route per edge, in the same order.
+
+```ts
+import { layoutGraph } from "@r4pm/components";
+import { wasmViz } from "@r4pm/components/viz/wasm";
+
+const box = { size: { width: 120, height: 40 } };
+const layout = await layoutGraph(wasmViz, {
+  graph: {
+    nodes: [box, box, box],
+    edges: [
+      { source: 0, target: 1 },
+      { source: 1, target: 2 },
+    ],
+  },
+  preset: "layered",
+  options: { direction: "topbottom" },
+});
+
+layout.nodes[1].center; // { x, y }
+layout.edges[0].points; // [{ x, y }, ...] border to border, source first
+```
+
+`preset` picks the kind of drawing (`layered`, `process_map`, `hub_and_spoke` or
+`hub_and_spoke_flow`), and `options` changes fields of it (graphlay's `LayoutOptions`, deep-merged).
+`rerouteGraph(viz, request, positions)` keeps every node at the given centre and routes the edges
+again. `layoutTree(viz, request)` lays out a rooted tree or forest.
+
+## See also
+
+- [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config `viz` and `routing` live on.
+- [Image Export](?path=/docs/getting-started-image-export--docs): the SVG export the graph viewers draw with rust4pm.
+- [Directly-Follows Graph](?path=/docs/viewers-directly-follows-graph--docs)
+- [Petri Net](?path=/docs/viewers-petri-net--docs)

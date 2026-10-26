@@ -1,24 +1,5 @@
 import { type ComponentType, createContext, type ReactNode, useCallback, useContext, useMemo } from "react";
-import type { DfgLayoutFn } from "../dfg/DfgGraph";
-import type { BlueprintLayoutFn } from "../extraction-blueprint/elk-layout";
-import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
-import type { DeclareLayoutFn } from "../oc-declare/layout-util";
-import type { TypeGraphLayoutFn } from "../ocel-type-graph/OcelTypeGraph";
-import type { PetriLayoutFn } from "../petri/editor/helpers/layout-graph";
-import type { ProcessTreeLayoutFn } from "../process-tree/editor/helpers/layout-graph";
-
-/** A layout engine for graph viewers: one layout fn per surface, plus `renderSvg` for image export.
- *  The core ships no engine; import a prebuilt bundle and pass it through `ViewerConfigProvider`. */
-export interface LayoutEngine {
-  dfg?: DfgLayoutFn;
-  ocdfg?: DfgLayoutFn;
-  declare?: DeclareLayoutFn;
-  petri?: PetriLayoutFn;
-  processTree?: ProcessTreeLayoutFn;
-  typeGraph?: TypeGraphLayoutFn;
-  blueprint?: BlueprintLayoutFn;
-  renderSvg?: StyledGraphRenderer;
-}
+import type { VizTransport } from "../viz";
 
 /** A domain element a host can act on. `scope` is the kind ("activity", "objectType", ...). */
 export interface ViewerTarget {
@@ -100,8 +81,12 @@ export interface ViewerConfig {
   actions?: ViewerAction[];
   onSelect?: (target: ViewerTarget) => void;
   onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
-  /** Layout engine for graph viewers; explicit `layoutOverride`/`renderSvg` props still win. */
-  layout?: LayoutEngine;
+  /** rust4pm's visualization (layout and SVG export of process models) for graph viewers: the
+   *  embedded `wasmViz` or a backend. */
+  viz?: VizTransport;
+  /** How rust4pm routes the edges of process maps (DFG, OC-DFG, OCEL type graph). Unset keeps each
+   *  model's default. */
+  routing?: "diagonal" | "orthogonal";
 }
 
 export interface ViewerProps<T> extends ViewerConfig {
@@ -132,7 +117,8 @@ export function useViewerConfig(props: ViewerConfig): ViewerConfig {
       onElementContextMenu: props.onElementContextMenu ?? ctx.onElementContextMenu,
       format: { ...ctx.format, ...props.format },
       alignmentStyle: props.alignmentStyle ?? ctx.alignmentStyle,
-      layout: props.layout ?? ctx.layout,
+      viz: props.viz ?? ctx.viz,
+      routing: props.routing ?? ctx.routing,
     }),
     [
       ctx,
@@ -142,7 +128,8 @@ export function useViewerConfig(props: ViewerConfig): ViewerConfig {
       props.onElementContextMenu,
       props.format,
       props.alignmentStyle,
-      props.layout,
+      props.viz,
+      props.routing,
     ],
   );
 }

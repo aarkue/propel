@@ -1,26 +1,24 @@
 import type { ReactNode } from "react";
 import { SegmentedControl } from "@r4pm/components/ui";
-import { ObjectCentricPetriNetViewer, type ObjectCentricPetriNet } from "./object-centric-petri-net";
+import { ObjectCentricPetriNetViewer } from "./object-centric-petri-net";
 import { ObjectCentricPetriNetSimulator } from "./object-centric-petri-net-simulator";
 import { useWorkbench, type WorkbenchMode } from "./shared/use-workbench";
 import type { OcSequenceStep } from "./shared/ObjectCentricSequence";
 import type { ViewerProps } from "./viewer/viewer-config";
-import type { StyledGraphRenderer } from "./graph-svg/styled-graph";
+import type { Ocpn } from "./viz";
 
 export type OcpnMode = WorkbenchMode;
 
-export interface ObjectCentricPetriNetWorkbenchProps extends ViewerProps<ObjectCentricPetriNet> {
+export interface ObjectCentricPetriNetWorkbenchProps extends ViewerProps<Ocpn> {
   /** Mode shown on mount. Defaults to "view". */
   initialMode?: OcpnMode;
   /** Fired whenever the current (possibly edited) net changes. */
-  onNetChange?: (net: ObjectCentricPetriNet) => void;
+  onNetChange?: (net: Ocpn) => void;
   /** Host-supplied buttons (e.g. backend PNML export); receive the current net. */
-  toolbar?: (net: ObjectCentricPetriNet) => ReactNode;
+  toolbar?: (net: Ocpn) => ReactNode;
   /** Host handler to turn a simulation trace into an OCEL. When set, the simulator shows a
    *  "Save as OCEL" button. */
   onSaveTraceAsLog?: (trace: OcSequenceStep[]) => void;
-  /** Draw the exact on-screen graph through a host-supplied renderer (applied in View/Edit mode). */
-  renderSvg?: StyledGraphRenderer;
 }
 
 /** View / Replay / Edit toggle over one object-centric Petri net. Pure. */
@@ -30,7 +28,6 @@ export function ObjectCentricPetriNetWorkbench({
   onNetChange,
   toolbar,
   onSaveTraceAsLog,
-  renderSvg,
 }: ObjectCentricPetriNetWorkbenchProps) {
   const { mode, setMode, currentNet, editSeed, handleEdit, enterEdit } = useWorkbench(
     data,
@@ -75,13 +72,11 @@ export function ObjectCentricPetriNetWorkbench({
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>{toolbar?.(currentNet)}</div>
       </div>
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        {mode === "view" && <ObjectCentricPetriNetViewer data={currentNet} renderSvg={renderSvg} />}
+        {mode === "view" && <ObjectCentricPetriNetViewer data={currentNet} />}
         {mode === "simulate" && (
           <ObjectCentricPetriNetSimulator data={currentNet} onSaveAsLog={onSaveTraceAsLog} />
         )}
-        {mode === "edit" && (
-          <ObjectCentricPetriNetViewer data={editSeed} editable onChange={handleEdit} renderSvg={renderSvg} />
-        )}
+        {mode === "edit" && <ObjectCentricPetriNetViewer data={editSeed} editable onChange={handleEdit} />}
       </div>
     </div>
   );

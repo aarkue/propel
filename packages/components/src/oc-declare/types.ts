@@ -47,14 +47,16 @@ export interface ConstraintEdgeData {
   constraintIndex: number;
   /** Evaluation result for this arc (fraction of violating situations), when evaluated. */
   violation?: number;
-  /** For a render-layer collapsed EFEP/DFDP arc: the two underlying model-edge ids it stands for
+  /** For a merged EFEP/DFDP arc: the two underlying model-edge ids it stands for
    *  (`forward` = EF/DF, `backward` = EP/DP). Absent on plain single arcs. */
   pair?: { forward: string; backward: string };
   /** Per-direction evaluation results for a collapsed arc (mirrors {@link pair}). */
   pairViolation?: { forward?: number; backward?: number };
-  /** Routed polyline vertices (Rust engine), drawn as a rounded polyline. */
+  /** Routed polyline vertices, border to border and source first, drawn as a rounded polyline. */
   routedPoints?: { x: number; y: number }[];
   routedPath?: string;
+  /** Where the layout centred the text label (it may sit beside the line, clear of others). */
+  labelAnchor?: { x: number; y: number };
   /** Node positions captured at layout time, used to detect drag and deform. */
   layoutSourcePos?: { x: number; y: number };
   layoutTargetPos?: { x: number; y: number };

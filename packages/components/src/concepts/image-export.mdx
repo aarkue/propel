@@ -79,10 +79,10 @@ These register one as soon as they sit inside a frame.
 | `LogVariants` | `log-variants` |
 | `TraceAlignmentStrip` / `DeviationAlignmentStrip` | only when you pass `exportKey` |
 
-None of them require a particular layout engine. Graph viewers draw through the engine's `renderSvg`
-when one is configured (the wasm engine has it, ELK does not) and fall back to the package's own
-pure-TS drawer. The host renderer matches on-screen geometry more exactly, but SVG export works
-either way.
+The graph viewers (Petri nets, DFG, OC-DECLARE, OCEL type graph, process tree) draw their SVG with
+rust4pm over the layout on screen, so they need
+[`ViewerConfig.viz`](?path=/docs/getting-started-graph-layout--docs). Without it only the screenshot
+works for them. `LogVariants` and the alignment strips draw their SVG themselves and need nothing.
 
 ## Several viewers in one frame
 
@@ -172,7 +172,7 @@ previews use.
 | --- | --- | --- |
 | No export button anywhere | no `ViewerExportFrame` around the viewer | wrap it |
 | Only "Screenshot" in the menu | that viewer registers no vector source, or the frame sits inside the viewer instead of around it | check the table above; move the frame outward |
-| "nothing to export (source produced null)" | `toSvg` ran before layout finished, or the viewer has no data yet | export once the graph has rendered |
+| "nothing to export (source produced null)" | `toSvg` ran before layout finished, the viewer has no data yet, or a graph viewer has no `viz` | export once the graph has rendered; set `ViewerConfig.viz` |
 | Image includes the toolbar or selector | no `data-export-root` | mark the content subtree |
 | Two viewers, only one exportable | shared registration key | give each an `exportKey` |
 | Blank or clipped screenshot | the frame has no height and there is nothing to capture | give the frame or its child a real height |
@@ -182,4 +182,4 @@ previews use.
 
 - [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs): giving a viewer the box it needs.
 - [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config every viewer accepts.
-- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): where `renderSvg` comes from.
+- [Graph Layout](?path=/docs/getting-started-graph-layout--docs): the `viz` transport the graph viewers export with.

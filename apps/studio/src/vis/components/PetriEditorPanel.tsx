@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useViewerConfig } from "@r4pm/components";
 import { Editor, nodesToPetriNet, type ArcData, type PetriNetNode } from "@r4pm/components/petri";
 import type { IDockviewPanelProps } from "dockview";
 import type { Edge } from "@xyflow/react";
@@ -14,6 +15,7 @@ const EMPTY_GRAPH: EditorGraph = { nodes: [], edges: [] };
 /** Persist the editor graph (nodes/edges with layout), not the collapsed net: nodesToPetriNet drops positions. */
 export function PetriEditorPanel(props: IDockviewPanelProps) {
   const [graph, setGraph] = usePanelDraft<EditorGraph>(props, "graph", EMPTY_GRAPH);
+  const { viz } = useViewerConfig({});
   const net = useMemo(() => nodesToPetriNet(graph.nodes, graph.edges), [graph]);
   const handleChange = useCallback(
     (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => setGraph({ nodes, edges }),
@@ -38,6 +40,7 @@ export function PetriEditorPanel(props: IDockviewPanelProps) {
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         <Editor
           editable
+          viz={viz}
           showExportControls={false}
           initialNodes={graph.nodes}
           initialEdges={graph.edges}

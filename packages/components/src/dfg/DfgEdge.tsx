@@ -2,191 +2,57 @@ import {
   type Edge,
   EdgeLabelRenderer,
   type EdgeProps,
-  getBezierPath,
-  Position,
+  type InternalNode,
   useInternalNode,
 } from "@xyflow/react";
 import { useId } from "react";
-import { type FlowDirection, selfLoopBezier } from "./util/self-loop";
+import { roundedPath } from "../ocel-type-graph/type-graph";
+import type { Point } from "../viz";
+import { type EdgeRoute, labelPoint, shownRoute } from "./viz-layout";
 
-type Pt = { x: number; y: number };
-
-/** Render plain waypoints (the Rust engine) as a polyline with circular-arc rounded corners,
- *  matching the Rust SVG's `rounded_polyline`. `r` is the max corner radius. */
-function roundedPolylinePath(pts: Pt[], r: number): string {
-  if (pts.length === 0) return "";
-  if (pts.length <= 2) {
-    return pts.length === 1
-      ? `M ${pts[0].x},${pts[0].y}`
-      : `M ${pts[0].x},${pts[0].y} L ${pts[1].x},${pts[1].y}`;
-  }
-  const parts: string[] = [`M ${pts[0].x},${pts[0].y}`];
-  for (let i = 1; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const v1x = p0.x - p1.x;
-    const v1y = p0.y - p1.y;
-    const v2x = p2.x - p1.x;
-    const v2y = p2.y - p1.y;
-    const l1 = Math.hypot(v1x, v1y) || 1;
-    const l2 = Math.hypot(v2x, v2y) || 1;
-    const rr = Math.min(r, l1 / 2, l2 / 2);
-    const a = { x: p1.x + (v1x / l1) * rr, y: p1.y + (v1y / l1) * rr };
-    const b = { x: p1.x + (v2x / l2) * rr, y: p1.y + (v2y / l2) * rr };
-    parts.push(`L ${a.x},${a.y} Q ${p1.x},${p1.y} ${b.x},${b.y}`);
-  }
-  const last = pts[pts.length - 1];
-  parts.push(`L ${last.x},${last.y}`);
-  return parts.join(" ");
+interface DfgEdgeData extends Record<string, unknown> {
+  route: EdgeRoute;
+  label: string;
+  color: string;
+  width: number;
 }
 
-/** Trim the last segment by `shortenEnd` so the arrowhead lands just off the node border. */
-function shortenLastSegment(pts: Pt[], shortenEnd: number): Pt[] {
-  if (shortenEnd <= 0 || pts.length < 2) return pts;
-  const out = pts.map((p) => ({ ...p }));
+export type DfgEdgeType = Edge<DfgEdgeData, "dfg">;
+
+/** A node's centre on screen. */
+function nodeCentre(n: Pick<InternalNode, "internals" | "measured" | "width" | "height">): Point {
+  const w = n.width ?? n.measured?.width ?? 0;
+  const h = n.height ?? n.measured?.height ?? 0;
+  return { x: n.internals.positionAbsolute.x + w / 2, y: n.internals.positionAbsolute.y + h / 2 };
+}
+
+/** Trim the last segment by `by` so the arrowhead tip lands on the node border. */
+function shortenEnd(pts: Point[], by: number): Point[] {
+  if (by <= 0 || pts.length < 2) return pts;
+  const out = [...pts];
   const last = out[out.length - 1];
   const prev = out[out.length - 2];
-  const dx = last.x - prev.x;
-  const dy = last.y - prev.y;
-  const len = Math.hypot(dx, dy);
-  if (len > shortenEnd) {
-    out[out.length - 1] = { x: last.x - (dx / len) * shortenEnd, y: last.y - (dy / len) * shortenEnd };
+  const len = Math.hypot(last.x - prev.x, last.y - prev.y);
+  if (len > by) {
+    out[out.length - 1] = {
+      x: last.x - ((last.x - prev.x) / len) * by,
+      y: last.y - ((last.y - prev.y) / len) * by,
+    };
   }
   return out;
 }
 
-export type EdgeRouting = {
-  kind: "polyline";
-  /** Plain waypoints (the Rust engine), rendered as a rounded polyline. */
-  points: { x: number; y: number }[];
-  srcPos: { x: number; y: number };
-  tgtPos: { x: number; y: number };
-};
-
-export interface DfgEdgeData extends Record<string, unknown> {
-  label: string;
-  color: string;
-  /** Object type this arc belongs to (OC-DFG only); drives per-type layout reconstruction. */
-  group?: string;
-  routing?: EdgeRouting;
-  /** 0-based index among parallel edges sharing the same (source, target). */
-  parallelIndex?: number;
-  /** Total number of parallel edges sharing the same (source, target). */
-  parallelCount?: number;
-  /** Post-layout label displacement to avoid overlaps. */
-  labelOffset?: { dx: number; dy: number };
-  /** Layout flow direction, so self-loops sit on the free cross-axis (right in TB, bottom in LR). */
-  direction?: FlowDirection;
-}
-
-export type DfgEdgeType = Edge<DfgEdgeData, "default">;
-
-/** Shared DFG edge: rounded-polyline routing, self-loops, or bezier fallback, with a scaling arrow marker. */
-export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
-  const { id, source, target, sourceX, sourceY, targetX, targetY, style, data } = edge;
+/** A DFG arc along its route, bent along while its nodes move, with its label at the layout's anchor. */
+export function DfgEdge({ id, source, target, data }: EdgeProps<DfgEdgeType>) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
-  // unique prefix so two renders of the same graph don't emit colliding marker ids
   const uid = useId().replace(/[^\w-]/g, "");
+  if (!data || !sourceNode || !targetNode || data.route.points.length < 2) return null;
 
-  if (!data || !sourceNode || !targetNode) return null;
-
-  const { label, color } = data;
-
-  const sw =
-    typeof (style as React.CSSProperties)?.strokeWidth === "number"
-      ? ((style as React.CSSProperties).strokeWidth as number)
-      : 2;
-  const markerSize = Math.max(14, sw * 4);
-
-  let edgePath: string;
-  let labelX: number;
-  let labelY: number;
-  let arrowOrient = "auto";
-
-  if (source === target) {
-    const nw = sourceNode.measured?.width ?? 120;
-    const nh = sourceNode.measured?.height ?? 52;
-    const nx = sourceNode.internals.positionAbsolute.x;
-    const ny = sourceNode.internals.positionAbsolute.y;
-    const {
-      p0,
-      c1,
-      c2,
-      p3,
-      labelX: lx,
-      labelY: ly,
-    } = selfLoopBezier(
-      { x: nx, y: ny, width: nw, height: nh },
-      data.parallelIndex ?? 0,
-      sw,
-      data.direction ?? "TB",
-    );
-    edgePath = `M ${p0.x},${p0.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`;
-    labelX = lx;
-    labelY = ly;
-  } else if (data.routing?.kind === "polyline" && data.routing.points.length >= 2) {
-    let pts = data.routing.points.map((p) => ({ x: p.x, y: p.y }));
-
-    // Follow dragged nodes: shift the routed endpoints by the node's displacement since layout.
-    const srcDx = sourceNode.position.x - data.routing.srcPos.x;
-    const srcDy = sourceNode.position.y - data.routing.srcPos.y;
-    const tgtDx = targetNode.position.x - data.routing.tgtPos.x;
-    const tgtDy = targetNode.position.y - data.routing.tgtPos.y;
-    if (srcDx !== 0 || srcDy !== 0) pts[0] = { x: pts[0].x + srcDx, y: pts[0].y + srcDy };
-    if (tgtDx !== 0 || tgtDy !== 0) {
-      const n = pts.length;
-      pts[n - 1] = { x: pts[n - 1].x + tgtDx, y: pts[n - 1].y + tgtDy };
-    }
-
-    // shorten so the marker tip lands on the target border, not past it
-    const shortenEnd = 0.35 * markerSize;
-    pts = shortenLastSegment(pts, shortenEnd);
-
-    edgePath = roundedPolylinePath(pts, 18);
-
-    const anchors = pts;
-    let total = 0;
-    const segs: number[] = [];
-    for (let i = 1; i < anchors.length; i++) {
-      const dx = anchors[i].x - anchors[i - 1].x;
-      const dy = anchors[i].y - anchors[i - 1].y;
-      segs.push(Math.sqrt(dx * dx + dy * dy));
-      total += segs[segs.length - 1];
-    }
-    let acc = 0;
-    labelX = anchors[anchors.length - 1].x;
-    labelY = anchors[anchors.length - 1].y;
-    for (let i = 0; i < segs.length; i++) {
-      if (acc + segs[i] >= total / 2) {
-        const t = segs[i] === 0 ? 0 : (total / 2 - acc) / segs[i];
-        labelX = anchors[i].x + (anchors[i + 1].x - anchors[i].x) * t;
-        labelY = anchors[i].y + (anchors[i + 1].y - anchors[i].y) * t;
-        break;
-      }
-      acc += segs[i];
-    }
-    arrowOrient = "auto";
-  } else {
-    const [path, lx, ly] = getBezierPath({
-      sourceX,
-      sourceY,
-      sourcePosition: Position.Bottom,
-      targetX,
-      targetY,
-      targetPosition: Position.Top,
-    });
-    edgePath = path;
-    labelX = lx;
-    labelY = ly;
-  }
-
-  if (data.labelOffset) {
-    labelX += data.labelOffset.dx;
-    labelY += data.labelOffset.dy;
-  }
-
+  const { points, labelAnchor } = shownRoute(data.route, nodeCentre(sourceNode), nodeCentre(targetNode));
+  const markerSize = Math.max(14, data.width * 4);
+  const path = roundedPath(shortenEnd(points, 0.35 * markerSize), 4);
+  const at = data.label ? labelPoint(points, labelAnchor) : undefined;
   const markerId = `dfg-arrow-${uid}-${id.replace(/[^\w-]/g, "_")}`;
 
   return (
@@ -197,7 +63,7 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
           markerWidth={markerSize}
           markerHeight={markerSize}
           viewBox="0 0 20 20"
-          orient={arrowOrient}
+          orient="auto"
           refX="7"
           refY="10"
           markerUnits="userSpaceOnUse"
@@ -205,7 +71,7 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
           {/* style, not fill/stroke attributes: color may be a var() token, which SVG attrs don't substitute */}
           <path
             d="M 0,2 L 14,10 L 0,18 Z"
-            style={{ fill: color, stroke: color }}
+            style={{ fill: data.color, stroke: data.color }}
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
@@ -214,28 +80,29 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
       <path
         id={id}
         className="react-flow__edge-path"
-        d={edgePath}
+        d={path}
         markerEnd={`url(#${markerId})`}
-        style={{ ...(style as React.CSSProperties), strokeLinecap: "butt" }}
+        style={{ stroke: data.color, strokeWidth: data.width, strokeLinecap: "butt" }}
         fill="none"
       />
-      {label !== "" && (
+      {at && (
         <EdgeLabelRenderer>
           <div
-            className="nodrag nopan pointer-events-none font-semibold tabular-nums"
+            className="nodrag nopan pointer-events-none tabular-nums"
             style={{
               position: "absolute",
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              fontSize: 10,
-              // text color, not arc color: arc hex reads poorly as text at 10px
+              transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)`,
+              padding: "0 2px",
+              borderRadius: 2,
+              background: "var(--color-panel-solid)",
               color: "var(--gray-12)",
-              // panel-colored halo keeps digits legible over arcs without a filled chip
-              textShadow:
-                "0 0 2px var(--color-panel-solid), 0 0 2px var(--color-panel-solid), 0 0 2px var(--color-panel-solid), 0 0 3px var(--color-panel-solid), 0 0 4px var(--color-panel-solid)",
+              fontSize: 10.5,
+              lineHeight: "14px",
+              whiteSpace: "nowrap",
               zIndex: 1,
             }}
           >
-            {label}
+            {data.label}
           </div>
         </EdgeLabelRenderer>
       )}
@@ -243,4 +110,4 @@ export function DfgEdge(edge: EdgeProps<DfgEdgeType>) {
   );
 }
 
-export const DFG_EDGE_TYPES = { default: DfgEdge };
+export const DFG_EDGE_TYPES = { dfg: DfgEdge };

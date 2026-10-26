@@ -9,14 +9,15 @@ export type AlignmentMove =
   | { ModelMove: { transition: string } }
   | { LogMove: { trace_event_index: number } };
 
-export type SearchError = "LimitReached" | "Unreachable" | "MaxEdgeCostTooLarge";
+export type SearchError = "LimitReached" | "MemoryLimitReached" | "Unreachable" | "MaxEdgeCostTooLarge";
 
-export type PlaceID = string;
+export type PlaceID = number;
 
 export type SyncProdNetConstructionError =
   | { InvalidPlaceInMarking: PlaceID }
-  | "NoFinalMarking"
-  | "NoInitialMarking";
+  | { ArcWeightTooLarge: number }
+  | { MarkingTooLarge: [PlaceID, number] }
+  | { TraceTooLong: number };
 
 export type AlignmentError =
   | { SearchError: SearchError }

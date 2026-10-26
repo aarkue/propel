@@ -25,18 +25,18 @@ has a copy-paste starting prompt.
 
 ## Use
 
-A viewer needs four things around it: the stylesheet, a Radix `Theme`, a layout engine for graph
-viewers, and a parent with a definite height.
+A viewer needs four things around it: the stylesheet, a Radix `Theme`, rust4pm's visualization for
+graph viewers, and a parent with a definite height.
 
 ```tsx
 import "@r4pm/components/styles.css";                            // 1. the stylesheet, once
 import { Theme, PetriNetViewer, ViewerConfigProvider } from "@r4pm/components";
-import { wasmLayout } from "@r4pm/components/rust-layout/wasm";  // 2. a layout engine
+import { wasmViz } from "@r4pm/components/viz/wasm";            // 2. graph layout and export
 
 export function App({ net }) {
   return (
     <Theme>                                                      {/* 3. the Radix theme */}
-      <ViewerConfigProvider value={{ layout: wasmLayout }}>
+      <ViewerConfigProvider value={{ viz: wasmViz }}>
         <div style={{ height: 400 }}>                            {/* 4. a definite height */}
           <PetriNetViewer data={net} />
         </div>
@@ -46,9 +46,9 @@ export function App({ net }) {
 }
 ```
 
-The core includes no layout engine, and a graph viewer without one stacks its nodes in a line. The
-height is required because a viewer's root is `height: 100%`, which resolves to nothing inside an
-auto-height parent.
+The core does not include rust4pm's visualization, and a graph viewer without it places its nodes in
+a plain row or column. The height is required because a viewer's root is `height: 100%`, which
+resolves to nothing inside an auto-height parent.
 
 Wrap a viewer in [`ViewerExportFrame`](?path=/docs/getting-started-image-export--docs) and it gains an
 SVG / PNG / JPEG download menu. The frame takes a `style` and can replace the `div` above:
@@ -109,7 +109,7 @@ Radix or it strips Radix's control styling.
 - [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs): the height rule, theme setup, every component's sizing behaviour.
 - [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): the shared config every viewer accepts, and persisted display settings.
 - [Coloring](?path=/docs/getting-started-coloring--docs): keeping colors consistent across viewers, palettes, shade helpers.
-- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): picking and wiring an engine (ELK or Rust/wasm) for graph viewers.
+- [Graph Layout](?path=/docs/getting-started-graph-layout--docs): the `viz` transport graph viewers lay out and export with, in the browser or on a backend.
 - [Image Export](?path=/docs/getting-started-image-export--docs): `ViewerExportFrame`, SVG against screenshot, your own sources.
 - [Data Types](?path=/docs/getting-started-data-types--docs): every binding return type a viewer takes as `data`, generated from the Rust types.
 - [For LLM Agents](?path=/docs/getting-started-for-llm-agents--docs): the single-file reference to hand a coding agent, and a copy-paste starting prompt.

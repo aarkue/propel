@@ -9,7 +9,7 @@ use process_mining::conformance::case_centric::alignments::{
     VariantAlignmentResult,
 };
 use process_mining::core::event_data::case_centric::utils::activity_projection::EventLogActivityProjection;
-use process_mining::{EventLog, PetriNet};
+use process_mining::{AcceptingPetriNet, EventLog};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +26,7 @@ pub struct TransitionFireStats {
 /// without re-deriving it per render.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AlignmentAggregate {
-    /// Per transition id (matches `PetriNet.transitions` keys): sync vs model-only firings.
+    /// Per transition index (position in `net.transitions`): sync vs model-only firings.
     pub transition_stats: HashMap<String, TransitionFireStats>,
     /// Per activity: total log-moves (logged events with no matching model step) across all traces.
     pub log_move_counts: HashMap<String, u64>,
@@ -38,7 +38,7 @@ pub struct AlignmentAggregate {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LogAlignments {
     /// The process model the log was aligned against (the caller-supplied net, echoed back).
-    pub net: PetriNet,
+    pub net: AcceptingPetriNet,
     /// Per-variant alignment (activity sequence, frequency, the move sequence + cost).
     pub variant_alignments: Vec<VariantAlignmentResult>,
     /// Aggregate alignment fitness (`None` if fitness could not be computed).
@@ -58,13 +58,13 @@ fn aggregate(variant_alignments: &[VariantAlignmentResult]) -> AlignmentAggregat
                 match mv {
                     AlignmentMove::SyncMove { transition, .. } => {
                         transition_stats
-                            .entry(transition.0.to_string())
+                            .entry(transition.index().to_string())
                             .or_default()
                             .sync_fires += va.frequency;
                     }
-                    AlignmentMove::ModelMove { transition } => {
+                    AlignmentMove::ModelMove { transition, .. } => {
                         transition_stats
-                            .entry(transition.0.to_string())
+                            .entry(transition.index().to_string())
                             .or_default()
                             .model_fires += va.frequency;
                     }
@@ -87,7 +87,7 @@ fn aggregate(variant_alignments: &[VariantAlignmentResult]) -> AlignmentAggregat
 /// Align an event log against a given process model and return the per-variant alignments,
 /// aggregate fitness, and the net itself (echoed for the visualizations).
 #[register_binding]
-pub fn align_event_log(event_log: &EventLog, net: PetriNet) -> LogAlignments {
+pub fn align_event_log(event_log: &EventLog, net: AcceptingPetriNet) -> LogAlignments {
     let projection = EventLogActivityProjection::from(event_log);
     let options = AlignmentOptions::default();
     let variant_alignments = align_variants(&net, &projection, &options);

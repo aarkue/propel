@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "propel",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "identifier": "eu.aarkue.propel",
   "build": {
     "beforeDevCommand": "pnpm --filter @r4pm/studio dev:tauri",
@@ -75,6 +75,15 @@
         "name": "PetriNet file",
         "description": "PetriNet file",
         "mimeType": "text/plain",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "ocdeclare"
+        ],
+        "name": "OCDeclare file",
+        "description": "OCDeclare file",
+        "mimeType": "application/json",
         "role": "Editor"
       }
     ]

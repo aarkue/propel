@@ -1,4 +1,4 @@
-// Ensure the viz-layout wasm is present and embedded. Run in `prepare` (post-install) and `prebuild`
+// Ensure the viz wasm is present and embedded. Run in `prepare` (post-install) and `prebuild`
 // so a fresh clone / CI produces a working package:
 //   - inline module already there  -> nothing to do
 //   - built .wasm present           -> (re)generate the base64 inline module
@@ -14,9 +14,9 @@ import { dirname, join } from "node:path";
 
 const soft = process.argv.includes("--soft");
 const here = dirname(fileURLToPath(import.meta.url));
-const pkgDir = join(here, "..", "src", "rust-layout", "pkg");
+const pkgDir = join(here, "..", "src", "viz", "pkg");
 const inlineJs = join(pkgDir, "wasm-inline.js");
-const wasmBin = join(pkgDir, "viz_layout_wasm_bg.wasm");
+const wasmBin = join(pkgDir, "viz_wasm_bg.wasm");
 
 if (existsSync(inlineJs) && existsSync(wasmBin)) {
   process.exit(0);
@@ -27,11 +27,11 @@ try {
     const { genWasmInline } = await import("./gen-wasm-inline.mjs");
     genWasmInline();
   } else {
-    console.log("[ensure-wasm] viz-layout wasm missing - building from Rust (needs Rust + wasm-pack)...");
+    console.log("[ensure-wasm] viz wasm missing - building from Rust (needs Rust + wasm-pack)...");
     execFileSync("pnpm", ["run", "build:wasm"], { stdio: "inherit" });
   }
 } catch (err) {
-  const msg = `[ensure-wasm] could not build the viz-layout wasm: ${err?.message ?? err}`;
+  const msg = `[ensure-wasm] could not build the viz wasm: ${err?.message ?? err}`;
   if (soft) {
     console.warn(`${msg}\n[ensure-wasm] skipping (run \`pnpm --filter @r4pm/components build:wasm\` when you have the Rust toolchain).`);
     process.exit(0);

@@ -16,9 +16,13 @@ export interface ControlsCardProps {
   hiddenArcTypes: ReadonlySet<string>;
   onToggleArcType: (t: string) => void;
   objectTypes: string[];
+  /** Optional objects per type. Like `activityCounts` for the object-type picker. */
+  objectTypeCounts?: Record<string, number>;
   hiddenObjectTypes: ReadonlySet<string>;
-  onToggleObjectType: (t: string) => void;
+  onSetHiddenObjectTypes: (next: Set<string>) => void;
   activities: string[];
+  /** Default true. A host that offers the activity picker elsewhere leaves it out here. */
+  showActivities?: boolean;
   /** Optional per-activity event counts. Present: the picker sorts by frequency, shows bars + counts
    *  and a top-N cutoff rail. Absent: it sorts by name and shows name + color only. */
   activityCounts?: Record<string, number>;
@@ -56,35 +60,6 @@ function SegButton({
   );
 }
 
-function ToggleChip({
-  label,
-  hidden,
-  color,
-  onToggle,
-}: {
-  label: string;
-  hidden: boolean;
-  color: string;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={hidden}
-      onClick={onToggle}
-      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-all ${hidden ? "line-through" : ""}`}
-      style={{
-        backgroundColor: hidden ? "var(--gray-3)" : `${color}22`,
-        borderColor: hidden ? "var(--gray-7)" : color,
-        color: hidden ? "var(--gray-9)" : color,
-      }}
-      title={`Toggle ${label}`}
-    >
-      {label}
-    </button>
-  );
-}
-
 /** The shared controls/legend card of the OC-DECLARE surface (viewer and editor). */
 export function ControlsCard({
   direction,
@@ -94,9 +69,11 @@ export function ControlsCard({
   hiddenArcTypes,
   onToggleArcType,
   objectTypes,
+  objectTypeCounts,
   hiddenObjectTypes,
-  onToggleObjectType,
+  onSetHiddenObjectTypes,
   activities,
+  showActivities = true,
   activityCounts,
   hiddenActivities,
   onSetHiddenActivities,
@@ -119,6 +96,11 @@ export function ControlsCard({
     [activities, hiddenActivities],
   );
   const shownActivityCount = selectedActivities.size;
+  const hasObjectTypeCounts = !!objectTypeCounts && objectTypes.some((t) => (objectTypeCounts[t] ?? 0) > 0);
+  const selectedObjectTypes = useMemo(
+    () => new Set(objectTypes.filter((t) => !hiddenObjectTypes.has(t))),
+    [objectTypes, hiddenObjectTypes],
+  );
   return (
     <Card className="bg-(--color-panel-translucent) backdrop-blur-sm shadow-md py-1.5! px-2! w-55">
       <div className="flex items-center gap-1 mb-2">
@@ -198,21 +180,38 @@ export function ControlsCard({
           >
             Object types
           </Text>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {objectTypes.map((t) => (
-              <ToggleChip
-                key={t}
-                label={t}
-                hidden={hiddenObjectTypes.has(t)}
-                color={objectTypeColor(t)}
-                onToggle={() => onToggleObjectType(t)}
+          <Popover.Root>
+            <Popover.Trigger>
+              <Button size="1" variant="soft" color="gray" className="w-full justify-between">
+                {selectedObjectTypes.size}/{objectTypes.length} shown
+                <PiCaretDown className="opacity-70" />
+              </Button>
+            </Popover.Trigger>
+            <Popover.Content
+              size="1"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              style={{ width: 280, zIndex: 50 }}
+            >
+              <FrequencyPicker
+                items={Object.fromEntries(objectTypes.map((t) => [t, objectTypeCounts?.[t] ?? 0]))}
+                value={selectedObjectTypes}
+                onChange={(next) => onSetHiddenObjectTypes(new Set(objectTypes.filter((t) => !next.has(t))))}
+                scope="objectType"
+                colorOf={(_scope, key) => objectTypeColor(key)}
+                mode="multi"
+                searchable
+                showBars={hasObjectTypeCounts}
+                showCounts={hasObjectTypeCounts}
+                showCutoff
+                sort={hasObjectTypeCounts ? "count" : "name"}
+                emptyText="No object types"
               />
-            ))}
-          </div>
+            </Popover.Content>
+          </Popover.Root>
         </div>
       )}
 
-      {activities.length > 1 && (
+      {showActivities && activities.length > 1 && (
         <div className="mb-2">
           <Text
             size="1"

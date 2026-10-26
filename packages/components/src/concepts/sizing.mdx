@@ -118,7 +118,7 @@ the colors it had on screen.
 | Page scrolls instead of the viewer | flex child without `minHeight: 0` | add it |
 | Layout right, styling missing | `styles.css` not imported, or imported before your Tailwind entry | fix the import order |
 | Viewer stretches to the whole viewport | root `Theme`'s `min-height: 100vh` | `<Theme style={{ minHeight: 0 }}>` |
-| Nodes stacked in a line | no layout engine configured | see [Layout Engines](?path=/docs/getting-started-layout-engines--docs) |
+| Graph nodes in a plain row or column | no `viz` configured | see [Graph Layout](?path=/docs/getting-started-graph-layout--docs) |
 
 ## Component sizing
 
@@ -144,6 +144,7 @@ Generated from the stories, so it stays in step with what each component does.
 | [Object-Centric Petri Net](?path=/docs/viewers-object-centric-petri-net--docs) | `ObjectCentricPetriNetViewer` | `@r4pm/components` | fills parent |
 | [Object-Centric Petri Net Simulator](?path=/docs/viewers-object-centric-petri-net-simulator--docs) | `ObjectCentricPetriNetSimulator` | `@r4pm/components` | fills parent |
 | [OC-DECLARE](?path=/docs/viewers-oc-declare--docs) | `OCDeclareViewer` | `@r4pm/components` | fills parent |
+| [OC-DECLARE/Discovery Form](?path=/docs/viewers-oc-declare-discovery-form--docs) | `DiscoveryForm` | `@r4pm/components` | content-sized |
 | [OCEL Counts](?path=/docs/viewers-ocel-counts--docs) | `OCELCountInfo` | `@r4pm/components` | content-sized |
 | [OCEL Schema Path](?path=/docs/viewers-ocel-schema-path--docs) | `OcelSchemaPath` | `@r4pm/components` | fills parent |
 | [OCEL Type Graph](?path=/docs/viewers-ocel-type-graph--docs) | `OcelTypeGraph` | `@r4pm/components` | fills parent |
@@ -172,6 +173,7 @@ Generated from the stories, so it stays in step with what each component does.
 | [Frequency Picker](?path=/docs/inputs-primitives-frequency-picker--docs) | `FrequencyPicker` | `@r4pm/components` | content-sized |
 | [JSON Viewer](?path=/docs/inputs-primitives-json-viewer--docs) | `JSONViewer` | `@r4pm/components` | content-sized |
 | [Log Metadata Card](?path=/docs/inputs-primitives-log-metadata-card--docs) | `LogMetadataCard` | `@r4pm/components` | content-sized |
+| [Number Field](?path=/docs/inputs-primitives-number-field--docs) | `NumberField` | `@r4pm/components/ui` | content-sized |
 | [Object-Centric Sequence](?path=/docs/inputs-primitives-object-centric-sequence--docs) | `ObjectCentricSequence` | `@r4pm/components` | content-sized |
 | [Ranked Bar List](?path=/docs/inputs-primitives-ranked-bar-list--docs) | `RankedBarList` | `@r4pm/components` | content-sized |
 | [Selection Actions](?path=/docs/inputs-primitives-selection-actions--docs) | `SelectionActions` | `@r4pm/components` | content-sized |
@@ -184,4 +186,4 @@ Generated from the stories, so it stays in step with what each component does.
 
 - [Image Export](?path=/docs/getting-started-image-export--docs): the wrapper that makes a viewer exportable.
 - [Viewer Configuration](?path=/docs/getting-started-viewer-configuration--docs): coloring, formatting, interactivity.
-- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): node placement for graph viewers.
+- [Graph Layout](?path=/docs/getting-started-graph-layout--docs): node placement for graph viewers.

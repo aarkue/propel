@@ -4,6 +4,10 @@
 // `prefixItems` (Rust tuples, e.g. `(String, usize)`) to draft-07 array-form `items`, which
 // jsts renders as proper tuples (`[string, number]`) instead of `[unknown, unknown]`.
 //
+// A `$ref` with sibling `properties` (serde's internally tagged enum around a struct, e.g.,
+// `{"kind": "log", ...InductiveMinerOptions}`) becomes `allOf: [$ref, {properties}]`: jsts ignores
+// siblings of a `$ref`, which would drop the tag from the type.
+//
 // `seen` memoizes by input-node identity so a node reachable two different ways (e.g. a
 // self-recursive def's own body, reachable both as the compile root *and* as its own `$defs`
 // entry -- see `registerRoot` in gen.mjs) is rebuilt exactly once and both paths end up pointing
@@ -29,6 +33,12 @@ export function normalizeDefs(node, seen = new Map()) {
       else if (k === "$ref" && typeof v === "string") out.$ref = v.replace("#/$defs/", "#/definitions/");
       else if (k === "prefixItems" && !("items" in node)) out.items = normalizeDefs(v, seen);
       else out[k] = normalizeDefs(v, seen);
+    }
+    if (out.$ref && out.properties) {
+      const { $ref, description, ...rest } = out;
+      for (const k of Object.keys(out)) delete out[k];
+      if (description !== undefined) out.description = description;
+      out.allOf = [{ $ref }, rest];
     }
     return out;
   }

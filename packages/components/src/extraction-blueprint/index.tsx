@@ -36,9 +36,6 @@ export {
 } from "./node-summary";
 export type { MappingCategory, SummaryLine } from "./node-summary";
 
-export { layoutBlueprintGraph } from "./elk-layout";
-export type { BlueprintLayoutFn, LayoutResult as BlueprintLayoutResult } from "./elk-layout";
-
 export {
   declaredKind,
   guessColumnKind,

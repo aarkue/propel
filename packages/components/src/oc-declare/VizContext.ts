@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { ViolationBadge } from "./viz-layout";
 
 /** Resolve a name (activity or object type) to a hex color. */
 export type ColorResolver = (name: string, mode?: "normal" | "foreground" | "light" | "surface") => string;
@@ -20,6 +21,12 @@ interface VizContextValue {
   eventTypeCounts: Record<string, number>;
   /** Render object involvement as ∀/ALL()/ANY() text notation instead of quantifier dots. */
   showTextLabels: boolean;
+  /** Hover actions on an activity without content editing: project it away, or keep only it and its
+   *  neighbors. */
+  onHideActivity?: (activity: string) => void;
+  onFocusActivity?: (activity: string) => void;
+  /** Receives each arc's violation badges as drawn, or null when it draws none, for the export. */
+  reportBadges?: (edgeId: string, badges: ViolationBadge[] | null) => void;
 }
 
 const neutralResolver: ColorResolver = () => "#6b7280";

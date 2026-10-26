@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 // Minimal example: what an external consumer imports.
-import { DFGViewer, type DirectlyFollowsGraph } from "@r4pm/components";
+import { DFGViewer, type Dfg } from "@r4pm/components";
 import type { DfPerformance } from "./util/performance-types";
 import "@r4pm/components/styles.css";
 
-const sample: DirectlyFollowsGraph = {
+const sample: Dfg = {
   activities: { "register request": 6, examine: 4, decide: 6, pay: 5 },
   directly_follows_relations: [
     [["register request", "examine"], 4],

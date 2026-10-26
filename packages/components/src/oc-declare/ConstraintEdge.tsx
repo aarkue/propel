@@ -1,17 +1,26 @@
 import { type Edge, EdgeLabelRenderer, type EdgeProps, useInternalNode } from "@xyflow/react";
 import type React from "react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH } from "./ActivityNode";
 import { describeConstraintRich } from "./constraintText";
 import type { OCDeclareArcLabel, ObjectTypeAssociation } from "./index";
-import { deformPoints, roundedPointsToSvgPath, snapEndpointsToNodeBorders } from "./layout-util";
+import { roundedPointsToSvgPath } from "./layout-util";
 import { type DotInfo, MultiDot } from "./MultiDot";
 import type { ActivityNodeData, ConstraintEdgeData, ObjectTypeRef, RenderArcType } from "./types";
 import { type ColorResolver, useVizContext } from "./VizContext";
 import { useEditContext } from "./edit/edit-context";
 import { EdgeEditControl, MergedEdgeEditControl } from "./edit/EdgeEditControl";
 import { cardinalitySugar, type EdgeTemplate, TEMPLATE_TO_ARC } from "./model";
+import {
+  BADGE_FONT_SIZE,
+  BADGE_HEIGHT,
+  edgePolyline,
+  edgeVisible,
+  nodeBox,
+  placeOnCurve,
+  type ViolationBadge,
+  violationBadges,
+} from "./viz-layout";
 
 /**
  * The types an association references, and how to draw it. An O2O association carries no
@@ -35,29 +44,25 @@ function refToDot(
   return { objectType: ref.object_type, color: objectTypeColor(ref.object_type), types: [ref.object_type] };
 }
 
-/**
- * One decimal, because rounding to whole percent hid the difference between a handful of violations
- * and none at all: whole percent prints 0.4% as "0%". Exact 0 and 100 stay short.
- */
-function formatViolationPct(pct: number): string {
-  if (pct === 0 || pct === 100) return `${pct}%`;
-  return `${pct.toFixed(1)}%`;
-}
-
 /** Badge sits on top of the arc, so it carries its own ring to stay legible against the path. */
-function violationBadgeStyle(pct: number): React.CSSProperties {
+function violationBadgeStyle(badge: ViolationBadge): React.CSSProperties {
   return {
     // Sets its own box: as a plain inline span the background would follow the font metrics instead
     // of `lineHeight`, which renders it shorter under a non-flex parent than a flex one.
     display: "inline-flex",
     alignItems: "center",
+    justifyContent: "center",
+    minWidth: badge.width,
+    boxSizing: "border-box",
     color: "#fff",
-    background: pct < 10 ? "#16a34a" : pct < 50 ? "#d97706" : "#dc2626",
-    borderRadius: 5,
-    padding: "0 5px",
-    lineHeight: "17px",
+    background: badge.color,
+    borderRadius: 4,
+    padding: "0 4px",
+    fontSize: BADGE_FONT_SIZE,
+    lineHeight: `${BADGE_HEIGHT}px`,
     fontWeight: 700,
     fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap",
     boxShadow: "0 0 0 1.5px var(--color-panel-solid, #fff), 0 1px 2px rgba(0,0,0,0.28)",
   };
 }
@@ -66,40 +71,98 @@ type ConstraintEdgeType = Edge<ConstraintEdgeData, "constraint">;
 type Point = { x: number; y: number };
 
 // Neutral marker color, same for all arcs so the object-type color stays on the path itself.
-export const MARKER_COLOR = "#4b5563";
+const MARKER_COLOR = "#4b5563";
 
-/** Point + tangent angle at arc-length parameter t in [0,1], with optional pixel offset. */
-function getPlacementOnCurve(points: Point[], t: number, offsetPx = 0) {
-  const sampled = points;
-  if (sampled.length < 2) return { x: sampled[0]?.x ?? 0, y: sampled[0]?.y ?? 0, angle: 0 };
-  const segs: { dx: number; dy: number; len: number; acc: number }[] = [];
-  let acc = 0;
-  for (let i = 1; i < sampled.length; i++) {
-    const dx = sampled[i].x - sampled[i - 1].x;
-    const dy = sampled[i].y - sampled[i - 1].y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    acc += len;
-    segs.push({ dx, dy, len, acc });
-  }
-  const totalLen = acc;
-  if (totalLen === 0) return { x: sampled[0].x, y: sampled[0].y, angle: 0 };
-  let target = t * totalLen + offsetPx;
-  if (target < 0) target = 0;
-  if (target > totalLen) target = totalLen;
-  let startAcc = 0;
-  for (let i = 0; i < segs.length; i++) {
-    const seg = segs[i];
-    if (target <= seg.acc || i === segs.length - 1) {
-      const st = seg.len > 0 ? (target - startAcc) / seg.len : 0;
-      const x = sampled[i].x + st * seg.dx;
-      const y = sampled[i].y + st * seg.dy;
-      const angle = Math.atan2(seg.dy, seg.dx) * (180 / Math.PI);
-      return { x, y, angle };
+// The `//` of a negated arc as rust4pm draws it in the export (`push_slashes` in its
+// visualization/oc_declare.rs), but placed on the drawn path, so it follows rounded corners.
+const NEGATION_COLOR = "#dc2626";
+const SLASH_LENGTH = 13;
+const SLASH_SLANT = (-22.6 * Math.PI) / 180;
+const SLASH_GAP = 5;
+const SLASH_DISTANCE = 27;
+const SLASH_CLEARANCE = 3;
+const END_CLEARANCE = 20;
+const SLASH_KEYS = ["first", "second"];
+
+/** What the `//` keeps clear of: discs around the line's middle, or a text label at a point. */
+type SlashObstacle = { half: number; at?: Point };
+
+function nearestLength(path: SVGPathElement, length: number, p: Point): number {
+  let best = Number.POSITIVE_INFINITY;
+  let at = 0;
+  for (let s = 0; s <= length; s += 2) {
+    const q = path.getPointAtLength(s);
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    if (d < best) {
+      best = d;
+      at = s;
     }
-    startAcc = seg.acc;
   }
-  const last = sampled[sampled.length - 1];
-  return { x: last.x, y: last.y, angle: 0 };
+  return at;
+}
+
+/** The two strokes: `SLASH_DISTANCE` before the target end, or beside the obstacle when that spot
+ *  overlaps it. */
+function slashLines(path: SVGPathElement, obstacle?: SlashObstacle): [Point, Point][] {
+  const length = path.getTotalLength();
+  if (length === 0) return [];
+  const half = SLASH_GAP / 2 + (SLASH_LENGTH / 2) * Math.abs(Math.sin(SLASH_SLANT));
+  const room = length / 2 - END_CLEARANCE - half;
+  let centre = length / 2 - SLASH_DISTANCE;
+  if (obstacle && obstacle.half > 0) {
+    const mid = obstacle.at ? nearestLength(path, length, obstacle.at) - length / 2 : 0;
+    const [lo, hi] = [mid - obstacle.half, mid + obstacle.half];
+    if (centre - half < hi + SLASH_CLEARANCE && centre + half > lo - SLASH_CLEARANCE) {
+      const after = hi + SLASH_CLEARANCE + half;
+      const before = lo - SLASH_CLEARANCE - half;
+      centre = after <= room || before < -room ? after : before;
+    }
+  }
+  const [sin, cos] = [Math.sin(SLASH_SLANT), Math.cos(SLASH_SLANT)];
+  return [-SLASH_GAP / 2, SLASH_GAP / 2].map((offset) => {
+    const s = Math.min(length, Math.max(0, length / 2 + centre + offset));
+    const p = path.getPointAtLength(s);
+    const a = path.getPointAtLength(Math.max(0, s - 1));
+    const b = path.getPointAtLength(Math.min(length, s + 1));
+    const step = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const [dx, dy] = [(b.x - a.x) / step, (b.y - a.y) / step];
+    // The perpendicular to the path, turned by the slant towards it.
+    const [nx, ny] = [-dy * cos + dx * sin, dx * cos + dy * sin];
+    const r = SLASH_LENGTH / 2;
+    return [
+      { x: p.x - nx * r, y: p.y - ny * r },
+      { x: p.x + nx * r, y: p.y + ny * r },
+    ];
+  });
+}
+
+/** The `//` on the path `d`, measured on a hidden copy of it after each layout. */
+function NegationSlashes({ d, obstacle, opacity }: { d: string; obstacle?: SlashObstacle; opacity: number }) {
+  const ref = useRef<SVGPathElement>(null);
+  const [lines, setLines] = useState<[Point, Point][]>([]);
+  const key = JSON.stringify([d, obstacle]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands for `d` and `obstacle`
+  useLayoutEffect(() => {
+    if (ref.current) setLines(slashLines(ref.current, obstacle));
+  }, [key]);
+  return (
+    <g pointerEvents="none" opacity={opacity}>
+      <path ref={ref} d={d} fill="none" stroke="none" />
+      {lines.map(([a, b], i) => (
+        <line
+          // Fixed keys: two strokes can share a point, and duplicate keys leave strokes behind.
+          key={SLASH_KEYS[i]}
+          x1={a.x}
+          y1={a.y}
+          x2={b.x}
+          y2={b.y}
+          stroke={NEGATION_COLOR}
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+      ))}
+    </g>
+  );
 }
 
 /** Human-readable arc-type label. */
@@ -127,6 +190,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
     focusedNodeId,
     hoveredNodeId,
     showTextLabels,
+    reportBadges,
   } = useVizContext();
 
   const edit = useEditContext();
@@ -135,6 +199,12 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [edgeHovered, setEdgeHovered] = useState(false);
+  // The text label's width, so the violation badges and the `//` of a negated arc can step around
+  // it. Measured on every commit, since the label changes with the arc's object types.
+  const [labelWidth, setLabelWidth] = useState(0);
+  const measureLabel = (el: HTMLDivElement | null) => {
+    if (el) setLabelWidth(el.offsetWidth);
+  };
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onEdgeEnter = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -182,32 +252,28 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
     };
   }, [menuPos]);
 
+  // The badges as drawn, handed to the export after every commit (none while the arc is hidden).
+  const drawnBadges = useRef<ViolationBadge[] | null>(null);
+  drawnBadges.current = null;
+  useEffect(() => {
+    reportBadges?.(rawId, drawnBadges.current);
+  });
+  useEffect(() => () => reportBadges?.(rawId, null), [reportBadges, rawId]);
+
   if (!data || !sourceNode || !targetNode) return null;
 
   // `source`/`target` are node IDs; resolve display names from node data so the card never shows raw ids.
   const sourceLabel = (sourceNode.data as ActivityNodeData | undefined)?.label ?? source;
   const targetLabel = (targetNode.data as ActivityNodeData | undefined)?.label ?? target;
 
-  // Editing extras carried on edge data (present in edit mode): cardinality label, negation, violation.
+  // Editing extras carried on edge data (present in edit mode): cardinality label and negation.
   const template = data.template as EdgeTemplate | undefined;
   const negated = template ? TEMPLATE_TO_ARC[template].negated : false;
-  const cardText = cardinalitySugar(data.cardinality as [number | null, number | null] | undefined);
-  const violationPct = typeof data.violation === "number" ? data.violation * 100 : null;
-  // A collapsed EFEP/DFDP arc shows both directions' violations; a plain arc shows one value at the midpoint.
-  const isMerged = !!data.pair;
-  const backwardViolationPct =
-    isMerged && typeof data.pairViolation?.backward === "number" ? data.pairViolation.backward * 100 : null;
-
-  // Visibility filters.
-  if (hiddenArcTypes.has(data.arcType)) return null;
-  const involvedTypes = new Set<string>();
-  for (const refs of [data.label.each, data.label.any, data.label.all]) {
-    for (const ref of refs) for (const t of refToDot(ref, objectTypeColor).types) if (t) involvedTypes.add(t);
-  }
-  if (involvedTypes.size > 0) {
-    const allHidden = [...involvedTypes].every((t) => hiddenObjectTypes.has(t));
-    if (allHidden) return null;
-  }
+  // A negated arc's count is 0. A cardinality left over from before negating does not apply.
+  const cardText = negated
+    ? undefined
+    : cardinalitySugar(data.cardinality as [number | null, number | null] | undefined);
+  if (!edgeVisible(data, hiddenArcTypes, hiddenObjectTypes)) return null;
 
   // Dimming from focus / hover state.
   const incidentFocus = focusedNodeId === null || focusedNodeId === source || focusedNodeId === target;
@@ -220,17 +286,12 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   const isEP = isEFEP || data.arcType === "EP" || data.arcType === "DP";
   const isDirect = data.arcType === "DF" || data.arcType === "DP" || data.arcType === "DFDP";
 
-  // Current absolute positions (from React Flow).
-  const sourcePos = sourceNode.internals.positionAbsolute;
-  const targetPos = targetNode.internals.positionAbsolute;
-  const sw = sourceNode.measured?.width ?? ACT_NODE_WIDTH;
-  const sh = sourceNode.measured?.height ?? ACT_NODE_HEIGHT;
-  const tw = targetNode.measured?.width ?? ACT_NODE_WIDTH;
-  const th = targetNode.measured?.height ?? ACT_NODE_HEIGHT;
-  const srcCenterX = sourcePos.x + sw / 2;
-  const srcCenterY = sourcePos.y + sh / 2;
-  const tgtCenterX = targetPos.x + tw / 2;
-  const tgtCenterY = targetPos.y + th / 2;
+  const srcBox = nodeBox({ ...sourceNode, position: sourceNode.internals.positionAbsolute });
+  const tgtBox = nodeBox({ ...targetNode, position: targetNode.internals.positionAbsolute });
+  const srcCenterX = srcBox.position.x + srcBox.width / 2;
+  const srcCenterY = srcBox.position.y + srcBox.height / 2;
+  const tgtCenterX = tgtBox.position.x + tgtBox.width / 2;
+  const tgtCenterY = tgtBox.position.y + tgtBox.height / 2;
 
   // Build the dot list in label order (each -> any -> all), filtering out hidden object types.
   const quantified = (refs: ObjectTypeRef[], quantifier: "each" | "any" | "all"): DotInfo[] =>
@@ -280,73 +341,29 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
   const startOffset = -totalLabelWidth / 2;
   const T = 0.5;
 
-  // Compute path + label placements.
-  let path: string;
-  let displacements: { x: number; y: number; angle: number }[] = [];
-  // Midpoint anchor for the edit control (default center-to-center; refined per branch below).
-  let mid: Point = { x: (srcCenterX + tgtCenterX) / 2, y: (srcCenterY + tgtCenterY) / 2 };
-  // The drawn polyline, for placing per-direction badges on collapsed arcs.
-  let curvePoints: Point[] = [];
-
-  if (data.routedPoints && data.layoutSourcePos && data.layoutTargetPos) {
-    const sourceDelta = {
-      x: sourcePos.x - data.layoutSourcePos.x,
-      y: sourcePos.y - data.layoutSourcePos.y,
-    };
-    const targetDelta = {
-      x: targetPos.x - data.layoutTargetPos.x,
-      y: targetPos.y - data.layoutTargetPos.y,
-    };
-    const moved =
-      Math.abs(sourceDelta.x) > 0.5 ||
-      Math.abs(sourceDelta.y) > 0.5 ||
-      Math.abs(targetDelta.x) > 0.5 ||
-      Math.abs(targetDelta.y) > 0.5;
-
-    const toPath = (p: Point[]) => roundedPointsToSvgPath(p, 16);
-    let points: Point[];
-    if (moved) {
-      const deformed = deformPoints(data.routedPoints, sourceDelta, targetDelta);
-      const srcCenter = { x: sourcePos.x + sw / 2, y: sourcePos.y + sh / 2 };
-      const tgtCenter = { x: targetPos.x + tw / 2, y: targetPos.y + th / 2 };
-      points = snapEndpointsToNodeBorders(deformed, srcCenter, tgtCenter, sw / 2, sh / 2);
-      path = toPath(points);
-    } else {
-      points = data.routedPoints;
-      path = data.routedPath ?? toPath(points);
-    }
-    curvePoints = points;
-    const midPlace = getPlacementOnCurve(points, T, 0);
-    mid = { x: midPlace.x, y: midPlace.y };
-    let currentOffset = startOffset;
-    displacements = labelItems.map((item) => {
-      const d = getPlacementOnCurve(points, T, currentOffset + item.width / 2);
-      currentOffset += item.width + 2;
-      return d;
-    });
-  } else {
-    // Fallback for an un-routed edge: snap to each node's border, not center-to-center, or the line runs on top of the nodes.
-    const srcCenter = { x: srcCenterX, y: srcCenterY };
-    const tgtCenter = { x: tgtCenterX, y: tgtCenterY };
-    const [p0, p1] = snapEndpointsToNodeBorders([srcCenter, tgtCenter], srcCenter, tgtCenter, sw / 2, sh / 2);
-    curvePoints = [p0, p1];
-    path = `M${p0.x},${p0.y} L${p1.x},${p1.y}`;
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    const ux = len > 0 ? dx / len : 0;
-    const uy = len > 0 ? dy / len : 0;
-    const cx = p0.x + dx * T;
-    const cy = p0.y + dy * T;
-    mid = { x: cx, y: cy };
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-    let currentOffset = startOffset;
-    displacements = labelItems.map((item) => {
-      const off = currentOffset + item.width / 2;
-      currentOffset += item.width + 2;
-      return { x: cx + ux * off, y: cy + uy * off, angle };
-    });
-  }
+  const shown = edgePolyline(data, srcBox, tgtBox, source === target);
+  const curvePoints = shown.points;
+  const path = !shown.moved && data.routedPath ? data.routedPath : roundedPointsToSvgPath(curvePoints, 16);
+  const midPlace = placeOnCurve(curvePoints, T, 0);
+  // The edit control, and the dots, sit on the line's middle.
+  const mid: Point = { x: midPlace.x, y: midPlace.y };
+  // A text label and the badges under it go where the layout made room for the label.
+  const labelAt: Point = showTextLabels && shown.labelAnchor ? shown.labelAnchor : mid;
+  let currentOffset = startOffset;
+  const displacements = labelItems.map((item) => {
+    const d = placeOnCurve(curvePoints, T, currentOffset + item.width / 2);
+    currentOffset += item.width + 2;
+    return d;
+  });
+  // What sits at the line's middle, for the badges and the `//` to keep clear of.
+  const slashObstacle: SlashObstacle | undefined =
+    dots.length === 0
+      ? undefined
+      : showTextLabels
+        ? { half: labelWidth / 2, at: labelAt }
+        : { half: totalLabelWidth / 2 };
+  const badges = violationBadges(data, curvePoints, slashObstacle ?? { half: 0 });
+  drawnBadges.current = badges.map((b) => ({ ...b, dim: !incidentFocus }));
 
   return (
     <>
@@ -494,6 +511,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
               : undefined
         }
       />
+      {negated && <NegationSlashes d={path} obstacle={slashObstacle} opacity={opacity} />}
 
       <EdgeLabelRenderer>
         {edit && (
@@ -503,7 +521,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
               transform: `translate(-50%, -50%) translate(${mid.x}px, ${mid.y - 10}px)`,
               pointerEvents: "all",
               opacity,
-              zIndex: 11,
+              zIndex: 12,
             }}
             className="nodrag nopan"
             onMouseEnter={onEdgeEnter}
@@ -516,11 +534,11 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
             )}
           </div>
         )}
-        {(negated || cardText || (violationPct != null && !isMerged)) && (
+        {cardText && (
           <div
             style={{
               position: "absolute",
-              transform: `translate(-50%, -50%) translate(${mid.x}px, ${mid.y + 16}px)`,
+              transform: `translate(-50%, -50%) translate(${labelAt.x}px, ${labelAt.y + 16}px)`,
               pointerEvents: "none",
               opacity,
               zIndex: 9,
@@ -532,72 +550,36 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
               whiteSpace: "nowrap",
             }}
           >
-            {negated && (
-              <span
-                style={{
-                  color: "#fff",
-                  background: "#dc2626",
-                  borderRadius: 4,
-                  padding: "0 4px",
-                  lineHeight: "15px",
-                }}
-                title="Negated constraint"
-              >
-                ¬
-              </span>
-            )}
-            {cardText && (
-              <span
-                style={{
-                  color: "var(--gray-12)",
-                  background: "var(--color-panel-solid, #fff)",
-                  border: "1px solid var(--gray-6)",
-                  borderRadius: 4,
-                  padding: "0 4px",
-                  lineHeight: "15px",
-                }}
-              >
-                {cardText}
-              </span>
-            )}
-            {violationPct != null && !isMerged && (
-              <span style={violationBadgeStyle(violationPct)} title="Violation fraction">
-                {formatViolationPct(violationPct)}
-              </span>
-            )}
+            <span
+              style={{
+                color: "var(--gray-12)",
+                background: "var(--color-panel-solid, #fff)",
+                border: "1px solid var(--gray-6)",
+                borderRadius: 4,
+                padding: "0 4px",
+                lineHeight: "15px",
+              }}
+            >
+              {cardText}
+            </span>
           </div>
         )}
-        {isMerged &&
-          [
-            { pct: violationPct, t: 0.8, key: "viol-fwd", title: "Forward (EF/DF) violation fraction" },
-            {
-              pct: backwardViolationPct,
-              t: 0.2,
-              key: "viol-bwd",
-              title: "Backward (EP/DP) violation fraction",
-            },
-          ].map(({ pct, t, key, title }) => {
-            if (pct == null) return null;
-            const place = getPlacementOnCurve(curvePoints, t, 0);
-            return (
-              <div
-                key={key}
-                style={{
-                  position: "absolute",
-                  transform: `translate(-50%, -50%) translate(${place.x}px, ${place.y + 16}px)`,
-                  pointerEvents: "none",
-                  opacity,
-                  zIndex: 9,
-                  fontSize: 10,
-                  fontWeight: 700,
-                }}
-              >
-                <span style={violationBadgeStyle(pct)} title={title}>
-                  {formatViolationPct(pct)}
-                </span>
-              </div>
-            );
-          })}
+        {badges.map((b) => (
+          <div
+            key={b.title}
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${b.x}px, ${b.y}px)`,
+              pointerEvents: "none",
+              opacity,
+              zIndex: 11,
+            }}
+          >
+            <span style={violationBadgeStyle(b)} title={b.title}>
+              {b.text}
+            </span>
+          </div>
+        ))}
         {!showTextLabels &&
           dots.map((dot, i) => {
             const { x, y, angle } = displacements[i];
@@ -622,10 +604,11 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
           })}
         {showTextLabels && dots.length > 0 && (
           <div
+            ref={measureLabel}
             onContextMenu={handleContextMenu}
             style={{
               position: "absolute",
-              transform: `translate(-50%, -50%) translate(${mid.x}px, ${mid.y}px)`,
+              transform: `translate(-50%, -50%) translate(${labelAt.x}px, ${labelAt.y}px)`,
               pointerEvents: "all",
               opacity,
               zIndex: 10,

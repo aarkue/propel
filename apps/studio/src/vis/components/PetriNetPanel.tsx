@@ -1,17 +1,15 @@
-import type { PetriNet as ClientPetriNet } from "@r4pm/client";
+import type { AcceptingPetriNet } from "@r4pm/client";
 import { PetriNetWorkbench, type PetriNet, type SimTrace, type ViewerProps } from "@r4pm/components";
-import { renderGraphSvg } from "./render-graph-svg";
 import { PetriNetActions } from "./PetriNetActions";
 import { backend } from "../../backends";
 import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
 const EVENT_LOG_FROM_ACTIVITIES = "app_bindings::event_log::event_log_from_activities" as const;
 
-/** Studio component for any shown Petri net: the pure workbench plus backend-bound actions.
- *  The binding returns the component's array shape despite the generated record type, so the
- *  cast here is the single studio adaptation point. Export draws the exact on-screen `StyledGraph`
- *  through the generic `export_graph_svg` binding. */
-export function PetriNetPanel({ data }: ViewerProps<ClientPetriNet>) {
+/** Studio component for any shown Petri net: the pure workbench plus backend-bound actions. The
+ *  workbench normalizes rust4pm's index-addressed net, so the cast here is the single studio
+ *  adaptation point. */
+export function PetriNetPanel({ data }: ViewerProps<AcceptingPetriNet>) {
   const net = data as unknown as PetriNet;
 
   const saveTraceAsLog = async (traces: SimTrace[]) => {
@@ -36,7 +34,6 @@ export function PetriNetPanel({ data }: ViewerProps<ClientPetriNet>) {
       data={net}
       toolbar={(n) => <PetriNetActions net={n} />}
       onSaveTraceAsLog={saveTraceAsLog}
-      renderSvg={renderGraphSvg}
     />
   );
 }

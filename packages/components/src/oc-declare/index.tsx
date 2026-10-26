@@ -4,19 +4,35 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useViewSetting } from "../viewer/view-state";
 import { shadeHex } from "../dfg/util/colors";
 import { OCDeclareViz, type OCDeclareVizHandle } from "./OCDeclareViz";
-import type { DeclareLayoutFn } from "./layout-util";
-import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 import { arcsToModel } from "./model";
+import {
+  arcList,
+  focusHidden,
+  isProjected,
+  OC_DECLARE_HIDDEN_ACTIVITIES_KEY,
+  projectionTargets,
+} from "./projection";
 
-// Re-export layout primitives so a host can supply a custom layout matching the routed-edge output.
-export { createRustDeclareLayout } from "./rust-declare-layout";
-export type { DeclareLayoutFn } from "./layout-util";
-export { roundedPointsToSvgPath, snapEndpointsToNodeBorders, edgeLabelWidth } from "./layout-util";
 export { ACT_NODE_WIDTH, ACT_NODE_HEIGHT } from "./ActivityNode";
 export type { ConstraintEdgeData } from "./types";
 export { OCDeclareViz } from "./OCDeclareViz";
 export type { OCDeclareVizProps } from "./OCDeclareViz";
-export { arcsToModel, toArcs } from "./model";
+export { arcsToModel, mergeArcs, modelArcs, nodeDisplayName, toArcs } from "./model";
+export { DiscoveryForm, type DiscoveryFormProps } from "./edit/DiscoveryForm";
+export { DISCOVERY_DEFAULTS, discoverySummary } from "./edit/discovery-summary";
+export {
+  fromModelFile,
+  OC_DECLARE_FILE_EXTENSION,
+  type OCDeclareModelFile,
+  toModelFile,
+} from "./model-file";
+export {
+  focusHidden,
+  isProjected,
+  OC_DECLARE_HIDDEN_ACTIVITIES_KEY,
+  projectionTargets,
+  visibleArcCount,
+} from "./projection";
 export type { DeclareEdge, DeclareEdgeRoute, DeclareFlowModel, DeclareNode, EdgeTemplate } from "./model";
 export type {
   ActivityStatistics,
@@ -52,11 +68,9 @@ export interface OCDeclareArc {
   counts: [number | null, number | null];
 }
 
-/** OC-DECLARE viewer: renders object-centric DECLARE constraints as an interactive routed graph with filters, a layout-direction toggle and a legend. */
+/** OC-DECLARE viewer: renders object-centric DECLARE constraints as an interactive routed graph with filters, a layout-direction toggle and a legend. Laid out and exported by rust4pm through `ViewerConfig.viz`. */
 export function OCDeclareViewer(
   props: ViewerProps<OCDeclareArc[]> & {
-    layoutOverride?: DeclareLayoutFn;
-    renderSvg?: StyledGraphRenderer;
     /** Per-activity object-type involvement counts (min/max per event); drives the node dot strip. */
     activityInvolvements?: {
       [activity: string]: { [objectType: string]: { min: number; max: number } | undefined } | undefined;
@@ -64,13 +78,19 @@ export function OCDeclareViewer(
     /** Per-activity event-occurrence counts from the OCEL; drives the frequency selector (sort by
      *  count + cutoff rail). Absent: the selector falls back to a name-sorted list. */
     eventTypeCounts?: Record<string, number>;
-    /** Lossless projection onto a subset of activities (rust `project_oc_declare`-style): the removed
+    /** Lossless projection onto a subset of activities (rust4pm's `project_oc_arcs`): the removed
      *  activities' constraints are folded into the kept ones. Absent: a naive drop-touching filter. */
     onProjectActivities?: (arcs: OCDeclareArc[], activities: string[]) => Promise<OCDeclareArc[]>;
+    /** Objects per object type from the OCEL, to sort the side panel's object-type picker. */
+    objectTypeCounts?: Record<string, number>;
+    /** Default true. False leaves the activity picker out of the side panel, for a host that
+     *  offers its own (it writes the same `hiddenActivities` view setting). */
+    activityPicker?: boolean;
   },
 ) {
-  const { data, layoutOverride, renderSvg, activityInvolvements, eventTypeCounts, onProjectActivities } =
+  const { activityInvolvements, eventTypeCounts, objectTypeCounts, activityPicker, onProjectActivities } =
     props;
+  const data = useMemo(() => arcList(props.data), [props.data]);
   const cfg = useViewerConfig(props);
   const activityColor = (name: string, mode: "normal" | "foreground" | "light" | "surface" = "normal") =>
     shadeHex(cfg.colorOf?.("activity", name) ?? "#888888", mode);
@@ -82,7 +102,10 @@ export function OCDeclareViewer(
   // Persisted as arrays (JSON-safe); the viz filters work on the derived Sets.
   const [hiddenArcArr, setHiddenArcArr] = useViewSetting<string[]>("hiddenArcTypes", []);
   const [hiddenObjectArr, setHiddenObjectArr] = useViewSetting<string[]>("hiddenObjectTypes", []);
-  const [hiddenActivityArr, setHiddenActivityArr] = useViewSetting<string[]>("hiddenActivities", []);
+  const [hiddenActivityArr, setHiddenActivityArr] = useViewSetting<string[]>(
+    OC_DECLARE_HIDDEN_ACTIVITIES_KEY,
+    [],
+  );
   const hiddenArcTypes = useMemo(() => new Set(hiddenArcArr), [hiddenArcArr]);
   const hiddenObjectTypes = useMemo(() => new Set(hiddenObjectArr), [hiddenObjectArr]);
   const hiddenActivities = useMemo(() => new Set(hiddenActivityArr), [hiddenActivityArr]);
@@ -101,18 +124,13 @@ export function OCDeclareViewer(
   // the removed activities' constraints into the survivors (lossless); absent, drop touching arcs.
   const [projected, setProjected] = useState<OCDeclareArc[] | null>(null);
   useEffect(() => {
-    if (hiddenActivities.size === 0) {
+    if (!isProjected(data, hiddenActivities)) {
       setProjected(null);
       return;
     }
-    const kept = allActivities.filter((a) => !hiddenActivities.has(a));
     if (onProjectActivities) {
       let cancelled = false;
-      // Synthetic endpoints (<init>/<exit>) are never user-hideable; keep them in the target set so a
-      // projection that drops arcs with an out-of-set endpoint doesn't delete their arcs.
-      const synthetic = new Set<string>();
-      for (const a of data) for (const nm of [a.from, a.to]) if (nm.startsWith("<")) synthetic.add(nm);
-      onProjectActivities(data, [...kept, ...synthetic])
+      onProjectActivities(data, projectionTargets(data, hiddenActivities))
         .then((r) => !cancelled && setProjected(r))
         .catch(() => !cancelled && setProjected(null));
       return () => {
@@ -126,10 +144,10 @@ export function OCDeclareViewer(
           (a.to.startsWith("<") || !hiddenActivities.has(a.to)),
       ),
     );
-  }, [data, hiddenActivities, allActivities, onProjectActivities]);
+  }, [data, hiddenActivities, onProjectActivities]);
   const effectiveData = projected ?? data;
 
-  // One model for the viz (EF/EP collapse is applied there as a display-only transform).
+  // One model for the viz, which merges mirrored EF/EP arcs for display.
   const model = useMemo(() => arcsToModel(effectiveData), [effectiveData]);
 
   // Root sizes inline so it fills its container; all chrome (direction/annotation toggles, filters,
@@ -155,15 +173,17 @@ export function OCDeclareViewer(
           activities={allActivities}
           hiddenActivities={hiddenActivities}
           onHiddenActivitiesChange={setHiddenActivities}
+          onHideActivity={(a) => setHiddenActivities(new Set([...hiddenActivities, a]))}
+          onFocusActivity={(a) => setHiddenActivities(new Set(focusHidden(data, a)))}
           direction={layoutDirection}
           onDirectionChange={setLayoutDirection}
           showTextLabels={showTextLabels}
           onShowTextLabelsChange={setShowTextLabels}
-          arcsCount={data.length}
           activityInvolvements={activityInvolvements}
           eventTypeCounts={eventTypeCounts}
-          layoutOverride={layoutOverride ?? cfg.layout?.declare}
-          renderSvg={renderSvg ?? cfg.layout?.renderSvg}
+          objectTypeCounts={objectTypeCounts}
+          activityPicker={activityPicker}
+          viz={cfg.viz}
         />
       )}
     </div>

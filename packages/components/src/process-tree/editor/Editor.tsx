@@ -9,10 +9,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { StyledGraphRenderer } from "../../graph-svg/styled-graph";
-import { styledGraphToSvg } from "../../graph-svg/styled-graph-svg";
 import { useRegisterExport, type VectorExportSource } from "../../viewer/export";
 import { useViewerConfig } from "../../viewer/viewer-config";
+import { modelSvg, type VizTransport } from "../../viz";
+import type { ProcessTree, Size } from "../../viz/types";
 import {
   copySubtrees,
   type EditableTree,
@@ -25,7 +25,6 @@ import {
   OPERATOR_TYPES,
   type OperatorType,
   parentOf,
-  type ProcessTree,
   remove,
   reorder,
   subtreeIds,
@@ -34,10 +33,8 @@ import {
   toProcessTree,
 } from "../tree";
 import "./editor.css";
-import { useProcessTreeLayout } from "./helpers/layout-context";
-import { OPERATOR_SIZE, type ProcessTreeLayoutFn } from "./helpers/layout-graph";
-import { treeToNodes } from "./helpers/serialize";
-import { treeModelToStyledGraph } from "./helpers/tree-styled-graph";
+import { nodeStyleOverrides } from "./helpers/overrides";
+import { type LaidTree, layoutProcessTree, treeFlow } from "./helpers/tree-layout";
 import LeafNode from "./LeafNode";
 import OperatorNode from "./OperatorNode";
 import TreeEdge from "./TreeEdge";
@@ -48,6 +45,8 @@ const nodeOrigin: NodeOrigin = [0.5, 0.5];
 
 export type OperatorData = {
   operator_type: OperatorType;
+  /** The node's size in the layout. */
+  size: Size;
   /** Breaks the child-count rule (Loop needs >= 2 children, others >= 1). Badged, not blocked. */
   invalid?: boolean;
   className?: string;
@@ -57,14 +56,14 @@ export type OperatorData = {
 
 export type LeafData = {
   activity_label: LeafLabel;
+  /** The node's size in the layout. */
+  size: Size;
   className?: string;
   style?: React.CSSProperties;
   onClick?: (e: React.MouseEvent) => void;
 };
 
-export type ProcessTreeNode =
-  | (Node<OperatorData> & { type: "operator" })
-  | (Node<LeafData> & { type: "leaf" });
+export type TreeFlowNode = (Node<OperatorData> & { type: "operator" }) | (Node<LeafData> & { type: "leaf" });
 
 export type TreeNodePresentation = {
   className?: string;
@@ -73,19 +72,19 @@ export type TreeNodePresentation = {
 };
 
 export type TreeEditorProps = {
-  /** The tree to show, in the engine's wire shape (no node ids). */
+  /** The tree to show, as rust4pm's `ProcessTree` JSON. */
   tree: ProcessTree;
   readOnly?: boolean;
   /** Turn on editing (operator type, add/wrap/delete, rename, reorder). `readOnly` still wins. */
   editable?: boolean;
   /** Fired on every structural edit with the new tree. */
   onChange?: (tree: ProcessTree) => void;
-  /** Replace the layout from `ViewerConfig.layout.processTree`. */
-  layoutOverride?: ProcessTreeLayoutFn;
-  /** Cosmetics merged over a node's data at render time. */
+  /** Cosmetics merged over a node's data at render time. The image export takes over its
+   *  background, border color, border width and opacity. */
   nodeOverlay?: (id: string, data: OperatorData | LeafData) => TreeNodePresentation | undefined;
-  /** Defaults to `ViewerConfig.layout.renderSvg`. Without either there is no vector export. */
-  renderSvg?: StyledGraphRenderer;
+  /** rust4pm's visualization, for the layout and the image export. Defaults to `ViewerConfig.viz`.
+   *  Without one the nodes sit in a row and there is no vector export. */
+  viz?: VizTransport;
   /** Override to avoid a collision when several trees share one export frame. */
   exportKey?: string;
   children?: React.ReactNode;
@@ -119,7 +118,7 @@ export function useTreeEditor(): EditorCtx {
 
 function InnerEditor(props: TreeEditorProps & { readOnly: boolean }) {
   const [tree, setTree] = useState<EditableTree>(() => toEditable(props.tree));
-  const [nodes, setNodes, onNodesChange] = useNodesState<ProcessTreeNode>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<TreeFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // Skip the tree we just emitted: re-seeding would re-assign every node id mid-edit.
@@ -162,26 +161,30 @@ function InnerEditor(props: TreeEditorProps & { readOnly: boolean }) {
     [props.readOnly, apply, props.nodeOverlay, dropTarget, multiSelect],
   );
 
-  const contextLayout = useProcessTreeLayout();
-  const layoutFn = props.layoutOverride ?? contextLayout;
+  const viz = useViewerConfig({ viz: props.viz }).viz;
 
-  // Read through refs at export time so the registered source stays stable across edits.
-  const cfg = useViewerConfig({});
+  // The tree last laid out, with its layout and the node id behind each graph node: the export
+  // draws exactly what is on screen. Read through refs so the registered source stays stable.
+  const laidRef = useRef<{ tree: ProcessTree; laid: LaidTree; ids: string[] } | null>(null);
+  const vizRef = useRef(viz);
+  vizRef.current = viz;
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
-  const edgesRef = useRef(edges);
-  edgesRef.current = edges;
-  const renderSvgRef = useRef<StyledGraphRenderer | undefined>(undefined);
-  renderSvgRef.current = props.renderSvg ?? cfg.layout?.renderSvg;
+  const overlayRef = useRef(props.nodeOverlay);
+  overlayRef.current = props.nodeOverlay;
   const exportSource = useMemo<VectorExportSource>(
     () => ({
       label: "Process tree",
       toSvg: async () => {
-        const graph = treeModelToStyledGraph(nodesRef.current, edgesRef.current);
-        if (!graph) return null;
-        // The pure-TS drawer covers the ELK engine, which has no `renderSvg`.
-        const render = renderSvgRef.current;
-        return render ? render(graph) : styledGraphToSvg(graph);
+        const shown = laidRef.current;
+        if (!vizRef.current || !shown) return null;
+        const byId = new Map(nodesRef.current.map((n) => [n.id, n]));
+        const overrides = nodeStyleOverrides(shown.ids.length, (i) => {
+          const node = byId.get(shown.ids[i]);
+          if (!node) return undefined;
+          return { ...node.data.style, ...overlayRef.current?.(node.id, node.data)?.style };
+        });
+        return modelSvg(vizRef.current, "process_tree", shown.tree, shown.laid.layout, { overrides });
       },
     }),
     [],
@@ -200,21 +203,25 @@ function InnerEditor(props: TreeEditorProps & { readOnly: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
-    const derived = treeToNodes(tree);
-    layoutFn(derived.nodes, derived.edges).then((laid) => {
-      if (cancelled) return;
-      laidOut.current = new Map(laid.nodes.map((n) => [n.id, n.position]));
-      setNodes(
-        laid.nodes.map((n) =>
-          selectedRef.current.has(n.id) ? ({ ...n, selected: true } as ProcessTreeNode) : n,
-        ),
-      );
-      setEdges(laid.edges);
-    });
+    const wire = toProcessTree(tree);
+    layoutProcessTree(viz, wire)
+      .then((laid) => {
+        if (cancelled) return;
+        const flow = treeFlow(tree, laid);
+        laidRef.current = { tree: wire, laid, ids: flow.ids };
+        laidOut.current = new Map(flow.nodes.map((n) => [n.id, n.position]));
+        setNodes(
+          flow.nodes.map((n) =>
+            selectedRef.current.has(n.id) ? ({ ...n, selected: true } as TreeFlowNode) : n,
+          ),
+        );
+        setEdges(flow.edges);
+      })
+      .catch((e) => console.error("[process-tree] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [tree, layoutFn, setNodes, setEdges]);
+  }, [tree, viz, setNodes, setEdges]);
 
   // Dragging a node that is part of a multi-selection drags every selected subtree.
   const onNodeDragStart = useCallback(
@@ -251,9 +258,10 @@ function InnerEditor(props: TreeEditorProps & { readOnly: boolean }) {
       for (const other of nodesRef.current) {
         if (other.type !== "operator" || drag.ids.has(other.id)) continue;
         const at = laidOut.current.get(other.id) ?? other.position;
+        const { width, height } = other.data.size;
         if (
-          Math.abs(dragged.position.x - at.x) <= OPERATOR_SIZE.width / 2 + 6 &&
-          Math.abs(dragged.position.y - at.y) <= OPERATOR_SIZE.height / 2 + 6
+          Math.abs(dragged.position.x - at.x) <= width / 2 + 6 &&
+          Math.abs(dragged.position.y - at.y) <= height / 2 + 6
         ) {
           target = other.id;
           break;
@@ -315,7 +323,7 @@ function InnerEditor(props: TreeEditorProps & { readOnly: boolean }) {
         className={`process-tree-editor ${copyDrag ? "pt-copy-drag" : ""} ${props.className ?? ""}`}
         style={{ width: "100%", height: "100%" }}
       >
-        <ReactFlow<ProcessTreeNode, Edge>
+        <ReactFlow<TreeFlowNode, Edge>
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}

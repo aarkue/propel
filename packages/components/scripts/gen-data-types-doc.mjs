@@ -60,7 +60,9 @@ function renderType(s, defs) {
 // viewers: each entry is the binding return-type title a viewer consumes.
 // TODO: Find a way to automatically generate this list from the viewer code, or just type the viewer's props in the components themselves.
 const ROOTS = new Set([
-  "PetriNet", //                 petri-net, alignment-net
+  "AcceptingPetriNet", //        petri-net
+  "ObjectCentricPetriNetJson", // ocpn
+  "ProcessTree", //              process-tree
   "DirectlyFollowsGraph", //     dfg
   "OCDirectlyFollowsGraph", //   oc-dfg
   "OcelDfPerformance", //        dfg performance overlay (get_ocel_df_performance)

@@ -62,6 +62,25 @@ export const Default: StoryObj = {
   ),
 };
 
+const manyTypes = Object.fromEntries(
+  Array.from({ length: 30 }, (_, i) => [`type ${i + 1}`, { min: i % 3 === 0 ? 0 : 1, max: i % 2 ? 1 : 4 }]),
+);
+
+/** An activity with more object types than its two-row strip holds ends in "+k". */
+export const ManyObjectTypes: StoryObj = {
+  name: "Many object types",
+  render: () => (
+    <OCDeclareViewer
+      data={sample}
+      activityInvolvements={{
+        "place order": manyTypes,
+        ship: Object.fromEntries(Object.entries(manyTypes).slice(0, 12)),
+        invoice: { order: { min: 1, max: 1 } },
+      }}
+    />
+  ),
+};
+
 const seedModel: DeclareFlowModel = {
   nodes: [
     { id: "n1", type: "place order", kind: "activity" },
@@ -153,4 +172,31 @@ export const Editor: StoryObj = {
       </div>
     );
   },
+};
+
+function ArrangeOnlyDemo() {
+  const [model, setModel] = useState(seedModel);
+  return (
+    <div style={{ width: "100%", height: 600 }}>
+      <OCDeclareViz
+        editable
+        editTools={false}
+        value={model}
+        onChange={setModel}
+        eventTypes={["place order", "ship", "invoice", "pay"]}
+        objectTypes={["order", "item", "worker"]}
+      />
+    </div>
+  );
+}
+
+/** Editable without the editing tools: the layout lives in the model (drags are kept), but there is
+ *  no toolbar, connecting, rename or delete. A host offers editing elsewhere. */
+export const ArrangeOnly: StoryObj = {
+  name: "Arrange only",
+  parameters: {
+    frame: { mode: "canvas", height: 620 },
+    docs: { story: { iframeHeight: 660, inline: false } },
+  },
+  render: () => <ArrangeOnlyDemo />,
 };

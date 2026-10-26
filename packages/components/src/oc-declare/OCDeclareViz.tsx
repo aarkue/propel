@@ -18,26 +18,39 @@ import "@xyflow/react/dist/style.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ACT_NODE_HEIGHT, ACT_NODE_WIDTH, ActivityNode } from "./ActivityNode";
 import { ConstraintEdge } from "./ConstraintEdge";
-import { type DeclareLayoutFn, noopDeclareLayout, roundedPointsToSvgPath } from "./layout-util";
-import { ocDeclareModelToStyledGraph } from "./styled-graph";
-import { styledGraphToSvg } from "../graph-svg/styled-graph-svg";
+import { latestOnly, noopDeclareLayout, roundedPointsToSvgPath } from "./layout-util";
 import type { ActivityNodeData, ConstraintEdgeData } from "./types";
 import { collapseFlowEdges } from "./collapse";
 import { type ColorResolver, VizProvider } from "./VizContext";
-import { normalizeLabel } from "./arc-convert";
 import { defaultConnectLabel, defaultTemplate } from "./auto-label";
 import {
   type DeclareEdge,
-  type DeclareEdgeRoute,
   type DeclareFlowModel,
   type DeclareNode,
-  TEMPLATE_TO_ARC,
   arcsToModel,
   mergeArcs,
+  modelArcs,
+  needsReroute,
+  nodeDisplayName,
   parseNodeName,
-  templateCounts,
   toArcs,
+  uniqueName,
 } from "./model";
+import {
+  constraintData,
+  type DeclareScreenState,
+  type ViolationBadge,
+  declareBuildOptions,
+  declareSvg,
+  type EdgeRouteData,
+  type InvolvementsMap,
+  layoutRoutes,
+  persistedRoutes,
+  nodeCentres,
+  placeNodes,
+  refsToFlowEdges,
+} from "./viz-layout";
+import { layoutModel, modelLayoutRequest, rerouteModel, type VizTransport } from "../viz";
 import {
   CLIPBOARD_MIME,
   type Selection as ClipSelection,
@@ -56,6 +69,8 @@ import { EditToolbar } from "./edit/EditToolbar";
 import { StatsSheet } from "./edit/StatsSheet";
 import { uid } from "../shared/id";
 import { ControlsCard } from "./ControlsCard";
+import { visibleArcCount } from "./projection";
+import { editingContent, relayoutKey } from "./edit/edit-mode";
 import { colorForKey } from "../viewer/viewer-config";
 import { shadeHex } from "../dfg/util/colors";
 
@@ -69,7 +84,6 @@ const defaultObjectTypeColor = defaultColor("objectType");
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { useIsDarkMode } from "../viewer/dark-mode";
 import { useViewerConfig } from "../viewer/viewer-config";
-import type { StyledGraphRenderer } from "../graph-svg/styled-graph";
 
 export interface OCDeclareVizProps {
   /** Constraint model to render; read-only hosts build it via `arcsToModel`, edit mode passes the controlled model. */
@@ -114,6 +128,17 @@ export interface OCDeclareVizProps {
   };
   /** Event-type occurrence counts from the OCEL (activity -> count). */
   eventTypeCounts?: Record<string, number>;
+  /** Objects per object type from the OCEL, to sort the object-type picker by frequency. */
+  objectTypeCounts?: Record<string, number>;
+  /** Default true. False leaves the activity picker out of the controls card (the host offers one). */
+  activityPicker?: boolean;
+  /** Default true. With `editable`, false keeps the layout in the model (positions, routing, saved
+   *  drags) but offers no content editing: no toolbar, connecting, rename or delete. */
+  editTools?: boolean;
+  /** Without content editing (read-only, or `editTools={false}`): hovering an activity offers Hide
+   *  (project it away) and Focus (keep it and its neighbors). Absent: no hover actions. */
+  onHideActivity?: (activity: string) => void;
+  onFocusActivity?: (activity: string) => void;
   /** Filters are controlled when the matching `on...Change` is given; otherwise seed the built-in filter. */
   hiddenArcTypes?: Set<string>;
   onHiddenArcTypesChange?: (next: Set<string>) => void;
@@ -135,11 +160,10 @@ export interface OCDeclareVizProps {
   /** Layout direction; "DOWN" fits narrow, page-shaped surfaces. Controlled when `onDirectionChange` is given. */
   direction?: "RIGHT" | "DOWN";
   onDirectionChange?: (d: "RIGHT" | "DOWN") => void;
-  /** Replace the default Rust layout with a host-supplied one. Same contract: return
-   *  nodes with positions + edges with routing data. */
-  layoutOverride?: DeclareLayoutFn;
-  /** Draw the exact on-screen graph via a host renderer (typically `export_graph_svg`); falls back to the ambient config, then the DOM snapshot export. */
-  renderSvg?: StyledGraphRenderer;
+  /** rust4pm's visualization, which lays the constraints out and draws the SVG export. Defaults to
+   *  the ambient `ViewerConfig.viz`. Without one, the activities stack in a column and only the
+   *  snapshot export is offered. */
+  viz?: VizTransport;
 }
 
 /** Imperative handle for the viz: exposes current laid-out nodes/edges for export. */
@@ -150,10 +174,6 @@ export interface OCDeclareVizHandle {
 
 const NODE_TYPES = { activity: ActivityNode };
 const EDGE_TYPES = { constraint: ConstraintEdge };
-
-type InvolvementsMap = {
-  [activity: string]: { [objectType: string]: { min: number; max: number } | undefined } | undefined;
-};
 
 /** Convert the backend involvements map into the node-data shape, sorted by object-type name. */
 function buildActivityObjectTypes(
@@ -167,7 +187,8 @@ function buildActivityObjectTypes(
     if (!c || c.max <= 0) continue;
     out.push({ name, min: c.min, max: c.max });
   }
-  out.sort((a, b) => a.name.localeCompare(b.name));
+  // In code point order, as rust4pm's export lists them, so both show the same types in the strip.
+  out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return out;
 }
 
@@ -216,20 +237,35 @@ function modelToFlow(
     source: e.source,
     target: e.target,
     type: "constraint",
-    data: {
-      arcType: TEMPLATE_TO_ARC[e.template].arc_type,
-      counts: templateCounts(e.template, e.cardinality) as [number, number | null],
-      label: normalizeLabel(e.label),
-      rawLabel: e.label,
-      template: e.template,
-      cardinality: e.cardinality,
-      violation: e.violation,
-      bundleIndex: 0,
-      bundleTotal: 1,
-      constraintIndex: i,
-    },
+    data: constraintData(e, i),
   }));
   return { initNodes, initEdges };
+}
+
+/** `next` with each node's measured size from `cur`. ReactFlow draws an edge only between measured
+ *  nodes, and does not measure a node again whose box kept its size, so a node replaced without
+ *  it would keep its edges hidden. */
+function keepMeasured(cur: FlowNode[], next: FlowNode[]): FlowNode[] {
+  const measured = new Map(cur.map((n) => [n.id, n.measured]));
+  return next.map((n) => (n.measured || !measured.get(n.id) ? n : { ...n, measured: measured.get(n.id) }));
+}
+
+/** The geometry an edge keeps across a model change: its live route, else the one saved in the model. */
+function keptRoute(live: FlowEdge | undefined, saved: DeclareEdge | undefined): EdgeRouteData {
+  const d = live?.data;
+  if (d?.routedPoints) {
+    const { routedPoints, routedPath, labelAnchor, layoutSourcePos, layoutTargetPos } = d;
+    return { routedPoints, routedPath, labelAnchor, layoutSourcePos, layoutTargetPos };
+  }
+  const r = saved?.route;
+  if (!r) return {};
+  return {
+    routedPoints: r.points,
+    routedPath: roundedPointsToSvgPath(r.points, 16),
+    labelAnchor: r.labelAnchor,
+    layoutSourcePos: r.sourcePos,
+    layoutTargetPos: r.targetPos,
+  };
 }
 
 const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(function OCDeclareVizInner(
@@ -239,6 +275,11 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     objectTypeColor = defaultObjectTypeColor,
     activityInvolvements,
     eventTypeCounts = {},
+    objectTypeCounts,
+    activityPicker = true,
+    editTools = true,
+    onHideActivity,
+    onFocusActivity,
     hiddenArcTypes: hiddenArcTypesProp,
     onHiddenArcTypesChange,
     hiddenObjectTypes: hiddenObjectTypesProp,
@@ -251,8 +292,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     onFocusChange,
     direction = "RIGHT",
     onDirectionChange,
-    layoutOverride,
-    renderSvg,
+    viz: vizProp,
     editable = false,
     value,
     onChange,
@@ -277,11 +317,18 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
   const [projectedModel, setProjectedModel] = useState<DeclareFlowModel | null>(null);
   const effectiveValue = projectedModel ?? value;
   const isEdit = editable && !!value && projectedModel === null;
-  const cfg = useViewerConfig({});
-  const runLayout = layoutOverride ?? cfg.layout?.declare ?? noopDeclareLayout;
+  // Edit mode without the tools keeps the layout in the model but offers no content editing.
+  const canEdit = editingContent(editable && !!value, editTools, projectedModel !== null);
+  const viz = useViewerConfig({ viz: vizProp }).viz;
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ActivityNodeData, "activity">>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<ConstraintEdgeData, "constraint">>([]);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  // A read-only model is rebuilt with fresh ids (e.g., on every projection), so a kept focus would
+  // land on another activity or on none at all and dim the whole graph.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset whenever the shown model changes
+  useEffect(() => {
+    if (!isEdit) setFocusedNodeId(null);
+  }, [effectiveValue, isEdit]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [statsRequest, setStatsRequest] = useState<StatsRequest | null>(null);
   const textLabelsControlled = onShowTextLabelsChange !== undefined;
@@ -333,18 +380,12 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     () => new Set(hiddenObjectTypesProp),
   );
   const hiddenObjectTypes = (objTypesControlled ? hiddenObjectTypesProp : undefined) ?? hiddenObjInternal;
-  const toggleObjectType = useCallback(
-    (t: string) => {
-      setHiddenObjInternal((cur) => {
-        const base = objTypesControlled ? (hiddenObjectTypesProp ?? cur) : cur;
-        const next = new Set(base);
-        if (next.has(t)) next.delete(t);
-        else next.add(t);
-        onHiddenObjectTypesChange?.(next);
-        return objTypesControlled ? cur : next;
-      });
+  const setHiddenObjectTypes = useCallback(
+    (next: Set<string>) => {
+      onHiddenObjectTypesChange?.(next);
+      if (!objTypesControlled) setHiddenObjInternal(next);
     },
-    [objTypesControlled, hiddenObjectTypesProp, onHiddenObjectTypesChange],
+    [objTypesControlled, onHiddenObjectTypesChange],
   );
   // Bumped after mutations that add positionless nodes; effect-run so the layout reads the committed model.
   const [relayoutTick, setRelayoutTick] = useState(0);
@@ -352,8 +393,6 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
   const connectingNodeId = useRef<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const mousePos = useRef({ x: 0, y: 0 });
-  // Nodes the user has manually placed stay pinned across drag-relayouts; a fresh layout clears them.
-  const pinnedIds = useRef<Set<string>>(new Set());
 
   useImperativeHandle(
     ref,
@@ -364,31 +403,10 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     [nodes, edges],
   );
 
-  const svgRenderer = renderSvg ?? cfg.layout?.renderSvg;
-  const renderSvgRef = useRef(svgRenderer);
-  renderSvgRef.current = svgRenderer;
-  const colorsRef = useRef({ activityColor, objectTypeColor });
-  colorsRef.current = { activityColor, objectTypeColor };
-  const textLabelsRef = useRef(textLabels);
-  textLabelsRef.current = textLabels;
-  const exportSource = useMemo<VectorExportSource>(
-    () => ({
-      label: "OC-DECLARE",
-      toSvg: async () => {
-        const { activityColor: ac, objectTypeColor: oc } = colorsRef.current;
-        const graph = ocDeclareModelToStyledGraph(nodes, edges, ac, oc, textLabelsRef.current);
-        if (!graph) return null;
-        // The pure-TS drawer covers the ELK engine, which has no `renderSvg`.
-        const render = renderSvgRef.current;
-        return render ? render(graph) : styledGraphToSvg(graph);
-      },
-    }),
-    [nodes, edges],
-  );
-  useRegisterExport("oc-declare", exportSource);
-
   const valueRef = useRef(value);
   valueRef.current = value;
+  const effectiveValueRef = useRef(effectiveValue);
+  effectiveValueRef.current = effectiveValue;
 
   // undefined on an empty model so the legend shows every type as guidance.
   const usedArcTypes = useMemo(() => {
@@ -396,39 +414,83 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     return new Set<string>(edges.flatMap((e) => (e.data?.arcType ? [e.data.arcType] : [])));
   }, [edges]);
 
+  const layoutOptions = useMemo(
+    () => declareBuildOptions({ direction: dir, textLabels, combineEfEp }),
+    [dir, textLabels, combineEfEp],
+  );
+
+  /** Lays a model out: rust4pm through `viz`, else the engine-less column. */
+  const layoutFlow = useCallback(
+    async (model: DeclareFlowModel): Promise<{ nodes: FlowNode[]; edges: FlowEdge[] }> => {
+      const { initNodes, initEdges } = modelToFlow(model, activityInvolvements);
+      if (!viz) {
+        const r = await noopDeclareLayout(initNodes, bundleEdges(collapseFlowEdges(initEdges, combineEfEp)));
+        return { nodes: r.nodes, edges: r.edges as FlowEdge[] };
+      }
+      const { arcs, edgeIds, extraActivities } = modelArcs(model);
+      const laid = await layoutModel(viz, "oc_declare", arcs, {
+        ...layoutOptions,
+        extra_activities: extraActivities,
+      });
+      const placed = placeNodes(model, laid);
+      const routes = layoutRoutes(model, laid, edgeIds, laid.layout);
+      return {
+        nodes: initNodes.map((n) => {
+          const p = placed.get(n.id);
+          return p ? { ...n, position: p.position, width: p.width, height: p.height } : n;
+        }),
+        edges: refsToFlowEdges(model, laid.edges, edgeIds).map((e) => ({
+          ...e,
+          data: { ...(e.data as ConstraintEdgeData), ...routes.get(e.id) },
+        })),
+      };
+    },
+    [viz, activityInvolvements, combineEfEp, layoutOptions],
+  );
+
+  // Full layouts landed so far, in either path. A re-route started before one landed was made for
+  // positions the layout replaced.
+  const landedLayouts = useRef(0);
+  // A drop during a pending full layout must not re-route, which would cancel the layout.
+  const fullLayoutPending = useRef(false);
+  // A layout builds its node data when it starts, so one that lands later takes the current involvements.
+  const involvementsRef = useRef(activityInvolvements);
+  involvementsRef.current = activityInvolvements;
+  const withCurrentInvolvements = useCallback(
+    (laid: FlowNode[]): FlowNode[] =>
+      laid.map((n) => ({
+        ...n,
+        data: { ...n.data, objectTypes: buildActivityObjectTypes(involvementsRef.current, n.data.label) },
+      })),
+    [],
+  );
+
   // Read-only render path: the non-editable viewer and the projected overlay (isEdit is off for both).
   useEffect(() => {
     if (isEdit || !effectiveValue) return;
-    pinnedIds.current.clear();
-    const { initNodes, initEdges } = modelToFlow(effectiveValue, activityInvolvements);
-    const bundled = bundleEdges(collapseFlowEdges(initEdges, combineEfEp));
     let cancelled = false;
-    runLayout(initNodes, bundled, { direction: dir, textLabels }).then((r) => {
-      if (cancelled) return;
-      setNodes(r.nodes as FlowNode[]);
-      setEdges(r.edges as FlowEdge[]);
-      setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50);
-    });
+    layoutFlow(effectiveValue)
+      .then((r) => {
+        if (cancelled) return;
+        landedLayouts.current++;
+        setNodes((cur) => keepMeasured(cur, withCurrentInvolvements(r.nodes)));
+        setEdges(r.edges);
+        setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50);
+      })
+      .catch((e) => console.error("[oc-declare] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [
-    effectiveValue,
-    isEdit,
-    activityInvolvements,
-    dir,
-    textLabels,
-    combineEfEp,
-    setNodes,
-    setEdges,
-    fitView,
-    runLayout,
-  ]);
+  }, [effectiveValue, isEdit, layoutFlow, setNodes, setEdges, fitView, withCurrentInvolvements]);
 
   const mutate = useCallback(
     (fn: (m: DeclareFlowModel) => DeclareFlowModel) => {
       const v = valueRef.current;
-      if (v && onChange) onChange(fn(v));
+      if (!v || !onChange) return;
+      const next = fn(v);
+      // Another mutation before the next render builds on this one.
+      valueRef.current = next;
+      onChange(next);
     },
     [onChange],
   );
@@ -444,52 +506,62 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       edges: readonly FlowEdge[];
     }) => {
       const posById = new Map(laid.nodes.map((n) => [n.id, n.position]));
-      const routeById = new Map<string, DeclareEdgeRoute>();
-      for (const e of laid.edges) {
-        const d = e.data;
-        if (d?.routedPoints && d.layoutSourcePos && d.layoutTargetPos) {
-          routeById.set(e.id, {
-            points: d.routedPoints,
-            sourcePos: d.layoutSourcePos,
-            targetPos: d.layoutTargetPos,
-          });
-        }
-      }
+      const routeById = persistedRoutes(laid.edges);
+      // An arc the layout drew without a route loses its saved one, which belongs to old positions.
+      const drawn = new Set(
+        laid.edges.flatMap((e) => [e.id, ...(e.data?.pair ? [e.data.pair.backward] : [])]),
+      );
       mutate((m) => ({
         nodes: m.nodes.map((n) => ({ ...n, position: posById.get(n.id) ?? n.position })),
         edges: m.edges.map((e) => {
           const route = routeById.get(e.id);
-          return route ? { ...e, route } : e;
+          if (route) return { ...e, route };
+          if (!drawn.has(e.id) || !e.route) return e;
+          const { route: _stale, ...rest } = e;
+          return rest;
         }),
       }));
     },
     [mutate],
   );
 
+  // Full layouts and re-routes resolve in any order. Only the latest one started may land, or an
+  // older result would put back routes and positions from before a later drag. Nor may one land
+  // after unmount, over a newer graph of the same model. Set on mount, as StrictMode remounts.
+  const startLayoutRun = useRef(latestOnly());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const layoutRun = useCallback(() => {
+    const latest = startLayoutRun.current();
+    return () => latest() && mounted.current;
+  }, []);
+
   const runFullLayout = useCallback(
     (fit = true) => {
       const v = valueRef.current;
       if (!v) return;
-      const { initNodes, initEdges } = modelToFlow(v, activityInvolvements);
-      const bundled = bundleEdges(collapseFlowEdges(initEdges, combineEfEp));
-      runLayout(initNodes, bundled, { direction: dir, textLabels }).then((r) => {
-        setNodes(r.nodes as FlowNode[]);
-        setEdges(r.edges as FlowEdge[]);
-        persistLayout({ nodes: r.nodes, edges: r.edges as FlowEdge[] });
-        if (fit) setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50);
-      });
+      const current = layoutRun();
+      fullLayoutPending.current = true;
+      layoutFlow(v)
+        .then((r) => {
+          if (!current()) return;
+          landedLayouts.current++;
+          setNodes((cur) => keepMeasured(cur, withCurrentInvolvements(r.nodes)));
+          setEdges(r.edges);
+          persistLayout(r);
+          if (fit) setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50);
+        })
+        .catch((e) => console.error("[oc-declare] layout failed:", e))
+        .finally(() => {
+          if (current()) fullLayoutPending.current = false;
+        });
     },
-    [
-      activityInvolvements,
-      dir,
-      textLabels,
-      combineEfEp,
-      runLayout,
-      setNodes,
-      setEdges,
-      fitView,
-      persistLayout,
-    ],
+    [layoutFlow, setNodes, setEdges, fitView, persistLayout, layoutRun, withCurrentInvolvements],
   );
 
   // Effect, not inline in the caller, so the layout reads the model AFTER the mutation committed.
@@ -499,17 +571,16 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     if (relayoutTick > 0) runFullLayoutRef.current(true);
   }, [relayoutTick]);
 
-  // Label width / per-pair arc count change spacing, so re-layout on toggle (edit mode only).
-  // Skipped when the host has turned automatic relayout off. Starting one and undoing it afterwards
-  // still shows the graph jump and settle back.
-  const prevSpacingKey = useRef(`${textLabels}|${combineEfEp}`);
+  // Label width, per-pair arc count and direction change the arrangement, so an editable graph lays
+  // out again when they change, unless the host turned automatic relayout off.
+  const spacingKey = relayoutKey({ textLabels, combineEfEp, direction: dir });
+  const prevSpacingKey = useRef(spacingKey);
   useEffect(() => {
-    const key = `${textLabels}|${combineEfEp}`;
-    if (prevSpacingKey.current !== key) {
-      prevSpacingKey.current = key;
+    if (prevSpacingKey.current !== spacingKey) {
+      prevSpacingKey.current = spacingKey;
       if (isEdit && relayoutOnChange) setRelayoutTick((t) => t + 1);
     }
-  }, [textLabels, combineEfEp, isEdit, relayoutOnChange]);
+  }, [spacingKey, isEdit, relayoutOnChange]);
 
   // Edit mode: layout once on first mount if positions are missing, then reconcile in place so user-placed nodes stay put.
   const didInitialLayout = useRef(false);
@@ -521,6 +592,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
         runFullLayout(true);
         return;
       }
+      pendingReroute.current = needsReroute(value);
       if (!defaultViewport) setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
     }
     setNodes((cur) => {
@@ -537,6 +609,11 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
           id: mn.id,
           type: "activity" as const,
           position,
+          width: ex?.width ?? ACT_NODE_WIDTH,
+          height: ex?.height ?? ACT_NODE_HEIGHT,
+          // Without it, ReactFlow re-measures the node and drops its edges for a frame, which
+          // unmounts every edge and closes an open edge popover on each model change.
+          measured: ex?.measured,
           selected: ex?.selected ?? false,
           data: {
             label: mn.type,
@@ -546,48 +623,49 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
         } satisfies FlowNode;
       });
     });
-    setEdges((cur) => {
+    const savedById = new Map(value.edges.map((e) => [e.id, e]));
+    const withGeometry = (cur: FlowEdge[], built: FlowEdge[]): FlowEdge[] => {
       const curById = new Map(cur.map((e) => [e.id, e]));
-      const built: FlowEdge[] = value.edges.map((me) => {
-        const ex = curById.get(me.id);
-        const data: ConstraintEdgeData = {
-          bundleIndex: 0,
-          bundleTotal: 1,
-          constraintIndex: 0,
-          ...(ex?.data ?? {}),
-          // Seed persisted route geometry (saved model reload); live flow-edge data wins once present.
-          ...(!ex?.data?.routedPoints && me.route
-            ? {
-                routedPoints: me.route.points,
-                routedPath: roundedPointsToSvgPath(me.route.points, me.source === me.target ? 14 : 16),
-                layoutSourcePos: me.route.sourcePos,
-                layoutTargetPos: me.route.targetPos,
-              }
-            : {}),
-          arcType: TEMPLATE_TO_ARC[me.template].arc_type,
-          counts: templateCounts(me.template, me.cardinality) as [number, number | null],
-          label: normalizeLabel(me.label),
-          rawLabel: me.label,
-          template: me.template,
-          cardinality: me.cardinality,
-          violation: me.violation,
-        };
+      return built.map((b) => {
+        const ex = curById.get(b.id);
         return {
-          id: me.id,
-          source: me.source,
-          target: me.target,
-          type: "constraint" as const,
+          ...b,
           selected: ex?.selected ?? false,
-          data,
+          data: { ...(b.data as ConstraintEdgeData), ...keptRoute(ex, savedById.get(b.id)) },
         };
       });
-      return bundleEdges(collapseFlowEdges(built, combineEfEp)) as FlowEdge[];
-    });
+    };
+    if (!viz) {
+      const built = value.edges.map(
+        (e, i): FlowEdge => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          type: "constraint",
+          data: constraintData(e, i),
+        }),
+      );
+      setEdges((cur) => withGeometry(cur, bundleEdges(collapseFlowEdges(built, combineEfEp)) as FlowEdge[]));
+      return;
+    }
+    // rust4pm decides which arcs merge, so the edges wait for the model's graph.
+    const { arcs, edgeIds, extraActivities } = modelArcs(value);
+    let cancelled = false;
+    modelLayoutRequest(viz, "oc_declare", arcs, { ...layoutOptions, extra_activities: extraActivities })
+      .then((req) => {
+        if (!cancelled) setEdges((cur) => withGeometry(cur, refsToFlowEdges(value, req.edges, edgeIds)));
+      })
+      .catch((e) => console.error("[oc-declare] graph build failed:", e));
+    return () => {
+      cancelled = true;
+    };
   }, [
     value,
     isEdit,
+    viz,
     activityInvolvements,
     combineEfEp,
+    layoutOptions,
     runFullLayout,
     setNodes,
     setEdges,
@@ -596,7 +674,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
   ]);
 
   useEffect(() => {
-    if (!isEdit) return;
+    if (!canEdit) return;
     const root = rootRef.current;
     if (!root) return;
 
@@ -655,20 +733,31 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
         return;
       }
       if (parsed.nodes.length === 0 && parsed.edges.length === 0) return;
+      const v = valueRef.current;
+      if (!v) return;
+      // A pasted node whose name the model has already is that node, as rust4pm knows nodes by name.
+      const existing = new Map(v.nodes.map((n) => [nodeDisplayName(n), n.id]));
       const idMap = new Map<string, string>();
       const anchor = parsed.nodes[0]?.position ?? { x: 0, y: 0 };
       const drop = screenToFlowPosition(mousePos.current);
       const dx = drop.x - anchor.x;
       const dy = drop.y - anchor.y;
-      const newNodes: DeclareNode[] = parsed.nodes.map((n) => {
+      const newNodes: DeclareNode[] = [];
+      for (const n of parsed.nodes) {
+        const known = existing.get(nodeDisplayName(n));
+        if (known) {
+          idMap.set(n.id, known);
+          continue;
+        }
         const id = uid();
         idMap.set(n.id, id);
-        return {
+        existing.set(nodeDisplayName(n), id);
+        newNodes.push({
           ...n,
           id,
           position: n.position ? { x: n.position.x + dx, y: n.position.y + dy } : undefined,
-        };
-      });
+        });
+      }
       const newEdges: DeclareEdge[] = parsed.edges
         .filter((ed) => idMap.has(ed.source) && idMap.has(ed.target))
         .map((ed) => ({
@@ -678,7 +767,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
           target: idMap.get(ed.target) as string,
         }));
       mutate((m) => ({ nodes: [...m.nodes, ...newNodes], edges: [...m.edges, ...newEdges] }));
-      const nodeIds = new Set(newNodes.map((n) => n.id));
+      const nodeIds = new Set(parsed.nodes.map((n) => idMap.get(n.id) as string));
       const edgeIds = new Set(newEdges.map((ed) => ed.id));
       setTimeout(() => {
         setNodes((nds) => nds.map((n) => ({ ...n, selected: nodeIds.has(n.id) })));
@@ -691,7 +780,10 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
         const pos = screenToFlowPosition(mousePos.current);
         mutate((m) => ({
           ...m,
-          nodes: [...m.nodes, { id: uid(), type: "new activity", kind: "activity", position: pos }],
+          nodes: [
+            ...m.nodes,
+            { id: uid(), type: uniqueName(m, "new activity", "activity"), kind: "activity", position: pos },
+          ],
         }));
       } else if (e.altKey && e.key === "l") {
         e.preventDefault();
@@ -718,26 +810,34 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       document.removeEventListener("paste", onPaste);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [isEdit, getNodes, getEdges, mutate, screenToFlowPosition, setNodes, setEdges]);
+  }, [canEdit, getNodes, getEdges, mutate, screenToFlowPosition, setNodes, setEdges]);
 
   const editContextValue = useMemo<EditContextValue | null>(() => {
-    if (!isEdit || !value) return null;
+    if (!canEdit || !value) return null;
     return {
       model: value,
       mutate,
-      palette: { eventTypes, objectTypes },
+      palette: { eventTypes, objectTypes, eventTypeCounts, objectTypeCounts },
       relatedTypes,
       getSupport,
       callbacks: { onDiscover, onEvaluate, onActivityStatistics, onEdgeStatistics, onTemplateString },
       openStats: setStatsRequest,
       runLayout: () => setRelayoutTick((t) => t + 1),
+      newNodePosition: () => {
+        const r = rootRef.current?.getBoundingClientRect();
+        const centre = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: 0, y: 0 };
+        const p = screenToFlowPosition(centre);
+        return { x: p.x - ACT_NODE_WIDTH / 2, y: p.y - ACT_NODE_HEIGHT / 2 };
+      },
     };
   }, [
-    isEdit,
+    canEdit,
     value,
     mutate,
     eventTypes,
     objectTypes,
+    eventTypeCounts,
+    objectTypeCounts,
     relatedTypes,
     getSupport,
     onDiscover,
@@ -745,6 +845,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     onActivityStatistics,
     onEdgeStatistics,
     onTemplateString,
+    screenToFlowPosition,
   ]);
 
   // Drag-connect: dropping on a node connects (onConnect); dropping on empty canvas creates a node there (onConnectEnd).
@@ -755,7 +856,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
   const onConnect = useCallback(
     (c: Connection) => {
       const v = valueRef.current;
-      if (!isEdit || !v) return;
+      if (!canEdit || !v) return;
       const s = v.nodes.find((n) => n.id === c.source);
       const t = v.nodes.find((n) => n.id === c.target);
       if (!s || !t || s.id === t.id) return;
@@ -769,7 +870,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       };
       mutate((m) => ({ ...m, edges: [...m.edges, edge] }));
     },
-    [isEdit, relatedTypes, mutate],
+    [canEdit, relatedTypes, mutate],
   );
 
   const onConnectEnd = useCallback<OnConnectEnd>(
@@ -777,7 +878,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       const src = connectingNodeId.current;
       connectingNodeId.current = null;
       const v = valueRef.current;
-      if (!isEdit || !src || !v) return;
+      if (!canEdit || !src || !v) return;
       const targetEl = event.target as Element | null;
       // Dropped on a node: onConnect already made the edge. Only the pane creates a node.
       if (!targetEl?.classList?.contains("react-flow__pane")) return;
@@ -785,7 +886,12 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       if (!s) return;
       const point = "clientX" in event ? event : event.changedTouches[0];
       const pos = screenToFlowPosition({ x: point.clientX, y: point.clientY });
-      const newNode: DeclareNode = { id: uid(), type: "new activity", kind: "activity", position: pos };
+      const newNode: DeclareNode = {
+        id: uid(),
+        type: uniqueName(v, "new activity", "activity"),
+        kind: "activity",
+        position: pos,
+      };
       const rel = relatedTypes ?? (() => ({}));
       const edge: DeclareEdge = {
         id: uid(),
@@ -796,14 +902,14 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       };
       mutate((m) => ({ nodes: [...m.nodes, newNode], edges: [...m.edges, edge] }));
     },
-    [isEdit, screenToFlowPosition, relatedTypes, mutate],
+    [canEdit, screenToFlowPosition, relatedTypes, mutate],
   );
 
   // Deletion must reach the model, not just flow state, or deleted arcs resurface on the next rebuild.
   // A collapsed EFEP/DFDP edge stands for two model edges (`data.pair`); deleting it removes both.
   const onDelete = useCallback<NonNullable<ReactFlowProps["onDelete"]>>(
     ({ nodes: delNodes, edges: delEdges }) => {
-      if (!isEdit) return;
+      if (!canEdit) return;
       const nodeIds = new Set(delNodes.map((n) => n.id));
       const edgeIds = new Set<string>();
       for (const e of delEdges) {
@@ -818,57 +924,108 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
         edges: m.edges.filter((e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)),
       }));
     },
-    [isEdit, mutate],
+    [canEdit, mutate],
   );
 
-  // Relayout after a drag: seed every node at its current centre, pin the manually-placed set, and re-route edges over that geometry.
-  const onNodeDragStop = useCallback<NonNullable<ReactFlowProps["onNodeDragStop"]>>(
-    (_e, dragged) => {
-      pinnedIds.current.add(dragged.id);
-      // In edit mode, persist the drop position and keep all nodes pinned; only edges reroute.
+  // rust4pm re-routes every arc over the current node centres. No node moves.
+  const rerouteArcs = useCallback(() => {
+    const model = isEdit ? valueRef.current : effectiveValueRef.current;
+    if (!viz || !model) return;
+    const { arcs, edgeIds, extraActivities } = modelArcs(model);
+    const current = layoutRun();
+    const landedAtStart = landedLayouts.current;
+    // A new projection is a new model whose ids can name other arcs.
+    const stale = () =>
+      landedLayouts.current !== landedAtStart || (!isEdit && effectiveValueRef.current !== model);
+    void (async () => {
+      const req = await modelLayoutRequest(viz, "oc_declare", arcs, {
+        ...layoutOptions,
+        extra_activities: extraActivities,
+      });
+      const flowNodes = getNodes() as FlowNode[];
+      const layout = await rerouteModel(viz, req, nodeCentres(model, req.nodes, flowNodes));
+      if (!current() || stale()) return;
+      const routes = layoutRoutes(model, req, edgeIds, layout);
+      const routed = (e: FlowEdge): FlowEdge => {
+        const r = routes.get(e.id);
+        return r ? { ...e, data: { ...(e.data as ConstraintEdgeData), ...r } } : e;
+      };
+      setEdges((cur) => cur.map(routed));
+      // A projected overlay's ids are not the model's, so its drags stay on screen only.
+      if (isEdit) persistLayout({ nodes: flowNodes, edges: (getEdges() as FlowEdge[]).map(routed) });
+    })().catch((e) => console.error("[oc-declare] reroute failed:", e));
+  }, [viz, layoutOptions, getNodes, getEdges, setEdges, isEdit, persistLayout, layoutRun]);
+
+  // Persists moved nodes and re-routes over their new positions, after a drop or an arrow-key move.
+  const commitMoves = useCallback(
+    (moved: readonly { id: string; position: { x: number; y: number } }[]) => {
       if (isEdit) {
+        const position = new Map(moved.map((n) => [n.id, n.position]));
         mutate((m) => ({
           ...m,
-          nodes: m.nodes.map((n) => (n.id === dragged.id ? { ...n, position: dragged.position } : n)),
+          nodes: m.nodes.map((n) => (position.has(n.id) ? { ...n, position: position.get(n.id) } : n)),
         }));
       }
-      // The drop is persisted above. Re-routing the arcs over the new geometry is the optional part,
-      // and a host with automatic relayout off keeps the arcs it had.
-      if (!relayoutOnChange) return;
-      const curNodes = getNodes() as Node<ActivityNodeData, "activity">[];
-      const curEdges = getEdges() as Edge<ConstraintEdgeData, "constraint">[];
-      void runLayout(curNodes, curEdges, {
-        direction: dir,
-        reroute: true,
-        textLabels,
-        seed: (n) => ({
-          x: n.position.x + ACT_NODE_WIDTH / 2,
-          y: n.position.y + ACT_NODE_HEIGHT / 2,
-          pinned: isEdit || pinnedIds.current.has(n.id),
-        }),
-      })
-        .then((r) => {
-          setNodes(r.nodes);
-          setEdges(r.edges as Edge<ConstraintEdgeData, "constraint">[]);
-          persistLayout({ nodes: r.nodes, edges: r.edges as FlowEdge[] });
-        })
-        .catch((e) => console.error("[oc-declare] reroute failed:", e));
+      // Re-routing is the optional part: a host with automatic relayout off keeps the arcs it had.
+      if (relayoutOnChange && !fullLayoutPending.current) rerouteArcs();
     },
-    [
-      runLayout,
-      dir,
-      textLabels,
-      getNodes,
-      getEdges,
-      setNodes,
-      setEdges,
-      isEdit,
-      mutate,
-      relayoutOnChange,
-      persistLayout,
-    ],
+    [isEdit, mutate, relayoutOnChange, rerouteArcs],
   );
 
+  const dragging = useRef(false);
+  const onNodeDragStart = useCallback(() => {
+    dragging.current = true;
+  }, []);
+  const onNodeDragStop = useCallback<NonNullable<ReactFlowProps["onNodeDragStop"]>>(
+    (_e, dragged, draggedNodes) => {
+      dragging.current = false;
+      commitMoves(draggedNodes.length > 0 ? draggedNodes : [dragged]);
+    },
+    [commitMoves],
+  );
+
+  // Arrow keys move selected nodes through `onNodesChange` alone, with no drag events, so the move
+  // is committed once the keys rest.
+  const keyMoves = useRef(new Set<string>());
+  const keyMoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (keyMoveTimer.current) clearTimeout(keyMoveTimer.current);
+    },
+    [],
+  );
+  const handleNodesChange = useCallback<typeof onNodesChange>(
+    (changes) => {
+      onNodesChange(changes);
+      if (dragging.current) return;
+      for (const c of changes)
+        if (c.type === "position" && c.position && !c.dragging) keyMoves.current.add(c.id);
+      if (keyMoves.current.size === 0) return;
+      if (keyMoveTimer.current) clearTimeout(keyMoveTimer.current);
+      keyMoveTimer.current = setTimeout(() => {
+        const ids = keyMoves.current;
+        keyMoves.current = new Set();
+        commitMoves((getNodes() as FlowNode[]).filter((n) => ids.has(n.id)));
+      }, 300);
+    },
+    [onNodesChange, commitMoves, getNodes],
+  );
+
+  // A model opened with placed nodes but unrouted arcs (a saved file) gets its arcs routed once the
+  // nodes are on the canvas.
+  const pendingReroute = useRef(false);
+  useEffect(() => {
+    if (!pendingReroute.current || nodes.length === 0 || edges.length === 0) return;
+    pendingReroute.current = false;
+    rerouteArcs();
+  }, [nodes, edges, rerouteArcs]);
+
+  // Each arc's badges as drawn, so the export draws them where the screen does.
+  const drawnBadges = useRef(new Map<string, ViolationBadge[]>());
+  const reportBadges = useCallback((edgeId: string, badges: ViolationBadge[] | null) => {
+    if (badges?.length) drawnBadges.current.set(edgeId, badges);
+    else drawnBadges.current.delete(edgeId);
+  }, []);
   const ctxValue = useMemo(
     () => ({
       activityColor,
@@ -879,6 +1036,9 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       hoveredNodeId,
       eventTypeCounts,
       showTextLabels: textLabels,
+      onHideActivity,
+      onFocusActivity,
+      reportBadges,
     }),
     [
       activityColor,
@@ -889,6 +1049,9 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       hoveredNodeId,
       eventTypeCounts,
       textLabels,
+      onHideActivity,
+      onFocusActivity,
+      reportBadges,
     ],
   );
 
@@ -970,6 +1133,40 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       hidden: hiddenIds.has(e.source) || hiddenIds.has(e.target),
     }));
   }, [edges, displayNodes]);
+  // Read at export time, so the export shows the screen as of the click.
+  const screenRef = useRef<DeclareScreenState | null>(null);
+  screenRef.current = effectiveValue
+    ? {
+        model: effectiveValue,
+        nodes: displayNodes,
+        edges: displayEdges,
+        options: layoutOptions,
+        hiddenArcTypes,
+        hiddenObjectTypes,
+        focusedNodeId,
+        involvements: activityInvolvements,
+        hostColor: (name, kind) => {
+          const [resolve, scope] =
+            kind === "activity" ? [activityColor, "activity"] : [objectTypeColor, "objectType"];
+          const color = resolve(name, "normal");
+          return color === colorForKey(scope, name) ? undefined : color;
+        },
+      }
+    : null;
+  const exportSource = useMemo<VectorExportSource | null>(
+    () =>
+      viz
+        ? {
+            label: "OC-DECLARE",
+            toSvg: () =>
+              screenRef.current
+                ? declareSvg(viz, { ...screenRef.current, badges: [...drawnBadges.current.values()].flat() })
+                : null,
+          }
+        : null,
+    [viz],
+  );
+  useRegisterExport("oc-declare", exportSource);
 
   const colorMode = useIsDarkMode() ? "dark" : "light";
 
@@ -984,22 +1181,21 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
             edges={displayEdges}
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
-            onNodesChange={onNodesChange}
+            onNodesChange={handleNodesChange}
             onEdgesChange={onEdgesChange}
+            onNodeDragStart={onNodeDragStart}
             onNodeDragStop={onNodeDragStop}
             onConnect={onConnect}
             onConnectStart={onConnectStart}
             onConnectEnd={onConnectEnd}
             onDelete={onDelete}
-            onBeforeDelete={isEdit ? undefined : async () => false}
+            onBeforeDelete={canEdit ? undefined : async () => false}
             defaultViewport={defaultViewport}
             onMoveEnd={onViewportChange ? (_, vp) => onViewportChange(vp) : undefined}
-            connectionMode={isEdit ? ConnectionMode.Loose : undefined}
+            connectionMode={canEdit ? ConnectionMode.Loose : undefined}
             minZoom={0.1}
             maxZoom={2}
-            nodesConnectable={isEdit}
-            // Freeze node dragging while the projection overlay (a derived read-only view) is shown.
-            nodesDraggable={projectedModel === null}
+            nodesConnectable={canEdit}
             onNodeClick={(_, node) => {
               const next = focusedNodeId === node.id ? null : node.id;
               setFocusedNodeId(next);
@@ -1015,7 +1211,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
           >
             <Panel position="top-left" className="pointer-events-none!">
               <div className="flex flex-col items-start gap-2 pointer-events-none">
-                {isEdit && (
+                {canEdit && (
                   <div className="pointer-events-auto">
                     <EditToolbar />
                   </div>
@@ -1035,14 +1231,21 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
                     onToggleArcType={toggleArcType}
                     objectTypes={modelObjectTypes}
                     hiddenObjectTypes={hiddenObjectTypes}
-                    onToggleObjectType={toggleObjectType}
+                    objectTypeCounts={objectTypeCounts}
+                    onSetHiddenObjectTypes={setHiddenObjectTypes}
                     activities={chromeActivities}
+                    showActivities={activityPicker}
                     activityCounts={eventTypeCounts}
                     hiddenActivities={hiddenActivities}
                     onSetHiddenActivities={setHiddenActivities}
                     usedArcTypes={usedArcTypes}
                     showCombined={combineEfEp}
-                    arcsCount={arcsCount ?? value?.edges.length}
+                    arcsCount={
+                      arcsCount ??
+                      (effectiveValue
+                        ? visibleArcCount(effectiveValue, hiddenArcTypes, hiddenObjectTypes)
+                        : undefined)
+                    }
                     activityColor={activityColor}
                     objectTypeColor={objectTypeColor}
                   />
@@ -1050,7 +1253,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
               </div>
             </Panel>
           </ReactFlow>
-          {isEdit && statsRequest && (
+          {canEdit && statsRequest && (
             <StatsSheet
               request={statsRequest}
               objectTypeColor={(name) => objectTypeColor(name, "normal")}

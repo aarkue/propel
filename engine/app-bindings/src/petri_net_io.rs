@@ -3,13 +3,19 @@
 
 use process_mining::bindings::register_binding;
 use process_mining::core::process_models::case_centric::petri_net::pnml::export_petri_net_to_pnml;
-use process_mining::PetriNet;
+use process_mining::AcceptingPetriNet;
 
-/// Serialize a `PetriNet` to PNML (XML text).
+/// Serialize a Petri net with its markings to PNML (XML text).
 #[register_binding(stringify_error)]
-pub fn export_petri_net_pnml(net: PetriNet) -> Result<String, String> {
+pub fn export_petri_net_pnml(net: AcceptingPetriNet) -> Result<String, String> {
     let mut buf: Vec<u8> = Vec::new();
-    export_petri_net_to_pnml(&net, &mut buf).map_err(|e| format!("{e:?}"))?;
+    export_petri_net_to_pnml(
+        &net.net,
+        Some(&net.initial_marking),
+        Some(&net.final_marking),
+        &mut buf,
+    )
+    .map_err(|e| format!("{e:?}"))?;
     String::from_utf8(buf).map_err(|e| e.to_string())
 }
 

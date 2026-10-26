@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { DatasetSelector, normalizePetriNet } from "@r4pm/components";
-import type { LogAlignments } from "@r4pm/components";
+import { DatasetSelector, normalizePetriNet, transitionNodeId } from "@r4pm/components";
+import type { AlignmentMove, LogAlignments } from "@r4pm/components";
 import { Flex, Text } from "@r4pm/components/ui";
-import type { EventLogHandle, PetriNet, ReturnTypeShape } from "@r4pm/client";
+import type { AcceptingPetriNet, EventLogHandle, ReturnTypeShape } from "@r4pm/client";
 import { backend } from "../backends";
 import { useArtifacts, useDatasets } from "../stores";
 import type { VisCtx } from "./define-vis";
@@ -16,18 +16,58 @@ const ALIGN_EVENT_LOG = "app_bindings::alignments::align_event_log" as const;
 /** Model to align against: a loaded PetriNet artifact, or a log to discover Alpha+++ from. */
 export type ModelSource = { type: "net"; id: string } | { type: "log"; id: string };
 
-/** Raw `align_event_log` payload (id-keyed net maps) -> the components' view-model (array net).
- *  Used by the panel resolve and as the pipeline viewer adapter. */
+type RawMove = ReturnTypeShape["LogAlignments"]["variant_alignments"][number] extends {
+  result: infer R;
+}
+  ? R extends { Ok: { moves: (infer M)[] } }
+    ? M
+    : never
+  : never;
+
+/** rust4pm addresses transitions by index. The components' net uses `transitionNodeId` ids. */
+function toFrontendMove(move: RawMove): AlignmentMove {
+  if ("SyncMove" in move)
+    return {
+      SyncMove: {
+        transition: transitionNodeId(move.SyncMove.transition),
+        trace_event_index: move.SyncMove.trace_event_index,
+      },
+    };
+  if ("ModelMove" in move) return { ModelMove: { transition: transitionNodeId(move.ModelMove.transition) } };
+  return move;
+}
+
+/** Raw `align_event_log` payload (index-addressed net) -> the components' view-model (array net
+ *  with string ids). */
 export function toFrontendAlignments(raw: ReturnTypeShape["LogAlignments"]): LogAlignments {
-  return { ...raw, net: normalizePetriNet(raw.net) };
+  return {
+    ...raw,
+    net: normalizePetriNet(raw.net),
+    variant_alignments: raw.variant_alignments.map((va) => ({
+      ...va,
+      result:
+        "Ok" in va.result
+          ? { Ok: { ...va.result.Ok, moves: va.result.Ok.moves.map(toFrontendMove) } }
+          : va.result,
+    })),
+    aggregated: {
+      ...raw.aggregated,
+      transition_stats: Object.fromEntries(
+        Object.entries(raw.aggregated.transition_stats).map(([index, stats]) => [
+          transitionNodeId(Number(index)),
+          stats,
+        ]),
+      ),
+    },
+  };
 }
 
 /** Align the selected log against the chosen model. `null` model = Alpha+++ from the selected log. */
 export async function alignmentResolve(ctx: VisCtx, model: ModelSource | null): Promise<LogAlignments> {
   const m = model ?? { type: "log", id: ctx.datasetId };
-  const net: PetriNet =
+  const net: AcceptingPetriNet =
     m.type === "net"
-      ? ((await backend.getArtifact(m.id)) as PetriNet)
+      ? ((await backend.getArtifact(m.id)) as AcceptingPetriNet)
       : await backend.callBinding(DISCOVER_PETRI, { event_log: m.id as EventLogHandle });
   const result = await backend.callBinding(ALIGN_EVENT_LOG, {
     event_log: ctx.datasetId as EventLogHandle,

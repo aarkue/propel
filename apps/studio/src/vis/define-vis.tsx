@@ -54,6 +54,12 @@ interface ControlsSpec<C> {
   liveRefetch?: boolean;
 }
 
+/** A panel's persisted viewer display state (what `useViewSetting` reads and writes). */
+export interface PanelViewState {
+  state: Record<string, unknown>;
+  set: (next: Record<string, unknown>) => void;
+}
+
 type Bar<C> = (controls: C, set: (c: C) => void, datasetId: string) => ReactNode;
 
 // Dataset kind a panel selects, e.g. "EventLog" / "OCEL".

@@ -1,3 +1,5 @@
+import { toHex } from "./colors";
+
 /** Format milliseconds into a compact human-readable string. */
 export function formatDurationMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -11,7 +13,7 @@ export function formatDurationMs(ms: number): string {
   return `${d.toFixed(1)}d`;
 }
 
-/** Interpolate between cold (blue) -> warm (yellow) -> hot (red) based on t in [0,1]. */
+/** Interpolate between cold (blue) -> warm (yellow) -> hot (red) based on t in [0,1], as `#rrggbb`. */
 export function durationColor(t: number): string {
   const clamped = Math.max(0, Math.min(1, t));
   let r: number, g: number, b: number;
@@ -26,5 +28,5 @@ export function durationColor(t: number): string {
     g = Math.round(200 + (50 - 200) * p);
     b = Math.round(40 + (40 - 40) * p);
   }
-  return `rgb(${r},${g},${b})`;
+  return toHex(r, g, b);
 }

@@ -21,7 +21,7 @@ import {
 } from "../data-import";
 import { connectionStringForPath, isExtractionSource, isExtractionSourceFile } from "../extraction-sources";
 import { IO_KINDS, ioKindByName } from "../io-kinds";
-import { openOutputAsPanel } from "../panels/pipeline-bridge";
+import { openArtifact } from "../panels/open-artifact";
 import { loadArtifactCached } from "../persistence/session";
 import { useRelink } from "../stores/relink";
 import { extractPathsFromDataTransfer, filesOf } from "./dnd";
@@ -116,7 +116,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
           const id = await uniqueArtifactId(file.name);
           await loadArtifactCached(backend, { id, kind: io.kind, format: ext, label: file.name }, bytes);
           const value = await backend.getArtifact(id);
-          openOutputAsPanel(io.returnType, value);
+          openArtifact(io.kind, value);
         } catch (e) {
           toast.error(`Failed to import "${file.name}": ${String(e)}`);
         }
@@ -204,7 +204,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         // Record the path so a project can reference the file (no byte duplication on desktop).
         useArtifacts.getState().addArtifact({ id, kind: io.kind, label: filename, path });
         const value = await backend.getArtifact(id);
-        openOutputAsPanel(io.returnType, value);
+        openArtifact(io.kind, value);
       } else {
         const id = await uniqueDatasetId(filename);
         await backend.loadItemPath?.(id, kind, path);

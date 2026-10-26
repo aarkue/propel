@@ -1,10 +1,9 @@
 import { SegmentedControl } from "@r4pm/components/ui";
 import type { ReactNode } from "react";
-import type { StyledGraphRenderer } from "./graph-svg/styled-graph";
 import { ProcessTreeViewer } from "./process-tree";
-import type { ProcessTree } from "./process-tree/tree";
 import { useWorkbench, type WorkbenchMode } from "./shared/use-workbench";
 import type { ViewerProps } from "./viewer/viewer-config";
+import type { ProcessTree } from "./viz/types";
 
 export type ProcessTreeMode = Extract<WorkbenchMode, "view" | "edit">;
 
@@ -15,7 +14,6 @@ export interface ProcessTreeWorkbenchProps extends ViewerProps<ProcessTree> {
   onTreeChange?: (tree: ProcessTree) => void;
   /** Host-supplied buttons; receive the current tree. */
   toolbar?: (tree: ProcessTree) => ReactNode;
-  renderSvg?: StyledGraphRenderer;
 }
 
 /** View / Edit toggle over one process tree. Pure. */
@@ -24,7 +22,7 @@ export function ProcessTreeWorkbench({
   initialMode = "view",
   onTreeChange,
   toolbar,
-  renderSvg,
+  viz,
 }: ProcessTreeWorkbenchProps) {
   const {
     mode,
@@ -71,10 +69,8 @@ export function ProcessTreeWorkbench({
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>{toolbar?.(currentTree)}</div>
       </div>
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        {mode === "view" && <ProcessTreeViewer data={currentTree} renderSvg={renderSvg} />}
-        {mode === "edit" && (
-          <ProcessTreeViewer data={editSeed} editable onChange={handleEdit} renderSvg={renderSvg} />
-        )}
+        {mode === "view" && <ProcessTreeViewer data={currentTree} viz={viz} />}
+        {mode === "edit" && <ProcessTreeViewer data={editSeed} editable onChange={handleEdit} viz={viz} />}
       </div>
     </div>
   );

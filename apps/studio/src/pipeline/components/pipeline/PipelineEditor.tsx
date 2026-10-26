@@ -17,7 +17,7 @@ import "@xyflow/react/dist/style.css";
 import "./pipeline.css";
 import { forwardRef, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { layoutGraph } from "@r4pm/components";
-import { layoutTransport } from "../../../backends";
+import { vizTransport } from "../../../backends";
 import { scheduleSessionSave } from "../../../persistence/session";
 import { slimNode } from "../../pipeline-slim";
 import { usePipelines } from "../../../stores/pipelines";
@@ -51,6 +51,7 @@ import { PipelineActionsPanel } from "./editor/PipelineActionsPanel";
 import { PipelineContextMenu } from "./editor/PipelineContextMenu";
 import { usePipelineFiltering } from "./editor/usePipelineFiltering";
 import { usePipelineExecution } from "./editor/usePipelineExecution";
+import { pipelineLayoutRequest, placeNodes } from "./editor/auto-layout";
 import { isCompatible } from "./utils";
 import { getNodeType, outputNameFor } from "./editor/helpers";
 import { useThemeMode } from "../../../shell/theme-context";
@@ -549,27 +550,9 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
   }, [nodes, edges, setNodes, setEdges]);
 
   const handleAutoLayout = useCallback(async () => {
-    const sizeOf = (n: (typeof nodes)[number]) => ({
-      width: n.measured?.width ?? 200,
-      height: n.measured?.height ?? 100,
-    });
     try {
-      const laid = await layoutGraph(nodes, edges, {
-        transport: layoutTransport,
-        id: (n) => n.id,
-        source: (e) => e.source,
-        target: (e) => e.target,
-        direction: "LR",
-        flowEdges: true,
-        nodeSpec: sizeOf,
-      });
-      // Rust returns node centers; React Flow positions are top-left.
-      const newNodes = nodes.map((node) => {
-        const c = laid.centerOf(node.id);
-        const s = sizeOf(node);
-        return { ...node, position: { x: c.x - s.width / 2, y: c.y - s.height / 2 } };
-      });
-      setNodes(newNodes);
+      const layout = await layoutGraph(vizTransport, pipelineLayoutRequest(nodes, edges));
+      setNodes(placeNodes(nodes, layout));
       setTimeout(() => fitView({ padding: 0.2 }), 50);
       toast.success("Auto layout applied");
     } catch (e) {

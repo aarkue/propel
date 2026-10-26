@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import "@r4pm/components/styles.css";
 import { Editor, type ArcData, type PetriNetNode } from "@r4pm/components/petri";
+import { wasmViz } from "@r4pm/components/viz/wasm";
 import type { Edge } from "@xyflow/react";
 
 // A tiny seed net to edit: place (1 token) -> transition -> place (final marking 1).
@@ -23,5 +24,7 @@ export default meta;
 
 export const Default: StoryObj = {
   name: "Petri Net Editor",
-  render: () => <Editor editable showExportControls={false} initialNodes={nodes} initialEdges={edges} />,
+  render: () => (
+    <Editor editable viz={wasmViz} showExportControls={false} initialNodes={nodes} initialEdges={edges} />
+  ),
 };

@@ -1,18 +1,11 @@
-/** Process tree model and structural edit operations. {@link ProcessTree} is the wire model (1:1 of
- *  Rust `process_mining::ProcessTree`, no ids); {@link EditableTree} adds a session-local id per node. */
+/** The editor's model of a rust4pm {@link ProcessTree}: the same tree with a session-local id per
+ *  node, and the structural edit operations on it. */
 import { uid } from "../shared/id";
+import type { ProcessTree, ProcessTreeNode, ProcessTreeOperatorType } from "../viz/types";
 
-export type OperatorType = "Sequence" | "ExclusiveChoice" | "Concurrency" | "Loop";
+export type OperatorType = ProcessTreeOperatorType;
 
 export type LeafLabel = { type: "Activity"; value: string } | { type: "Tau" };
-
-export type PTNode =
-  | { type: "Operator"; operator_type: OperatorType; children: PTNode[] }
-  | { type: "Leaf"; activity_label: LeafLabel };
-
-export interface ProcessTree {
-  root: PTNode;
-}
 
 export type EditableNode =
   | { id: string; type: "Operator"; operator_type: OperatorType; children: EditableNode[] }
@@ -22,15 +15,24 @@ export interface EditableTree {
   root: EditableNode;
 }
 
-/** The symbol drawn on an operator node. */
+/** The symbol drawn on an operator node, as rust4pm's `operator_symbol`. */
 export const OPERATOR_SYMBOL: Record<OperatorType, string> = {
   Sequence: "→",
   ExclusiveChoice: "×",
   Concurrency: "∧",
   Loop: "↺",
+  Interleaving: "↔",
+  InclusiveChoice: "∨",
 };
 
-export const OPERATOR_TYPES: OperatorType[] = ["Sequence", "ExclusiveChoice", "Concurrency", "Loop"];
+export const OPERATOR_TYPES: OperatorType[] = [
+  "Sequence",
+  "ExclusiveChoice",
+  "Concurrency",
+  "Loop",
+  "Interleaving",
+  "InclusiveChoice",
+];
 
 /** The operator's user-facing name. */
 export const OPERATOR_TITLE: Record<OperatorType, string> = {
@@ -38,6 +40,8 @@ export const OPERATOR_TITLE: Record<OperatorType, string> = {
   ExclusiveChoice: "Exclusive choice",
   Concurrency: "Concurrency",
   Loop: "Loop",
+  Interleaving: "Interleaving",
+  InclusiveChoice: "Inclusive choice",
 };
 
 export function newLeaf(label?: string): EditableNode {
@@ -53,19 +57,40 @@ export function newOperator(op: OperatorType, children: EditableNode[] = []): Ed
 }
 
 export function toEditable(tree: ProcessTree): EditableTree {
-  const conv = (n: PTNode): EditableNode =>
-    n.type === "Operator"
-      ? { id: uid(), type: "Operator", operator_type: n.operator_type, children: n.children.map(conv) }
-      : { id: uid(), type: "Leaf", activity_label: n.activity_label };
+  const conv = (n: ProcessTreeNode): EditableNode => {
+    if ("Operator" in n) {
+      const { operator_type, children } = n.Operator;
+      return { id: uid(), type: "Operator", operator_type, children: children.map(conv) };
+    }
+    const label = n.Leaf.activity_label;
+    return {
+      id: uid(),
+      type: "Leaf",
+      activity_label: label === "Tau" ? { type: "Tau" } : { type: "Activity", value: label.Activity },
+    };
+  };
   return { root: conv(tree.root) };
 }
 
 export function toProcessTree(tree: EditableTree): ProcessTree {
-  const conv = (n: EditableNode): PTNode =>
+  const conv = (n: EditableNode): ProcessTreeNode =>
     n.type === "Operator"
-      ? { type: "Operator", operator_type: n.operator_type, children: n.children.map(conv) }
-      : { type: "Leaf", activity_label: n.activity_label };
+      ? { Operator: { operator_type: n.operator_type, children: n.children.map(conv) } }
+      : {
+          Leaf: {
+            activity_label: n.activity_label.type === "Tau" ? "Tau" : { Activity: n.activity_label.value },
+          },
+        };
   return { root: conv(tree.root) };
+}
+
+/** The node at a path of child indices from the root, as rust4pm's layout refers to it. */
+export function nodeAtPath(tree: EditableTree, path: readonly number[]): EditableNode | undefined {
+  let node: EditableNode | undefined = tree.root;
+  for (const step of path) {
+    node = node?.type === "Operator" ? node.children[step] : undefined;
+  }
+  return node;
 }
 
 export function findNode(tree: EditableTree, id: string): EditableNode | undefined {
@@ -256,7 +281,7 @@ export function setTau(tree: EditableTree, id: string, silent: boolean): Editabl
 }
 
 /** Mirrors the Rust `Node::check_children_valid`. */
-function nodeChildrenValid(n: EditableNode | PTNode): boolean {
+function nodeChildrenValid(n: EditableNode): boolean {
   if (n.type !== "Operator") return true;
   return n.operator_type === "Loop" ? n.children.length >= 2 : n.children.length > 0;
 }

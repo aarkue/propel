@@ -17,16 +17,16 @@ pnpm add react react-dom
 
 ## Use
 
-A viewer needs four things around it: the stylesheet, a Radix `Theme`, a layout engine for graph
-viewers, and a parent with a definite height.
+A viewer needs four things around it: the stylesheet, a Radix `Theme`, rust4pm's visualization for
+graph viewers, and a parent with a definite height.
 
 ```tsx
 import "@r4pm/components/styles.css";                            // 1. the stylesheet, once
 import { Theme, PetriNetViewer, ViewerConfigProvider } from "@r4pm/components";
-import { wasmLayout } from "@r4pm/components/rust-layout/wasm";  // 2. a layout engine
+import { wasmViz } from "@r4pm/components/viz/wasm";            // 2. graph layout and export
 
 <Theme>                                                          {/* 3. the Radix theme */}
-  <ViewerConfigProvider value={{ layout: wasmLayout }}>
+  <ViewerConfigProvider value={{ viz: wasmViz }}>
     <div style={{ height: 400 }}>                                {/* 4. a definite height */}
       <PetriNetViewer data={net} />
     </div>
@@ -34,11 +34,13 @@ import { wasmLayout } from "@r4pm/components/rust-layout/wasm";  // 2. a layout 
 </Theme>;
 ```
 
-The core includes no layout engine, and a graph viewer without one stacks its nodes in a line. The
+Graph viewers lay out and export with rust4pm's visualization, which the core does not include.
+`wasmViz` runs it in the browser. A host with a backend that runs rust4pm can pass a `VizTransport` to
+that backend instead. Without either, a graph viewer places its nodes in a plain row or column. The
 height is required because a viewer's root is `height: 100%`, which resolves to nothing inside an
 auto-height parent.
 
-Coloring, formatting, interactivity and the layout engine are configured once through
+Coloring, formatting, interactivity and graph layout are configured once through
 `ViewerConfigProvider`. Any viewer can override any field with a prop of the same name.
 
 ## Image export
@@ -57,9 +59,9 @@ import { ViewerExportFrame, DFGViewer } from "@r4pm/components";
 
 The frame is `position: relative` and takes a `style`, which also makes it the sizing box. Its menu
 offers two routes. The viewer's own group (SVG, PNG, JPEG) redraws the viewer's model as SVG, crisp
-at any size; every graph viewer, the log-variants list and the alignment strips register one. The
-screenshot group (PNG, JPEG) snapshots the frame content through html-to-image and catches the
-on-screen chrome the SVG route omits. `data-export-root` marks the subtree to capture,
+at any size. Every graph viewer, the log-variants list and the alignment strips register one, and the
+graph viewers draw it with rust4pm through `viz`. The screenshot group (PNG, JPEG) snapshots the
+frame content through html-to-image and catches the on-screen chrome the SVG route omits. `data-export-root` marks the subtree to capture,
 `data-export-ignore` drops an element from it.
 
 `onSave` takes the bytes instead of downloading them. `onError` and the `propel:export-error` window
@@ -102,14 +104,13 @@ never pulls in Plotly or the editors.
 
 | Import | Contents |
 | --- | --- |
-| `@r4pm/components` | viewers (DFG, Petri net, OCEL summaries, alignments, ...), primitives, feedback states, `ViewerExportFrame`, and the presentation contract: `ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed` |
+| `@r4pm/components` | viewers (DFG, Petri net, OCEL summaries, alignments, ...), primitives, feedback states, `ViewerExportFrame`, the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`), and the layout helpers over a `VizTransport` (`layoutModel`, `modelLayoutRequest`, `rerouteModel`, `modelSvg`, `layoutGraph`, `rerouteGraph`, `layoutTree`) |
 | `@r4pm/components/ui` | the Radix Themes seam (`Theme`, `Button`, `Card`, ...). Import UI primitives from here, never `@radix-ui/themes` directly |
 | `@r4pm/components/charts` | Plotly-backed viewers: `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot` |
-| `@r4pm/components/petri` | the React Flow + ELK Petri-net **editor** |
+| `@r4pm/components/petri` | the React Flow Petri-net **editor** |
 | `@r4pm/components/process-tree` | the process-tree **editor** |
 | `@r4pm/components/extraction-blueprint` | the extraction blueprint **editor** |
-| `@r4pm/components/elk-layout` | `elkLayout`: pure-JS layout engine (elkjs) |
-| `@r4pm/components/rust-layout/wasm` | `wasmLayout`: Rust/wasm layout engine, including `renderSvg` |
+| `@r4pm/components/viz/wasm` | `wasmViz`: rust4pm's visualization as embedded wasm, for graph layout and SVG export. `setVizWasm` loads the `.wasm` from elsewhere |
 | `@r4pm/components/styles.css` | precompiled stylesheet (Tailwind + Radix theme + everything in `rules.css`) |
 | `@r4pm/components/rules.css` | the same minus Tailwind, for apps that run their own Tailwind build |
 
@@ -125,7 +126,7 @@ pnpm --filter @r4pm/components showcase   # static build -> storybook-static/
 ```
 
 Start with **Getting Started > Sizing & Layout**, **Viewer Configuration**, **Coloring**,
-**Layout Engines** and **Image Export**.
+**Graph Layout** and **Image Export**.
 
 ### For coding agents
 
@@ -152,10 +153,11 @@ Storybook stories (*.stories.tsx next to each component): https://github.com/aar
    - Import `@r4pm/components/styles.css` once and wrap the app in `<Theme>` from
      `@r4pm/components/ui` (use `rules.css` instead of `styles.css` only if this project already
      runs its own Tailwind build -- llms.txt has the exact setup for that case).
-   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri net, process tree) need a layout engine: pass one
-     via `<ViewerConfigProvider value={{ layout: wasmLayout }}>`, importing `wasmLayout` from
-     `@r4pm/components/rust-layout/wasm` (or `elkLayout` from `@r4pm/components/elk-layout` for a
-     pure-JS alternative with no wasm). Without one, graphs render with nodes stacked in a line.
+   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri nets, process tree, OCEL type graph) lay out and
+     export through rust4pm's visualization: pass it via
+     `<ViewerConfigProvider value={{ viz: wasmViz }}>`, importing `wasmViz` from
+     `@r4pm/components/viz/wasm`. Without it, graphs render with their nodes in a plain row or
+     column and have no SVG export.
    - A viewer that "fills its parent" (most graph and chart viewers) needs an ancestor with a
      definite height -- `height: 100%` resolves to nothing inside an auto-height parent.
    - Wrap a viewer in `<ViewerExportFrame>` to get an SVG/PNG/JPEG export button; no viewer renders

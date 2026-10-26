@@ -1,37 +1,31 @@
 import Editor, { type TreeEditorProps } from "./process-tree/editor/Editor";
-import type { ProcessTree } from "./process-tree/tree";
 import type { ViewerProps } from "./viewer/viewer-config";
+import type { ProcessTree } from "./viz/types";
 
-export type {
-  EditableNode,
-  EditableTree,
-  LeafLabel,
-  OperatorType,
-  ProcessTree,
-  PTNode,
-} from "./process-tree/tree";
+export type { ProcessTree, ProcessTreeNode, ProcessTreeOperatorType } from "./viz/types";
 
 export interface ProcessTreeViewerProps
   extends ViewerProps<ProcessTree>,
-    Pick<TreeEditorProps, "editable" | "onChange" | "renderSvg" | "nodeOverlay" | "exportKey"> {}
+    Pick<TreeEditorProps, "editable" | "onChange" | "nodeOverlay" | "exportKey"> {}
 
-/** Renders a process tree, optionally editable. Layout comes from `ViewerConfig.layout.processTree`. */
+/** Renders a rust4pm process tree, optionally editable, laid out and exported by rust4pm through
+ *  `viz` (or `ViewerConfig.viz`). */
 export function ProcessTreeViewer({
   data,
   editable,
   onChange,
-  renderSvg,
   nodeOverlay,
   exportKey,
+  viz,
 }: ProcessTreeViewerProps) {
   return (
     <Editor
       tree={data}
       editable={editable}
       onChange={onChange}
-      renderSvg={renderSvg}
       nodeOverlay={nodeOverlay}
       exportKey={exportKey}
+      viz={viz}
     />
   );
 }

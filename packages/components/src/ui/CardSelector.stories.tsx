@@ -107,3 +107,25 @@ export const Grouped: Story = { render: () => <Demo grouped /> };
 
 /** Ungrouped: one flat grid, for a choice that needs no headings. */
 export const Flat: Story = { render: () => <Demo grouped={false} /> };
+
+function CompactDemo() {
+  const [value, setValue] = useState<Kind>("filter");
+  return (
+    <Theme>
+      <div style={{ width: 340 }}>
+        <CardSelector
+          size="1"
+          columns={3}
+          options={OPTIONS.map(({ group: _g, ...o }) => ({ ...o, iconColor: o.accent }))}
+          value={value}
+          onValueChange={setValue}
+          aria-label="Node kind"
+        />
+      </div>
+    </Theme>
+  );
+}
+
+/** Compact cards for a popover or toolbar: the icon sits in a tinted square that turns solid when
+ *  selected, so no radio circle is needed. */
+export const Compact: Story = { render: () => <CompactDemo /> };

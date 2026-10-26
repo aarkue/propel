@@ -17,14 +17,18 @@ export const vis = defineVis({
   keywords: ["dfg", "object centric", "graph", "flow"],
   order: 14,
   source: {
-    binding: "app_bindings::ocel::get_ocel_df",
+    binding:
+      "process_mining::core::process_models::object_centric::ocdfg::object_centric_dfg_struct::discover_dfg_from_slim_ocel",
     needs: "SlimLinkedOCEL",
     args: (ctx) => ({ ocel: ctx.datasetId as SlimLinkedOCELHandle }),
   },
   extraProps: async (ctx) => {
     const ocel = ctx.datasetId as SlimLinkedOCELHandle;
-    const performance = await backend.callBinding(OCEL_DF_PERFORMANCE, { ocel });
-    return { performance };
+    const [performance, stats] = await Promise.all([
+      backend.callBinding(OCEL_DF_PERFORMANCE, { ocel }),
+      backend.callBinding("process_mining::bindings::ocel_type_stats", { ocel }),
+    ]);
+    return { performance, objectCounts: stats.object_type_counts };
   },
   component: OCDFGPanel,
 });

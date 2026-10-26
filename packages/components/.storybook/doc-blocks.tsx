@@ -38,10 +38,6 @@ const STORY_SOURCES = import.meta.glob("../src/**/*.stories.@(ts|tsx)", {
   eager: true,
 }) as Record<string, string>;
 
-// Shown but not recursed into: LayoutEngine names every surface's layout fn, so following it
-// would pull each surface's node/edge type family into every viewer's docs page.
-const NO_RECURSE = new Set(["LayoutEngine"]);
-
 interface FoundEntry extends TypeEntry {
   depth: number;
   via?: string;
@@ -63,7 +59,7 @@ function collectReferenced(argTypes: unknown): FoundEntry[] {
   scan(JSON.stringify(argTypes) ?? "", 0);
   // Grows while iterating: each shown declaration may pull in further named types (BFS closure).
   for (let i = 0; i < found.length; i++) {
-    if (!NO_RECURSE.has(found[i].name)) scan(found[i].code, found[i].depth + 1, found[i].name);
+    scan(found[i].code, found[i].depth + 1, found[i].name);
   }
   return found;
 }

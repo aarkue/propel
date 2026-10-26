@@ -4,19 +4,21 @@ import { ProcessTreeWorkbench, type ProcessTree } from "@r4pm/components";
 
 const tree: ProcessTree = {
   root: {
-    type: "Operator",
-    operator_type: "Sequence",
-    children: [
-      { type: "Leaf", activity_label: { type: "Activity", value: "register" } },
-      {
-        type: "Operator",
-        operator_type: "ExclusiveChoice",
-        children: [
-          { type: "Leaf", activity_label: { type: "Activity", value: "approve" } },
-          { type: "Leaf", activity_label: { type: "Tau" } },
-        ],
-      },
-    ],
+    Operator: {
+      operator_type: "Sequence",
+      children: [
+        { Leaf: { activity_label: { Activity: "register" } } },
+        {
+          Operator: {
+            operator_type: "ExclusiveChoice",
+            children: [
+              { Leaf: { activity_label: { Activity: "approve" } } },
+              { Leaf: { activity_label: "Tau" } },
+            ],
+          },
+        },
+      ],
+    },
   },
 };
 

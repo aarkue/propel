@@ -8,7 +8,6 @@ import {
   setOperator,
 } from "../tree";
 import { type OperatorData, useTreeEditor } from "./Editor";
-import { OPERATOR_SIZE } from "./helpers/layout-graph";
 import { AddChildSlot, InsertParentButton } from "./menus";
 
 export default function OperatorNode({ data, id, selected }: NodeProps<Node<OperatorData>>) {
@@ -51,8 +50,8 @@ export default function OperatorNode({ data, id, selected }: NodeProps<Node<Oper
           dropTarget === id ? "drop-target" : ""
         } ${ov?.className ?? data.className ?? ""}`}
         style={{
-          width: OPERATOR_SIZE.width,
-          height: OPERATOR_SIZE.height,
+          width: data.size.width,
+          height: data.size.height,
           cursor: onClick ? "pointer" : undefined,
           ...data.style,
           ...ov?.style,

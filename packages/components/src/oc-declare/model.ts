@@ -26,6 +26,8 @@ export interface DeclareEdgeRoute {
   /** Source/target node top-left at layout time; drag deformation is relative to these. */
   sourcePos: { x: number; y: number };
   targetPos: { x: number; y: number };
+  /** Where the layout centred the edge's text label. */
+  labelAnchor?: { x: number; y: number };
 }
 
 export interface DeclareEdge {
@@ -99,12 +101,34 @@ const PREFIX: Record<DeclareNode["kind"], string> = {
 };
 /** The `<init>`/`<exit>`-prefixed display name used as a node's backend identity. */
 export const nodeDisplayName = (n: DeclareNode) => `${PREFIX[n.kind]}${n.type}`;
+
+/** `base`, or `base 2`, `base 3`, ... if a node of `kind` already has that name. rust4pm knows
+ *  nodes by name, so two nodes of one name would share one place in the layout. */
+export function uniqueName(model: DeclareFlowModel, base: string, kind: DeclareNode["kind"]): string {
+  const taken = new Set(model.nodes.map(nodeDisplayName));
+  const free = (type: string) => !taken.has(nodeDisplayName({ id: "", type, kind }));
+  if (free(base)) return base;
+  let n = 2;
+  while (!free(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
 const nodeName = nodeDisplayName;
 
 /** Derive the backend arc list from the edit model (pure). Node names carry `<init>`/`<exit>` prefixes. */
 export function toArcs(model: DeclareFlowModel): OCDeclareArc[] {
+  return modelArcs(model).arcs;
+}
+
+/** {@link toArcs}, with the id of the model edge behind each arc (`edgeIds[i]` for `arcs[i]`). */
+export function modelArcs(model: DeclareFlowModel): {
+  arcs: OCDeclareArc[];
+  edgeIds: string[];
+  /** Activities no arc names, which rust4pm only draws when told about them. */
+  extraActivities: string[];
+} {
   const byId = new Map(model.nodes.map((n) => [n.id, n]));
   const arcs: OCDeclareArc[] = [];
+  const edgeIds: string[] = [];
   for (const e of model.edges) {
     const from = byId.get(e.source);
     const to = byId.get(e.target);
@@ -116,8 +140,11 @@ export function toArcs(model: DeclareFlowModel): OCDeclareArc[] {
       counts: templateCounts(e.template, e.cardinality),
       label: e.label,
     });
+    edgeIds.push(e.id);
   }
-  return arcs;
+  const named = new Set(arcs.flatMap((a) => [a.from, a.to]));
+  const extraActivities = [...new Set(model.nodes.map(nodeName))].filter((name) => !named.has(name));
+  return { arcs, edgeIds, extraActivities };
 }
 
 const ARC_TO_TEMPLATE: Record<string, EdgeTemplate> = {
@@ -132,6 +159,22 @@ const ARC_TO_TEMPLATE: Record<string, EdgeTemplate> = {
   "DF|true": "ndf",
   "DP|true": "ndf-rev",
 };
+
+/** A model whose nodes are all placed but some of whose arcs have no route, e.g., one loaded from a
+ *  file, or a route made for positions its nodes no longer have: its arcs need routing over the
+ *  saved positions rather than a fresh layout. */
+export function needsReroute(model: DeclareFlowModel): boolean {
+  if (model.nodes.length === 0 || !model.nodes.every((n) => n.position)) return false;
+  const position = new Map(model.nodes.map((n) => [n.id, n.position]));
+  const away = (p: { x: number; y: number } | undefined, at: { x: number; y: number }) =>
+    !p || Math.abs(p.x - at.x) > 0.5 || Math.abs(p.y - at.y) > 0.5;
+  return model.edges.some(
+    (e) =>
+      !e.route ||
+      away(position.get(e.source), e.route.sourcePos) ||
+      away(position.get(e.target), e.route.targetPos),
+  );
+}
 
 /** Parse a node display name, extracting an `<init>`/`<exit>` prefix into `kind`. */
 export function parseNodeName(name: string): { type: string; kind: DeclareNode["kind"] } {

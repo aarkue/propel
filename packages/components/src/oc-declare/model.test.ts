@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  uniqueName,
   arcsToModel,
   cardinalitySugar,
   type EdgeTemplate,
   mergeArcs,
+  needsReroute,
   TEMPLATE_TO_ARC,
   templateCounts,
   toArcs,
@@ -145,5 +147,53 @@ describe("toArcs", () => {
         label: { each: [], any: [], all: [] },
       },
     ]);
+  });
+});
+
+describe("needsReroute", () => {
+  const model = arcsToModel([
+    { from: "a", to: "b", arc_type: "EF", counts: [1, null], label: { each: [], any: [], all: [] } },
+  ]);
+  const placed = { ...model, nodes: model.nodes.map((n) => ({ ...n, position: { x: 0, y: 0 } })) };
+  const route = { points: [], sourcePos: { x: 0, y: 0 }, targetPos: { x: 0, y: 0 } };
+
+  it("holds for placed nodes whose arcs have no routes, as in a loaded file", () => {
+    expect(needsReroute(placed)).toBe(true);
+  });
+
+  it("holds when a node moved after its arcs were routed", () => {
+    const [a] = placed.nodes;
+    const moved = {
+      nodes: placed.nodes.map((n) => (n.id === a.id ? { ...n, position: { x: 50, y: 0 } } : n)),
+      edges: placed.edges.map((e) => ({ ...e, route })),
+    };
+    expect(needsReroute(moved)).toBe(true);
+  });
+
+  it("does not hold for unplaced nodes, routed arcs or an empty model", () => {
+    expect(needsReroute(model)).toBe(false);
+    expect(needsReroute({ ...placed, edges: placed.edges.map((e) => ({ ...e, route })) })).toBe(false);
+    expect(needsReroute({ nodes: [], edges: [] })).toBe(false);
+  });
+});
+
+describe("uniqueName", () => {
+  const model = {
+    nodes: [
+      { id: "1", type: "new activity", kind: "activity" as const },
+      { id: "2", type: "new activity 2", kind: "activity" as const },
+      { id: "3", type: "order", kind: "init" as const },
+    ],
+    edges: [],
+  };
+
+  it("keeps a free name and numbers a taken one", () => {
+    expect(uniqueName(model, "pay", "activity")).toBe("pay");
+    expect(uniqueName(model, "new activity", "activity")).toBe("new activity 3");
+  });
+
+  it("counts names per kind, as an object node is displayed with its prefix", () => {
+    expect(uniqueName(model, "order", "activity")).toBe("order");
+    expect(uniqueName(model, "order", "init")).toBe("order 2");
   });
 });

@@ -3,7 +3,7 @@
 use process_mining::{
     bindings::register_binding,
     core::event_data::case_centric::utils::activity_projection::EventLogActivityProjection,
-    discovery::case_centric::alphappp::full::AlphaPPPConfig, PetriNet,
+    discovery::case_centric::alphappp::full::AlphaPPPConfig, AcceptingPetriNet,
 };
 
 pub mod alignments;
@@ -13,7 +13,6 @@ pub mod petri_net_io;
 pub mod slim_project;
 pub mod transforms;
 pub mod types;
-pub mod viz;
 
 /// Health-check binding.
 #[register_binding]
@@ -22,7 +21,7 @@ pub fn app_ping() -> String {
 }
 
 #[register_binding]
-pub fn alphappp_auto(log_proj: &EventLogActivityProjection) -> PetriNet {
+pub fn alphappp_auto(log_proj: &EventLogActivityProjection) -> AcceptingPetriNet {
     let (_config, net) = process_mining::discovery::case_centric::alphappp::auto_parameters::alphappp_discover_with_auto_parameters(log_proj);
     net
 }
@@ -30,9 +29,9 @@ pub fn alphappp_auto(log_proj: &EventLogActivityProjection) -> PetriNet {
 /// Discover a Petri net from an event log with Alpha+++. Projects to activities internally, so
 /// no intermediate `EventLogActivityProjection` is stored in the registry.
 #[register_binding]
-pub fn discover_petri_net(event_log: &process_mining::EventLog) -> PetriNet {
+pub fn discover_petri_net(event_log: &process_mining::EventLog) -> AcceptingPetriNet {
     let proj = EventLogActivityProjection::from(event_log);
-    let net = process_mining::discovery::case_centric::alphappp::full::alphappp_discover_petri_net(
+    let net = process_mining::discovery::case_centric::alphappp::full::discover_alphappp_net(
         &proj,
         AlphaPPPConfig {
             absolute_df_clean_thresh: 0,

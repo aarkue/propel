@@ -15,6 +15,7 @@ export const REGISTRY_COLORS: Record<string, string> = {
   EventLog: "#ef4444", // red-500
   OCEL: "#f97316", // orange-500
   PetriNet: "#06b6d4", // cyan-500
+  AcceptingPetriNet: "#06b6d4", // cyan-500
 };
 
 /** Accepts a JSON-Schema fragment, widened so the pipeline's synthetic `"any"` type (and a plain

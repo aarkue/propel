@@ -91,6 +91,7 @@ propel/
 │   ├── backend-shared/        #   shared engine logic: binding dispatch, object lifecycle, metadata
 │   ├── app-bindings/          #   new bindings: #[register_binding] functions
 │   ├── wasm/                  #   backend-wasm cdylib (execute_binding / list_functions / load_item_bytes / ...)
+│   ├── viz-wasm/              #   rust4pm's visualization bindings as wasm, embedded in @r4pm/components
 │   ├── webserver/             #   propel-webserver: axum HTTP transport backend (web:server)
 │   ├── app/                   #   propel-tauri: Tauri desktop app (app:dev / app:build)
 │   └── meta-gen/              #   dumps the live registry to bindings-meta.json for TS codegen

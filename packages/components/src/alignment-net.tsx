@@ -1,5 +1,5 @@
 import { Badge, SegmentedControl, Text } from "@r4pm/components/ui";
-import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useViewSetting } from "./viewer/view-state";
 import { resolveMove } from "./shared/TraceAlignmentStrip";
 import { AlignmentStrip } from "./shared/AlignmentStrip";
@@ -10,6 +10,7 @@ import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { colorToHex } from "./dfg/util/colors";
 import { PetriNetViewer, type PetriNet, type PetriNetOverlay } from "./petri-net";
 import type { AlignmentAggregate, LogAlignments, VariantAlignmentResult } from "./shared/alignment-types";
+import type { ElementStyle } from "./viz";
 
 // deviation rate = model_fires / (sync_fires + model_fires):
 // 0 = always conforming, 1 = always a model-only insertion.
@@ -36,6 +37,12 @@ function heatmapRgb(ratio: number): Rgb {
 
 const rgb = (c: Rgb) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 const rgba = (c: Rgb, a: number) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`;
+const byteHex = (v: number) => Math.round(v).toString(16).padStart(2, "0");
+/** `#rrggbb`, or `#rrggbbaa` with `alpha`: colors the SVG export can carry. */
+const hex = (c: Rgb, alpha?: number) =>
+  `#${c.map(byteHex).join("")}${alpha === undefined ? "" : byteHex(alpha * 255)}`;
+
+const DIMMED: ElementStyle = { opacity: 0.35 };
 
 /** A silent (invisible) transition has no label; deviation rate is meaninglessly 1; skip it. */
 function isSilent(net: PetriNet, transitionId: string): boolean {
@@ -80,24 +87,24 @@ function deviationRows(net: PetriNet, aggregated: AlignmentAggregate): Deviation
 
 /** Overlay coloring every transition by its deviation rate; untouched transitions are dimmed. */
 function buildAggregateOverlay(net: PetriNet, aggregated: AlignmentAggregate): PetriNetOverlay {
-  const transitionStyle: Record<string, CSSProperties> = {};
+  const transitionStyle: Record<string, ElementStyle> = {};
   for (const { id } of net.transitions) {
     const stats = aggregated.transition_stats[id];
     const total = stats ? stats.sync_fires + stats.model_fires : 0;
     if (total === 0) {
-      transitionStyle[id] = { opacity: 0.35 };
+      transitionStyle[id] = DIMMED;
       continue;
     }
     if (isSilent(net, id)) continue;
     const c = heatmapRgb(stats.model_fires / total);
-    transitionStyle[id] = {
-      borderColor: rgb(c),
-      borderWidth: 3,
-      backgroundColor: rgba(c, 0.18),
-      fontWeight: 600,
-    };
+    transitionStyle[id] = { stroke: hex(c), stroke_width: 3, fill: hex(c, 0.18) };
   }
-  return { transition: (t) => ({ style: transitionStyle[t.id] }) };
+  return {
+    transition: (t) => {
+      const elementStyle = transitionStyle[t.id];
+      return { elementStyle, style: elementStyle?.fill ? { fontWeight: 600 } : undefined };
+    },
+  };
 }
 
 /** A transition that fired while replaying a variant's alignment. */
@@ -136,33 +143,40 @@ function firedTransitions(variant: VariantAlignmentResult, net: PetriNet): Fired
   return fired;
 }
 
-/** Highlight one variant's fired transitions (numbered, colored by kind), dim untouched. */
+/** Highlight one variant's fired transitions (colored by kind, numbered by step), dim untouched. */
 function buildVariantOverlay(net: PetriNet, fired: FiredTransition[]): PetriNetOverlay {
-  const transitionStyle: Record<string, CSSProperties> = {};
-  const transitionLabel: Record<string, string> = {};
+  const transitionStyle: Record<string, ElementStyle> = {};
+  const ringColor: Record<string, string> = {};
   const firedIds = new Set(fired.map((f) => f.transitionId));
 
   for (const { id } of net.transitions) {
-    if (!firedIds.has(id)) transitionStyle[id] = { opacity: 0.35 };
+    if (!firedIds.has(id)) transitionStyle[id] = DIMMED;
   }
 
   const seen = new Set<string>();
   for (const f of fired) {
     if (seen.has(f.transitionId)) continue;
     seen.add(f.transitionId);
-    const hex = f.kind === "sync" ? SYNC_HEX : MODEL_HEX;
+    const color = f.kind === "sync" ? SYNC_HEX : MODEL_HEX;
     const orders = fired.filter((x) => x.transitionId === f.transitionId).map((x) => x.order);
     transitionStyle[f.transitionId] = {
-      borderColor: hex,
-      borderWidth: 3,
-      boxShadow: `0 0 0 2px ${hex}55`,
-      fontWeight: 600,
+      stroke: color,
+      stroke_width: 3,
+      // A silent transition is a slim bar with no room for a line of text.
+      extra_label: f.label ? orders.map((o) => `#${o}`).join(" ") : undefined,
     };
-    const baseLabel = f.label && f.label !== "" ? f.label : "τ";
-    transitionLabel[f.transitionId] = `${orders.join("/")}. ${baseLabel}`;
+    ringColor[f.transitionId] = color;
   }
 
-  return { transition: (t) => ({ style: transitionStyle[t.id], label: transitionLabel[t.id] }) };
+  return {
+    transition: (t) => {
+      const ring = ringColor[t.id];
+      return {
+        elementStyle: transitionStyle[t.id],
+        style: ring ? { boxShadow: `0 0 0 2px ${ring}55`, fontWeight: 600 } : undefined,
+      };
+    },
+  };
 }
 
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;

@@ -21,8 +21,8 @@ packages/   the @r4pm/* libraries. Only `components` is published; `client` is i
 apps/studio the application (composes the packages + selects a transport: wasm/http/tauri); also hosts
             the studio-internal viewer registry, panels, pipeline, transforms, and stores
 examples/   runnable external-consumer example
-engine/     Rust (Cargo workspace): backend-shared, app-bindings, meta-gen, and the three
-            target wrappers: wasm, webserver (axum), app (tauri)
+engine/     Rust (Cargo workspace): backend-shared, app-bindings, meta-gen, viz-wasm (embedded in
+            @r4pm/components), and the three target wrappers: wasm, webserver (axum), app (tauri)
 ```
 
 ## Dev workflow

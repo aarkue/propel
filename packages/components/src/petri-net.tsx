@@ -1,13 +1,13 @@
 import {
-  buildPetriNetSvg,
   Editor,
+  layoutPetriElements,
   noopPetriLayout,
   nodesToPetriNet,
-  petriModelToStyledGraph,
-  usePetriLayout,
+  petriElementsSvg,
+  withGeometryOf,
   type ArcData,
   type EditorEdgePatch,
-  type PetriLayoutFn,
+  type PetriElements,
   type PetriNetNode,
   type PlaceData,
   type TokenMark,
@@ -24,14 +24,24 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import type { ViewerProps } from "./viewer/viewer-config";
+import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "./viewer/export";
-import type { LegendGroup, StyledGraphRenderer } from "./graph-svg/styled-graph";
+import { normalizePetriNet } from "./petri/net-json";
+import type { ElementStyle } from "./viz";
+
+export {
+  normalizePetriNet,
+  placeNodeId,
+  type RustPetriNet,
+  toRustPetriNet,
+  transitionNodeId,
+} from "./petri/net-json";
 
 /** Petri net data shape. `label` is optional (serializes as missing/null); assignable to/from the generated `@r4pm/client` `PetriNet` type. */
 export interface PetriNet {
-  places: Array<{ id: string }>;
-  transitions: Array<{ id: string; label?: string | null }>;
+  /** `name` is the external id (e.g., from PNML), kept so a round trip through rust4pm keeps it. */
+  places: Array<{ id: string; name?: string | null }>;
+  transitions: Array<{ id: string; label?: string | null; name?: string | null }>;
   arcs: Array<{
     nodes: [string, string];
     weight?: number;
@@ -66,6 +76,10 @@ export interface ElementInteractions {
 
 /** What a transition/arc resolver returns; all fields optional. */
 export interface ElementPresentation extends ElementInteractions {
+  /** Highlight, dim or annotate the element, on screen and in the exported image (rust4pm's
+   *  `ElementStyle`, e.g., a heatmap fill or an `extra_label` line under the label). */
+  elementStyle?: ElementStyle;
+  /** On-screen CSS only. */
   style?: CSSProperties;
   className?: string;
   label?: string;
@@ -74,6 +88,9 @@ export interface ElementPresentation extends ElementInteractions {
 }
 /** What a place resolver returns; adds marking controls. */
 export interface PlacePresentation extends ElementInteractions {
+  /** Highlight, dim or annotate the place, on screen and in the exported image. */
+  elementStyle?: ElementStyle;
+  /** On-screen CSS only. */
   style?: CSSProperties;
   className?: string;
   label?: string;
@@ -81,12 +98,9 @@ export interface PlacePresentation extends ElementInteractions {
   tokens?: number;
   /** Color of the default token dots. */
   tokenColor?: string;
-  /** Explicit per-token marks (dots/squares, colored/faded); rendered in both the
-   *  DOM node and the SVG export. Takes precedence over `tokens`. */
+  /** Explicit per-token marks (dots/squares, colored/faded), on screen. Takes precedence over
+   *  `tokens`. */
   tokenMarks?: TokenMark[];
-  /** Object type this place belongs to (OCPN). Used purely as a layout grouping so each type
-   *  forms a consistent lane; does not affect rendering. */
-  objectType?: string;
   /** Render the marking yourself (e.g. per-object-type tokens). */
   renderMarking?: () => ReactNode;
   /** Extra editable control rendered inside the place (e.g. an object-type select). */
@@ -103,7 +117,7 @@ export interface PlacePresentation extends ElementInteractions {
  * Decide styling from your own data (closure over a map keyed by id) and/or from
  * the `raw` element passed as the second arg (if your net carries extra fields).
  *
- * @example Color places + arcs by object type (the OCPN pattern):
+ * @example Color places + arcs by object type:
  * ```tsx
  * const colorOf = (placeId: string) => typeColor[objectType[placeId]];
  * const overlay: PetriNetOverlay = {
@@ -119,8 +133,6 @@ export interface PlacePresentation extends ElementInteractions {
  *   place: (p) => ({ renderMarking: () => <MyTokens count={p.tokens} place={p.id} /> }),
  * };
  * ```
- *
- * See `object-centric-petri-net.tsx` for a full extension built on this.
  */
 export interface PetriNetOverlay {
   transition?: (
@@ -131,47 +143,7 @@ export interface PetriNetOverlay {
   arc?: (info: ArcInfo, raw: PetriNet["arcs"][number]) => ElementPresentation | undefined;
 }
 
-/**
- * Accept a Petri net in either the component's array shape or the Rust/`@r4pm/client`
- * shape (places/transitions as id-keyed records, arcs as `{ from_to: { nodes } }`,
- * markings as `final_markings[]`) and return the canonical array shape this module
- * uses. Idempotent on already-normalized nets. Tolerates missing fields (returns
- * empty arrays) so a loading/partial net renders empty instead of throwing.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function normalizePetriNet(net: any): PetriNet {
-  if (!net || typeof net !== "object") return { places: [], transitions: [], arcs: [] };
-  const places = Array.isArray(net.places) ? net.places : Object.values(net.places ?? {});
-  const transitions = Array.isArray(net.transitions) ? net.transitions : Object.values(net.transitions ?? {});
-  const arcsIn = Array.isArray(net.arcs) ? net.arcs : [];
-  const arcs = arcsIn
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((a: any) => ({ nodes: (a?.nodes ?? a?.from_to?.nodes) as [string, string], weight: a?.weight }))
-    .filter((a: { nodes: unknown }) => Array.isArray(a.nodes) && a.nodes.length === 2);
-  const final_marking =
-    net.final_marking ?? (Array.isArray(net.final_markings) ? net.final_markings[0] : undefined) ?? null;
-  return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    places: (places as any[]).map((p) => ({ id: p.id })),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    transitions: (transitions as any[]).map((t) => ({ id: t.id, label: t.label ?? null })),
-    arcs,
-    initial_marking: net.initial_marking ?? null,
-    final_marking,
-  };
-}
-
-/** Stable per-arc id from its endpoints; disambiguates rare parallel arcs. */
-function arcId(from: string, to: string, seen: Set<string>): string {
-  const base = `${from} ${to}`;
-  let id = base;
-  let i = 1;
-  while (seen.has(id)) id = `${base}#${i++}`;
-  seen.add(id);
-  return id;
-}
-
-/** Plain, unstyled, unlaid-out editor elements for a net. Feed to `layoutPetriNet`,
+/** Plain, unstyled, unlaid-out editor elements for a net. Feed to `layoutPetriElements`,
  *  then re-skin per state change with {@link applyOverlay}. */
 export function baseElements(rawNet: PetriNet): { nodes: PetriNetNode[]; edges: Edge<ArcData>[] } {
   const net = normalizePetriNet(rawNet);
@@ -194,79 +166,6 @@ export function baseElements(rawNet: PetriNet): { nodes: PetriNetNode[]; edges: 
     data: { weight: a.weight },
   }));
   return { nodes, edges };
-}
-
-async function layout(
-  rawNet: PetriNet,
-  overlay?: PetriNetOverlay,
-  categoryOf?: (placeId: string) => string | undefined,
-  layoutFn: PetriLayoutFn = noopPetriLayout,
-): Promise<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }> {
-  const net = normalizePetriNet(rawNet);
-  const transitionNodes: PetriNetNode[] = net.transitions.map((t) => {
-    const pres = overlay?.transition?.({ id: t.id, label: t.label ?? null }, t) || undefined;
-    return {
-      id: t.id,
-      type: "transition",
-      data: {
-        label: pres?.label ?? t.label ?? undefined,
-        style: pres?.style,
-        className: pres?.className,
-        renderContent: pres?.renderContent,
-        onClick: pres?.onClick,
-        onContextMenu: pres?.onContextMenu,
-      },
-      position: { x: 0, y: 0 },
-    };
-  });
-  const placeNodes: PetriNetNode[] = net.places.map((p) => {
-    const tokens = net.initial_marking?.[p.id] ?? 0;
-    const finalTokens = net.final_marking?.[p.id] ?? 0;
-    const pres = overlay?.place?.({ id: p.id, tokens, finalTokens }, p) || undefined;
-    return {
-      id: p.id,
-      type: "place",
-      data: {
-        tokens: pres?.tokens ?? tokens,
-        finalTokens,
-        tokenColor: pres?.tokenColor,
-        tokenMarks: pres?.tokenMarks,
-        objectType: pres?.objectType ?? categoryOf?.(p.id),
-        label: pres?.label,
-        style: pres?.style,
-        className: pres?.className,
-        renderMarking: pres?.renderMarking,
-        renderControls: pres?.renderControls,
-        onClick: pres?.onClick,
-        onContextMenu: pres?.onContextMenu,
-      },
-      position: { x: 0, y: 0 },
-    };
-  });
-  const nodes: PetriNetNode[] = [...transitionNodes, ...placeNodes];
-
-  const seen = new Set<string>();
-  const edges: Edge<ArcData>[] = net.arcs.map((arc) => {
-    const [from, to] = arc.nodes;
-    const id = arcId(from, to, seen);
-    const pres = overlay?.arc?.({ id, from, to, weight: arc.weight ?? 1 }, arc) || undefined;
-    return {
-      id,
-      source: from,
-      target: to,
-      type: "custom",
-      data: {
-        weight: arc.weight,
-        label: pres?.label,
-        className: pres?.className,
-        onClick: pres?.onClick,
-        onContextMenu: pres?.onContextMenu,
-      },
-      style: pres?.style,
-    };
-  });
-
-  return layoutFn(nodes, edges);
 }
 
 /** Patch overlay-derived fields (style, tokens, handlers, custom renders) onto an
@@ -292,6 +191,7 @@ export function applyOverlay(
         data: {
           ...n.data,
           label: pres?.label ?? raw?.label ?? undefined,
+          elementStyle: pres?.elementStyle,
           style: pres?.style,
           className: pres?.className,
           renderContent: pres?.renderContent,
@@ -312,8 +212,8 @@ export function applyOverlay(
         finalTokens,
         tokenColor: pres?.tokenColor,
         tokenMarks: pres?.tokenMarks,
-        objectType: pres?.objectType ?? n.data.objectType,
         label: pres?.label,
+        elementStyle: pres?.elementStyle,
         style: pres?.style,
         className: pres?.className,
         renderMarking: pres?.renderMarking,
@@ -336,6 +236,7 @@ export function applyOverlay(
       data: {
         ...e.data,
         label: pres?.label,
+        elementStyle: pres?.elementStyle,
         className: pres?.className,
         onClick: pres?.onClick,
         onContextMenu: pres?.onContextMenu,
@@ -357,36 +258,20 @@ export interface PetriNetViewerProps extends ViewerProps<PetriNet> {
   editable?: boolean;
   /** Called with the serialized net after each edit. */
   onChange?: (net: PetriNet) => void;
-  /** Draw the exact on-screen graph through a host-supplied renderer (typically the
-   *  `export_graph_svg` Rust binding) instead of the built-in JS drawer. */
-  renderSvg?: StyledGraphRenderer;
-  /** Extra legend rows folded into the `StyledGraph` export (e.g. OCPN's object-type legend).
-   *  Purely decorative on screen (the frame draws its own legend overlay); only used by `renderSvg`. */
-  legend?: LegendGroup[];
-  /** Optional grouping id per place (e.g. an object type). Same-group places are held in a
-   *  consistent lane across layers (crossing-neutral) so the layout matches the editable OCPN
-   *  view. Memoize it so a stable identity doesn't force a relayout. */
-  categoryOf?: (placeId: string) => string | undefined;
   /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
   exportKey?: string;
 }
 
-export function PetriNetViewer({
-  data,
-  overlay,
-  editable,
-  onChange,
-  renderSvg,
-  legend,
-  categoryOf,
-  exportKey,
-}: PetriNetViewerProps) {
-  const [base, setBase] = useState<{ nodes: PetriNetNode[]; edges: Edge<ArcData>[] }>({
-    nodes: [],
-    edges: [],
-  });
+const NO_ELEMENTS: PetriElements = { nodes: [], edges: [] };
+
+/** A Petri net laid out and exported with rust4pm's visualization (`ViewerConfig.viz`). */
+export function PetriNetViewer(props: PetriNetViewerProps) {
+  const { data, overlay, editable, onChange, exportKey } = props;
+  const { viz } = useViewerConfig(props);
+  const [base, setBase] = useState<PetriElements>(NO_ELEMENTS);
   const [seedKey, setSeedKey] = useState(0);
-  const petriLayout = usePetriLayout();
+  // The live editor graph in editable mode, which the export draws.
+  const editedRef = useRef<PetriElements | null>(null);
 
   // Accept either the array shape or the client/record shape (and tolerate
   // loading/partial data) so studio bindings and stories both work.
@@ -396,49 +281,57 @@ export function PetriNetViewer({
   // changes never relayout or remount the editor (which would discard live edits).
   useEffect(() => {
     let cancelled = false;
-    layout(net, undefined, categoryOf, petriLayout).then((res) => {
-      if (cancelled) return;
-      setBase(res);
-      setSeedKey((k) => k + 1);
-    });
+    const elements = baseElements(net);
+    (viz ? layoutPetriElements(viz, net, elements) : noopPetriLayout(elements.nodes, elements.edges))
+      .then(({ nodes, edges }) => {
+        if (cancelled) return;
+        editedRef.current = null;
+        setBase({ nodes, edges });
+        setSeedKey((k) => k + 1);
+      })
+      .catch((e) => console.error("[petri] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [net, categoryOf, petriLayout]);
+  }, [net, viz]);
 
   const display = useMemo(() => applyOverlay(base, net, overlay), [base, net, overlay]);
 
-  // Advertise a vector export (honors overlay styling). Reads the latest display/renderer at
-  // export-click time through refs so the registered source stays stable.
+  // A drag the editor re-routed survives the next overlay change.
+  const keepLayout = useCallback(
+    (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => setBase((b) => withGeometryOf(b, { nodes, edges })),
+    [],
+  );
+
+  // Reads the latest net and on-screen graph at export-click time through refs so the registered
+  // source stays stable.
+  const netRef = useRef(net);
+  netRef.current = net;
   const displayRef = useRef(display);
   displayRef.current = display;
-  const renderSvgRef = useRef(renderSvg);
-  renderSvgRef.current = renderSvg;
-  const legendRef = useRef(legend);
-  legendRef.current = legend;
-  const exportSource = useMemo<VectorExportSource>(
-    () => ({
-      label: "Petri net",
-      toSvg: async () => {
-        const { nodes, edges } = displayRef.current;
-        const render = renderSvgRef.current;
-        if (render) {
-          const graph = petriModelToStyledGraph(nodes, edges, legendRef.current);
-          return graph ? render(graph) : null;
-        }
-        return buildPetriNetSvg(nodes, edges);
-      },
-    }),
-    [],
+  const exportSource = useMemo<VectorExportSource | null>(
+    () =>
+      viz
+        ? {
+            label: "Petri net",
+            toSvg: () => {
+              const edited = editedRef.current;
+              return edited
+                ? petriElementsSvg(viz, nodesToPetriNet(edited.nodes, edited.edges), edited)
+                : petriElementsSvg(viz, netRef.current, displayRef.current);
+            },
+          }
+        : null,
+    [viz],
   );
   useRegisterExport(exportKey ?? "petri-net", exportSource);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  const handleEditorChange = useCallback(
-    (ns: PetriNetNode[], es: Edge<ArcData>[]) => onChangeRef.current?.(nodesToPetriNet(ns, es)),
-    [],
-  );
+  const handleEditorChange = useCallback((ns: PetriNetNode[], es: Edge<ArcData>[]) => {
+    editedRef.current = { nodes: ns, edges: es };
+    onChangeRef.current?.(nodesToPetriNet(ns, es));
+  }, []);
 
   // Editable mode: the editor owns structure; only cosmetics are patched back in by
   // id (tokens/finalTokens excluded, the stepper owns those).
@@ -449,6 +342,7 @@ export function PetriNetViewer({
         const d = n.data;
         m.set(n.id, {
           style: d.style,
+          elementStyle: d.elementStyle,
           className: d.className,
           label: d.label,
           renderContent: d.renderContent,
@@ -459,6 +353,7 @@ export function PetriNetViewer({
         const d = n.data;
         m.set(n.id, {
           style: d.style,
+          elementStyle: d.elementStyle,
           className: d.className,
           label: d.label,
           tokenColor: d.tokenColor,
@@ -477,6 +372,7 @@ export function PetriNetViewer({
         from: e.source,
         to: e.target,
         style: e.style as CSSProperties | undefined,
+        elementStyle: e.data?.elementStyle,
         className: e.data?.className,
         label: e.data?.label,
         onClick: e.data?.onClick,
@@ -494,6 +390,7 @@ export function PetriNetViewer({
           <Editor
             key={seedKey}
             editable
+            viz={viz}
             onChange={handleEditorChange}
             showExportControls={false}
             initialNodes={display.nodes}
@@ -505,6 +402,9 @@ export function PetriNetViewer({
           <Editor
             key={seedKey}
             readOnly
+            viz={viz}
+            net={net}
+            onLayoutChange={keepLayout}
             showExportControls={false}
             nodes={display.nodes}
             edges={display.edges}

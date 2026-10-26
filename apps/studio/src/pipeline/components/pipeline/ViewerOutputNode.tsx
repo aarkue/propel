@@ -121,7 +121,7 @@ export function ViewerOutputNode({ data, id, selected }: NodeProps<ViewerOutputN
       {body}
       {value !== undefined && (
         <div className="absolute bottom-4 right-4 flex gap-1">
-          {returnType === "PetriNet" && <PetriNetActions net={value} />}
+          {returnType === "AcceptingPetriNet" && <PetriNetActions net={value} />}
           {openAsPanel && (
             <IconButton
               size="1"

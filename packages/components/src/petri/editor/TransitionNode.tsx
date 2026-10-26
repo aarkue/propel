@@ -3,6 +3,8 @@ import { Handle, type NodeProps, Position, useReactFlow, type Node } from "@xyfl
 import DeleteButton from "./DeleteButton";
 import { EditorPropsContext, type TransitionData } from "./Editor";
 import { TRANSITION_SIZE } from "./helpers/layout-graph";
+import { nodeStyleCss } from "./helpers/element-style";
+import ExtraLabel from "./ExtraLabel";
 
 export default function TransitionNode({ data, id, selected }: NodeProps<Node<TransitionData>>) {
   const { setNodes } = useReactFlow();
@@ -29,15 +31,17 @@ export default function TransitionNode({ data, id, selected }: NodeProps<Node<Tr
       return newNodes;
     });
   }
+  const size = data.size ?? TRANSITION_SIZE;
   return (
     <div
       title={data.label ?? "Invisible"}
       className={`node transition-node ${selected ? "selected" : ""} ${data.className ?? ""}`}
       style={{
-        width: TRANSITION_SIZE.width,
-        height: TRANSITION_SIZE.height,
+        width: size.width,
+        height: size.height,
         backgroundColor: invisible ? "var(--r4pm-node-text)" : undefined,
         cursor: data.onClick ? "pointer" : undefined,
+        ...nodeStyleCss(data.elementStyle),
         ...data.style,
       }}
       onClick={data.onClick}
@@ -48,6 +52,7 @@ export default function TransitionNode({ data, id, selected }: NodeProps<Node<Tr
       <div
         style={{
           display: "flex",
+          flexDirection: "column",
           height: "100%",
           width: "100%",
           justifyContent: "center",
@@ -114,12 +119,14 @@ export default function TransitionNode({ data, id, selected }: NodeProps<Node<Tr
               zIndex: 10,
               position: "relative",
               fontWeight: 500,
+              lineHeight: 1.15,
               fontSize: `${Math.min(Math.max(300 / (data.label?.length ?? 1), 8), 14)}px`,
             }}
           >
             {data.label}
           </div>
         )}
+        <ExtraLabel style={data.elementStyle} />
       </div>
       <Handle onConnect={(c) => (c.sourceHandle = "transition")} type="source" position={Position.Bottom} />
       <Handle onConnect={(c) => (c.sourceHandle = "transition")} type="target" position={Position.Top} />

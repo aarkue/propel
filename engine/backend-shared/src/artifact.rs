@@ -2,19 +2,50 @@
 //! enum). Artifacts cross the binding boundary by value, never as a handle.
 
 use process_mining::core::io::{Exportable, ExtensionWithMime, Importable};
-use process_mining::PetriNet;
+use process_mining::core::process_models::case_centric::petri_net::pnml::import_pnml_reader;
+use process_mining::AcceptingPetriNet;
+
+use crate::oc_declare_file::OCDeclareModelFile;
 
 pub enum PropelArtifact {
-    PetriNet(PetriNet),
+    PetriNet(AcceptingPetriNet),
+    OCDeclare(OCDeclareModelFile),
+}
+
+fn oc_declare_formats() -> Vec<ExtensionWithMime> {
+    vec![ExtensionWithMime::new("ocdeclare", "application/json")]
+}
+
+fn import_oc_declare(bytes: &[u8], format: &str) -> Result<OCDeclareModelFile, String> {
+    if !(format.ends_with("ocdeclare") || format.ends_with("json")) {
+        return Err(format!("Unsupported OC-DECLARE format: {format}"));
+    }
+    OCDeclareModelFile::from_json_bytes(bytes)
+}
+
+/// `AcceptingPetriNet`'s own importer rejects a PNML without a final marking, which many files
+/// lack. Missing markings load as empty instead.
+fn import_pnml_lenient(bytes: &[u8], format: &str) -> Result<AcceptingPetriNet, String> {
+    if !format.ends_with("pnml") {
+        return Err(format!("Unsupported Petri net format: {format}"));
+    }
+    let (net, initial, final_) =
+        import_pnml_reader(&mut std::io::BufReader::new(bytes)).map_err(|e| format!("{e:?}"))?;
+    Ok(AcceptingPetriNet::new(
+        net,
+        initial.unwrap_or_default(),
+        final_.unwrap_or_default(),
+    ))
 }
 
 impl PropelArtifact {
     /// Every artifact kind, for enumeration (file filters, OS file associations, viewer wiring).
-    pub const KINDS: &'static [&'static str] = &["PetriNet"];
+    pub const KINDS: &'static [&'static str] = &["PetriNet", "OCDeclare"];
 
     pub fn kind(&self) -> &'static str {
         match self {
             PropelArtifact::PetriNet(_) => "PetriNet",
+            PropelArtifact::OCDeclare(_) => "OCDeclare",
         }
     }
 
@@ -22,7 +53,8 @@ impl PropelArtifact {
     /// extension/MIME set stays in lockstep with the engine's actual parsers (no hardcoding).
     pub fn known_import_formats(kind: &str) -> Vec<ExtensionWithMime> {
         match kind {
-            "PetriNet" => <PetriNet as Importable>::known_import_formats(),
+            "PetriNet" => <AcceptingPetriNet as Importable>::known_import_formats(),
+            "OCDeclare" => oc_declare_formats(),
             _ => Vec::new(),
         }
     }
@@ -30,26 +62,28 @@ impl PropelArtifact {
     /// Known export formats for a kind (mirrors [`Self::known_import_formats`]).
     pub fn known_export_formats(kind: &str) -> Vec<ExtensionWithMime> {
         match kind {
-            "PetriNet" => <PetriNet as Exportable>::known_export_formats(),
+            "PetriNet" => <AcceptingPetriNet as Exportable>::known_export_formats(),
+            "OCDeclare" => oc_declare_formats(),
             _ => Vec::new(),
         }
     }
 
     /// Native read: parse a file from a path. Format inferred from the extension.
     pub fn import_from_path(kind: &str, path: &str) -> Result<Self, String> {
-        match kind {
-            "PetriNet" => Ok(PropelArtifact::PetriNet(
-                PetriNet::import_from_path(path).map_err(|e| format!("{e:?}"))?,
-            )),
-            other => Err(format!("Unknown artifact kind: {other}")),
-        }
+        let bytes = std::fs::read(path).map_err(|e| format!("{e:?}"))?;
+        let format = std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default();
+        Self::import_from_bytes(kind, &bytes, format)
     }
 
     pub fn import_from_bytes(kind: &str, bytes: &[u8], format: &str) -> Result<Self, String> {
         match kind {
-            "PetriNet" => Ok(PropelArtifact::PetriNet(
-                PetriNet::import_from_bytes(bytes, format).map_err(|e| format!("{e:?}"))?,
-            )),
+            "PetriNet" => Ok(PropelArtifact::PetriNet(import_pnml_lenient(
+                bytes, format,
+            )?)),
+            "OCDeclare" => Ok(PropelArtifact::OCDeclare(import_oc_declare(bytes, format)?)),
             other => Err(format!("Unknown artifact kind: {other}")),
         }
     }
@@ -59,12 +93,18 @@ impl PropelArtifact {
             PropelArtifact::PetriNet(net) => {
                 net.export_to_bytes(format).map_err(|e| format!("{e:?}"))
             }
+            PropelArtifact::OCDeclare(model) => {
+                serde_json::to_vec_pretty(model).map_err(|e| e.to_string())
+            }
         }
     }
 
     pub fn to_json(&self) -> Result<serde_json::Value, String> {
         match self {
             PropelArtifact::PetriNet(net) => serde_json::to_value(net).map_err(|e| e.to_string()),
+            PropelArtifact::OCDeclare(model) => {
+                serde_json::to_value(model).map_err(|e| e.to_string())
+            }
         }
     }
 }
@@ -89,6 +129,27 @@ mod tests {
         let b = PropelArtifact::import_from_bytes("PetriNet", &out, "pnml").unwrap();
         assert_eq!(b.kind(), "PetriNet");
         assert!(a.to_json().unwrap().get("places").is_some());
+    }
+
+    const OC_DECLARE: &str = r#"{"version":1,"arcs":[{"from":"a","to":"b","arc_type":"EF","label":{"each":[],"any":[],"all":[]},"counts":[1,null]}],"nodes":[{"name":"a","position":{"x":1,"y":2}},{"name":"b"},{"name":"c"}]}"#;
+
+    #[test]
+    fn oc_declare_round_trips_through_bytes() {
+        let a = PropelArtifact::import_from_bytes("OCDeclare", OC_DECLARE.as_bytes(), "ocdeclare")
+            .unwrap();
+        assert_eq!(a.kind(), "OCDeclare");
+        let out = a.export_to_bytes("ocdeclare").unwrap();
+        let b = PropelArtifact::import_from_bytes("OCDeclare", &out, "ocdeclare").unwrap();
+        assert_eq!(a.to_json().unwrap(), b.to_json().unwrap());
+        assert_eq!(a.to_json().unwrap()["nodes"][0]["position"]["x"], 1.0);
+        assert_eq!(a.to_json().unwrap()["nodes"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn oc_declare_rejects_other_json() {
+        assert!(
+            PropelArtifact::import_from_bytes("OCDeclare", br#"{"foo":1}"#, "ocdeclare").is_err()
+        );
     }
 
     #[test]

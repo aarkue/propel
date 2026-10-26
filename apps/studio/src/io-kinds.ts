@@ -11,6 +11,10 @@ export interface IoKind {
   export_formats: FormatInfo[];
   /** Return-type title used to resolve the viewer for the value. */
   returnType: string;
+  /** The viewer's data for a stored value, when it differs from the value itself. */
+  toViewerData?: (value: unknown) => unknown;
+  /** Panel type that opens stored values (as its `doc` param) instead of the generic viewer. */
+  editorPanel?: string;
 }
 
 export const IO_KINDS: IoKind[] = [
@@ -21,10 +25,34 @@ export const IO_KINDS: IoKind[] = [
       { extension: "apnml", mime: "text/plain" },
     ],
     export_formats: [{ extension: "pnml", mime: "text/plain" }],
-    returnType: "PetriNet",
+    returnType: "AcceptingPetriNet",
+  },
+  {
+    kind: "OCDeclare",
+    import_formats: [{ extension: "ocdeclare", mime: "application/json" }],
+    export_formats: [{ extension: "ocdeclare", mime: "application/json" }],
+    returnType: "Array_of_OCDeclareArc",
+    toViewerData: (value) => (value as { arcs: unknown }).arcs,
+    editorPanel: "ocDeclare",
   },
 ];
 
 export function ioKindByName(kind: string): IoKind | undefined {
   return IO_KINDS.find((k) => k.kind === kind);
+}
+
+/** Where an artifact of `kind` opens: its own panel, or the generic viewer with its viewer data. */
+export function artifactOpening(
+  kind: string,
+  value: unknown,
+): { panel: string; params: Record<string, unknown> } | { returnType: string; data: unknown } {
+  const io = ioKindByName(kind);
+  if (io?.editorPanel) return { panel: io.editorPanel, params: { doc: value } };
+  return { returnType: io?.returnType ?? kind, data: artifactViewerData(kind, value) };
+}
+
+/** What a viewer of an artifact of `kind` renders, for every path that opens one. */
+export function artifactViewerData(kind: string, value: unknown): unknown {
+  const io = ioKindByName(kind);
+  return io?.toViewerData ? io.toViewerData(value) : value;
 }

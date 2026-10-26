@@ -311,7 +311,7 @@ function PipelineSidebarImpl({
             />
             <DraggableChip
               label="Import File"
-              color={getTypeColor({ "x-registry-ref": "PetriNet" })}
+              color={getTypeColor({ "x-registry-ref": "AcceptingPetriNet" })}
               dragType="fileImport"
             />
           </div>

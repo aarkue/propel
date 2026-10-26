@@ -5,12 +5,8 @@ import type { AlignmentStyle, ColorResolver, ViewerFormat } from "@r4pm/componen
 export type DurationStyle = "short" | "long";
 export type { AlignmentStyle };
 
-/** Which graph layout engine the DFG / OC-DFG / Petri / OC-declare viewers use. `rust` is the default
- *  (tuned orthogonal routing, stable drag-relayout); `elk` is the legacy elkjs alternative. */
-export type LayoutEngine = "rust" | "elk";
-
-/** DFG / OC-DFG edge routing style (Rust engine only). `diagonal` is the default: flowing edges;
- *  `orthogonal` is straight vertical channels with L-bends (ELK-like). */
+/** Edge routing of the process maps (DFG, OC-DFG, OCEL type graph). `diagonal` (the default) draws
+ *  flowing edges, `orthogonal` straight channels with right-angle bends. */
 export type DfgRouting = "orthogonal" | "diagonal";
 
 /** Cross-cutting display preferences consumed by every viewer via the shell's `ViewerConfigProvider`; persisted to localStorage. */
@@ -22,9 +18,7 @@ export interface PreferencesState {
   durationStyle: DurationStyle;
   /** Which alignment strip style the alignment viewers render (trace strip vs deviation strip). */
   alignmentStyle: AlignmentStyle;
-  /** Which graph layout engine the DFG / OC-DFG / Petri / OC-declare viewers use. */
-  layoutEngine: LayoutEngine;
-  /** DFG / OC-DFG edge routing style (Rust engine only). */
+  /** Edge routing of the process maps, passed to viewers as `ViewerConfig.routing`. */
   dfgRouting: DfgRouting;
   /** Surface advanced/internal import kinds (raw OCEL, IndexLinkedOCEL, activity projections). Off by default to keep the import menu simple. */
   showExpertKinds: boolean;
@@ -34,7 +28,6 @@ export interface PreferencesState {
   clearColor: (scope: string, key: string) => void;
   setDurationStyle: (s: DurationStyle) => void;
   setAlignmentStyle: (s: AlignmentStyle) => void;
-  setLayoutEngine: (e: LayoutEngine) => void;
   setDfgRouting: (r: DfgRouting) => void;
   setShowExpertKinds: (v: boolean) => void;
   setCacheMaxMb: (mb: number) => void;
@@ -50,13 +43,7 @@ const DEFAULT_CACHE_MAX_MB = 300;
 
 function load(): Pick<
   PreferencesState,
-  | "colorOverrides"
-  | "durationStyle"
-  | "alignmentStyle"
-  | "layoutEngine"
-  | "dfgRouting"
-  | "showExpertKinds"
-  | "cacheMaxMb"
+  "colorOverrides" | "durationStyle" | "alignmentStyle" | "dfgRouting" | "showExpertKinds" | "cacheMaxMb"
 > {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -64,7 +51,6 @@ function load(): Pick<
       colorOverrides: raw.colorOverrides ?? {},
       durationStyle: raw.durationStyle === "long" ? "long" : "short",
       alignmentStyle: raw.alignmentStyle === "deviation" ? "deviation" : "trace",
-      layoutEngine: raw.layoutEngine === "elk" ? "elk" : "rust",
       dfgRouting: raw.dfgRouting === "orthogonal" ? "orthogonal" : "diagonal",
       showExpertKinds: raw.showExpertKinds === true,
       cacheMaxMb:
@@ -75,7 +61,6 @@ function load(): Pick<
       colorOverrides: {},
       durationStyle: "short",
       alignmentStyle: "trace",
-      layoutEngine: "rust",
       dfgRouting: "diagonal",
       showExpertKinds: false,
       cacheMaxMb: DEFAULT_CACHE_MAX_MB,
@@ -91,7 +76,6 @@ function persist(s: PreferencesState): void {
         colorOverrides: s.colorOverrides,
         durationStyle: s.durationStyle,
         alignmentStyle: s.alignmentStyle,
-        layoutEngine: s.layoutEngine,
         dfgRouting: s.dfgRouting,
         showExpertKinds: s.showExpertKinds,
         cacheMaxMb: s.cacheMaxMb,
@@ -123,10 +107,6 @@ export const usePreferences = create<PreferencesState>((set, get) => ({
   },
   setAlignmentStyle: (alignmentStyle) => {
     set({ alignmentStyle });
-    persist(get());
-  },
-  setLayoutEngine: (layoutEngine) => {
-    set({ layoutEngine });
     persist(get());
   },
   setDfgRouting: (dfgRouting) => {

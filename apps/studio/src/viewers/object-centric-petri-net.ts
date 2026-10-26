@@ -1,13 +1,12 @@
+import type { ObjectCentricPetriNetJson } from "@r4pm/client";
 import { defineViewer } from "./registry";
-import type { ObjectCentricPetriNet } from "@r4pm/components";
 import { OcpnPanel } from "../vis/components/OcpnPanel";
 
-// `ObjectCentricPetriNet` is a propel-computed shape with no generated `@r4pm/client` type, so the
-// viewer's own local interface is the contract; matched by return-type title. The panel wraps the
+// rust4pm's flat object-centric Petri net, e.g., from the `discover_ocpn` binding. The panel wraps the
 // view/simulate/edit workbench with the backend-bound "Save as OCEL" trace action.
-export const ObjectCentricPetriNetViewer_Def = defineViewer<ObjectCentricPetriNet>({
+export const ObjectCentricPetriNetViewer_Def = defineViewer<ObjectCentricPetriNetJson>({
   id: "oc-petri-net",
   title: "Object-Centric Petri Net",
-  accepts: ({ returnType }) => returnType === "ObjectCentricPetriNet",
+  accepts: ({ returnType }) => returnType === "ObjectCentricPetriNetJson",
   component: OcpnPanel,
 });

@@ -26,7 +26,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { ContextMenu, Text } from "@r4pm/components/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type BlueprintLayoutFn, layoutBlueprintGraph } from "./elk-layout";
+import { gridBlueprintPositions, layoutBlueprint } from "./layout";
 import {
   deriveEdges,
   entryMappings,
@@ -58,6 +58,7 @@ import { EmptyState } from "./edit/EmptyState";
 import { groupValidationErrors } from "./edit/ValidationBadges";
 import { useIsDarkMode } from "../viewer/dark-mode";
 import { useViewerConfig } from "../viewer/viewer-config";
+import type { VizTransport } from "../viz";
 import type { ExtractionCatalog, MappingEntry, NodeOp, TablePreview, ValidationError } from "./types";
 
 const EMPTY_CATALOG: ExtractionCatalog = { tables: {}, domains: {} };
@@ -104,9 +105,9 @@ function edgeColor(kind: "row" | "mapping", targetKind: string | undefined): str
 }
 
 /**
- * Edges are drawn from the *live* handle positions ReactFlow passes in, not from a path ELK
- * routed, so a node added after the initial layout still renders an edge and a dragged node's
- * edges track it instead of freezing in place.
+ * Edges are drawn from the *live* handle positions ReactFlow passes in, not from a routed path,
+ * so a node added after the initial layout still renders an edge and a dragged node's edges
+ * track it instead of freezing in place.
  */
 function BlueprintEdge({
   sourceX,
@@ -215,7 +216,9 @@ export interface BlueprintGraphProps {
    *  changes (debounced), falling back to an empty catalog with none. */
   catalog?: ExtractionCatalog;
   callbacks?: BlueprintEditCallbacks;
-  layoutOverride?: BlueprintLayoutFn;
+  /** Lays the graph out. Defaults to `ViewerConfig.viz`. Without one, auto-layout places nodes in
+   *  columns by their distance from the sources. */
+  viz?: VizTransport;
   className?: string;
 }
 
@@ -227,10 +230,9 @@ function BlueprintGraphInner({
   onConnectionsChange,
   catalog: catalogProp,
   callbacks = {},
-  layoutOverride,
+  viz: vizProp,
 }: BlueprintGraphProps) {
-  const cfg = useViewerConfig({});
-  const runLayout = layoutOverride ?? cfg.layout?.blueprint ?? layoutBlueprintGraph;
+  const { viz } = useViewerConfig({ viz: vizProp });
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -384,14 +386,12 @@ function BlueprintGraphInner({
       const v = valueRef.current;
       if (v.nodes.length === 0 && v.mappings.length === 0) return;
       const derived = deriveEdges(v.nodes, v.mappings);
-      runLayout(v.nodes, derived, v.mappings)
-        .then((r) => {
-          // Applying an empty layout would snap every node to its fallback position.
-          if (r.nodes.size === 0) {
-            console.warn("[blueprint] layout returned no positions; keeping the current ones");
-            return;
-          }
-          applyLayoutResult(v, derived, r.nodes);
+      const positions = viz
+        ? layoutBlueprint(viz, v.nodes, derived, v.mappings)
+        : Promise.resolve(gridBlueprintPositions(v.nodes, derived, v.mappings));
+      positions
+        .then((posById) => {
+          applyLayoutResult(v, derived, posById);
           // Ask for the fit; the effect below runs it once React Flow reports the new nodes
           // measured. Firing it here -- even after a frame or two -- races that measurement, and a
           // fit computed from stale or missing dimensions parks the viewport away from the graph.
@@ -399,7 +399,7 @@ function BlueprintGraphInner({
         })
         .catch((e) => console.error("[blueprint] layout failed", e));
     },
-    [runLayout, applyLayoutResult],
+    [viz, applyLayoutResult],
   );
 
   // Layout once on first mount if positions are missing; otherwise reconcile in place.

@@ -73,11 +73,8 @@ version = "0.0.0"
 dependencies = [
  "process_mining",
  "rand 0.9.4",
- "rayon",
  "schemars 1.2.1",
  "serde",
- "uuid",
- "viz-layout",
 ]
 
 [[package]]
@@ -2122,6 +2119,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "graphlay"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46b97373f53dfbb42a82b9d2a42d32dfc2c4ae3d13f589a61b88e6338381fc77"
+dependencies = [
+ "libm",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+]
+
+[[package]]
 name = "gtk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2985,8 +2995,8 @@ dependencies = [
 
 [[package]]
 name = "macros_process_mining"
-version = "0.6.0"
-source = "git+https://github.com/aarkue/rust4pm.git?branch=feat%2Fextraction-blueprints#2bad4a24b3bd2bee6eb64421f3dc31c201b3b450"
+version = "0.6.2"
+source = "git+https://github.com/aarkue/rust4pm.git?branch=feat%2Finductive-miner#84570b805414b4ef81d420b9a82d4e6c43994e8f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3904,8 +3914,8 @@ dependencies = [
 
 [[package]]
 name = "process_mining"
-version = "0.6.0"
-source = "git+https://github.com/aarkue/rust4pm.git?branch=feat%2Fextraction-blueprints#2bad4a24b3bd2bee6eb64421f3dc31c201b3b450"
+version = "0.6.2"
+source = "git+https://github.com/aarkue/rust4pm.git?branch=feat%2Finductive-miner#84570b805414b4ef81d420b9a82d4e6c43994e8f"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -3913,6 +3923,7 @@ dependencies = [
  "csv",
  "dbcon",
  "flate2",
+ "graphlay",
  "hashbrown 0.17.1",
  "inventory",
  "itertools",
@@ -3936,7 +3947,7 @@ dependencies = [
 
 [[package]]
 name = "propel-tauri"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "app-bindings",
  "backend-shared",
@@ -5616,7 +5627,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",
@@ -6274,19 +6285,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "viz-layout"
+name = "viz-wasm"
 version = "0.0.0"
 dependencies = [
- "schemars 1.2.1",
+ "getrandom 0.3.4",
+ "process_mining",
  "serde",
-]
-
-[[package]]
-name = "viz-layout-wasm"
-version = "0.0.0"
-dependencies = [
  "serde_json",
- "viz-layout",
+ "uuid",
  "wasm-bindgen",
 ]
 

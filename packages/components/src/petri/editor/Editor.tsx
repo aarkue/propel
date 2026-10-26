@@ -19,11 +19,16 @@ import { PiCircle, PiSquare, PiTreeStructure } from "react-icons/pi";
 import CustomEdge from "./CustomEdge";
 import "./editor.css";
 import { ExportControls } from "./helpers/export-controls";
-import { useLayoutedElements } from "./helpers/Layout";
-import { usePetriLayout } from "./helpers/layout-context";
-import type { ArcRouting, PetriLayoutFn } from "./helpers/layout-graph";
+import { usePetriVizLayout } from "./helpers/Layout";
+import type { ArcRouting } from "./helpers/layout-graph";
+import { elementsToOcpn } from "./helpers/ocpn-viz";
+import { nodesToPetriNet } from "./helpers/serialize";
+import type { PetriElements } from "./helpers/viz-layout";
+import type { PetriVizNet } from "./helpers/viz-net";
 import { uid } from "../../shared/id";
 import { useIsDarkMode } from "../../viewer/dark-mode";
+import type { PetriNet } from "../../petri-net";
+import type { ElementStyle, Ocpn, Size, VizTransport } from "../../viz";
 import PlaceNode from "./PlaceNode";
 import TransitionNode from "./TransitionNode";
 const nodeTypes = {
@@ -39,22 +44,30 @@ export type ElementHandlers = {
 
 export type TransitionData = ElementHandlers & {
   label?: string | undefined;
+  /** Size to draw at, from the layout. Without one, the default transition size. */
+  size?: Size;
+  /** Highlight, dim or annotate the transition, on screen and in the exported image. */
+  elementStyle?: ElementStyle;
   className?: string;
   style?: React.CSSProperties;
   /** Replace the transition's inner content entirely (e.g. an icon). */
   renderContent?: () => React.ReactNode;
 };
-/** One drawn token: a dot or square, optionally colored/faded; both DOM and SVG export render from this. */
+/** One drawn token: a dot or square, optionally colored/faded. */
 export type TokenMark = { shape: "dot" | "square"; color?: string; opacity?: number; title?: string };
 
 export type PlaceData = ElementHandlers & {
   label?: string | undefined;
+  /** Size to draw at, from the layout. Without one, the default place size. */
+  size?: Size;
+  /** Highlight, dim or annotate the place, on screen and in the exported image. */
+  elementStyle?: ElementStyle;
   tokens?: number;
   finalTokens?: number;
   /** Color of the default token dots (defaults to black). */
   tokenColor?: string;
-  /** Explicit per-token marks; render-safe in both DOM and SVG export. Takes
-   *  precedence over tokens/finalTokens; superseded by `renderMarking` on screen. */
+  /** Explicit per-token marks. Takes precedence over tokens/finalTokens. Superseded by
+   *  `renderMarking`. */
   tokenMarks?: TokenMark[];
   className?: string;
   style?: React.CSSProperties;
@@ -74,6 +87,8 @@ export type ArcData = ElementHandlers & {
   label?: string;
   /** Extra class on the arc path, for CSS targeting. */
   className?: string;
+  /** Highlight, dim or annotate the arc, on screen and in the exported image. */
+  elementStyle?: ElementStyle;
   /** Consumer attribute: whether this arc is "variable" (OCPN), stored on the edge. */
   variable?: boolean;
 };
@@ -89,6 +104,7 @@ export type EditorEdgePatch = {
   style?: React.CSSProperties;
   className?: string;
   label?: string;
+  elementStyle?: ElementStyle;
   onClick?: (e: React.MouseEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 };
@@ -154,6 +170,7 @@ function InnerEditor() {
                 ...e.data,
                 className: p.className,
                 label: p.label,
+                elementStyle: p.elementStyle,
                 onClick: p.onClick,
                 onContextMenu: p.onContextMenu,
               },
@@ -175,13 +192,24 @@ function InnerEditor() {
 
   const connectingNodeId = useRef<string | null>(null);
 
-  const contextLayout = usePetriLayout();
-  const { getLayoutedElements, relayoutStable } = useLayoutedElements(props.layoutOverride ?? contextLayout);
+  const { net, ocpn } = props;
+  const netOf = useCallback(
+    (elements: PetriElements): PetriVizNet =>
+      ocpn
+        ? { model: "ocpn", net: ocpn === true ? elementsToOcpn(elements) : ocpn }
+        : { model: "petri_net", net: net ?? nodesToPetriNet(elements.nodes, elements.edges) },
+    [net, ocpn],
+  );
+  const { relayout: vizRelayout, reroute: vizReroute } = usePetriVizLayout(
+    props.viz,
+    netOf,
+    props.onLayoutChange,
+  );
   const onNodeDragStop = useCallback<NonNullable<ReactFlowProps["onNodeDragStop"]>>(
-    (_event, node) => {
-      if (props.relayoutOnDrag && !props.readOnly) relayoutStable(node.id);
+    (_event, _node, dragged) => {
+      if (props.relayoutOnDrag && props.viz) void vizReroute(dragged);
     },
-    [props.relayoutOnDrag, props.readOnly, relayoutStable],
+    [props.relayoutOnDrag, props.viz, vizReroute],
   );
 
   // Read-only viewers often mount at 0 size, where ReactFlow's one-shot fitView no-ops; re-fit on resize.
@@ -271,7 +299,7 @@ function InnerEditor() {
   );
 
   const addNode = useCallback(
-    (type: "place" | "transition") => {
+    (type: "place" | "transition", placeData: PlaceData = {}) => {
       const rect = wrapperRef.current?.getBoundingClientRect();
       const center = rect
         ? screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
@@ -279,7 +307,7 @@ function InnerEditor() {
       const id = uid();
       const newNode: PetriNetNode =
         type === "place"
-          ? { id, type: "place", data: {}, position: center }
+          ? { id, type: "place", data: placeData, position: center }
           : { id, type: "transition", data: { label: "New" }, position: center };
       setNodes((ns) => [...ns, newNode]);
     },
@@ -319,12 +347,24 @@ function InnerEditor() {
       >
         <Controls showInteractive={false} position="bottom-right" />
         <Panel position="top-left" style={{ display: "flex", flexDirection: "row", gap: 6 }}>
-          {(props.showExportControls ?? true) && <ExportControls />}
+          {(props.showExportControls ?? true) && props.viz && (
+            <ExportControls viz={props.viz} netOf={netOf} />
+          )}
           {!props.readOnly && (
             <>
-              <Button type="button" size="1" variant="surface" color="gray" onClick={() => addNode("place")}>
-                <PiCircle /> Place
-              </Button>
+              {props.renderAddPlace ? (
+                props.renderAddPlace((data) => addNode("place", data))
+              ) : (
+                <Button
+                  type="button"
+                  size="1"
+                  variant="surface"
+                  color="gray"
+                  onClick={() => addNode("place")}
+                >
+                  <PiCircle /> Place
+                </Button>
+              )}
               <Button
                 type="button"
                 size="1"
@@ -337,18 +377,18 @@ function InnerEditor() {
             </>
           )}
           {/* Layout is useful in read-only too: re-tidy after dragging nodes around. */}
-          <Button
-            type="button"
-            size="1"
-            variant="surface"
-            color="gray"
-            title="Auto-layout"
-            onClick={() => {
-              getLayoutedElements(undefined, true);
-            }}
-          >
-            <PiTreeStructure /> Layout
-          </Button>
+          {props.viz && (
+            <Button
+              type="button"
+              size="1"
+              variant="surface"
+              color="gray"
+              title="Auto-layout"
+              onClick={() => void vizRelayout()}
+            >
+              <PiTreeStructure /> Layout
+            </Button>
+          )}
         </Panel>
       </ReactFlow>
       {props.children}
@@ -363,7 +403,8 @@ export type EditorProps = {
   initialNodes?: PetriNetNode[];
   initialEdges?: Edge<ArcData>[];
   editorProps?: ReactFlowProps<PetriNetNode, Edge<ArcData>>;
-  /** Show the built-in PNG/SVG export buttons. Off when a host (e.g. a viewer frame) owns export. */
+  /** Show the built-in PNG/SVG export buttons (with `viz` only). Off when a host (e.g., a viewer
+   *  frame) owns export. */
   showExportControls?: boolean;
   /** In-canvas controllers rendered inside the ReactFlow provider (e.g. an OCPN
    *  inference effect). They can use `useReactFlow` to read/patch live nodes/edges. */
@@ -373,12 +414,26 @@ export type EditorProps = {
   editable?: boolean;
   /** Fired (rAF-coalesced) on any node/edge change while editing. */
   onChange?: (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => void;
-  /** After a node drag, re-run a *stable* relayout: dragged node stays put, only crowded nodes/edges
-   *  re-route. On by default (editable mode only); pass `false` for free-form dragging. */
+  /** After a node drag, re-route the arcs over the current node centres (with `viz` only). On by
+   *  default. Pass `false` for free-form dragging. */
   relayoutOnDrag?: boolean;
-  /** Replace the default (Rust) Petri layout - e.g. with the ELK engine. The "Layout" button runs
-   *  it; stable drag-relayout only applies if the engine honors `options.seed` (ELK no-ops). */
-  layoutOverride?: PetriLayoutFn;
+  /** rust4pm's visualization: the "Layout" button lays the net out with it, a drag re-routes the arcs
+   *  over the current node centres, and the export buttons draw with it. Without it, the nodes stay
+   *  where the host or the user puts them, and there is no "Layout" button. */
+  viz?: VizTransport;
+  /** The net the nodes and arcs show, laid out and exported with `viz`. Defaults to the net they
+   *  serialize to. A read-only host passes its own so overlay labels never reach the layout. */
+  net?: PetriNet;
+  /** Lay out and export the nodes and arcs as an object-centric Petri net (places of their
+   *  `objectType`, arcs `variable` or not) instead of a plain one: the net they show, or `true` for
+   *  the net they serialize to. */
+  ocpn?: Ocpn | true;
+  /** Replaces the toolbar's "Place" button while editing, e.g., to ask for the new place's object
+   *  type first. `add` adds a place with that data at the centre of the view. */
+  renderAddPlace?: (add: (data: PlaceData) => void) => React.ReactNode;
+  /** Called after `viz` moved the nodes or re-routed the arcs (Layout button, drag), so a host that
+   *  controls `nodes`/`edges` keeps the change. */
+  onLayoutChange?: (nodes: PetriNetNode[], edges: Edge<ArcData>[]) => void;
   /** Controlled node set: editor mirrors it into internal state on change, positions preserved.
    *  Used by viewers/simulators pushing live data; editable mode uses `initialNodes` instead. */
   nodes?: PetriNetNode[];
@@ -420,8 +475,6 @@ export default function Editor(props: EditorProps) {
   const normalized: EditorProps = {
     ...props,
     readOnly: props.readOnly ?? !props.editable,
-    // Stable relayout-on-drag is on by default (only acts in editable mode); pass `false` for
-    // free-form dragging.
     relayoutOnDrag: props.relayoutOnDrag ?? true,
   };
   return (

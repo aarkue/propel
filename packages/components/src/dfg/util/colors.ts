@@ -190,14 +190,6 @@ function resolveViaDom(color: string): [number, number, number, number] | null {
   return null;
 }
 
-/** The export background as a solid `#rrggbb`, for compositing translucent export colors.
- *  Always the LIGHT theme background (see `resolveViaDom`): exports don't follow the app theme. */
-export function exportBackgroundHex(): string {
-  const bg = resolveViaDom("var(--color-background)");
-  if (bg) return toHex(bg[0], bg[1], bg[2]);
-  return "#ffffff";
-}
-
 /** Flatten any CSS color to a solid, export-safe `#rrggbb`, compositing translucency over `bgHex`. */
 export function flattenColor(color: string, bgHex = "#ffffff"): string {
   if (!color) return color;

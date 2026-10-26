@@ -33,6 +33,23 @@ describe("normalizeDefs (codegen schema normalization)", () => {
     expect(out.properties.a.$ref).toBe("#/definitions/X");
   });
 
+  it("keeps the properties next to a $ref as an intersection", () => {
+    const out = normalizeDefs({
+      description: "tagged",
+      type: "object",
+      properties: { kind: { const: "log" } },
+      required: ["kind"],
+      $ref: "#/$defs/Options",
+    });
+    expect(out).toEqual({
+      description: "tagged",
+      allOf: [
+        { $ref: "#/definitions/Options" },
+        { type: "object", properties: { kind: { const: "log" } }, required: ["kind"] },
+      ],
+    });
+  });
+
   it("passes primitives through unchanged", () => {
     expect(normalizeDefs(5)).toBe(5);
     expect(normalizeDefs(null)).toBe(null);

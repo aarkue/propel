@@ -1,5 +1,5 @@
 import { useId, useMemo, type ReactNode } from "react";
-import { PiCheck } from "react-icons/pi";
+import { PiCheck, PiCheckCircleFill } from "react-icons/pi";
 
 export interface CardSelectorOption<T extends string> {
   value: T;
@@ -30,6 +30,9 @@ export interface CardSelectorProps<T extends string> {
   columns?: 2 | 3 | 4;
   /** Heading per group key. A group with no entry here renders without a heading. */
   groupLabels?: Record<string, string>;
+  /** "1" is the compact card for popovers and toolbars: smaller type, no radio circle, and the
+   *  icon in a tinted square that turns solid when selected. Defaults to "2". */
+  size?: "1" | "2";
   /** Accessible name for the group. */
   "aria-label"?: string;
 }
@@ -59,6 +62,7 @@ export function CardSelector<T extends string>({
   className,
   columns,
   groupLabels,
+  size = "2",
   "aria-label": ariaLabel,
 }: CardSelectorProps<T>) {
   const gridCols = GRID_COLS[columns ?? Math.min(options.length, 3)] ?? GRID_COLS[3];
@@ -81,6 +85,65 @@ export function CardSelector<T extends string>({
     }
     return out;
   }, [options]);
+
+  const renderCompactCard = (option: CardSelectorOption<T>) => {
+    const selected = option.value === value;
+    const accent = option.accent ?? "accent";
+    const tile = option.iconColor ?? accent;
+    return (
+      <label
+        key={option.value}
+        className={`flex cursor-pointer flex-col gap-1.5 rounded-md p-2 text-left transition-colors focus-within:outline-2 focus-within:outline-offset-1 ${
+          selected ? "" : "bg-(--color-panel-solid) hover:bg-(--gray-a2)"
+        }`}
+        style={{
+          // An inset ring rather than a thicker border, so selecting a card never shifts the grid.
+          border: `1px solid ${selected ? `var(--${accent}-8)` : "var(--gray-a5)"}`,
+          boxShadow: selected ? `inset 0 0 0 1px var(--${accent}-8)` : undefined,
+          background: selected ? `var(--${accent}-a2)` : undefined,
+          opacity: option.softDisabled ? 0.55 : 1,
+          outlineColor: `var(--${accent}-9)`,
+        }}
+      >
+        <input
+          type="radio"
+          name={groupName}
+          value={option.value}
+          checked={selected}
+          onChange={() => onValueChange(option.value)}
+          className="sr-only"
+        />
+        <div className="flex w-full items-center gap-1.5">
+          {option.icon && (
+            // No radio circle at this size, so the tile turns solid to carry the selection. A check
+            // beside the title would truncate it in a three-column popover.
+            <span
+              className="flex size-[22px] shrink-0 items-center justify-center rounded"
+              style={{
+                background: selected ? `var(--${tile}-9)` : `var(--${tile}-a3)`,
+                color: selected ? `var(--${tile}-contrast)` : `var(--${tile}-11)`,
+              }}
+            >
+              {option.icon}
+            </span>
+          )}
+          <span className="truncate text-[13px] font-medium">{option.title}</span>
+          {selected && !option.icon && (
+            <PiCheckCircleFill
+              size={14}
+              className="ml-auto shrink-0"
+              style={{ color: `var(--${accent}-9)` }}
+            />
+          )}
+        </div>
+        {option.description && (
+          <span className="text-[11px] leading-[1.35]" style={{ color: "var(--gray-11)" }}>
+            {option.description}
+          </span>
+        )}
+      </label>
+    );
+  };
 
   const renderCard = (option: CardSelectorOption<T>) => {
     const selected = option.value === value;
@@ -140,7 +203,11 @@ export function CardSelector<T extends string>({
 
   return (
     <div className={className ? `w-full ${className}` : "w-full"}>
-      <div role="radiogroup" aria-label={ariaLabel} className="mb-3 flex flex-col gap-2.5">
+      <div
+        role="radiogroup"
+        aria-label={ariaLabel}
+        className={size === "1" ? "mb-2 flex flex-col gap-2" : "mb-3 flex flex-col gap-2.5"}
+      >
         {groups.map((group) => (
           <div key={group.key} className="flex flex-col gap-1.5">
             {groupLabels?.[group.key] && (
@@ -151,7 +218,9 @@ export function CardSelector<T extends string>({
                 {groupLabels[group.key]}
               </span>
             )}
-            <div className={`grid gap-2 ${gridCols}`}>{group.items.map(renderCard)}</div>
+            <div className={`grid ${size === "1" ? "gap-1.5" : "gap-2"} ${gridCols}`}>
+              {group.items.map(size === "1" ? renderCompactCard : renderCard)}
+            </div>
           </div>
         ))}
       </div>

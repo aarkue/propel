@@ -5,19 +5,21 @@ import { useState } from "react";
 
 const seed: ProcessTree = {
   root: {
-    type: "Operator",
-    operator_type: "Sequence",
-    children: [
-      { type: "Leaf", activity_label: { type: "Activity", value: "register" } },
-      {
-        type: "Operator",
-        operator_type: "Loop",
-        children: [
-          { type: "Leaf", activity_label: { type: "Activity", value: "review" } },
-          { type: "Leaf", activity_label: { type: "Tau" } },
-        ],
-      },
-    ],
+    Operator: {
+      operator_type: "Sequence",
+      children: [
+        { Leaf: { activity_label: { Activity: "register" } } },
+        {
+          Operator: {
+            operator_type: "Loop",
+            children: [
+              { Leaf: { activity_label: { Activity: "review" } } },
+              { Leaf: { activity_label: "Tau" } },
+            ],
+          },
+        },
+      ],
+    },
   },
 };
 
@@ -43,16 +45,18 @@ export const Invalid: StoryObj = {
   render: () => {
     const [tree, setTree] = useState<ProcessTree>({
       root: {
-        type: "Operator",
-        operator_type: "Sequence",
-        children: [
-          {
-            type: "Operator",
-            operator_type: "Loop",
-            children: [{ type: "Leaf", activity_label: { type: "Activity", value: "only child" } }],
-          },
-          { type: "Operator", operator_type: "Concurrency", children: [] },
-        ],
+        Operator: {
+          operator_type: "Sequence",
+          children: [
+            {
+              Operator: {
+                operator_type: "Loop",
+                children: [{ Leaf: { activity_label: { Activity: "only child" } } }],
+              },
+            },
+            { Operator: { operator_type: "Concurrency", children: [] } },
+          ],
+        },
       },
     });
     return <Editor tree={tree} editable onChange={setTree} />;

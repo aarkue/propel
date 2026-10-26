@@ -5,24 +5,23 @@ import { Meta } from "@storybook/addon-docs/blocks";
 # Viewer configuration
 
 Every viewer takes a typed `data` prop plus a shared configuration covering coloring, formatting,
-interactivity and the layout engine. Set it once with `ViewerConfigProvider`. Any viewer can override
+interactivity and graph layout. Set it once with `ViewerConfigProvider`. Any viewer can override
 any field with a prop of the same name.
 
 ```tsx
 import { ViewerConfigProvider } from "@r4pm/components";
-import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
+import { wasmViz } from "@r4pm/components/viz/wasm";
 
-<ViewerConfigProvider value={{ layout: wasmLayout, colorOf, format, onSelect }}>
+<ViewerConfigProvider value={{ viz: wasmViz, colorOf, format, onSelect }}>
   <PetriNetViewer data={net} />
   <DFGViewer data={dfg} colorOf={otherPalette} /> {/* prop beats provider */}
 </ViewerConfigProvider>;
 ```
 
-Every field is optional and falls back to a sensible default, with one exception. DFG, OC-DFG,
-OC-DECLARE, Petri net and process tree need `layout` to place their nodes, because the core includes
-no engine. Without one they stack their nodes in a line. The OCEL type graph and the extraction
-blueprint bring their own default and lay out either way. See
-[Layout Engines](?path=/docs/getting-started-layout-engines--docs).
+Every field is optional and falls back to a sensible default, with one exception. Graph viewers need
+`viz` to lay out their graphs and to export SVG, because the core does not include rust4pm's
+visualization. Without it they place their nodes in a plain row, column or grid. See
+[Graph Layout](?path=/docs/getting-started-graph-layout--docs).
 
 ## `ViewerProps<T>`
 
@@ -51,7 +50,8 @@ interface ViewerConfig {
   alignmentStyle?: AlignmentStyle; // "trace" | "deviation"
   onSelect?: (target: ViewerTarget) => void;
   onElementContextMenu?: (target: ViewerTarget, event: { clientX: number; clientY: number }) => void;
-  layout?: LayoutEngine; // layout engine for graph viewers
+  viz?: VizTransport; // rust4pm's visualization: graph layout and SVG export
+  routing?: "diagonal" | "orthogonal"; // edge routing of the process maps
 }
 ```
 
@@ -100,11 +100,13 @@ interface ViewerAction {
 building a fully custom menu instead of using `actions`. Both receive a
 [`ViewerTarget`](#viewertarget).
 
-### `layout` (`LayoutEngine`)
+### `viz` (`VizTransport`) and `routing`
 
-The layout engine for graph viewers: one function per surface, plus `renderSvg`, which image export
-uses to draw the graph the way the engine laid it out. Pass a ready bundle (`wasmLayout` or
-`elkLayout`). Full guide: [Layout Engines](?path=/docs/getting-started-layout-engines--docs).
+`viz` runs rust4pm's visualization bindings, which lay out the graph viewers and draw their SVG
+export. Pass the embedded `wasmViz` from `@r4pm/components/viz/wasm`, or a transport to a backend that
+runs the bindings. `routing` sets how the DFG, OC-DFG and OCEL type graph route their edges
+(`"diagonal"` or `"orthogonal"`). Full guide:
+[Graph Layout](?path=/docs/getting-started-graph-layout--docs).
 
 ## `ViewerTarget`
 
@@ -149,5 +151,5 @@ Use the same hook in your own components to keep their settings in the same bag.
 
 - [Sizing & Layout](?path=/docs/getting-started-sizing-layout--docs): giving a viewer a box to render into.
 - [Coloring](?path=/docs/getting-started-coloring--docs): palettes, scopes and shade helpers.
-- [Layout Engines](?path=/docs/getting-started-layout-engines--docs): wiring the `layout` field.
+- [Graph Layout](?path=/docs/getting-started-graph-layout--docs): wiring the `viz` field.
 - [Image Export](?path=/docs/getting-started-image-export--docs): making a viewer exportable.

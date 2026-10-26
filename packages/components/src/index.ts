@@ -11,11 +11,6 @@ export { shadeHex, softBadgeStyle, colorToHex, type ThemeColor } from "./dfg/uti
 // react-plotly.js out of the core entry. Import them from "@r4pm/components/charts".
 // Universal image/SVG export control (frame + useRegisterExport).
 export * from "./viewer/export";
-// Generic pure-draw SVG export: the `StyledGraph` type shared with the `export_graph_svg` Rust
-// binding. Concrete per-viewer builders live alongside each viewer (e.g. `dfg/util/styled-graph.ts`).
-export * from "./graph-svg/styled-graph";
-// Pure-TS `StyledGraph` -> SVG renderer: the backend-free fallback for the ELK layout route.
-export { styledGraphToSvg } from "./graph-svg/styled-graph-svg";
 // Shared async/loading/error/empty UI for viewers and panels.
 export * from "./feedback";
 export * from "./petri-net";
@@ -30,11 +25,14 @@ export * from "./log-editor";
 export * from "./dfg/index";
 export * from "./ocel-count-info";
 export * from "./attribute-value-stats";
-export * from "./ocel-type-graph/OcelTypeGraph";
+export {
+  OcelTypeGraph,
+  type OcelTypeGraphEdge,
+  type OcelTypeGraphNode,
+  type OcelTypeGraphProps,
+} from "./ocel-type-graph/OcelTypeGraph";
 export * from "./ocel-type-graph/TypeScopeSelector";
 export * from "./ocel-type-graph/OcelTypeGraphViewer";
-export { createRustTypeGraphLayout } from "./ocel-type-graph/rust-layout";
-export { ocelTypeGraphToStyledGraph } from "./ocel-type-graph/styled-graph";
 export * from "./ocel-schema-path/OcelSchemaPath";
 export * from "./log-summary";
 export * from "./fitness";
@@ -69,12 +67,29 @@ export { AlignmentStrip } from "./shared/AlignmentStrip";
 export * from "./shared/CoverageBar";
 export * from "./shared/LogMetadataCard";
 export {
-  createRustDfgLayout,
-  createRustOcdfgLayout,
+  layoutModel,
+  modelLayoutRequest,
+  rerouteModel,
+  modelSvg,
+  type VizTransport,
+  type VizModel,
+  type VizModels,
+  type ModelLayout,
+  type ModelLayoutRequest,
+} from "./viz";
+// Generic graphlay layout of caller-built graphs, for graphs no rust4pm model covers.
+export {
   layoutGraph,
-  type GraphLayout,
-  type GraphNodeSpec,
-  type LaidOutGraph,
-  type LayoutTransport,
-} from "./rust-layout";
-export { createRustLayout } from "./rust-layout/bundle";
+  rerouteGraph,
+  layoutTree,
+  type GraphRequest,
+  type GraphNode,
+  type GraphEdge,
+  type TreeRequest,
+  type Layout,
+  type Placement,
+  type EdgeRoute,
+  type Point,
+  type Size,
+  type Rect,
+} from "./viz";

@@ -1,0 +1,19 @@
+[package]
+name = "viz-wasm"
+version = "0.0.0"
+edition = "2021"
+description = "rust4pm's visualization bindings as one wasm entry point, embedded in @r4pm/components for use without a backend."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Only `visualization`: everything else in process_mining would land in the wasm unused.
+process_mining = { git = "https://github.com/aarkue/rust4pm.git", branch = "feat/inductive-miner", default-features = false, features = ["visualization"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "0.2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1", features = ["js"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }

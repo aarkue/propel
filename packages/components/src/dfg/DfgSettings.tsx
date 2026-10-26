@@ -29,12 +29,6 @@ const PERF_METRICS: { value: DfgMetric; label: string; title: string }[] = [
   { value: "max", label: "Max", title: "Maximum duration" },
 ];
 
-const ALL_METRICS = [...FREQ_METRICS, ...PERF_METRICS];
-
-export function metricDisplayName(m: DfgMetric): string {
-  return ALL_METRICS.find((x) => x.value === m)?.title ?? m;
-}
-
 export default function DfgSettings({
   metric,
   onMetricChange,

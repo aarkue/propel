@@ -3,7 +3,7 @@ import type { Preview } from "@storybook/react-vite";
 import { themes } from "storybook/theming";
 import type { ReactNode } from "react";
 import { Theme, ViewerConfigProvider, ViewerExportFrame } from "@r4pm/components";
-import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
+import { wasmViz } from "@r4pm/components/viz/wasm";
 import { FullSource, ReferencedTypes } from "./doc-blocks";
 // Global styles so every story + autodocs canvas renders with the viewers' real styling.
 import "../src/styles.css";
@@ -124,7 +124,7 @@ const preview: Preview = {
             "Sizing & Layout",
             "Viewer Configuration",
             "Coloring",
-            "Layout Engines",
+            "Graph Layout",
             "Image Export",
             "Data Types",
             "For LLM Agents",
@@ -146,7 +146,7 @@ const preview: Preview = {
         | "dark";
       return (
         <Framed frame={frame} appearance={appearance}>
-          <ViewerConfigProvider value={{ layout: wasmLayout }}>
+          <ViewerConfigProvider value={{ viz: wasmViz }}>
             <Story />
           </ViewerConfigProvider>
         </Framed>

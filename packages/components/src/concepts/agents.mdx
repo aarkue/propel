@@ -17,10 +17,11 @@ Storybook stories (*.stories.tsx next to each component): https://github.com/aar
    - Import \`@r4pm/components/styles.css\` once and wrap the app in \`<Theme>\` from
      \`@r4pm/components/ui\` (use \`rules.css\` instead of \`styles.css\` only if this project already
      runs its own Tailwind build -- llms.txt has the exact setup for that case).
-   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri net, process tree) need a layout engine: pass one
-     via \`<ViewerConfigProvider value={{ layout: wasmLayout }}>\`, importing \`wasmLayout\` from
-     \`@r4pm/components/rust-layout/wasm\` (or \`elkLayout\` from \`@r4pm/components/elk-layout\` for a
-     pure-JS alternative with no wasm). Without one, graphs render with nodes stacked in a line.
+   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri nets, process tree, OCEL type graph) lay out and
+     export through rust4pm's visualization: pass it via
+     \`<ViewerConfigProvider value={{ viz: wasmViz }}>\`, importing \`wasmViz\` from
+     \`@r4pm/components/viz/wasm\`. Without it, graphs render with their nodes in a plain row or
+     column and have no SVG export.
    - A viewer that "fills its parent" (most graph and chart viewers) needs an ancestor with a
      definite height -- \`height: 100%\` resolves to nothing inside an auto-height parent.
    - Wrap a viewer in \`<ViewerExportFrame>\` to get an SVG/PNG/JPEG export button; no viewer renders
@@ -67,7 +68,7 @@ node_modules/@r4pm/components/llms.txt
 | Rule | Why |
 | --- | --- |
 | Wrap the app in `<Theme>` and import `@r4pm/components/styles.css` once | without it components render with layout and no styling |
-| Give graph viewers a `layout` engine through `ViewerConfigProvider` | the core includes none, so nodes stack in a line |
+| Give graph viewers `viz` (e.g., `wasmViz`) through `ViewerConfigProvider` | the core does not include it, so nodes sit in a plain row or column |
 | Give graph viewers a parent with a definite height | their root is `height: 100%` and collapses in an auto-height parent |
 | Wrap anything exportable in `<ViewerExportFrame>` | it is the only export control in the package |
 | Import UI primitives from `@r4pm/components/ui`, never `@radix-ui/themes` | the package lints this |

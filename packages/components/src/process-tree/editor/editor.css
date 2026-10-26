@@ -51,24 +51,31 @@
   cursor: not-allowed;
 }
 
+/* Sizes, borders and type follow rust4pm's classic process-tree drawing, which the image export uses. */
 .process-tree-editor .node {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   color: var(--r4pm-node-text);
   background-color: var(--r4pm-node-bg);
-  box-shadow: 0 1px 2px var(--r4pm-shadow);
 }
 
 .process-tree-editor .operator-node {
-  border: 1.75px solid var(--r4pm-node-border);
+  border: 1.5px solid var(--r4pm-node-border);
   border-radius: 50%;
 }
 
 .process-tree-editor .leaf-node {
-  border: 1.75px solid var(--r4pm-node-border);
-  border-radius: 4px;
+  border: 1.25px solid var(--r4pm-node-border);
+  border-radius: 3px;
+  background-color: color-mix(in srgb, var(--r4pm-node-text) 3%, var(--r4pm-node-bg));
+}
+
+.process-tree-editor .pt-edge {
+  stroke: var(--r4pm-control-text);
+  stroke-width: 1.5;
 }
 
 .process-tree-editor .node.selected {
@@ -77,27 +84,39 @@
 }
 
 .process-tree-editor .operator-symbol {
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1;
 }
 
 .process-tree-editor .tau-symbol {
-  font-size: 16px;
-  font-style: italic;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* A silent leaf reads as "no observable activity": filled, like an invisible transition. */
 .process-tree-editor .leaf-node.tau {
+  border: none;
+  border-radius: 2px;
   background-color: var(--r4pm-node-text);
   color: var(--r4pm-node-bg);
 }
 
 .process-tree-editor .leaf-label {
-  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12.5px;
+  line-height: 16px;
   color: inherit;
   font-weight: 500;
-  padding: 0 8px;
+  padding: 0 4px;
+}
+
+.process-tree-editor .leaf-label > span {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -105,12 +124,12 @@
 
 .process-tree-editor .leaf-input {
   width: 100%;
-  margin: 0 8px;
+  margin: 0 6px;
   border: none;
   outline: none;
   background: transparent;
   color: inherit;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 500;
   text-align: center;
 }
@@ -260,8 +279,8 @@
    pointer never crosses a dead gap on the way over. */
 .process-tree-editor .pt-add-slot {
   position: absolute;
-  left: calc(100% - 17px);
-  top: calc(100% - 17px);
+  left: calc(100% - 10px);
+  top: calc(100% - 10px);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.1s ease;

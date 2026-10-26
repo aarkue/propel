@@ -1,6 +1,6 @@
 {
   "name": "@r4pm/components",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Reusable viewers (DFG, Petri net, dotted chart, OCEL, alignments) and inputs for process mining",
   "keywords": [
     "process-mining",
@@ -33,10 +33,9 @@
     "./process-tree": "./src/process-tree/index.ts",
     "./process-tree/editor.css": "./src/process-tree/editor/editor.css",
     "./charts": "./src/charts/index.ts",
-    "./elk-layout": "./src/elk-layout/index.ts",
     "./extraction-blueprint": "./src/extraction-blueprint/index.tsx",
-    "./rust-layout/wasm": "./src/rust-layout/wasm.ts",
-    "./rust-layout/viz_layout_wasm_bg.wasm": "./src/rust-layout/pkg/viz_layout_wasm_bg.wasm"
+    "./viz/wasm": "./src/viz/wasm.ts",
+    "./viz/viz_wasm_bg.wasm": "./src/viz/pkg/viz_wasm_bg.wasm"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -44,7 +43,7 @@
     "docs:types": "node scripts/gen-data-types-doc.mjs && node scripts/gen-component-types-doc.mjs && node scripts/gen-catalog.mjs",
     "dev": "storybook dev -p 6006 --no-open",
     "showcase": "storybook build",
-    "build:wasm": "wasm-pack build ../../engine/viz-layout-wasm --target web --out-dir ../../packages/components/src/rust-layout/pkg --out-name viz_layout_wasm --release && node scripts/gen-wasm-inline.mjs",
+    "build:wasm": "node scripts/build-wasm.mjs",
     "prepare": "node scripts/ensure-wasm.mjs --soft",
     "prebuild": "node scripts/ensure-wasm.mjs",
     "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && tailwindcss -i src/rules.css -o dist/rules.css --minify && tailwindcss -i src/ui/styles.css -o dist/ui/styles.css --minify",
@@ -54,7 +53,6 @@
     "@radix-ui/themes": "^3.2.1",
     "@tanstack/react-virtual": "^3.14.5",
     "@xyflow/react": "^12.10.0",
-    "elkjs": "^0.10.0",
     "html-to-image": "^1.11.11",
     "react-icons": "^5.5.0",
     "react-plotly.js": "^2.6.0"
@@ -113,17 +111,13 @@
         "types": "./dist/charts/index.d.ts",
         "import": "./dist/charts/index.js"
       },
-      "./elk-layout": {
-        "types": "./dist/elk-layout/index.d.ts",
-        "import": "./dist/elk-layout/index.js"
-      },
       "./extraction-blueprint": {
         "types": "./dist/extraction-blueprint/index.d.ts",
         "import": "./dist/extraction-blueprint/index.js"
       },
-      "./rust-layout/wasm": {
-        "types": "./dist/rust-layout/wasm.d.ts",
-        "import": "./dist/rust-layout/wasm.js"
+      "./viz/wasm": {
+        "types": "./dist/viz/wasm.d.ts",
+        "import": "./dist/viz/wasm.js"
       }
     }
   },

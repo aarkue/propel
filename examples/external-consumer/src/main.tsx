@@ -8,21 +8,14 @@ import { createRoot } from "react-dom/client";
 import "@r4pm/components/styles.css";
 import "./index.css";
 import { Theme } from "@r4pm/components/ui";
-import {
-  DFGViewer,
-  ViewerConfigProvider,
-  ViewerExportFrame,
-  type DirectlyFollowsGraph,
-} from "@r4pm/components";
-// Graph viewers need a layout engine; the core includes none. The wasm engine is the default
-// choice: orthogonal routing, stable drag-relayout, and an SVG export that matches its own
-// geometry. It loads lazily on first layout, so a consumer that never renders a graph doesn't
-// pay for it. `@r4pm/components/elk-layout` is the pure-JS alternative (no wasm).
-import { wasmLayout } from "@r4pm/components/rust-layout/wasm";
+import { DFGViewer, type Dfg, ViewerConfigProvider, ViewerExportFrame } from "@r4pm/components";
+// Graph viewers lay out and export through rust4pm's visualization; the core includes none.
+// `wasmViz` runs it in the browser. It loads lazily on first layout, so a consumer that never
+// renders a graph doesn't pay for it.
+import { wasmViz } from "@r4pm/components/viz/wasm";
 
-// `DirectlyFollowsGraph` is the viewer's own local interface (exported from @r4pm/components,
-// structurally identical to the engine's binding result).
-const dfg: DirectlyFollowsGraph = {
+// `Dfg` is rust4pm's `DirectlyFollowsGraph` as JSON, e.g., what its `discover_dfg` returns.
+const dfg: Dfg = {
   activities: { "register request": 6, examine: 4, decide: 6, pay: 5 },
   directly_follows_relations: [
     [["register request", "examine"], 4],
@@ -38,7 +31,7 @@ const dfg: DirectlyFollowsGraph = {
 function App() {
   return (
     <Theme accentColor="indigo" grayColor="slate" radius="small">
-      <ViewerConfigProvider value={{ layout: wasmLayout }}>
+      <ViewerConfigProvider value={{ viz: wasmViz }}>
         <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
           <header style={{ padding: "12px 20px", borderBottom: "1px solid var(--gray-5)" }}>
             <strong>External consumer</strong> (third-party React app importing <code>{"<DFGViewer/>"}</code>{" "}

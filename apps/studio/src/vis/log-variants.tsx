@@ -6,7 +6,7 @@ import { PiListBullets } from "react-icons/pi";
 import { withSelector, datasetEmptyBox } from "./_shared";
 import { useDatasetSelection } from "../panels/active-datasets";
 import { backend } from "../backends";
-import { useDatasets, uniqueDatasetLabel } from "../stores";
+import { derivedDatasetLabel, useDatasets } from "../stores";
 import { definePanel } from "./define-vis";
 
 const GET_LOG_TRACE_VARIANTS = "app_bindings::event_log::get_log_trace_variants" as const;
@@ -19,7 +19,8 @@ export interface LogVariantsPanelProps {
   eventLog: EventLogHandle;
   onSelectActivity?: (activity: string) => void;
   /** Called after a keep/exclude filter produced a new derived log handle. */
-  onFilterApplied?: (handle: EventLogHandle, label: string) => void;
+  /** `op` describes the filter, e.g. "kept 3 variants". */
+  onFilterApplied?: (handle: EventLogHandle, op: string) => void;
   onSelectionChange?: (sel: { variantIndices: number[]; traceCount: number; eventCount: number }) => void;
 }
 
@@ -52,7 +53,10 @@ export function LogVariantsPanel({
             { type: "FilterVariants", variants: sequences, mode: mode === "keep" ? "Keep" : "Remove" },
           ],
         })) as EventLogHandle;
-        onFilterApplied(handle, mode === "keep" ? "Kept variants" : "Excluded variants");
+        onFilterApplied(
+          handle,
+          `${mode === "keep" ? "kept" : "excluded"} ${sequences.length} variant${sequences.length === 1 ? "" : "s"}`,
+        );
       }
     : undefined;
   const info = useQuery({
@@ -88,8 +92,8 @@ export function LogVariantsDockPanel(props: IDockviewPanelProps) {
       key={log}
       backend={backend}
       eventLog={log as EventLogHandle}
-      onFilterApplied={(handle, label) =>
-        addDataset({ id: handle, kind: "EventLog", label: uniqueDatasetLabel(label) })
+      onFilterApplied={(handle, op) =>
+        addDataset({ id: handle, kind: "EventLog", label: derivedDatasetLabel(log, op) })
       }
     />,
     "log-variants",

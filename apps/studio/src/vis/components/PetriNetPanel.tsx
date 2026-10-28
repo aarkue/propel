@@ -2,15 +2,26 @@ import type { AcceptingPetriNet } from "@r4pm/client";
 import { PetriNetWorkbench, type PetriNet, type SimTrace, type ViewerProps } from "@r4pm/components";
 import { PetriNetActions } from "./PetriNetActions";
 import { backend } from "../../backends";
-import { useDatasets, uniqueDatasetLabel } from "../../stores";
+import { objectLabel, uniqueDatasetLabel, useDatasets } from "../../stores";
+import { type MinerChoice, minerChoice, PETRI_NET_VARIANTS } from "../_discovery";
+import { minerSummary } from "./MinerPickerView";
 
 const EVENT_LOG_FROM_ACTIVITIES = "app_bindings::event_log::event_log_from_activities" as const;
 
 /** Studio component for any shown Petri net: the pure workbench plus backend-bound actions. The
  *  workbench normalizes rust4pm's index-addressed net, so the cast here is the single studio
  *  adaptation point. */
-export function PetriNetPanel({ data }: ViewerProps<AcceptingPetriNet>) {
+export function PetriNetPanel({
+  data,
+  handle,
+  controls,
+}: ViewerProps<AcceptingPetriNet> & { controls?: MinerChoice }) {
   const net = data as unknown as PetriNet;
+  // The pipeline viewer passes neither handle nor controls, so the origin is unknown there.
+  const name =
+    handle && controls
+      ? `${minerSummary(minerChoice(controls, PETRI_NET_VARIANTS))} of ${objectLabel(handle)}`
+      : "Petri net";
 
   const saveTraceAsLog = async (traces: SimTrace[]) => {
     // Drop silent/tau transitions (null/empty labels) per trace; the Rust binding builds the
@@ -25,14 +36,14 @@ export function PetriNetPanel({ data }: ViewerProps<AcceptingPetriNet>) {
     useDatasets.getState().addDataset({
       id: handle,
       kind: "EventLog",
-      label: uniqueDatasetLabel("Simulated log"),
+      label: uniqueDatasetLabel(`Simulated from ${name}`),
     });
   };
 
   return (
     <PetriNetWorkbench
       data={net}
-      toolbar={(n) => <PetriNetActions net={n} />}
+      toolbar={(n) => <PetriNetActions net={n} name={name} />}
       onSaveTraceAsLog={saveTraceAsLog}
     />
   );

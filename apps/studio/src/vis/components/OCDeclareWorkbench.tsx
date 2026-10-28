@@ -47,6 +47,7 @@ import {
   viewStateForEdit,
   withEvaluation,
 } from "../_oc-declare-workbench";
+import { objectLabel } from "../../stores";
 import type { PanelViewState } from "../define-vis";
 import { OCDeclareBar } from "./OCDeclareBar";
 import { OCDeclareModelActions } from "./OCDeclareModelActions";
@@ -402,7 +403,11 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
           </SegmentedControl.Root>
         </Flex>
         <Flex align="center" gap="2" px="2" style={{ ...barCell, marginLeft: "auto", paddingRight: 48 }}>
-          <OCDeclareModelActions model={model} onLoad={(next) => replaceModel(next, "loaded")} />
+          <OCDeclareModelActions
+            model={model}
+            onLoad={(next) => replaceModel(next, "loaded")}
+            name={ocel ? `OC-DECLARE of ${objectLabel(ocel)}` : undefined}
+          />
         </Flex>
       </div>
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>{body}</div>

@@ -7,7 +7,7 @@ import {
   useId,
   useState,
 } from "react";
-import { PiCaretDown, PiMagnifyingGlass, PiPlus } from "react-icons/pi";
+import { PiCaretDown, PiCheck, PiMagnifyingGlass, PiPlus } from "react-icons/pi";
 import { FrequencyPicker, type FrequencyPickerProps } from "./FrequencyPicker";
 
 type BadgeColor = ComponentProps<typeof Badge>["color"];
@@ -143,6 +143,17 @@ export function DatasetSelector({
   const hi = Math.min(highlight, Math.max(0, rows.length - 1));
   const selected = datasets.find((d) => d.id === value) ?? null;
 
+  const onOpenChange = (next: boolean) => {
+    if (next)
+      setHighlight(
+        Math.max(
+          0,
+          rows.findIndex((r) => r.kind === "data" && r.d.id === value),
+        ),
+      );
+    setOpen(next);
+  };
+
   const doImport = async () => {
     setOpen(false);
     const id = await onImport?.();
@@ -191,7 +202,7 @@ export function DatasetSelector({
           ))}
         </div>
       )}
-      <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Root open={open} onOpenChange={onOpenChange}>
         <Popover.Trigger>
           <Button
             type="button"
@@ -291,6 +302,12 @@ export function DatasetSelector({
                       {labelOf(d.kind)}
                     </Badge>
                   </span>
+                  {d.id === value && (
+                    <PiCheck
+                      aria-hidden
+                      style={{ marginLeft: "auto", flex: "0 0 auto", color: "var(--accent-11)" }}
+                    />
+                  )}
                 </button>
               );
             })}

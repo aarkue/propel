@@ -24,7 +24,7 @@ import {
 import { backend } from "../backends";
 import { importFileAsSource } from "../data-import";
 import { connectionForDroppedText, routeConnections } from "../extraction-sources";
-import { uniqueDatasetLabel, useDatasets } from "../stores";
+import { objectLabel, uniqueDatasetLabel, useDatasets } from "../stores";
 import { usePanelDraft, usePanelState } from "../panels/panel-state";
 import { definePanel } from "./define-vis";
 
@@ -107,7 +107,7 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       // plain data, never both. Reported as absent rather than as an empty report -- an
       // `ExtractionReport` of zeroes would read as "ran fine, produced nothing".
       const id = ocelHandle as unknown as string;
-      const datasetLabel = uniqueDatasetLabel("Extracted OCEL");
+      const datasetLabel = extractedLabel(Object.values(sources).map(objectLabel));
       useDatasets.getState().addDataset({ id, kind: "SlimLinkedOCEL", label: datasetLabel });
       useDatasets.getState().renameDataset(id, datasetLabel);
       return { ocelHandle: id, datasetLabel };
@@ -297,7 +297,8 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
         // Naming it here shows it labelled immediately rather than as a raw handle;
         // `renameDataset` persists the label engine-side so it survives a reload.
         const id = ocelHandle as string;
-        const datasetLabel = uniqueDatasetLabel("Extracted OCEL");
+        // Connection strings can hold credentials, so the label uses the source ids.
+        const datasetLabel = extractedLabel(Object.keys(route.connections));
         useDatasets.getState().addDataset({ id, kind: "SlimLinkedOCEL", label: datasetLabel });
         useDatasets.getState().renameDataset(id, datasetLabel);
         return {
@@ -320,6 +321,11 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       />
     </div>
   );
+}
+
+function extractedLabel(sources: string[]): string {
+  const shown = sources.length > 2 ? [...sources.slice(0, 2), `+${sources.length - 2} more`] : sources;
+  return uniqueDatasetLabel(shown.length ? `Extracted OCEL from ${shown.join(", ")}` : "Extracted OCEL");
 }
 
 export const vis = definePanel({

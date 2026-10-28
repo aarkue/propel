@@ -732,7 +732,7 @@
     "docs": [],
     "module": "app_bindings",
     "source_path": "app-bindings/src/lib.rs",
-    "source_line": 23,
+    "source_line": 24,
     "args": [
       [
         "log_proj",
@@ -887,7 +887,7 @@
     ],
     "module": "app_bindings",
     "source_path": "app-bindings/src/lib.rs",
-    "source_line": 18,
+    "source_line": 19,
     "args": [],
     "required_args": [],
     "return_type": {
@@ -905,7 +905,7 @@
     ],
     "module": "app_bindings",
     "source_path": "app-bindings/src/lib.rs",
-    "source_line": 31,
+    "source_line": 32,
     "args": [
       [
         "event_log",
@@ -6558,6 +6558,424 @@
       "title": "SlimLinkedOCEL",
       "x-registry-ref": "SlimLinkedOCEL",
       "x-widget": "entity-selector"
+    }
+  },
+  {
+    "id": "app_bindings::variant_timing::get_variant_time_profile",
+    "name": "get_variant_time_profile",
+    "docs": [
+      "Per-step timing of the variant with these `activities`, and one page of its cases in",
+      "`case_sort` order, filtered by `case_query`. With `focus_case` the page is just that case and",
+      "`focus_index` gives its position. None if no case has that variant."
+    ],
+    "module": "app_bindings::variant_timing",
+    "source_path": "app-bindings/src/variant_timing.rs",
+    "source_line": 609,
+    "args": [
+      [
+        "event_log",
+        {
+          "type": "string",
+          "title": "EventLog",
+          "x-registry-ref": "EventLog",
+          "x-widget": "entity-selector"
+        }
+      ],
+      [
+        "activities",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "Array_of_string",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ],
+      [
+        "variant_sort",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "VariantSort",
+          "type": "string",
+          "enum": [
+            "Frequency",
+            "SlowestFirst",
+            "FastestFirst",
+            "LongestFirst",
+            "ShortestFirst"
+          ]
+        }
+      ],
+      [
+        "case_query",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      [
+        "case_sort",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "CaseSort",
+          "type": "string",
+          "enum": [
+            "LogOrder",
+            "FastestFirst",
+            "SlowestFirst"
+          ]
+        }
+      ],
+      [
+        "case_offset",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "uint",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      ],
+      [
+        "case_limit",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "uint",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      ],
+      [
+        "focus_case",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "Nullable_string",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      ]
+    ],
+    "required_args": [
+      "event_log",
+      "activities",
+      "variant_sort",
+      "case_query",
+      "case_sort",
+      "case_offset",
+      "case_limit",
+      "focus_case"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "Nullable_VariantTimeProfile",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VariantTimeProfile"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "$defs": {
+        "VariantTimeProfile": {
+          "description": "Timing of one variant over all its cases, plus one page of those cases.",
+          "type": "object",
+          "properties": {
+            "rank": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "sort_position": {
+              "description": "Position in `variant_sort` order.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "activities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "num_cases": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "steps": {
+              "description": "One entry per step, aligned with `activities`.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/StepTimeStats"
+              }
+            },
+            "cases_total": {
+              "description": "Cases matching the case query.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CaseTimeCurve"
+              }
+            },
+            "focus_index": {
+              "description": "Position of `focus_case` in `case_sort` order.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rank",
+            "sort_position",
+            "activities",
+            "num_cases",
+            "steps",
+            "cases_total",
+            "cases"
+          ]
+        },
+        "StepTimeStats": {
+          "description": "Distribution of the elapsed time since case start at one step of a variant, in ms.",
+          "type": "object",
+          "properties": {
+            "min_ms": {
+              "type": "number",
+              "format": "double"
+            },
+            "p10_ms": {
+              "type": "number",
+              "format": "double"
+            },
+            "p25_ms": {
+              "type": "number",
+              "format": "double"
+            },
+            "median_ms": {
+              "type": "number",
+              "format": "double"
+            },
+            "p75_ms": {
+              "type": "number",
+              "format": "double"
+            },
+            "p90_ms": {
+              "type": "number",
+              "format": "double"
+            },
+            "max_ms": {
+              "type": "number",
+              "format": "double"
+            },
+            "mean_ms": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "min_ms",
+            "p10_ms",
+            "p25_ms",
+            "median_ms",
+            "p75_ms",
+            "p90_ms",
+            "max_ms",
+            "mean_ms"
+          ]
+        },
+        "CaseTimeCurve": {
+          "description": "One case with its elapsed time since case start per step, in ms.",
+          "type": "object",
+          "properties": {
+            "case_id": {
+              "type": "string"
+            },
+            "elapsed_ms": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "required": [
+            "case_id",
+            "elapsed_ms"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "app_bindings::variant_timing::get_variant_timing_page",
+    "name": "get_variant_timing_page",
+    "docs": [
+      "One page of variants. A `query` keeps the variants whose activities match it in order (best",
+      "first), or the variant `#<n>`."
+    ],
+    "module": "app_bindings::variant_timing",
+    "source_path": "app-bindings/src/variant_timing.rs",
+    "source_line": 530,
+    "args": [
+      [
+        "event_log",
+        {
+          "type": "string",
+          "title": "EventLog",
+          "x-registry-ref": "EventLog",
+          "x-widget": "entity-selector"
+        }
+      ],
+      [
+        "query",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "string",
+          "type": "string"
+        }
+      ],
+      [
+        "sort",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "VariantSort",
+          "type": "string",
+          "enum": [
+            "Frequency",
+            "SlowestFirst",
+            "FastestFirst",
+            "LongestFirst",
+            "ShortestFirst"
+          ]
+        }
+      ],
+      [
+        "offset",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "uint",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      ],
+      [
+        "limit",
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "uint",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      ]
+    ],
+    "required_args": [
+      "event_log",
+      "query",
+      "sort",
+      "offset",
+      "limit"
+    ],
+    "return_type": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "VariantTimingPage",
+      "type": "object",
+      "properties": {
+        "total": {
+          "description": "Variants matching the query.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "num_variants": {
+          "description": "Variants among the timed cases.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "num_timed_cases": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "num_untimed_cases": {
+          "description": "Cases with an untimed event, left out of all results.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VariantSummary"
+          }
+        }
+      },
+      "required": [
+        "total",
+        "num_variants",
+        "num_timed_cases",
+        "num_untimed_cases",
+        "rows"
+      ],
+      "$defs": {
+        "VariantSummary": {
+          "type": "object",
+          "properties": {
+            "rank": {
+              "description": "0-based frequency rank.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "activities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "num_cases": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "median_total_ms": {
+              "description": "Median time from case start to the last step.",
+              "type": "number",
+              "format": "double"
+            },
+            "matched": {
+              "description": "Activity indices the query matched.",
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0
+              }
+            }
+          },
+          "required": [
+            "rank",
+            "activities",
+            "num_cases",
+            "median_total_ms",
+            "matched"
+          ]
+        }
+      }
     }
   },
   {

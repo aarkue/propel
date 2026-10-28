@@ -6,7 +6,7 @@ const OCEL_FROM_TRACE = "app_bindings::ocel::ocel_from_oc_sim_trace" as const;
 
 /** Turn an object-centric simulation trace into a slim linked OCEL via the backend, then register
  *  the resulting handle as a dataset. Silent (unlabeled) steps are dropped. */
-export async function saveOcTraceAsOcel(trace: OcSequenceStep[]): Promise<void> {
+export async function saveOcTraceAsOcel(trace: OcSequenceStep[], label = "Simulated OCEL"): Promise<void> {
   const steps = trace
     .filter((s) => s.label?.trim())
     .map((s) => ({
@@ -18,6 +18,6 @@ export async function saveOcTraceAsOcel(trace: OcSequenceStep[]): Promise<void> 
   useDatasets.getState().addDataset({
     id: handle,
     kind: "SlimLinkedOCEL",
-    label: uniqueDatasetLabel("Simulated OCEL"),
+    label: uniqueDatasetLabel(label),
   });
 }

@@ -8,12 +8,13 @@ import { useDatasets, uniqueDatasetLabel } from "../stores";
 import { PiShuffle } from "react-icons/pi";
 import { definePanel } from "./define-vis";
 
-const INITIAL_BUILDER: TransformBuilderValue = { transforms: [], outName: "transformed" };
+const INITIAL_BUILDER: TransformBuilderValue = { transforms: [], outName: "" };
 
 export function OcelTransformsDockPanel(props: IDockviewPanelProps) {
   const { id: ocel, selector } = useDatasetSelection("SlimLinkedOCEL", props);
   const [builder, setBuilder] = useDatasetScopedState(props, "transformBuilder", ocel ?? "", INITIAL_BUILDER);
   const addDataset = useDatasets((s) => s.addDataset);
+  const sourceLabel = useDatasets((s) => s.datasets.find((d) => d.id === ocel)?.label);
   if (!ocel) return withSelector(selector, datasetEmptyBox("OCEL"));
   return withSelector(
     selector,
@@ -22,6 +23,7 @@ export function OcelTransformsDockPanel(props: IDockviewPanelProps) {
         key={ocel}
         backend={backend}
         datasetName={ocel}
+        sourceLabel={sourceLabel}
         objectType="OCEL"
         value={builder}
         onChange={setBuilder}
@@ -29,7 +31,7 @@ export function OcelTransformsDockPanel(props: IDockviewPanelProps) {
           addDataset({
             id: handle,
             kind: "SlimLinkedOCEL",
-            label: uniqueDatasetLabel(outName || "Transformed OCEL"),
+            label: uniqueDatasetLabel(outName),
           })
         }
       />

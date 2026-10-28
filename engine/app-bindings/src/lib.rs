@@ -13,6 +13,7 @@ pub mod petri_net_io;
 pub mod slim_project;
 pub mod transforms;
 pub mod types;
+pub mod variant_timing;
 
 /// Health-check binding.
 #[register_binding]

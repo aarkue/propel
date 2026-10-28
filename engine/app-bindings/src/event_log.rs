@@ -240,7 +240,7 @@ pub fn get_log_trace_variants(event_log: &EventLog) -> TraceVariants {
 }
 
 /// Get the activity name (`concept:name`) from an XES event.
-fn get_event_activity(event: &Event) -> Option<&str> {
+pub(crate) fn get_event_activity(event: &Event) -> Option<&str> {
     event
         .attributes
         .get_by_key("concept:name")
@@ -276,7 +276,7 @@ pub fn get_log_info(event_log: &EventLog) -> NumberOfTracesAndEvents {
 }
 
 /// Get the timestamp (`time:timestamp`) of an XES event in epoch milliseconds.
-fn get_event_time_ms(event: &Event) -> Option<i64> {
+pub(crate) fn get_event_time_ms(event: &Event) -> Option<i64> {
     event
         .attributes
         .get_by_key("time:timestamp")

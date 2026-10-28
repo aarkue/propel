@@ -497,6 +497,68 @@ target: RelabelTarget
 condition?: (Condition | null)
 }
 
+export interface VariantTimeProfile {
+rank: number
+/**
+ * Position in `variant_sort` order.
+ */
+sort_position: number
+activities: string[]
+num_cases: number
+/**
+ * One entry per step, aligned with `activities`.
+ */
+steps: StepTimeStats[]
+/**
+ * Cases matching the case query.
+ */
+cases_total: number
+cases: CaseTimeCurve[]
+/**
+ * Position of `focus_case` in `case_sort` order.
+ */
+focus_index?: (number | null)
+}
+/**
+ * Distribution of the elapsed time since case start at one step of a variant, in ms.
+ */
+
+export interface StepTimeStats {
+min_ms: number
+p10_ms: number
+p25_ms: number
+median_ms: number
+p75_ms: number
+p90_ms: number
+max_ms: number
+mean_ms: number
+}
+/**
+ * One case with its elapsed time since case start per step, in ms.
+ */
+
+export interface CaseTimeCurve {
+case_id: string
+elapsed_ms: number[]
+}
+
+export interface VariantSummary {
+/**
+ * 0-based frequency rank.
+ */
+rank: number
+activities: string[]
+num_cases: number
+/**
+ * Median time from case start to the last step.
+ */
+median_total_ms: number
+/**
+ * Activity indices the query matched.
+ */
+matched: number[]
+}
+
 export interface DottedChartPoints {
 /**
  * X-axis values (interpretation depends on [`DottedChartXAxis`]).
@@ -6492,6 +6554,33 @@ keys: string[]
 type: "RemoveAttributes"
 })
 
+export type VariantSort = ("Frequency" | "SlowestFirst" | "FastestFirst" | "LongestFirst" | "ShortestFirst")
+
+export type CaseSort = ("LogOrder" | "FastestFirst" | "SlowestFirst")
+
+export type Nullable_VariantTimeProfile = (VariantTimeProfile | null)
+
+/**
+ * Timing of one variant over all its cases, plus one page of those cases.
+ */
+
+export interface VariantTimingPage {
+/**
+ * Variants matching the query.
+ */
+total: number
+/**
+ * Variants among the timed cases.
+ */
+num_variants: number
+num_timed_cases: number
+/**
+ * Cases with an untimed event, left out of all results.
+ */
+num_untimed_cases: number
+rows: VariantSummary[]
+}
+
 export interface DottedChartOptions {
 /**
  * X-axis mode.
@@ -8057,6 +8146,23 @@ export interface Bindings {
     "transforms": Transform[];
     "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
+  "app_bindings::variant_timing::get_variant_time_profile": { args: {
+    "event_log": EventLogHandle;
+    "activities": string[];
+    "variant_sort": VariantSort;
+    "case_query": string;
+    "case_sort": CaseSort;
+    "case_offset": number;
+    "case_limit": number;
+    "focus_case": Nullable_string;
+    }; ret: Nullable_VariantTimeProfile };
+  "app_bindings::variant_timing::get_variant_timing_page": { args: {
+    "event_log": EventLogHandle;
+    "query": string;
+    "sort": VariantSort;
+    "offset": number;
+    "limit": number;
+    }; ret: VariantTimingPage };
   "process_mining::analysis::case_centric::dotted_chart::get_dotted_chart": { args: {
     "xes": EventLogHandle;
     "options"?: DottedChartOptions;
@@ -8822,6 +8928,7 @@ export const RETURN_TYPES = {
   "Nullable_OCELAttributeValue": "Nullable_OCELAttributeValue",
   "Nullable_OCELType": "Nullable_OCELType",
   "Nullable_ObjectIndex": "Nullable_ObjectIndex",
+  "Nullable_VariantTimeProfile": "Nullable_VariantTimeProfile",
   "Nullable_string": "Nullable_string",
   "NumberOfTracesAndEvents": "NumberOfTracesAndEvents",
   "OCDirectlyFollowsGraph": "OCDirectlyFollowsGraph",
@@ -8850,6 +8957,7 @@ export const RETURN_TYPES = {
   "TraceBrowserPage": "TraceBrowserPage",
   "TraceDetail": "TraceDetail",
   "TraceVariants": "TraceVariants",
+  "VariantTimingPage": "VariantTimingPage",
   "boolean": "boolean",
   "double": "double",
   "null": "null",
@@ -8915,6 +9023,7 @@ export interface ReturnTypeShape {
   "Nullable_OCELAttributeValue": Nullable_OCELAttributeValue;
   "Nullable_OCELType": Nullable_OCELType;
   "Nullable_ObjectIndex": Nullable_ObjectIndex;
+  "Nullable_VariantTimeProfile": Nullable_VariantTimeProfile;
   "Nullable_string": Nullable_string;
   "NumberOfTracesAndEvents": NumberOfTracesAndEvents;
   "OCDirectlyFollowsGraph": OCDirectlyFollowsGraph;
@@ -8943,6 +9052,7 @@ export interface ReturnTypeShape {
   "TraceBrowserPage": TraceBrowserPage;
   "TraceDetail": TraceDetail;
   "TraceVariants": TraceVariants;
+  "VariantTimingPage": VariantTimingPage;
   "boolean": boolean;
   "double": number;
   "null": null;
@@ -8992,6 +9102,8 @@ export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
   "app_bindings::petri_net_io::export_petri_net_pnml": "string",
   "app_bindings::transforms::apply_event_log_transforms": "EventLog",
   "app_bindings::transforms::apply_ocel_transforms": "SlimLinkedOCEL",
+  "app_bindings::variant_timing::get_variant_time_profile": "Nullable_VariantTimeProfile",
+  "app_bindings::variant_timing::get_variant_timing_page": "VariantTimingPage",
   "process_mining::analysis::case_centric::dotted_chart::get_dotted_chart": "DottedChartData",
   "process_mining::analysis::case_centric::event_timestamp_histogram::get_event_timestamps": "AggregatedEventTimestamps",
   "process_mining::analysis::object_centric::object_attribute_changes::get_object_attribute_changes": "ObjectAttributeChanges",

@@ -52,6 +52,9 @@ interface ControlsSpec<C> {
   /** Default true: a control change re-runs the source (panel refetches; viewer goes read-only).
    *  Set false for purely client-side controls that stay editable in the viewer. */
   liveRefetch?: boolean;
+  /** Hook returning what the controls still lack (e.g. a loaded model), or null. While set, the
+   *  source does not run and the panel shows the message. */
+  useMissing?: (controls: C) => string | null;
 }
 
 /** A panel's persisted viewer display state (what `useViewSetting` reads and writes). */
@@ -119,7 +122,7 @@ interface AnyVis extends VisMeta {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   viewer?: boolean | Record<string, (data: any) => unknown>;
   transform?: (data: unknown) => unknown;
-  controls?: { initial: unknown; liveRefetch?: boolean };
+  controls?: { initial: unknown; liveRefetch?: boolean; useMissing?: (controls: unknown) => string | null };
   panelControlsBar?: (controls: unknown, set: (c: unknown) => void, datasetId: string) => ReactNode;
   panelActions?: (data: unknown, ctx: VisCtx) => ReactNode;
   extraProps?: (ctx: VisCtx, controls: unknown) => Promise<Record<string, unknown>>;
@@ -211,7 +214,8 @@ function makeDataPanelComponent(
     // Committed inputs that actually ran (deferred only). For non-deferred panels the live inputs
     // ARE the committed inputs, so the source runs immediately as before.
     const [ran, setRan] = useState<RunInputs | null>(null);
-    const live: RunInputs | null = id ? { id, c } : null;
+    const missing = controls?.useMissing?.(c) ?? null;
+    const live: RunInputs | null = id && !missing ? { id, c } : null;
     const active = deferred ? ran : live;
     const stale = !!(deferred && ran && (!live || !sameInputs(ran, live)));
 
@@ -254,7 +258,7 @@ function makeDataPanelComponent(
               size="1"
               color={stale ? "amber" : "gray"}
               variant={stale ? "solid" : "soft"}
-              disabled={running || !stale}
+              disabled={running || !stale || !live}
               onClick={() => setRan(live)}
             >
               {running ? (
@@ -291,6 +295,8 @@ function makeDataPanelComponent(
       body = (
         <EmptyState title={`No ${source.needs} dataset loaded`} description="Load one to view this panel." />
       );
+    } else if (missing && !(deferred && ran)) {
+      body = <EmptyState icon={<Icon size={40} />} title={missing} />;
     } else if (deferred && !ran) {
       body = (
         <Flex

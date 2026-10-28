@@ -8,12 +8,13 @@ import { useDatasets, uniqueDatasetLabel } from "../stores";
 import { PiShuffle } from "react-icons/pi";
 import { definePanel } from "./define-vis";
 
-const INITIAL_BUILDER: TransformBuilderValue = { transforms: [], outName: "transformed" };
+const INITIAL_BUILDER: TransformBuilderValue = { transforms: [], outName: "" };
 
 export function LogTransformsDockPanel(props: IDockviewPanelProps) {
   const { id: log, selector } = useDatasetSelection("EventLog", props);
   const [builder, setBuilder] = useDatasetScopedState(props, "transformBuilder", log ?? "", INITIAL_BUILDER);
   const addDataset = useDatasets((s) => s.addDataset);
+  const sourceLabel = useDatasets((s) => s.datasets.find((d) => d.id === log)?.label);
   if (!log) return withSelector(selector, datasetEmptyBox("EventLog"));
   return withSelector(
     selector,
@@ -22,6 +23,7 @@ export function LogTransformsDockPanel(props: IDockviewPanelProps) {
         key={log}
         backend={backend}
         datasetName={log}
+        sourceLabel={sourceLabel}
         objectType="EventLog"
         value={builder}
         onChange={setBuilder}
@@ -29,7 +31,7 @@ export function LogTransformsDockPanel(props: IDockviewPanelProps) {
           addDataset({
             id: handle,
             kind: "EventLog",
-            label: uniqueDatasetLabel(outName || "Transformed log"),
+            label: uniqueDatasetLabel(outName),
           })
         }
       />

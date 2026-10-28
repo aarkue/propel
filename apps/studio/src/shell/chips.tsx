@@ -2,6 +2,7 @@ import type { Provenance } from "@r4pm/client";
 import { Badge, Popover, Separator, Text } from "@r4pm/components/ui";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { PiCaretLeft, PiCaretRight, PiGitBranch } from "react-icons/pi";
+import { describeProvenance } from "../stores";
 import { exportLineageAsPipeline } from "./export-lineage";
 import { colorForKind, labelForKind } from "./object-colors";
 
@@ -154,6 +155,7 @@ export function EntityChip({
   id,
   label,
   kind,
+  provenance,
   testId,
   onRename,
   children,
@@ -161,6 +163,7 @@ export function EntityChip({
   id: string;
   label: string;
   kind: string;
+  provenance?: Provenance | null;
   testId: string;
   onRename: (label: string) => void;
   children: (close: () => void) => ReactNode;
@@ -170,6 +173,7 @@ export function EntityChip({
   const [nameDraft, setNameDraft] = useState(label);
   useEffect(() => setNameDraft(label), [label]);
 
+  const origin = provenance ? describeProvenance(provenance) : null;
   const close = () => setOpen(false);
   const commitRename = () => {
     if (nameDraft.trim() !== label) onRename(nameDraft);
@@ -181,6 +185,7 @@ export function EntityChip({
         <button
           type="button"
           data-testid={testId}
+          title={origin ?? undefined}
           className="group flex items-center gap-1.5 h-7 px-2 rounded-full border text-xs whitespace-nowrap cursor-pointer transition-colors shrink-0 border-(--gray-a6) hover:border-(--indigo-8) hover:bg-(--indigo-a2)"
         >
           <span
@@ -215,6 +220,7 @@ export function EntityChip({
               className="flex-1 min-w-0 bg-transparent text-sm font-medium text-(--gray-12) border-b border-transparent hover:border-(--gray-a6) focus:border-(--indigo-8) outline-none py-0.5"
             />
           </div>
+          {origin && <span className="block text-xs text-(--gray-11) mb-1">{origin}</span>}
           <span className="block text-[10px] font-mono text-(--gray-9) break-all" title="Object id">
             {id}
           </span>

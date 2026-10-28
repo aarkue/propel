@@ -1,20 +1,32 @@
 import { useEffect } from "react";
 import { DatasetSelector, normalizePetriNet, transitionNodeId } from "@r4pm/components";
 import type { AlignmentMove, LogAlignments } from "@r4pm/components";
-import { Flex, Text } from "@r4pm/components/ui";
+import { Button, Flex, Text } from "@r4pm/components/ui";
 import type { AcceptingPetriNet, EventLogHandle, ReturnTypeShape } from "@r4pm/client";
+import { PiTreeStructure } from "react-icons/pi";
 import { backend } from "../backends";
-import { useArtifacts, useDatasets } from "../stores";
+import { addPanelToDockview } from "../panels/registry";
+import { useArtifacts } from "../stores";
 import type { VisCtx } from "./define-vis";
 
 // Shared model-selection + alignment source for the alignment-net / alignment-list / conformance
 // vizzes. `_`-prefixed so the vis registry glob skips it (it exports no `vis`).
 
-const DISCOVER_PETRI = "app_bindings::discover_petri_net" as const;
 const ALIGN_EVENT_LOG = "app_bindings::alignments::align_event_log" as const;
 
-/** Model to align against: a loaded PetriNet artifact, or a log to discover Alpha+++ from. */
-export type ModelSource = { type: "net"; id: string } | { type: "log"; id: string };
+export type ModelSource = { type: "net"; id: string };
+
+/** Older saved panels hold `null` (auto Alpha+++) or `{ type: "log" }`. Both read as no model. */
+function netId(model: unknown): string | null {
+  const m = model as { type?: unknown; id?: unknown } | null;
+  return m?.type === "net" && typeof m.id === "string" ? m.id : null;
+}
+
+export function useMissingModel(model: ModelSource | null): string | null {
+  const id = netId(model);
+  const loaded = useArtifacts((s) => !!id && s.artifacts.some((a) => a.id === id && a.kind === "PetriNet"));
+  return loaded ? null : "Pick a saved Petri net to align against";
+}
 
 type RawMove = ReturnTypeShape["LogAlignments"]["variant_alignments"][number] extends {
   result: infer R;
@@ -62,13 +74,10 @@ export function toFrontendAlignments(raw: ReturnTypeShape["LogAlignments"]): Log
   };
 }
 
-/** Align the selected log against the chosen model. `null` model = Alpha+++ from the selected log. */
 export async function alignmentResolve(ctx: VisCtx, model: ModelSource | null): Promise<LogAlignments> {
-  const m = model ?? { type: "log", id: ctx.datasetId };
-  const net: AcceptingPetriNet =
-    m.type === "net"
-      ? ((await backend.getArtifact(m.id)) as AcceptingPetriNet)
-      : await backend.callBinding(DISCOVER_PETRI, { event_log: m.id as EventLogHandle });
+  const id = netId(model);
+  if (!id) throw new Error("No Petri net selected.");
+  const net = (await backend.getArtifact(id)) as AcceptingPetriNet;
   const result = await backend.callBinding(ALIGN_EVENT_LOG, {
     event_log: ctx.datasetId as EventLogHandle,
     net,
@@ -76,35 +85,26 @@ export async function alignmentResolve(ctx: VisCtx, model: ModelSource | null): 
   return toFrontendAlignments(result);
 }
 
-/** Store-coupled override bar. `null` means "Alpha+++ from the selected log" (the resolve default). */
+/** Lists saved Petri nets. Discovery lives in the Petri Net panel. */
 export function AlignmentModelBar({
   value,
   onChange,
+  datasetId,
 }: {
   value: ModelSource | null;
   onChange: (v: ModelSource | null) => void;
+  datasetId: string;
 }) {
-  const datasets = useDatasets((s) => s.datasets);
   const petriNets = useArtifacts((s) => s.artifacts).filter((a) => a.kind === "PetriNet");
-  const logs = datasets.filter((d) => d.kind === "EventLog");
+  const selected = netId(value);
 
-  // Default to the newest uploaded net if one exists at mount; otherwise stay on auto-discovery.
-  // Mount-only so a later user pick of "Auto-discover" (null) is never hijacked back to a net.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: seed the default once at mount only
+  // Without a loaded pick, follow the newest saved net, also one saved after this panel opened.
+  const newest = petriNets[petriNets.length - 1]?.id;
+  const selectedLoaded = !!selected && petriNets.some((n) => n.id === selected);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-seed when the newest net changes
   useEffect(() => {
-    if (value === null && petriNets.length > 0) {
-      onChange({ type: "net", id: petriNets[petriNets.length - 1].id });
-    }
-  }, []);
-
-  // `null` = auto-discover (Alpha+++) from the selected log; a first-class, explicitly-shown option
-  // so the displayed selection always matches what actually gets computed.
-  const options = [
-    { id: "auto", label: "Auto-discover (Alpha+++)", kind: "" },
-    ...petriNets.map((n) => ({ id: `net:${n.id}`, label: n.label, kind: "PetriNet" })),
-    ...logs.map((l) => ({ id: `log:${l.id}`, label: `${l.label} (Alpha+++)`, kind: "EventLog" })),
-  ];
-  const encoded = value ? `${value.type}:${value.id}` : "auto";
+    if (!selectedLoaded && newest) onChange({ type: "net", id: newest });
+  }, [newest]);
 
   return (
     <Flex
@@ -118,22 +118,26 @@ export function AlignmentModelBar({
       <Text size="1" color="gray">
         Align against
       </Text>
-      <div style={{ width: 220 }}>
-        <DatasetSelector
-          datasets={options}
-          value={encoded}
-          onChange={(e) =>
-            onChange(
-              e.startsWith("net:")
-                ? { type: "net", id: e.slice(4) }
-                : e.startsWith("log:")
-                  ? { type: "log", id: e.slice(4) }
-                  : null,
-            )
-          }
-          searchable
-        />
-      </div>
+      {petriNets.length > 0 ? (
+        <div style={{ width: 220 }}>
+          <DatasetSelector
+            datasets={petriNets.map((n) => ({ id: n.id, label: n.label, kind: n.kind }))}
+            value={selected}
+            onChange={(id) => onChange({ type: "net", id })}
+            searchable
+          />
+        </div>
+      ) : (
+        <Text size="1">No saved Petri nets yet. Discover one and click Save there.</Text>
+      )}
+      <Button
+        size="1"
+        variant="soft"
+        onClick={() => addPanelToDockview("petriNet", undefined, { datasetId })}
+        title="Open the Petri Net panel for this log"
+      >
+        <PiTreeStructure /> Discover a net
+      </Button>
     </Flex>
   );
 }

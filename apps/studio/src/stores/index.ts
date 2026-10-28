@@ -13,3 +13,4 @@ export {
   type DurationStyle,
   type AlignmentStyle,
 } from "./preferences";
+export { objectLabel, derivedDatasetLabel, describeProvenance } from "./naming";

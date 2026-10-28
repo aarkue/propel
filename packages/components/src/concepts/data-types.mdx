@@ -97,7 +97,7 @@ Per-arc duration statistics.
 
 ### DirectlyFollowsGraph
 
-A directly-follows graph of `Activity`s. Graph containing a set of activities, a set of directly-follows relations, a set of start activities, and a set of end activities. Activities and directly-follows relations are annotated with their frequency, and start and end activities with how many traces start or end with them.
+A directly-follows graph of `Activity`s, with its start and end activities. Activities and directly-follows relations are annotated with their frequency, and start and end activities with how many traces start or end with them.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -225,7 +225,7 @@ Time-stamped attribute change history for a single OCEL object.
 
 ### ObjectCentricPetriNetJson
 
-An object-centric Petri net as a flat list of places, transitions and arcs. A transition appears once no matter how many object types share it, and an arc takes its object type from the place it connects.
+An object-centric Petri net as a flat list of places, transitions and arcs. Transitions shared by several object types are listed once. Each arc has the object type of its place.
 
 | Field | Type | Description |
 | --- | --- | --- |

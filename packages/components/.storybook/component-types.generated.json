@@ -182,6 +182,20 @@
     "code": "export interface CaseDurations {\n  num_cases: number;\n  num_empty_cases: number;\n  min_ms: number;\n  max_ms: number;\n  mean_ms: number;\n  median_ms: number;\n  p90_ms: number;\n  p95_ms: number;\n  p99_ms: number;\n  hist_bin_edges_ms: number[];\n  hist_counts: number[];\n  ecdf_x_ms: number[];\n  ecdf_y: number[];\n}"
   },
   {
+    "name": "CaseSort",
+    "kind": "type",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export type CaseSort = \"LogOrder\" | \"FastestFirst\" | \"SlowestFirst\";"
+  },
+  {
+    "name": "CaseTimeCurve",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export interface CaseTimeCurve {\n  case_id: string;\n  elapsed_ms: number[];\n}"
+  },
+  {
     "name": "ColorResolver",
     "kind": "type",
     "entry": "@r4pm/components",
@@ -285,6 +299,13 @@
     "entry": "@r4pm/components/charts",
     "file": "src/charts/dotted-chart.tsx",
     "code": "/** The three axis selections that drive what the backend computes. Lifted to the\n *  host (which owns the fetch) so changing an axis can trigger a refetch. */\nexport interface DottedChartAxisConfig {\n  x: DottedChartXAxis;\n  y: DottedChartYAxis;\n  color: DottedChartColorAxis;\n}"
+  },
+  {
+    "name": "DottedChartCaseOrder",
+    "kind": "type",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/dotted-chart-rows.ts",
+    "code": "/** `start` is the engine's order: by first event timestamp. */\nexport type DottedChartCaseOrder = \"start\" | \"end\" | \"span\" | \"events\";"
   },
   {
     "name": "DottedChartData",
@@ -460,6 +481,13 @@
     "entry": "@r4pm/components",
     "file": "src/log-editor/EditableGrid.tsx",
     "code": "export interface GridRowModel {\n  rowId: string;\n}"
+  },
+  {
+    "name": "InMemoryVariant",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export interface InMemoryVariant {\n  activities: string[];\n  num_cases: number;\n  steps: StepTimeStats[];\n  /** The cases to list and overlay (may be a sample). */\n  cases: CaseTimeCurve[];\n}"
   },
   {
     "name": "Layout",
@@ -875,6 +903,27 @@
     "code": "export type OperatorType = ProcessTreeOperatorType;"
   },
   {
+    "name": "PagedList",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/use-paged-list.ts",
+    "code": "/** A searchable list whose rows are fetched a page at a time, see {@link usePagedList}. */\nexport interface PagedList<T> {\n  /** Search text as typed (requests use it after a short debounce). */\n  query: string;\n  setQuery: (query: string) => void;\n  /** Matching rows, or null until the first page for the current query arrives. */\n  total: number | null;\n  /** The row at `index`, or undefined while its page is loading. */\n  itemAt: (index: number) => T | undefined;\n  /** Ask for the rows in `[start, end)`, e.g. the visible window of a virtual list. */\n  requestRange: (start: number, end: number) => void;\n  loading: boolean;\n  error: unknown;\n}"
+  },
+  {
+    "name": "PagedListRequest",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/use-paged-list.ts",
+    "code": "export interface PagedListRequest {\n  query: string;\n  offset: number;\n  limit: number;\n}"
+  },
+  {
+    "name": "PagedPage",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/use-paged-list.ts",
+    "code": "export interface PagedPage<T> {\n  /** Rows matching the query, across all pages. */\n  total: number;\n  rows: T[];\n}"
+  },
+  {
     "name": "PetriElements",
     "kind": "type",
     "entry": "@r4pm/components/petri",
@@ -1057,6 +1106,20 @@
     "code": "export type SearchError = \"LimitReached\" | \"MemoryLimitReached\" | \"Unreachable\" | \"MaxEdgeCostTooLarge\";"
   },
   {
+    "name": "SearchSelectProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/SearchSelect.tsx",
+    "code": "export interface SearchSelectProps<T> {\n  /** All items, filtered here. Omit when `list` is given. */\n  items?: readonly T[];\n  /** Host-filtered, paged rows (see `usePagedList`) in place of `items`. Rows load as they scroll\n   *  into view. */\n  list?: PagedList<T>;\n  getKey: (item: T) => string;\n  /** Selected key, or null for none. */\n  value: string | null;\n  /** `index` is the item's position among the current (filtered) rows, -1 for the none row. */\n  onChange: (key: string | null, item: T | null, index: number) => void;\n  /** The selected item when it may not be among the loaded rows (with `list`). */\n  selectedItem?: T | null;\n  /** Prev/next for `list` mode, where the order lives with the host. */\n  onStep?: (delta: -1 | 1) => void;\n  canStep?: { prev: boolean; next: boolean };\n  /** Rows have a fixed height (`rowHeight`). */\n  renderItem: (item: T, state: SearchSelectRowState) => ReactNode;\n  /** Trigger content for the selected item (null when nothing is selected). Defaults to `renderItem`. */\n  renderValue?: (item: T | null) => ReactNode;\n  /** Text matched against the search tokens (all must occur, any order). */\n  searchText?: (item: T) => string;\n  /** Custom matcher instead of `searchText`: a score (higher ranks first, ties keep item order) or\n   *  null to hide the item. Provide this or `searchText` to show the search field. */\n  match?: (item: T, query: string) => number | null;\n  searchPlaceholder?: string;\n  /** Adds a first row that selects null, labelled with this content. */\n  noneOption?: ReactNode;\n  placeholder?: ReactNode;\n  /** Prev/next buttons next to the trigger that step through `items` in order. */\n  stepper?: boolean;\n  /** Content above the list, e.g. a sort control. */\n  header?: ReactNode;\n  /** Content below the list, e.g. \"showing the first 200\". */\n  footer?: ReactNode;\n  emptyText?: ReactNode;\n  rowHeight?: number;\n  maxListHeight?: number;\n  /** Defaults to the trigger width, at least 320px. */\n  popoverWidth?: string;\n  disabled?: boolean;\n  \"aria-label\"?: string;\n  /** Style applied to the trigger (to the trigger and its prev/next buttons with `stepper`). */\n  style?: CSSProperties;\n}"
+  },
+  {
+    "name": "SearchSelectRowState",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/SearchSelect.tsx",
+    "code": "export interface SearchSelectRowState {\n  selected: boolean;\n  highlighted: boolean;\n  /** Current search text, e.g. to highlight what matched. */\n  query: string;\n}"
+  },
+  {
     "name": "SelectionActionsProps",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -1118,6 +1181,13 @@
     "entry": "@r4pm/components",
     "file": "src/shared/StatCards.tsx",
     "code": "export type StatTone = \"good\" | \"bad\" | \"warn\" | \"neutral\";"
+  },
+  {
+    "name": "StepTimeStats",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export interface StepTimeStats {\n  min_ms: number;\n  p10_ms: number;\n  p25_ms: number;\n  median_ms: number;\n  p75_ms: number;\n  p90_ms: number;\n  max_ms: number;\n  mean_ms: number;\n}"
   },
   {
     "name": "SupportCtx",
@@ -1237,6 +1307,62 @@
     "entry": "@r4pm/components",
     "file": "src/shared/alignment-types.ts",
     "code": "export interface VariantAlignmentResult {\n  activities: string[];\n  frequency: number;\n  result: { Ok: AlignmentResult } | { Err: AlignmentError };\n}"
+  },
+  {
+    "name": "VariantPageRequest",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export interface VariantPageRequest {\n  /** Activities in order (ordered fuzzy match, see {@link matchVariant}) or `#<rank>`. */\n  query: string;\n  sort: VariantSort;\n  offset: number;\n  limit: number;\n}"
+  },
+  {
+    "name": "VariantProfileRequest",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export interface VariantProfileRequest {\n  activities: string[];\n  /** The sort `sort_position` refers to. */\n  variant_sort: VariantSort;\n  /** Tokens matched against the case id. */\n  case_query: string;\n  case_sort: CaseSort;\n  case_offset: number;\n  case_limit: number;\n  /** An exact case id: the page is just that case, and `focus_index` is its position. */\n  focus_case: string | null;\n}"
+  },
+  {
+    "name": "VariantSort",
+    "kind": "type",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export type VariantSort = \"Frequency\" | \"SlowestFirst\" | \"FastestFirst\" | \"LongestFirst\" | \"ShortestFirst\";"
+  },
+  {
+    "name": "VariantSummary",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export interface VariantSummary {\n  /** 0-based position by frequency. */\n  rank: number;\n  activities: string[];\n  num_cases: number;\n  /** Median time from case start to the last step. */\n  median_total_ms: number;\n  /** Activity indices the query matched. */\n  matched: number[];\n}"
+  },
+  {
+    "name": "VariantTimeProfile",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "/** One variant's timing over all its cases, plus one page of those cases. */\nexport interface VariantTimeProfile {\n  rank: number;\n  /** Position in `variant_sort` order. */\n  sort_position: number;\n  activities: string[];\n  num_cases: number;\n  /** One entry per step, aligned with `activities`: elapsed time since case start. */\n  steps: StepTimeStats[];\n  /** Cases matching the case query. */\n  cases_total: number;\n  cases: CaseTimeCurve[];\n  /** Position of `focus_case` in `case_sort` order. */\n  focus_index?: number | null;\n}"
+  },
+  {
+    "name": "VariantTimeProfileChartProps",
+    "kind": "type",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile.tsx",
+    "code": "export type VariantTimeProfileChartProps = VariantTimingLoaders;"
+  },
+  {
+    "name": "VariantTimingLoaders",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "/** Argument shapes match the engine bindings. */\nexport interface VariantTimingLoaders {\n  loadVariants: (req: VariantPageRequest) => Promise<VariantTimingPage>;\n  loadProfile: (req: VariantProfileRequest) => Promise<VariantTimeProfile | null>;\n}"
+  },
+  {
+    "name": "VariantTimingPage",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/variant-time-profile-data.ts",
+    "code": "export interface VariantTimingPage {\n  /** Variants matching the query. */\n  total: number;\n  num_variants: number;\n  num_timed_cases: number;\n  num_untimed_cases: number;\n  rows: VariantSummary[];\n}"
   },
   {
     "name": "VectorExportSource",

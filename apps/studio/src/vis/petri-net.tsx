@@ -4,14 +4,14 @@ import {
   DEFAULT_MINER,
   discoverPetriNet,
   type MinerChoice,
-  type MinerVariant,
   minerChoice,
+  PETRI_NET_VARIANTS,
 } from "./_discovery";
 import { defineResolvedVis } from "./define-vis";
 import { MinerPicker } from "./components/MinerPicker";
 import { PetriNetPanel } from "./components/PetriNetPanel";
 
-const VARIANTS: readonly MinerVariant[] = ["IM", "IMf", "IMa", "IMd", "IMfd", "Alpha"];
+const VARIANTS = PETRI_NET_VARIANTS;
 
 export const vis = defineResolvedVis({
   type: "petriNet",

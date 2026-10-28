@@ -1,7 +1,7 @@
 import type { LogAlignments } from "@r4pm/components";
 import { FitnessView, LoadingState, type ViewerProps } from "@r4pm/components";
 import { PiCheckCircle } from "react-icons/pi";
-import { AlignmentModelBar, alignmentResolve, type ModelSource } from "./_alignment";
+import { AlignmentModelBar, alignmentResolve, useMissingModel, type ModelSource } from "./_alignment";
 import { defineResolvedVis } from "./define-vis";
 
 // Renders the fitness aggregate from a full alignment result; loading until it is computed.
@@ -12,7 +12,7 @@ function ConformanceView({ data }: ViewerProps<LogAlignments>) {
 export const vis = defineResolvedVis({
   type: "conformance",
   name: "Conformance",
-  description: "Alignment fitness of the log vs. a discovered net.",
+  description: "Alignment fitness of the log vs. a saved Petri net.",
   category: "conformance",
   icon: PiCheckCircle,
   supports: ["EventLog"],
@@ -20,8 +20,10 @@ export const vis = defineResolvedVis({
   order: 8,
   viewer: false,
   deferred: true,
-  controls: { initial: null as ModelSource | null },
+  controls: { initial: null as ModelSource | null, useMissing: useMissingModel },
   source: { needs: "EventLog", resolve: alignmentResolve },
-  panelControlsBar: (controls, set) => <AlignmentModelBar value={controls} onChange={set} />,
+  panelControlsBar: (controls, set, datasetId) => (
+    <AlignmentModelBar value={controls} onChange={set} datasetId={datasetId} />
+  ),
   component: ConformanceView,
 });

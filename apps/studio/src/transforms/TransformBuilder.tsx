@@ -265,6 +265,15 @@ function formatDurationMs(ms: number): string {
   return `${Math.round(d * 10) / 10}d`;
 }
 
+/** `<source> / <first step>: <its summary> (+N more)` for the output of `steps`. */
+export function suggestOutName(steps: Transform[], sourceLabel?: string): string {
+  const first = steps[0];
+  const op = first
+    ? `${getTransformLabel(stepPaletteType(first))}: ${summarizeTransform(first)}${steps.length > 1 ? ` (+${steps.length - 1} more)` : ""}`
+    : "transformed";
+  return sourceLabel ? `${sourceLabel} / ${op}` : op;
+}
+
 function summarizeTransform(t: Transform): string {
   switch (t.type) {
     case "FilterActivities":
@@ -353,6 +362,7 @@ export function TransformBuilder({
   backend,
   datasetName,
   objectType,
+  sourceLabel,
   onResult,
   value,
   onChange,
@@ -360,6 +370,9 @@ export function TransformBuilder({
   backend: BackendContext;
   datasetName: string;
   objectType: "EventLog" | "OCEL";
+  /** Prefixes the suggested output name. */
+  sourceLabel?: string;
+  /** `outName` falls back to the suggested name when the field is empty. */
   onResult?: (handle: string, outName: string) => void;
   /** Controlled config; provide with `onChange` to lift state out for persistence. Omit both for uncontrolled use. */
   value?: TransformBuilderValue;
@@ -369,7 +382,7 @@ export function TransformBuilder({
   const ocelHandle = datasetName as SlimLinkedOCELHandle;
 
   const [innerTransforms, setInnerTransforms] = useState<TransformWithID[]>([]);
-  const [innerOutName, setInnerOutName] = useState("transformed");
+  const [innerOutName, setInnerOutName] = useState("");
   const controlled = value !== undefined && onChange !== undefined;
   const transforms = controlled ? value.transforms : innerTransforms;
   const outName = controlled ? value.outName : innerOutName;
@@ -552,6 +565,10 @@ export function TransformBuilder({
   };
 
   const enabledCount = transforms.filter((t) => t.enabled).length;
+  const suggestedName = suggestOutName(
+    transforms.filter((t) => t.enabled).map((t) => t.value),
+    sourceLabel,
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -866,6 +883,8 @@ export function TransformBuilder({
         <TextField.Root
           size="2"
           value={outName}
+          placeholder={suggestedName}
+          title={outName.trim() ? undefined : `Leave empty to use "${suggestedName}"`}
           onChange={(e) => setOutName(e.currentTarget.value)}
           className="!w-44"
         />
@@ -904,7 +923,7 @@ export function TransformBuilder({
         <div className="flex-1" />
         <Button
           size="3"
-          disabled={!datasetName || enabledCount === 0 || !outName.trim()}
+          disabled={!datasetName || enabledCount === 0}
           onClick={async () => {
             const enabled = transforms.filter((t) => t.enabled).map((t) => t.value);
             const call: Promise<string> =
@@ -927,7 +946,7 @@ export function TransformBuilder({
               success: "Transforms applied!",
               error: (e) => `Failed: ${e}`,
             });
-            onResult?.(handle as string, outName.trim());
+            onResult?.(handle as string, outName.trim() || suggestedName);
           }}
         >
           Apply {enabledCount} Transform{enabledCount !== 1 ? "s" : ""}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterByQuery, selectTopN, sortByCountDesc, toggle } from "./selection";
+import { matchesQuery } from "../ui/SearchSelect";
 
 const items = [
   { key: "review", count: 3 },
@@ -23,5 +24,13 @@ describe("selection helpers", () => {
     const b = toggle(a, "x");
     expect(b.has("x")).toBe(false);
     expect(a.has("x")).toBe(true);
+  });
+});
+
+describe("matchesQuery", () => {
+  it("requires every token, in any order, ignoring case", () => {
+    expect(matchesQuery("Create Fine > Send Fine", "send create")).toBe(true);
+    expect(matchesQuery("Create Fine > Send Fine", "send payment")).toBe(false);
+    expect(matchesQuery("anything", "   ")).toBe(true);
   });
 });

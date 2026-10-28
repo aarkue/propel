@@ -98,6 +98,7 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `PetriNetSimulator` | `@r4pm/components` | Viewers | fills parent | Petri Net Simulator |
 | `ProcessTreeViewer` | `@r4pm/components` | Viewers | fills parent | Process Tree |
 | `ThemedPlot` | `@r4pm/components/charts` | Viewers | fills parent | Themed Plot |
+| `VariantTimeProfileChart` | `@r4pm/components/charts` | Viewers | fills parent | Variant Time Profile |
 | `EditableGrid` | `@r4pm/components` | Editors | content-sized | Editable Grid |
 | `EventLogEditor` | `@r4pm/components` | Editors | fills parent | Event Log Creator |
 | `BlueprintGraph` | `@r4pm/components/extraction-blueprint` | Editors | fills parent | Extraction Blueprint |
@@ -122,6 +123,7 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `NumberField` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Number Field |
 | `ObjectCentricSequence` | `@r4pm/components` | Inputs & Primitives | content-sized | Object-Centric Sequence |
 | `RankedBarList` | `@r4pm/components` | Inputs & Primitives | content-sized | Ranked Bar List |
+| `SearchSelect` | `@r4pm/components/ui` | Inputs & Primitives | fills parent | Search Select |
 | `SelectionActions` | `@r4pm/components` | Inputs & Primitives | content-sized | Selection Actions |
 | `StatCards` | `@r4pm/components` | Inputs & Primitives | content-sized | Stat Cards |
 | `TraceAlignmentStrip` | `@r4pm/components` | Inputs & Primitives | content-sized | Trace Alignment Strip |

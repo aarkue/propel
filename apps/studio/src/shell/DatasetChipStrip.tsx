@@ -69,6 +69,7 @@ function DatasetChip({
       id={id}
       label={label}
       kind={kind}
+      provenance={provenance}
       testId={`dataset-chip-${id}`}
       onRename={(l) => renameDataset(id, l)}
     >

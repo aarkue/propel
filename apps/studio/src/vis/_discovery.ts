@@ -28,6 +28,8 @@ export interface MinerChoice {
   tweaks: Record<string, boolean>;
 }
 
+export const PETRI_NET_VARIANTS: readonly MinerVariant[] = ["IM", "IMf", "IMa", "IMd", "IMfd", "Alpha"];
+
 export const DEFAULT_MINER: MinerChoice = { variant: "IMf", noise: 0.2, preset: "default", tweaks: {} };
 
 export const usesNoise = (v: MinerVariant) => v === "IMf" || v === "IMa" || v === "IMfd";

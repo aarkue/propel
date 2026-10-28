@@ -70,6 +70,7 @@ function ArtifactChip({
       id={id}
       label={label}
       kind={kind}
+      provenance={provenance}
       testId={`artifact-chip-${id}`}
       onRename={(l) => renameArtifact(id, l)}
     >

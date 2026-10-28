@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -12,12 +13,16 @@ import {
  *  {@link useViewSetting} degrades to plain `useState`. */
 interface ViewStateContextValue {
   viewState: Record<string, unknown> | undefined;
-  onViewStateChange: ((next: Record<string, unknown>) => void) | undefined;
+  /** Merges into the latest state, including writes the host has not echoed back yet. */
+  setKey: ((key: string, value: unknown) => void) | undefined;
+  /** Latest value of `key`, including not yet echoed writes. */
+  latest: (key: string) => unknown;
 }
 
 const ViewStateContext = createContext<ViewStateContextValue>({
   viewState: undefined,
-  onViewStateChange: undefined,
+  setKey: undefined,
+  latest: () => undefined,
 });
 
 export function ViewStateProvider({
@@ -29,19 +34,39 @@ export function ViewStateProvider({
   onViewStateChange?: (next: Record<string, unknown>) => void;
   children: ReactNode;
 }) {
-  const value = useMemo(() => ({ viewState, onViewStateChange }), [viewState, onViewStateChange]);
+  // Two setters in one handler (e.g. pick a variant, clear its case) both run before the host
+  // re-renders. Spreading the rendered `viewState` would let the second drop the first.
+  const pending = useRef(viewState);
+  const seen = useRef(viewState);
+  if (seen.current !== viewState) {
+    seen.current = viewState;
+    pending.current = viewState;
+  }
+  const value = useMemo<ViewStateContextValue>(
+    () => ({
+      viewState,
+      setKey: onViewStateChange
+        ? (key, v) => {
+            pending.current = { ...pending.current, [key]: v };
+            onViewStateChange(pending.current);
+          }
+        : undefined,
+      latest: (key) => pending.current?.[key],
+    }),
+    [viewState, onViewStateChange],
+  );
   return <ViewStateContext.Provider value={value}>{children}</ViewStateContext.Provider>;
 }
 
 /** Drop-in for `useState(initial)` that persists in the host view-state when one is provided. */
 export function useViewSetting<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
-  const { viewState, onViewStateChange } = useContext(ViewStateContext);
+  const { viewState, setKey, latest } = useContext(ViewStateContext);
   const [local, setLocal] = useState<T>(() => (viewState?.[key] as T | undefined) ?? initial);
-  if (!onViewStateChange) return [local, setLocal];
+  if (!setKey) return [local, setLocal];
   const value = (viewState?.[key] as T | undefined) ?? initial;
   const set: Dispatch<SetStateAction<T>> = (next) => {
-    const resolved = typeof next === "function" ? (next as (prev: T) => T)(value) : next;
-    onViewStateChange({ ...viewState, [key]: resolved });
+    const prev = (latest(key) as T | undefined) ?? initial;
+    setKey(key, typeof next === "function" ? (next as (prev: T) => T)(prev) : next);
   };
   return [value, set];
 }

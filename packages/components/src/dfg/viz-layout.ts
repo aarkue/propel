@@ -1,3 +1,4 @@
+import type { TypeBadge } from "../shared/type-badges";
 import { pointAlong } from "../ocel-type-graph/type-graph";
 import {
   type Dfg,
@@ -270,10 +271,13 @@ export function arcLooks(
     const v = computeMetricValue(a, metric, sourceCount(a));
     if (v != null) values.set(a.key, v);
   }
-  const all = [...values.values()];
-  const lo = all.length > 0 ? Math.min(...all) : 0;
-  const hi = all.length > 0 ? Math.max(...all) : 1;
-  const maxCount = Math.max(1, ...arcs.map((a) => a.count));
+  let lo = values.size > 0 ? Number.POSITIVE_INFINITY : 0;
+  let hi = values.size > 0 ? Number.NEGATIVE_INFINITY : 1;
+  for (const v of values.values()) {
+    lo = Math.min(lo, v);
+    hi = Math.max(hi, v);
+  }
+  const maxCount = arcs.reduce((m, a) => Math.max(m, a.count), 1);
   const perf = isPerformanceMetric(metric);
   const out = new Map<string, ArcLook>();
   for (const a of arcs) {
@@ -304,6 +308,8 @@ const nodeRef = (id: string): DfgNodeRef =>
 export interface DfgView {
   direction: "TB" | "LR";
   routing?: DfgRouting;
+  /** Object types drawn as a row at the bottom of an activity; rust4pm makes room for them. */
+  badges?: Record<string, TypeBadge[]>;
 }
 
 /** rust4pm's build options (`DfgBuildOptions` / `OcdfgBuildOptions`): the view, the object types
@@ -331,6 +337,7 @@ export function dfgBuildOptions(
     direction: view.direction === "LR" ? "leftright" : "topbottom",
     ...(shown.kind === "ocdfg" ? { object_types: shown.types } : {}),
     annotations: { nodes, edges },
+    ...(view.badges ? { badges: view.badges } : {}),
     layout_patch: view.routing ? { routing: { style: view.routing } } : null,
   };
 }

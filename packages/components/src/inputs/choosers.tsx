@@ -9,43 +9,9 @@ import {
 } from "react";
 import { PiCaretDown, PiCheck, PiMagnifyingGlass, PiPlus } from "react-icons/pi";
 import { FrequencyPicker, type FrequencyPickerProps } from "./FrequencyPicker";
+import { kindColor, kindLabel } from "../shared/kinds";
 
 type BadgeColor = ComponentProps<typeof Badge>["color"];
-
-// Friendly, source-agnostic labels for engine kinds.
-const KIND_LABEL: Record<string, string> = {
-  EventLog: "Event Log",
-  OCEL: "OCEL",
-  SlimLinkedOCEL: "OCEL",
-  IndexLinkedOCEL: "OCEL",
-};
-// Colors deliberately off the indigo app accent, so the chip stays legible on the
-// Select's accent-highlighted (blue) row as well as on a plain white row.
-const KIND_COLOR: Record<string, BadgeColor> = {
-  EventLog: "amber",
-  OCEL: "jade",
-  SlimLinkedOCEL: "jade",
-  IndexLinkedOCEL: "jade",
-};
-// Deterministic, off-accent fallback so an unrecognized kind still gets a stable, distinct color.
-const FALLBACK_KIND_COLORS: BadgeColor[] = [
-  "tomato",
-  "cyan",
-  "plum",
-  "orange",
-  "grass",
-  "pink",
-  "ruby",
-  "teal",
-];
-function hashKind(kind: string): number {
-  let h = 0;
-  for (let i = 0; i < kind.length; i++) h = (h * 31 + kind.charCodeAt(i)) >>> 0;
-  return h;
-}
-const defaultKindLabel = (k: string): string => KIND_LABEL[k] ?? k;
-const defaultKindColor = (k: string): BadgeColor =>
-  KIND_COLOR[k] ?? FALLBACK_KIND_COLORS[hashKind(k) % FALLBACK_KIND_COLORS.length];
 
 type PickerPassthrough = Pick<
   FrequencyPickerProps,
@@ -127,8 +93,8 @@ export function DatasetSelector({
   const [highlight, setHighlight] = useState(0);
   const listId = useId();
 
-  const colorOf = (k: string): BadgeColor => colorForKind?.(k) ?? defaultKindColor(k);
-  const labelOf = (k: string): string => labelForKind?.(k) ?? defaultKindLabel(k);
+  const colorOf = (k: string): BadgeColor => colorForKind?.(k) ?? kindColor(k);
+  const labelOf = (k: string): string => labelForKind?.(k) ?? kindLabel(k);
   const compatible = (k: string): boolean => !accept || accept.includes(k);
   const acceptKinds = accept ? [...new Set(accept)] : [];
   const acceptLabels = [...new Set(acceptKinds.map(labelOf))];

@@ -100,40 +100,38 @@
   .petri-net-editor.readonly .delete-button {
     display: none !important;
   }
- .petri-net-editor .place-node > .delete-button,
- .petri-net-editor .transition-node > .delete-button,
- .petri-net-editor .edge > .delete-button {
+ /* Delete affordance: hidden until its node or arc is hovered or selected. */
+ .petri-net-editor .delete-button {
     display: none;
+    position: relative;
+    z-index: 20;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 1px solid var(--r4pm-border-subtle);
+    border-radius: 9999px;
+    background-color: var(--r4pm-control-bg);
+    box-shadow: 0 1px 3px var(--r4pm-shadow-sm);
+    stroke: #dc3e42;
+    cursor: pointer;
+  }
+ .petri-net-editor .place-node > .delete-button,
+ .petri-net-editor .transition-node > .delete-button {
     position: absolute;
-    top: -0.5rem;
+    top: -8px;
     left: 50%;
     transform: translateX(-50%);
-    stroke: red;
-    border: none;
-    border-radius: 90000px;
-    background-color: transparent;
-    width: 0.75rem;
-    height: 0.75rem;
-    font-family: Consolas, "Andale Mono WT", "Andale Mono", "Lucida Console",
-      "Lucida Sans Typewriter", "DejaVu Sans Mono", "Bitstream Vera Sans Mono",
-      "Liberation Mono", "Nimbus Mono L", Monaco, "Courier New", Courier,
-      monospace;
-    padding: 0;
-    background-color: #f038383a;
   }
  .petri-net-editor .node:hover > .delete-button,
  .petri-net-editor .node.selected > .delete-button,
- .petri-net-editor .edge.selected > .delete-button,
- .petri-net-editor .delete-button:hover {
-    z-index: 20;
-    cursor: pointer;
+ .petri-net-editor .edge.hovered > .delete-button,
+ .petri-net-editor .edge.selected > .delete-button {
     display: block;
   }
- .petri-net-editor .place-node > .delete-button:hover,
- .petri-net-editor .transition-node > .delete-button:hover,
- .petri-net-editor .edge > .delete-button:hover {
-    background-color: #f0383893;
-    stroke: rgb(130, 0, 0);
+ .petri-net-editor .delete-button:hover {
+    background-color: #dc3e42;
+    border-color: #dc3e42;
+    stroke: #ffffff;
   }
 
   /* Clean, compact zoom/fit controls. */

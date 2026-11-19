@@ -1,15 +1,16 @@
-import { useCallback, useMemo } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 import { FrequencyPicker } from "../inputs/FrequencyPicker";
 import { useViewSetting } from "../viewer/view-state";
 import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
 import type { Dfg, OcDfg } from "../viz/types";
-import { DfgGraph } from "./DfgGraph";
+import { type ActivityBadge, DfgGraph } from "./DfgGraph";
 import { shadeHex } from "./util/colors";
 import type { DfgMetric } from "./util/dfg-model";
 import type { DfPerformance, OcelDfPerformance } from "./util/performance-types";
 import { caseArcs, type DfgSource, ocActivityCounts, ocArcs } from "./viz-layout";
 
 export type { Dfg, OcDfg } from "../viz/types";
+export type { DfgSource } from "./viz-layout";
 export type { DfArcDuration, DfPerformance, OcelDfPerformance } from "./util/performance-types";
 
 /** Extra props for the case-centric DFG viewer. `performance` enables the frequency/performance toggle and duration heatmap; omit to show frequency only. */
@@ -53,6 +54,10 @@ export interface OCDFGViewerProps extends ViewerProps<OcDfg> {
   performance?: OcelDfPerformance;
   /** Objects per object type, to rank the object-type chips. Without it they rank by arc count. */
   objectCounts?: Record<string, number>;
+  /** Object types drawn as dots on activities, e.g., a Reflow mapping's non-flow types. */
+  badges?: Record<string, ActivityBadge[]>;
+  /** Extra UI floating in the top-left corner, e.g., an annotation picker. */
+  topLeftExtra?: ReactNode;
 }
 
 /** The summed count of an object type's arcs. */
@@ -67,7 +72,7 @@ function arcTotal(dfg: Dfg | undefined): number {
 }
 
 export function OCDFGViewer(props: OCDFGViewerProps) {
-  const { data, performance, objectCounts } = props;
+  const { data, performance, objectCounts, badges, topLeftExtra } = props;
   const cfg = useViewerConfig(props);
   const [metric, setMetric] = useViewSetting<DfgMetric>("metric", "count");
   const actHex = useCallback((act: string) => cfg.colorOf?.("activity", act) ?? "#888888", [cfg.colorOf]);
@@ -138,6 +143,8 @@ export function OCDFGViewer(props: OCDFGViewerProps) {
       typeColor={otColor}
       formatDuration={cfg.format?.duration}
       topRightExtra={chips}
+      topLeftExtra={topLeftExtra}
+      badges={badges}
       onSelect={cfg.onSelect}
       actions={cfg.actions}
       onElementContextMenu={cfg.onElementContextMenu}
@@ -146,3 +153,4 @@ export function OCDFGViewer(props: OCDFGViewerProps) {
     />
   );
 }
+export { DfgDiffViewer, type DfgDiffViewerProps, type DfgComparison, type ComparedArc } from "./DfgDiff";

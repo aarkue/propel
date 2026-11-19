@@ -7,13 +7,16 @@ import { BackendContext } from "../../BackendContext";
 import { NodeWrapper } from "./NodeWrapper";
 import { getTypeColor } from "./utils";
 
-/** Importable artifact kinds offered by the file-import node. Kept local so the pipeline package
- *  stays decoupled from the studio's `io-kinds`. Mirrors that list (PetriNet/PNML is the first). */
+/** Model kinds the file-import node reads; its output is the model's JSON value. */
 export const FILE_IMPORT_KINDS = [
   {
-    kind: "PetriNet",
+    kind: "AcceptingPetriNet",
+    label: "Petri net",
     returnType: "AcceptingPetriNet",
-    formats: [{ extension: "pnml", mime: "text/plain" }],
+    formats: [
+      { extension: "pnml", mime: "text/plain" },
+      { extension: "apnml", mime: "text/plain" },
+    ],
   },
 ] as const;
 
@@ -38,23 +41,18 @@ export function FileImportNode({ id, data, selected }: NodeProps<FileImportNode>
 
   const kind = FILE_IMPORT_KINDS.find((k) => k.kind === data.kind) ?? FILE_IMPORT_KINDS[0];
   const color = getTypeColor({ "x-registry-ref": kind.returnType });
-  // Stable per-node artifact id so re-importing overwrites this node's prior value.
-  const artifactId = `fileimport-${id}`;
-
-  const afterLoad = async (label: string) => {
-    const value = await backend.getArtifact(artifactId);
+  const afterLoad = (value: unknown, label: string) => {
     updateNodeData(id, { value, returnType: kind.returnType, label });
   };
 
   const pick = async () => {
     try {
-      if (backend.pickFiles && backend.loadArtifactPath) {
+      if (backend.pickFiles && backend.readModelPath) {
         const exts = kind.formats.map((f) => f.extension);
-        const paths = await backend.pickFiles({ filters: [{ name: kind.kind, extensions: [...exts] }] });
+        const paths = await backend.pickFiles({ filters: [{ name: kind.label, extensions: [...exts] }] });
         const path = paths?.[0];
         if (!path) return;
-        await backend.loadArtifactPath(artifactId, kind.kind, path);
-        await afterLoad(path.split(/[\\/]/).pop() ?? path);
+        afterLoad(await backend.readModelPath(kind.kind, path), path.split(/[\\/]/).pop() ?? path);
       } else {
         inputRef.current?.click();
       }
@@ -68,8 +66,7 @@ export function FileImportNode({ id, data, selected }: NodeProps<FileImportNode>
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const ext = file.name.split(".").pop() ?? kind.formats[0].extension;
-      await backend.loadArtifactBytes(artifactId, kind.kind, bytes, ext);
-      await afterLoad(file.name);
+      afterLoad(await backend.readModel(kind.kind, bytes, ext), file.name);
     } catch (e) {
       toast.error(`Import failed: ${String(e)}`);
     }
@@ -105,7 +102,7 @@ export function FileImportNode({ id, data, selected }: NodeProps<FileImportNode>
         <Select.Content>
           {FILE_IMPORT_KINDS.map((k) => (
             <Select.Item key={k.kind} value={k.kind}>
-              {k.kind}
+              {k.label}
             </Select.Item>
           ))}
         </Select.Content>

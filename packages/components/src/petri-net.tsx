@@ -85,6 +85,16 @@ export interface ElementPresentation extends ElementInteractions {
   label?: string;
   /** Replace the element's inner content entirely (e.g. an icon). */
   renderContent?: () => ReactNode;
+  /** SVG markup the exported image draws over a transition, in the image's coordinates, e.g., what
+   *  `renderContent` adds on screen. `box` is the transition's bounds. */
+  exportDecoration?: (box: SvgBox) => string;
+}
+/** A node's bounds in the exported image: its top-left corner and size. */
+export interface SvgBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 /** What a place resolver returns; adds marking controls. */
 export interface PlacePresentation extends ElementInteractions {
@@ -195,6 +205,7 @@ export function applyOverlay(
           style: pres?.style,
           className: pres?.className,
           renderContent: pres?.renderContent,
+          exportDecoration: pres?.exportDecoration,
           onClick: pres?.onClick,
           onContextMenu: pres?.onContextMenu,
         },

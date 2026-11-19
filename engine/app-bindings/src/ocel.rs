@@ -2,6 +2,7 @@
 //! `OCELHandle`; where the indexed `LinkedOCELAccess` API is needed, we build a `SlimLinkedOCEL` in-place.
 use std::collections::{HashMap, HashSet};
 
+use process_mining::analysis::durations::summarize;
 use process_mining::bindings::register_binding;
 use process_mining::core::chrono::DateTime;
 use process_mining::core::event_data::object_centric::linked_ocel::slim_linked_ocel::ObjectIndex;
@@ -808,7 +809,7 @@ pub fn get_ocel_attribute_summary(
             *freq.entry(v.clone()).or_default() += 1;
         }
         let mut top_values: Vec<(String, usize)> = freq.into_iter().collect();
-        top_values.sort_by(|a, b| b.1.cmp(&a.1));
+        top_values.sort_by_key(|x| std::cmp::Reverse(x.1));
         top_values.truncate(100);
 
         OcelAttributeSummary {
@@ -993,7 +994,7 @@ fn pair_relations(
                 .into_iter()
                 .map(|(qualifier, count)| OcelTypeQualifierCount { qualifier, count })
                 .collect();
-            qualifiers.sort_by(|a, b| b.count.cmp(&a.count));
+            qualifiers.sort_by_key(|x| std::cmp::Reverse(x.count));
             let distinct_qualifiers = qualifiers.len();
             let total: usize = qualifiers.iter().map(|q| q.count).sum();
             let other = if qualifiers.len() > max_qualifiers_per_pair {
@@ -1085,34 +1086,15 @@ pub fn get_ocel_df_performance(ocel: &SlimLinkedOCEL) -> OcelDfPerformance {
     for (ob_type, pairs) in arc_durations {
         let mut arcs: Vec<DfArcDuration> = pairs
             .into_iter()
-            .map(|((source, target), mut durations)| {
-                durations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                let count = durations.len();
-                let min_ms = durations[0];
-                let max_ms = durations[count - 1];
-                let mean_ms = durations.iter().sum::<f64>() / count as f64;
-                let median_ms = if count % 2 == 0 {
-                    (durations[count / 2 - 1] + durations[count / 2]) / 2.0
-                } else {
-                    durations[count / 2]
-                };
-                let p90_idx = ((0.9 * count as f64).ceil() as usize)
-                    .saturating_sub(1)
-                    .min(count - 1);
-                let p90_ms = durations[p90_idx];
-                DfArcDuration {
+            .filter_map(|((source, target), mut durations)| {
+                Some(DfArcDuration::new(
                     source,
                     target,
-                    count,
-                    min_ms,
-                    max_ms,
-                    mean_ms,
-                    median_ms,
-                    p90_ms,
-                }
+                    summarize(&mut durations)?,
+                ))
             })
             .collect();
-        arcs.sort_by(|a, b| b.count.cmp(&a.count));
+        arcs.sort_by_key(|x| std::cmp::Reverse(x.count));
         result.arcs_per_object_type.insert(ob_type, arcs);
     }
     result

@@ -1,11 +1,28 @@
 import type { ComponentType, ReactNode } from "react";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import type { IDockviewPanelProps } from "dockview";
 import type { IconType } from "react-icons";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { BackendContext, BindingId, Bindings, ReturnTypeShape, ReturnTypeTitle } from "@r4pm/client";
-import { BINDING_RETURN_TYPE } from "@r4pm/client";
-import { EmptyState, ErrorState, LoadingState, ViewStateProvider, type ViewerProps } from "@r4pm/components";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+  BackendContext,
+  BindingId,
+  Bindings,
+  CallOptions,
+  RegistryKind,
+  ReturnTypeShape,
+  ReturnTypeTitle,
+} from "@r4pm/client";
+import { BINDING_RETURN_TYPE, isCancelled } from "@r4pm/client";
+import {
+  EmptyState,
+  ErrorState,
+  JobProgressCard,
+  JobProgressStrip,
+  LoadingState,
+  PartialResultStrip,
+  ViewStateProvider,
+  type ViewerProps,
+} from "@r4pm/components";
 import { Button, Flex, Text } from "@r4pm/components/ui";
 import { PiArrowsClockwise } from "react-icons/pi";
 import type { PanelCategory, PanelDefinition } from "../panels/types";
@@ -13,6 +30,10 @@ import type { ViewerDef, ViewerRenderProps } from "../viewers";
 import { backend } from "../backends";
 import { useDatasetSelection } from "../panels/active-datasets";
 import { usePanelState } from "../panels/panel-state";
+import { PanelFrame } from "../panels/panel-header";
+import { JOB_UNITS } from "../shell/job-units";
+import { labelForKind } from "../shell/object-colors";
+import { useJobProgress } from "./components/use-job";
 
 /**
  * Single source of truth for a visualization. ONE `defineVis(...)` emits both a dockview
@@ -34,6 +55,10 @@ import { usePanelState } from "../panels/panel-state";
 export interface VisCtx {
   datasetId: string;
   backend: BackendContext;
+  /** Options for the long calls of a run, so the panel shows their progress and can cancel them. */
+  job?: CallOptions;
+  /** Show a partial result (the component's data) while the run goes on. */
+  showPartial?: (data: unknown) => void;
 }
 
 /**
@@ -68,20 +93,20 @@ type Bar<C> = (controls: C, set: (c: C) => void, datasetId: string) => ReactNode
 // Dataset kind a panel selects, e.g. "EventLog" / "OCEL".
 interface BindingSource0<B extends BindingId> {
   binding: B;
-  needs: string;
+  needs: RegistryKind;
   args: (ctx: VisCtx) => Bindings[B]["args"];
 }
 interface BindingSourceC<B extends BindingId, C> {
   binding: B;
-  needs: string;
+  needs: RegistryKind;
   args: (ctx: VisCtx, controls: C) => Bindings[B]["args"];
 }
 interface ResolveSource0<R> {
-  needs: string;
+  needs: RegistryKind;
   resolve: (ctx: VisCtx) => Promise<R>;
 }
 interface ResolveSourceC<R, C> {
-  needs: string;
+  needs: RegistryKind;
   resolve: (ctx: VisCtx, controls: C) => Promise<R>;
 }
 
@@ -99,7 +124,7 @@ interface VisMeta {
   icon: IconType;
   order?: number;
   tags?: PanelCategory[];
-  supports?: string[];
+  supports?: RegistryKind[];
   keywords?: string[];
   genericExport?: boolean;
   hidden?: boolean;
@@ -134,19 +159,6 @@ interface AnyVis extends VisMeta {
  *  viewer has no backend). Use for an overlay the pipeline can't supply, e.g. a DFG performance map.
  *  Loosely typed: the keys must match the component's extra props (verified by reading the call). */
 type ExtraProps = (ctx: VisCtx) => Promise<Record<string, unknown>>;
-
-const frameStyle = { height: "100%", width: "100%", display: "flex", flexDirection: "column" } as const;
-
-function Frame({ bars, body, testid }: { bars: ReactNode; body: ReactNode; testid?: string }) {
-  return (
-    <div data-testid={testid} style={frameStyle}>
-      {bars}
-      <div data-export-root style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        {body}
-      </div>
-    </div>
-  );
-}
 
 function returnTypeOf(source: AnySource): ReturnTypeTitle | null {
   if (!source) return null;
@@ -195,8 +207,6 @@ function sameInputs(a: RunInputs | null, b: RunInputs | null): boolean {
   return a?.id === b?.id && JSON.stringify(a?.c) === JSON.stringify(b?.c);
 }
 
-const barsRowStyle = { display: "flex", flexWrap: "wrap", alignItems: "stretch" } as const;
-
 // Stable empty default so an unset view-state doesn't churn the provider value each render.
 const EMPTY_VIEW_STATE: Record<string, unknown> = {};
 
@@ -205,12 +215,14 @@ function makeDataPanelComponent(
   source: NonNullable<AnySource>,
 ): ComponentType<IDockviewPanelProps> {
   const Inner = spec.component;
-  const { transform, controls, panelControlsBar, panelActions, extraProps, deferred } = spec;
+  const { transform, controls, panelControlsBar, panelActions, extraProps } = spec;
   const isBinding = "binding" in source;
   return function VisPanel(props: IDockviewPanelProps) {
     const { id, selector } = useDatasetSelection(source.needs, props);
     const [c, setC] = usePanelState(props, "controls", controls?.initial);
     const [viewState, setViewState] = usePanelState(props, "viewState", EMPTY_VIEW_STATE);
+    // A panel opened with `autorun` (a demo) runs right away.
+    const deferred = spec.deferred && !props.params?.autorun;
     // Committed inputs that actually ran (deferred only). For non-deferred panels the live inputs
     // ARE the committed inputs, so the source runs immediately as before.
     const [ran, setRan] = useState<RunInputs | null>(null);
@@ -220,19 +232,73 @@ function makeDataPanelComponent(
     const stale = !!(deferred && ran && (!live || !sameInputs(ran, live)));
 
     const ctx: VisCtx | undefined = active ? { datasetId: active.id, backend } : undefined;
+    const queryClient = useQueryClient();
+    const jobs = useJobProgress();
+    const [cancelled, setCancelled] = useState(false);
+    const queryKey = [spec.type, active?.id, active?.c];
+    const keyText = JSON.stringify(queryKey);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: new inputs end the cancelled state
+    useEffect(() => setCancelled(false), [keyText]);
+    // Our own abort instead of React Query's signal: StrictMode mounts twice in development, and a
+    // consumed signal would abort the first run and start the same work again.
+    const abort = useRef<AbortController | null>(null);
+    const mounted = useRef(false);
+    const keyRef = useRef(queryKey);
+    keyRef.current = queryKey;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: reads the latest key through a ref
+    useEffect(() => {
+      mounted.current = true;
+      return () => {
+        mounted.current = false;
+        // Closing the panel stops its work, unless a remount right after (StrictMode) or another
+        // panel showing the same result still waits for it.
+        setTimeout(() => {
+          const waiting =
+            queryClient.getQueryCache().find({ queryKey: keyRef.current })?.getObserversCount() ?? 0;
+          if (!mounted.current && waiting === 0) abort.current?.abort();
+        });
+      };
+    }, []);
     const query = useQuery({
-      queryKey: [spec.type, active?.id, active?.c],
-      enabled: !!active,
-      // Keep the previous result visible (dimmed) while a Re-run recomputes.
-      placeholderData: deferred ? keepPreviousData : undefined,
-      queryFn: () =>
-        isBinding
-          ? (backend.callBinding as (b: string, a: unknown) => Promise<unknown>)(
+      queryKey,
+      // Not while cancelled, or a refocus would start the work again.
+      enabled: !!active && !cancelled,
+      // Engine errors are deterministic: a retry repeats the same work and fails the same way.
+      retry: false,
+      // Reopening a panel within the session shows its result again instead of recomputing.
+      gcTime: 30 * 60 * 1000,
+      // Keep the previous result of the same log visible (dimmed) while new settings compute, so
+      // the view, and any options popover open in it, stays mounted.
+      placeholderData: (prev, prevQuery) =>
+        deferred || prevQuery?.queryKey[1] === active?.id ? keepPreviousData(prev) : undefined,
+      queryFn: () => {
+        // A run for earlier inputs is no longer shown.
+        abort.current?.abort();
+        abort.current = new AbortController();
+        const { job, showPartial } = jobs.start(abort.current.signal);
+        return isBinding
+          ? (backend.callBinding as (b: string, a: unknown, o: CallOptions) => Promise<unknown>)(
               source.binding,
               source.args(ctx!, active!.c),
+              job,
             )
-          : source.resolve(ctx!, active!.c),
+          : source.resolve({ ...ctx!, job, showPartial }, active!.c);
+      },
     });
+    const cancel = backend.cancelJob
+      ? () => {
+          setCancelled(true);
+          abort.current?.abort();
+          void queryClient.cancelQueries({ queryKey });
+        }
+      : undefined;
+    // A run another panel with the same inputs cancelled ends here too.
+    const stopped = cancelled || isCancelled(query.error);
+    const runAgain = () => {
+      jobs.reset();
+      setCancelled(false);
+      if (isCancelled(query.error)) void query.refetch();
+    };
     // Enrichment overlay (e.g. DFG performance). Non-blocking: the body renders once the main data
     // is ready and these props fill in when they resolve.
     const extra = useQuery({
@@ -240,19 +306,24 @@ function makeDataPanelComponent(
       enabled: !!active && !!extraProps,
       queryFn: () => extraProps!(ctx!, active!.c),
     });
-    const data = query.data !== undefined ? (transform ? transform(query.data) : query.data) : undefined;
+    const running = query.isFetching;
+    // While running or after a cancel, the partial result stands in for the missing one.
+    const partial = (running || stopped) && jobs.partial !== undefined ? jobs.partial : undefined;
+    const raw = partial ?? query.data;
+    const data = raw !== undefined ? (transform ? transform(raw) : raw) : undefined;
     const bar = id ? panelControlsBar?.(c, setC, id) : undefined;
     // Data-aware actions (e.g. export PNML), in the bar (outside the export-root) so they aren't captured.
     const actions = data !== undefined && ctx ? panelActions?.(data, ctx) : undefined;
-    const running = query.isFetching;
     // Dim the shown result while it is stale (awaiting a Re-run) or actively recomputing.
-    const dim = deferred && (stale || (running && data !== undefined));
+    const dim =
+      partial === undefined &&
+      ((deferred && (stale || (running && data !== undefined))) || query.isPlaceholderData);
 
     // Re-run control lives only after the first run; the pristine state uses the centered CTA below.
     // The button itself carries the state: amber + reload icon + dot when stale, muted otherwise.
     const runBtn =
       deferred && ran ? (
-        <Flex align="center" px="2" py="1" style={{ borderBottom: "1px solid var(--gray-5)" }}>
+        <Flex align="center">
           <span style={{ position: "relative", display: "inline-flex" }}>
             <Button
               size="1"
@@ -293,7 +364,11 @@ function makeDataPanelComponent(
     let body: ReactNode;
     if (!id) {
       body = (
-        <EmptyState title={`No ${source.needs} dataset loaded`} description="Load one to view this panel." />
+        <EmptyState
+          icon={<Icon size={40} />}
+          title={`No ${labelForKind(source.needs)} loaded`}
+          description="Import one or load an example to use this panel."
+        />
       );
     } else if (missing && !(deferred && ran)) {
       body = <EmptyState icon={<Icon size={40} />} title={missing} />;
@@ -318,38 +393,73 @@ function makeDataPanelComponent(
           </Button>
         </Flex>
       );
-    } else if (query.error) {
+    } else if (query.error && !stopped) {
       body = <ErrorState error={query.error} onRetry={() => query.refetch()} />;
-    } else if (query.isPending) {
-      body = <LoadingState label="computing..." slowAfterMs={8000} />;
+    } else if (stopped && data === undefined) {
+      body = (
+        <EmptyState
+          icon={<Icon size={40} />}
+          title="Cancelled"
+          description="Nothing was computed."
+          action={
+            <Button size="2" onClick={runAgain}>
+              Run again
+            </Button>
+          }
+        />
+      );
+    } else if (data === undefined) {
+      body = (
+        <JobProgressCard
+          progress={jobs.progress}
+          onCancel={jobs.progress ? cancel : undefined}
+          label="Computing..."
+          units={JOB_UNITS}
+        />
+      );
     } else {
       const ctrl = controls ? { controls: c, onControlsChange: setC } : {};
+      const strip = stopped ? (
+        <PartialResultStrip onRun={runAgain} />
+      ) : running ? (
+        <JobProgressStrip
+          progress={jobs.progress}
+          onCancel={jobs.progress ? cancel : undefined}
+          units={JOB_UNITS}
+        />
+      ) : null;
       body = (
-        <div
-          style={{
-            height: "100%",
-            width: "100%",
-            opacity: dim ? 0.55 : 1,
-            transition: "opacity 120ms ease",
-          }}
-        >
-          <Suspense fallback={<LoadingState label="loading" />}>
-            <ViewStateProvider viewState={viewState} onViewStateChange={setViewState}>
-              <Inner data={data} handle={active!.id} {...ctrl} {...(extra.data ?? {})} />
-            </ViewStateProvider>
-          </Suspense>
+        <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column" }}>
+          {strip}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              width: "100%",
+              opacity: dim ? 0.55 : 1,
+              transition: "opacity 120ms ease",
+            }}
+          >
+            <Suspense fallback={<LoadingState label="loading" />}>
+              <ViewStateProvider viewState={viewState} onViewStateChange={setViewState}>
+                <Inner data={data} handle={active!.id} {...ctrl} {...(extra.data ?? {})} />
+              </ViewStateProvider>
+            </Suspense>
+          </div>
         </div>
       );
     }
     return (
-      <Frame
-        bars={
-          <div style={barsRowStyle}>
-            {selector}
-            {bar}
-            {runBtn}
-            {actions}
-          </div>
+      <PanelFrame
+        picker={selector}
+        header={
+          bar || runBtn || actions ? (
+            <>
+              {bar}
+              {runBtn}
+              {actions}
+            </>
+          ) : undefined
         }
         body={body}
         testid={spec.type}
@@ -507,4 +617,44 @@ export function definePanel(
   spec: VisMeta & { component: ComponentType<IDockviewPanelProps> },
 ): VisDefinition {
   return build(spec as AnyVis);
+}
+
+/** What a {@link defineDatasetPanel} body gets: the picked dataset and the dockview props. */
+export interface DatasetPanelProps {
+  id: string;
+  props: IDockviewPanelProps;
+}
+
+/**
+ * Define a panel with its own UI on one dataset of `needs`: the dataset picker in the header row, the
+ * empty state when none is loaded, and a fresh body (keyed by dataset) on every switch come for free.
+ * Use it when a view is interactive beyond what a single `source` can express.
+ */
+export function defineDatasetPanel(
+  spec: VisMeta & { needs: RegistryKind; component: ComponentType<DatasetPanelProps> },
+): VisDefinition {
+  const Body = spec.component;
+  function DatasetPanel(props: IDockviewPanelProps) {
+    const { id, selector } = useDatasetSelection(spec.needs, props);
+    return (
+      <PanelFrame
+        picker={selector}
+        testid={spec.type}
+        body={
+          id ? (
+            <Suspense fallback={<LoadingState label="loading" />}>
+              <Body key={id} id={id} props={props} />
+            </Suspense>
+          ) : (
+            <EmptyState
+              icon={<spec.icon size={40} />}
+              title={`No ${labelForKind(spec.needs)} loaded`}
+              description="Import one or load an example to use this panel."
+            />
+          )
+        }
+      />
+    );
+  }
+  return build({ ...spec, supports: spec.supports ?? [spec.needs], component: DatasetPanel } as AnyVis);
 }

@@ -5,7 +5,7 @@ import type { PetriNet } from "../petri-net";
 export interface RustPetriNet {
   places: Array<{ name?: string | null }>;
   transitions: Array<{
-    label?: string | null;
+    label: string | null;
     name?: string | null;
     inputs: [number, number][];
     outputs: [number, number][];

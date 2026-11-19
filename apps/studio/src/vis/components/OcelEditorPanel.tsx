@@ -8,8 +8,8 @@ import { backend } from "../../backends";
 import { usePanelDraft } from "../../panels/panel-state";
 import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
-const FROM_JSON = "app_bindings::ocel::ocel_from_json" as const;
-const TO_JSON = "app_bindings::ocel::ocel_to_json" as const;
+const FROM_JSON = "app_bindings::ocel_from_json" as const;
+const TO_JSON = "app_bindings::ocel_to_json" as const;
 const OCEL_KINDS = new Set(["OCEL", "SlimLinkedOCEL", "IndexLinkedOCEL"]);
 
 export function OcelEditorPanel(props: IDockviewPanelProps) {

@@ -1,4 +1,5 @@
-import { Card, Flex, Heading, Text } from "@r4pm/components/ui";
+import { Flex } from "@r4pm/components/ui";
+import { fmtInt, Metric, scoreTone } from "../kit";
 
 export type StatTone = "good" | "bad" | "warn" | "neutral";
 export type StatIndicator = "ring" | "bar";
@@ -9,18 +10,6 @@ const TONE_COLOR: Record<StatTone, string> = {
   warn: "var(--amber-11)",
   neutral: "var(--gray-12)",
 };
-
-/** Smooth red -> amber -> green by value (no hard thresholds). 0 = red, 1 = green. */
-function gradientColor(progress: number): string {
-  const x = Math.max(0, Math.min(1, progress));
-  return `hsl(${Math.round(x * 125)} 60% 42%)`;
-}
-
-function resolveColor(tone: StatTone | undefined, progress: number | undefined): string {
-  if (tone) return TONE_COLOR[tone];
-  if (progress != null) return gradientColor(progress);
-  return TONE_COLOR.neutral;
-}
 
 export interface StatItem {
   label: string;
@@ -34,9 +23,9 @@ export interface StatItem {
 
 export interface StatCardsProps {
   items: StatItem[];
-  /** "start" = label over value, left aligned (metrics); "center" = centered big number. */
+  /** "center" centers the row of tiles. */
   align?: "start" | "center";
-  /** Progress visualization for items with a `progress` value. Default "ring". */
+  /** How items with a `progress` show it: a bar under the value (default) or a ring in its place. */
   indicator?: StatIndicator;
 }
 
@@ -82,53 +71,36 @@ function Ring({ progress, color, text }: { progress: number; color: string; text
   );
 }
 
-function Meter({ progress, color }: { progress: number; color: string }) {
-  const w = Math.round(Math.max(0, Math.min(1, progress)) * 100);
-  return (
-    <div
-      style={{ width: "100%", height: 7, borderRadius: 4, background: "var(--gray-a4)", overflow: "hidden" }}
-    >
-      <div style={{ height: "100%", width: `${w}%`, background: color, borderRadius: 4 }} />
-    </div>
-  );
-}
-
-/** Reusable metric-card grid. Backs log-summary + conformance fitness. Items with a `progress`
- *  render as a tone/gradient-colored ring (default) or bar; others as a plain number. */
+/**
+ * A row of {@link Metric} tiles. An item's `progress` shows as a bar under the value, or with
+ * `indicator="ring"` as a ring in place of it; without a `tone`, {@link scoreTone} of the progress
+ * colors it. `align="center"` centers the row.
+ */
 export function StatCards({ items, align = "start", indicator = "bar" }: StatCardsProps) {
-  const centered = align === "center";
   return (
-    <Flex gap="3" wrap="wrap" align="stretch" justify={centered ? "center" : "start"}>
+    <Flex gap="3" wrap="wrap" justify={align === "center" ? "center" : "start"}>
       {items.map((it) => {
-        const color = resolveColor(it.tone, it.progress);
-        const valueText = typeof it.value === "number" ? it.value.toLocaleString("en") : it.value;
-        const hasProgress = it.progress != null;
-        const asRing = hasProgress && indicator === "ring";
-        const cardAlign = asRing || (centered && !hasProgress) ? "center" : "start";
+        const tone =
+          it.tone === "neutral"
+            ? undefined
+            : (it.tone ?? (it.progress != null ? scoreTone(it.progress) : undefined));
+        const text = typeof it.value === "number" ? fmtInt(it.value) : it.value;
+        const ring = indicator === "ring" && it.progress != null;
         return (
-          <Card key={it.label} style={{ minWidth: 150, flex: centered ? "0 0 auto" : 1 }}>
-            {/* value / indicator first, then the (possibly wrapping) label, so bars stay aligned */}
-            <Flex direction="column" gap="2" p="1" align={cardAlign} style={{ height: "100%" }}>
-              {asRing ? (
-                <Ring progress={it.progress as number} color={color} text={valueText} />
+          <Metric
+            key={it.label}
+            label={it.label}
+            value={
+              ring ? (
+                <Ring progress={it.progress as number} color={TONE_COLOR[tone ?? "neutral"]} text={text} />
               ) : (
-                <>
-                  <Heading size={centered && !hasProgress ? "7" : "6"} style={{ color }}>
-                    {valueText}
-                  </Heading>
-                  {hasProgress && <Meter progress={it.progress as number} color={color} />}
-                </>
-              )}
-              <Text size="2" weight="medium" style={{ color: "var(--gray-12)", textAlign: cardAlign }}>
-                {it.label}
-              </Text>
-              {it.hint && (
-                <Text size="1" color="gray" style={{ textAlign: cardAlign }}>
-                  {it.hint}
-                </Text>
-              )}
-            </Flex>
-          </Card>
+                text
+              )
+            }
+            hint={it.hint}
+            tone={tone}
+            progress={ring ? undefined : it.progress}
+          />
         );
       })}
     </Flex>

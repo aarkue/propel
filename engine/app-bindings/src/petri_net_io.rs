@@ -2,18 +2,18 @@
 //! bytes to avoid the JSON int-array bloat a `Vec<u8>` return would serialize to.
 
 use process_mining::bindings::register_binding;
-use process_mining::core::process_models::case_centric::petri_net::pnml::export_petri_net_to_pnml;
+use process_mining::core::process_models::case_centric::petri_net::pnml::export_pnml;
 use process_mining::AcceptingPetriNet;
 
 /// Serialize a Petri net with its markings to PNML (XML text).
 #[register_binding(stringify_error)]
 pub fn export_petri_net_pnml(net: AcceptingPetriNet) -> Result<String, String> {
     let mut buf: Vec<u8> = Vec::new();
-    export_petri_net_to_pnml(
+    export_pnml(
+        &mut buf,
         &net.net,
         Some(&net.initial_marking),
         Some(&net.final_marking),
-        &mut buf,
     )
     .map_err(|e| format!("{e:?}"))?;
     String::from_utf8(buf).map_err(|e| e.to_string())
@@ -27,6 +27,6 @@ mod tests {
         let m = list_functions_meta();
         assert!(m
             .iter()
-            .any(|b| b.id == "app_bindings::petri_net_io::export_petri_net_pnml"));
+            .any(|b| b.id == "app_bindings::export_petri_net_pnml"));
     }
 }

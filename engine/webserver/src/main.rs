@@ -71,15 +71,49 @@ struct CallReq {
     args: Value,
     #[serde(default)]
     output_name: Option<String>,
+    #[serde(default)]
+    job: Option<String>,
 }
 
 async fn call(
     State(b): State<WebBackend>,
     Json(req): Json<CallReq>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let bytes = backend_shared::execute_binding(&b, &req.id, &req.args, req.output_name.as_deref())
-        .map_err(err)?;
+    // Bindings run synchronously (alignments, discovery on large logs take seconds), so they get a
+    // blocking thread instead of stalling the async workers that serve every other request.
+    let bytes = tokio::task::spawn_blocking(move || {
+        backend_shared::execute_binding(
+            &b,
+            &req.id,
+            &req.args,
+            req.output_name.as_deref(),
+            req.job.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| err(e.to_string()))?
+    .map_err(call_err)?;
     Ok(([(header::CONTENT_TYPE, "application/json")], bytes))
+}
+
+/// A cancelled call answers 499 (nginx's "client closed request"), so the client can tell it from
+/// a failure.
+fn call_err(e: String) -> (StatusCode, String) {
+    if e == backend_shared::jobs::CANCELLED {
+        (StatusCode::from_u16(499).expect("valid status"), e)
+    } else {
+        err(e)
+    }
+}
+
+#[derive(Deserialize)]
+struct CancelParams {
+    job: String,
+}
+
+async fn cancel_job(State(b): State<WebBackend>, Query(p): Query<CancelParams>) -> StatusCode {
+    backend_shared::cancel_job(&b, &p.job);
+    StatusCode::NO_CONTENT
 }
 
 async fn objects(State(b): State<WebBackend>) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -128,7 +162,12 @@ async fn load(
             format!("Unknown item kind: {}", p.kind),
         )
     })?;
-    backend_shared::load_item_bytes(&b, p.id, &kind, &data, &p.format).map_err(err)?;
+    tokio::task::spawn_blocking(move || {
+        backend_shared::load_item_bytes(&b, p.id, &kind, &data, &p.format)
+    })
+    .await
+    .map_err(|e| err(e.to_string()))?
+    .map_err(call_err)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -229,6 +268,7 @@ async fn main() {
 
     let api = Router::new()
         .route("/call", post(call))
+        .route("/cancel", post(cancel_job))
         .route("/objects", get(objects))
         .route("/set-label", post(set_label))
         .route("/functions", get(functions))

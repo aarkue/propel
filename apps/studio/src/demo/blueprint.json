@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "id_rendering": "type-prefixed",
+  "on_missing_endpoint": "create",
+  "on_duplicate_object": "first-wins",
+  "nodes": [
+    { "id": "orders", "label": "orders", "op": { "type": "source", "source_id": "erp", "table": "orders" } },
+    {
+      "id": "customers",
+      "label": "customers",
+      "op": { "type": "source", "source_id": "erp", "table": "customers" }
+    },
+    {
+      "id": "orders_with_customer",
+      "label": "orders + customer",
+      "op": { "type": "join", "left": "orders", "right": "customers", "on": [["customer_id", "id"]] }
+    },
+    {
+      "id": "active_orders",
+      "label": "active orders",
+      "op": {
+        "type": "filter",
+        "input": "orders_with_customer",
+        "condition": {
+          "type": "compare",
+          "left": { "type": "column", "column": "status" },
+          "op": "ne",
+          "right": { "type": "literal", "value": "cancelled" }
+        }
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "type": "single",
+      "node": "active_orders",
+      "label": "order",
+      "target": {
+        "type": "object",
+        "object_type": { "type": "constant", "value": "order" },
+        "id": { "type": "column", "column": "id" },
+        "attributes": [{ "source_column": "status", "name": "status", "value_type": "String" }]
+      }
+    },
+    {
+      "type": "single",
+      "node": "active_orders",
+      "label": "order placed",
+      "target": {
+        "type": "event",
+        "event_type": { "type": "constant", "value": "place order" },
+        "id": { "type": "template", "template": "EVT-{id}" },
+        "timestamp": { "type": "value", "source": { "type": "column", "column": "created_at" } },
+        "attributes": [],
+        "objects": [
+          {
+            "object": {
+              "id": { "type": "column", "column": "id" },
+              "object_type": { "type": "constant", "value": "order" }
+            },
+            "qualifier": { "type": "constant", "value": "concerns" }
+          }
+        ]
+      }
+    },
+    {
+      "type": "single",
+      "node": "customers",
+      "label": "customer",
+      "target": {
+        "type": "object",
+        "object_type": { "type": "constant", "value": "customer" },
+        "id": { "type": "column", "column": "id" },
+        "attributes": [{ "source_column": "name", "name": "name" }]
+      }
+    }
+  ]
+}

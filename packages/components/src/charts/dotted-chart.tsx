@@ -1,17 +1,6 @@
-import {
-  Badge,
-  Button,
-  Card,
-  IconButton,
-  Popover,
-  SegmentedControl,
-  Select,
-  Slider,
-  Switch,
-  Text,
-  TextField,
-} from "@r4pm/components/ui";
+import { Button, IconButton, Popover, Select, Slider, Switch, Text, TextField } from "@r4pm/components/ui";
 import { type JSX, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type Option, OptionMenu, Segmented, Toolbar } from "../kit";
 import { useViewSetting } from "../viewer/view-state";
 import { PiChartLineDown, PiChartLineUp, PiSlidersHorizontal, PiX } from "react-icons/pi";
 import { ThemedPlot as Plot } from "./themed-plot";
@@ -61,6 +50,25 @@ export interface DottedChartAxisConfig {
 
 const DEFAULT_AXIS: DottedChartAxisConfig = { x: "Time", y: "Case", color: "Activity" };
 const TIMESTAMP_KEY = "time:timestamp";
+
+const X_AXES: Option<DottedChartXAxis>[] = [
+  { value: "Time", label: "Time", description: "Calendar time of each event" },
+  {
+    value: "TimeSinceCaseStart",
+    label: "Since case start",
+    description: "Aligns cases at their first event",
+  },
+  {
+    value: "TimeRelativeToCaseDuration",
+    label: "Share of case",
+    description: "0% at the first event, 100% at the last",
+  },
+  {
+    value: "StepNumberSinceCaseStart",
+    label: "Step number",
+    description: "Position of the event in its case",
+  },
+];
 
 function xAxisTitle(x: DottedChartXAxis, unitLabel: string): string {
   switch (x) {
@@ -120,6 +128,16 @@ function caseOrderText(
   }
 }
 
+const DIRECTIONS: Option<"up" | "down">[] = [
+  { value: "up", label: "Ascending", icon: <PiChartLineUp /> },
+  { value: "down", label: "Descending", icon: <PiChartLineDown /> },
+];
+
+const DOT_SIZES: Option<"auto" | "fixed">[] = [
+  { value: "auto", label: "By zoom" },
+  { value: "fixed", label: "Fixed" },
+];
+
 const ORDERS_TIMED: DottedChartCaseOrder[] = ["start", "end", "span", "events"];
 // End and duration need a time x axis.
 const ORDERS_UNTIMED: DottedChartCaseOrder[] = ["start", "events"];
@@ -151,6 +169,7 @@ export interface DottedChartProps {
   onControlsChange?: (next: DottedChartAxisConfig) => void;
   /** Optional bridge for downstream filtering (time-range selection). */
   onSelect?: (s: { scope: string; key: string }) => void;
+  /** @deprecated The host panel shows the title. */
   title?: string;
 }
 
@@ -163,7 +182,6 @@ export function DottedChart({
   controls: axis = DEFAULT_AXIS,
   onControlsChange: onAxisChange,
   onSelect,
-  title = "Dotted Chart",
 }: DottedChartProps): JSX.Element {
   const { colorOf } = useViewerConfig({});
   const plotID = useRef(Math.random().toString());
@@ -240,27 +258,34 @@ export function DottedChart({
     if (data) {
       const useScatterGL = true;
       return [
-        Object.keys(data.dots_per_color).map(
-          (act) =>
-            ({
-              mode: "markers",
-              type: useScatterGL ? "scattergl" : "scatter",
-              name: act.length > 50 ? `${act.substring(0, 50 - 3)}...` : act,
-              x: isDuration
-                ? data.dots_per_color[act]?.x.map((v) => v / durationUnit.ms)
-                : data.dots_per_color[act]?.x,
-              y: data.dots_per_color[act]?.y.map((i) => data.y_values[i]),
-              hovertemplate: `%{y}<br>${xHoverText(xAxisConfig, durationUnit.label)}<extra>%{fullData.name}</extra>`,
-              marker: {
-                size: dotSize,
-                opacity: markerOpacity / 100,
-                // Shared activity colors only apply when coloring BY activity; other axes keep the local palette.
-                color:
-                  (colorAxisConfig === "Activity" ? colorOf?.("activity", act) : undefined) ??
-                  colorForSeed(act),
-              },
-            }) satisfies Plotly.Data,
-        ),
+        // The engine's map has no stable order; frequent values first, so rare dots draw on top.
+        Object.keys(data.dots_per_color)
+          .sort(
+            (a, b) =>
+              (data.dots_per_color[b]?.x.length ?? 0) - (data.dots_per_color[a]?.x.length ?? 0) ||
+              a.localeCompare(b),
+          )
+          .map(
+            (act) =>
+              ({
+                mode: "markers",
+                type: useScatterGL ? "scattergl" : "scatter",
+                name: act.length > 50 ? `${act.substring(0, 50 - 3)}...` : act,
+                x: isDuration
+                  ? data.dots_per_color[act]?.x.map((v) => v / durationUnit.ms)
+                  : data.dots_per_color[act]?.x,
+                y: data.dots_per_color[act]?.y.map((i) => data.y_values[i]),
+                hovertemplate: `%{y}<br>${xHoverText(xAxisConfig, durationUnit.label)}<extra>%{fullData.name}</extra>`,
+                marker: {
+                  size: dotSize,
+                  opacity: markerOpacity / 100,
+                  // Shared activity colors only apply when coloring BY activity; other axes keep the local palette.
+                  color:
+                    (colorAxisConfig === "Activity" ? colorOf?.("activity", act) : undefined) ??
+                    colorForSeed(act),
+                },
+              }) satisfies Plotly.Data,
+          ),
         useScatterGL,
       ];
     }
@@ -357,7 +382,7 @@ export function DottedChart({
   };
 
   return (
-    <Card
+    <div
       style={{
         position: "relative",
         width: "100%",
@@ -367,189 +392,187 @@ export function DottedChart({
         paddingBottom: "0.5rem",
       }}
     >
-      <Text
-        data-export-ignore
-        as="div"
-        size="4"
-        weight="bold"
-        mb="2"
-        style={{ display: "flex", alignItems: "center", columnGap: "0.5rem", flexWrap: "wrap" }}
-      >
-        {title}
-        <Popover.Root>
-          <Popover.Trigger>
-            <Button size="1" variant="soft">
-              <PiSlidersHorizontal /> Options
-            </Button>
-          </Popover.Trigger>
-          <Popover.Content width="340px" style={{ padding: 0 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 12px",
-                borderBottom: "1px solid var(--gray-a4)",
-              }}
-            >
-              <Text size="2" weight="bold">
-                Chart options
+      <div data-export-ignore>
+        <Toolbar
+          end={
+            usingGl && (
+              <Text
+                size="1"
+                color="gray"
+                title="Many dots, so the chart draws with WebGL. An SVG export is partly rasterized."
+              >
+                WebGL rendering
               </Text>
-              <Popover.Close>
-                <IconButton title="Close" size="1" variant="ghost" color="gray">
-                  <PiX />
-                </IconButton>
-              </Popover.Close>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: 12 }}>
-              {onAxisChange && (
-                <OptionSection title="Axes">
-                  <OptionRow label="X axis">
+            )
+          }
+        >
+          {onAxisChange && (
+            <OptionMenu
+              label="X axis"
+              value={xAxisConfig}
+              options={X_AXES}
+              onChange={(v) => setAxis({ x: v })}
+            />
+          )}
+          <Popover.Root>
+            <Popover.Trigger>
+              <button type="button" className="r4pm-option-trigger">
+                <PiSlidersHorizontal style={{ color: "var(--gray-10)" }} />
+                <span style={{ color: "var(--gray-12)", fontWeight: 500 }}>Options</span>
+              </button>
+            </Popover.Trigger>
+            <Popover.Content width="340px" style={{ padding: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 12px",
+                  borderBottom: "1px solid var(--gray-a4)",
+                }}
+              >
+                <Text size="2" weight="bold">
+                  Chart options
+                </Text>
+                <Popover.Close>
+                  <IconButton title="Close" size="1" variant="ghost" color="gray">
+                    <PiX />
+                  </IconButton>
+                </Popover.Close>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: 12 }}>
+                {onAxisChange && (
+                  <OptionSection title="Axes">
+                    <OptionRow label="X axis">
+                      <Select.Root
+                        size="1"
+                        value={xAxisConfig}
+                        onValueChange={(v) => setAxis({ x: v as DottedChartXAxis })}
+                      >
+                        <Select.Trigger variant="surface" style={{ width: "100%" }} />
+                        <Select.Content>
+                          <Select.Item value="Time">Time</Select.Item>
+                          <Select.Item value="TimeSinceCaseStart">Time since case start</Select.Item>
+                          <Select.Item value="TimeRelativeToCaseDuration">Share of case duration</Select.Item>
+                          <Select.Item value="StepNumberSinceCaseStart">Step since case start</Select.Item>
+                        </Select.Content>
+                      </Select.Root>
+                    </OptionRow>
+                    <OptionRow label="Y axis">
+                      <AxisChoice
+                        value={yAxisConfig}
+                        fixed={["Case", "Resource"]}
+                        defaultAttribute="concept:name"
+                        onChange={(y) => setAxis({ y: y as DottedChartYAxis })}
+                      />
+                    </OptionRow>
+                    <OptionRow label="Color">
+                      <AxisChoice
+                        value={colorAxisConfig}
+                        fixed={["Activity", "Resource"]}
+                        defaultAttribute="concept:name"
+                        onChange={(c) => setAxis({ color: c as DottedChartColorAxis })}
+                      />
+                    </OptionRow>
+                  </OptionSection>
+                )}
+                <OptionSection title={yAxisConfig === "Case" ? "Cases" : "Rows"}>
+                  <OptionRow label="Order by">
                     <Select.Root
                       size="1"
-                      value={xAxisConfig}
-                      onValueChange={(v) => setAxis({ x: v as DottedChartXAxis })}
+                      value={caseOrder}
+                      onValueChange={(v) => setCaseOrder(v as DottedChartCaseOrder)}
                     >
                       <Select.Trigger variant="surface" style={{ width: "100%" }} />
                       <Select.Content>
-                        <Select.Item value="Time">Time</Select.Item>
-                        <Select.Item value="TimeSinceCaseStart">Time since case start</Select.Item>
-                        <Select.Item value="TimeRelativeToCaseDuration">Share of case duration</Select.Item>
-                        <Select.Item value="StepNumberSinceCaseStart">Step since case start</Select.Item>
+                        {orderOptions.map((o) => (
+                          <Select.Item key={o} value={o}>
+                            {caseOrderText(o, yAxisConfig === "Case").label}
+                          </Select.Item>
+                        ))}
                       </Select.Content>
                     </Select.Root>
                   </OptionRow>
-                  <OptionRow label="Y axis">
-                    <AxisChoice
-                      value={yAxisConfig}
-                      fixed={["Case", "Resource"]}
-                      defaultAttribute="concept:name"
-                      onChange={(y) => setAxis({ y: y as DottedChartYAxis })}
+                  <OptionRow label="Direction">
+                    <Segmented
+                      value={direction}
+                      options={DIRECTIONS}
+                      onChange={setDirection}
+                      fill
+                      aria-label="Direction"
                     />
                   </OptionRow>
-                  <OptionRow label="Color">
-                    <AxisChoice
-                      value={colorAxisConfig}
-                      fixed={["Activity", "Resource"]}
-                      defaultAttribute="concept:name"
-                      onChange={(c) => setAxis({ color: c as DottedChartColorAxis })}
-                    />
+                  <Text size="1" color="gray" style={{ marginTop: -4 }}>
+                    {direction === "up"
+                      ? `${orderText.low} at the bottom, ${orderText.high} at the top.`
+                      : `${orderText.low} at the top, ${orderText.high} at the bottom.`}
+                  </Text>
+                  <OptionRow label="Row labels">
+                    <Switch size="1" checked={showRowLabels} onCheckedChange={setShowRowLabels} />
                   </OptionRow>
                 </OptionSection>
-              )}
-              <OptionSection title={yAxisConfig === "Case" ? "Cases" : "Rows"}>
-                <OptionRow label="Order by">
-                  <Select.Root
-                    size="1"
-                    value={caseOrder}
-                    onValueChange={(v) => setCaseOrder(v as DottedChartCaseOrder)}
-                  >
-                    <Select.Trigger variant="surface" style={{ width: "100%" }} />
-                    <Select.Content>
-                      {orderOptions.map((o) => (
-                        <Select.Item key={o} value={o}>
-                          {caseOrderText(o, yAxisConfig === "Case").label}
-                        </Select.Item>
-                      ))}
-                    </Select.Content>
-                  </Select.Root>
-                </OptionRow>
-                <OptionRow label="Direction">
-                  <SegmentedControl.Root
-                    size="1"
-                    value={direction}
-                    onValueChange={(v) => setDirection(v as "up" | "down")}
-                    style={{ width: "100%" }}
-                  >
-                    <SegmentedControl.Item value="up">
-                      <span style={INLINE}>
-                        <PiChartLineUp /> Ascending
-                      </span>
-                    </SegmentedControl.Item>
-                    <SegmentedControl.Item value="down">
-                      <span style={INLINE}>
-                        <PiChartLineDown /> Descending
-                      </span>
-                    </SegmentedControl.Item>
-                  </SegmentedControl.Root>
-                </OptionRow>
-                <Text size="1" color="gray" style={{ marginTop: -4 }}>
-                  {direction === "up"
-                    ? `${orderText.low} at the bottom, ${orderText.high} at the top.`
-                    : `${orderText.low} at the top, ${orderText.high} at the bottom.`}
-                </Text>
-                <OptionRow label="Row labels">
-                  <Switch size="1" checked={showRowLabels} onCheckedChange={setShowRowLabels} />
-                </OptionRow>
-              </OptionSection>
-              <OptionSection title="Dots">
-                <OptionRow label="Size">
-                  <SegmentedControl.Root
-                    size="1"
-                    value={autoSize ? "auto" : "fixed"}
-                    onValueChange={(v) => setAutoSize(v === "auto")}
-                    style={{ width: "100%" }}
-                  >
-                    <SegmentedControl.Item value="auto">By zoom</SegmentedControl.Item>
-                    <SegmentedControl.Item value="fixed">Fixed</SegmentedControl.Item>
-                  </SegmentedControl.Root>
-                </OptionRow>
-                {autoSize ? (
+                <OptionSection title="Dots">
+                  <OptionRow label="Size">
+                    <Segmented
+                      value={autoSize ? "auto" : "fixed"}
+                      options={DOT_SIZES}
+                      onChange={(v) => setAutoSize(v === "auto")}
+                      fill
+                      aria-label="Dot size"
+                    />
+                  </OptionRow>
+                  {autoSize ? (
+                    <OptionSlider
+                      label="Scale"
+                      value={autoScale}
+                      min={0.3}
+                      max={3}
+                      step={0.1}
+                      format={(v) => `${v.toFixed(1)}x`}
+                      onChange={setAutoScale}
+                    />
+                  ) : (
+                    <OptionSlider
+                      label="Diameter"
+                      value={markerSize}
+                      min={1}
+                      max={15}
+                      step={1}
+                      format={(v) => `${v}px`}
+                      onChange={setMarkerSize}
+                    />
+                  )}
                   <OptionSlider
-                    label="Scale"
-                    value={autoScale}
-                    min={0.3}
-                    max={3}
-                    step={0.1}
-                    format={(v) => `${v.toFixed(1)}x`}
-                    onChange={setAutoScale}
-                  />
-                ) : (
-                  <OptionSlider
-                    label="Diameter"
-                    value={markerSize}
+                    label="Opacity"
+                    value={markerOpacity}
                     min={1}
-                    max={15}
+                    max={100}
                     step={1}
-                    format={(v) => `${v}px`}
-                    onChange={setMarkerSize}
+                    format={(v) => `${Math.round(v)}%`}
+                    onChange={setMarkerOpacity}
                   />
-                )}
-                <OptionSlider
-                  label="Opacity"
-                  value={markerOpacity}
-                  min={1}
-                  max={100}
-                  step={1}
-                  format={(v) => `${Math.round(v)}%`}
-                  onChange={setMarkerOpacity}
-                />
-                <OptionRow label="Hover details">
-                  <Switch size="1" checked={hoverEnabled} onCheckedChange={setHoverEnabled} />
-                </OptionRow>
-              </OptionSection>
-            </div>
-          </Popover.Content>
-        </Popover.Root>
-        {(zoom.x || zoom.y) && (
-          <Button
-            size="1"
-            variant="soft"
-            color="gray"
-            onClick={() => {
-              setZoom({ x: null, y: null });
-              setZoomReset((k) => k + 1);
-            }}
-          >
-            Reset zoom
-          </Button>
-        )}
-        {usingGl && (
-          <Badge title="This plot is rendered using the WebGL backend, as there are many elements plotted. Note that as a result the SVG Export will be partly rasterized.">
-            WebGL Renderer
-          </Badge>
-        )}
-      </Text>
+                  <OptionRow label="Hover details">
+                    <Switch size="1" checked={hoverEnabled} onCheckedChange={setHoverEnabled} />
+                  </OptionRow>
+                </OptionSection>
+              </div>
+            </Popover.Content>
+          </Popover.Root>
+          {(zoom.x || zoom.y) && (
+            <Button
+              size="1"
+              variant="soft"
+              color="gray"
+              onClick={() => {
+                setZoom({ x: null, y: null });
+                setZoomReset((k) => k + 1);
+              }}
+            >
+              Reset zoom
+            </Button>
+          )}
+        </Toolbar>
+      </div>
       {error ? (
         <div style={{ flex: 1, margin: "0 0.5rem", position: "relative", minHeight: "20rem" }}>
           <ErrorState error={error} onRetry={onRetry} />
@@ -574,13 +597,11 @@ export function DottedChart({
           />
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
 export { TIMESTAMP_KEY as DOTTED_CHART_TIMESTAMP_KEY };
-
-const INLINE = { display: "inline-flex", alignItems: "center", gap: 4 } as const;
 
 function OptionSection({ title, children }: { title: string; children: ReactNode }) {
   return (

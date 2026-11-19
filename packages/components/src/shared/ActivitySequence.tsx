@@ -1,5 +1,5 @@
 import { Badge } from "@r4pm/components/ui";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { softBadgeStyle } from "../dfg/util/colors";
 import { darken, svgEl } from "../dfg/util/svg-export";
 import { useColorOf } from "../viewer/viewer-config";
@@ -157,15 +157,36 @@ export function ActivitySequence({
   activities,
   colorOf,
   widthClass,
+  singleLine,
 }: {
   activities: string[];
   colorOf?: (activity: string) => string;
   widthClass?: string;
+  /** Keep the sequence on one line, fading out where it runs past the edge. */
+  singleLine?: boolean;
 }) {
   const ambient = useColorOf("activity");
   const resolve = colorOf ?? ambient;
+  const ref = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: other activities may fit where these did not
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!singleLine || !el) return;
+    const check = () => setOverflows(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [singleLine, activities]);
+  const fade = "linear-gradient(to right, black calc(100% - 48px), transparent)";
   return (
-    <div className="flex items-center flex-wrap gap-0.5">
+    <div
+      ref={ref}
+      className={`flex items-center gap-0.5 ${singleLine ? "flex-nowrap overflow-hidden [&>*]:shrink-0" : "flex-wrap"}`}
+      title={singleLine && overflows ? activities.join(" > ") : undefined}
+      style={singleLine && overflows ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
+    >
       {activities.map((a, i) => (
         <ActivityChip key={`${i}-${a}`} activity={a} color={resolve(a)} widthClass={widthClass} />
       ))}

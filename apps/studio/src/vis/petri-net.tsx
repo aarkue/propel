@@ -37,18 +37,11 @@ export const vis = defineResolvedVis({
   controls: { initial: DEFAULT_MINER as MinerChoice },
   source: {
     needs: "EventLog",
-    resolve: (ctx, c) => discoverPetriNet(ctx.backend, ctx.datasetId, minerChoice(c, VARIANTS)),
+    resolve: (ctx, c) => discoverPetriNet(ctx.backend, ctx.datasetId, minerChoice(c, VARIANTS), ctx.job),
   },
   viewer: { AcceptingPetriNet: (net) => net },
   panelControlsBar: (c, set) => (
-    <Flex
-      align="center"
-      gap="3"
-      px="2"
-      py="1"
-      wrap="wrap"
-      style={{ borderBottom: "1px solid var(--gray-5)" }}
-    >
+    <Flex align="center" gap="3" wrap="wrap">
       <MinerPicker value={minerChoice(c, VARIANTS)} onChange={set} variants={VARIANTS} />
     </Flex>
   ),

@@ -1,45 +1,9 @@
-import type { IDockviewPanelProps } from "dockview";
-import { withSelector, datasetEmptyBox } from "./_shared";
-import { TransformBuilder, type TransformBuilderValue } from "../transforms";
-import { backend } from "../backends";
-import { useDatasetSelection } from "../panels/active-datasets";
-import { useDatasetScopedState } from "../panels/panel-state";
-import { useDatasets, uniqueDatasetLabel } from "../stores";
 import { PiShuffle } from "react-icons/pi";
-import { definePanel } from "./define-vis";
+import { makeTransformsPanel } from "./components/TransformsPanel";
+import { defineDatasetPanel } from "./define-vis";
 
-const INITIAL_BUILDER: TransformBuilderValue = { transforms: [], outName: "" };
-
-export function LogTransformsDockPanel(props: IDockviewPanelProps) {
-  const { id: log, selector } = useDatasetSelection("EventLog", props);
-  const [builder, setBuilder] = useDatasetScopedState(props, "transformBuilder", log ?? "", INITIAL_BUILDER);
-  const addDataset = useDatasets((s) => s.addDataset);
-  const sourceLabel = useDatasets((s) => s.datasets.find((d) => d.id === log)?.label);
-  if (!log) return withSelector(selector, datasetEmptyBox("EventLog"));
-  return withSelector(
-    selector,
-    <div style={{ height: "100%", overflow: "auto" }}>
-      <TransformBuilder
-        key={log}
-        backend={backend}
-        datasetName={log}
-        sourceLabel={sourceLabel}
-        objectType="EventLog"
-        value={builder}
-        onChange={setBuilder}
-        onResult={(handle, outName) =>
-          addDataset({
-            id: handle,
-            kind: "EventLog",
-            label: uniqueDatasetLabel(outName),
-          })
-        }
-      />
-    </div>,
-  );
-}
-
-export const vis = definePanel({
+export const vis = defineDatasetPanel({
+  needs: "EventLog",
   type: "logTransforms",
   name: "Log Transforms",
   description: "Filter, relabel, sample, and rescale an event log into a new derived log.",
@@ -49,5 +13,5 @@ export const vis = definePanel({
   keywords: ["filter", "transform", "relabel", "sample", "derive", "clean"],
   genericExport: false,
   order: 18,
-  component: LogTransformsDockPanel,
+  component: makeTransformsPanel("EventLog"),
 });

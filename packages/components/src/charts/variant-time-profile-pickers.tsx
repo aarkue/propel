@@ -1,6 +1,5 @@
 import { type PagedList, SearchSelect, SegmentedControl, Select, Text } from "@r4pm/components/ui";
-import { ActivityChip } from "../shared/ActivitySequence";
-import { useColorOf } from "../viewer/viewer-config";
+import { VariantRow } from "../shared/VariantSelect";
 import type {
   CaseSort,
   CaseTimeCurve,
@@ -16,7 +15,7 @@ const lastOf = (xs: number[]) => xs[xs.length - 1] ?? 0;
 const getVariantKey = (v: VariantSummary) => String(v.rank);
 const getCaseKey = (c: CaseTimeCurve) => c.case_id;
 
-function VariantRow({
+function TimeProfileVariantRow({
   variant,
   share,
   fmt,
@@ -25,45 +24,15 @@ function VariantRow({
   share: number;
   fmt: (ms: number) => string;
 }) {
-  const colorOf = useColorOf("activity");
-  const hit = variant.matched.length > 0 ? new Set(variant.matched) : null;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-      <Text size="1" color="gray" style={{ minWidth: 26, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-        #{(variant.rank + 1).toLocaleString("en")}
-      </Text>
-      <div style={{ width: 52, flexShrink: 0 }} title={`${variant.num_cases.toLocaleString("en")} cases`}>
-        <Text size="1" weight="medium" style={{ fontVariantNumeric: "tabular-nums" }}>
-          {share >= 0.001 || share === 0 ? `${(share * 100).toFixed(1)}%` : "<0.1%"}
-        </Text>
-        <div style={{ height: 4, borderRadius: 2, background: "var(--gray-a4)", overflow: "hidden" }}>
-          <div style={{ width: `${Math.max(2, share * 100)}%`, height: "100%", background: COLOR_VARIANT }} />
-        </div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          flex: 1,
-          minWidth: 0,
-          overflow: "hidden",
-          maskImage: "linear-gradient(to right, black calc(100% - 24px), transparent)",
-        }}
-      >
-        {variant.activities.map((a, i) => (
-          <ActivityChip
-            key={`${i}-${a}`}
-            activity={a}
-            color={colorOf(a)}
-            widthClass="max-w-[7rem]"
-            className={hit && !hit.has(i) ? "shrink-0 opacity-35" : "shrink-0"}
-          />
-        ))}
-      </div>
-      <Text size="1" color="gray" style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-        {variant.activities.length} steps, {fmt(variant.median_total_ms)}
-      </Text>
-    </div>
+    <VariantRow
+      rank={variant.rank}
+      activities={variant.activities}
+      cases={variant.num_cases}
+      share={share}
+      matched={variant.matched}
+      note={`${variant.activities.length} steps, ${fmt(variant.median_total_ms)}`}
+    />
   );
 }
 
@@ -108,8 +77,10 @@ export function VariantPicker({
       selectedItem={selected}
       onChange={(_, v) => v && onSelect(v)}
       searchPlaceholder="Activities in order, e.g. 'create send pay', or #rank"
-      renderItem={(v) => <VariantRow variant={v} share={share(v)} fmt={fmt} />}
-      renderValue={(v) => v && <VariantRow variant={{ ...v, matched: [] }} share={share(v)} fmt={fmt} />}
+      renderItem={(v) => <TimeProfileVariantRow variant={v} share={share(v)} fmt={fmt} />}
+      renderValue={(v) =>
+        v && <TimeProfileVariantRow variant={{ ...v, matched: [] }} share={share(v)} fmt={fmt} />
+      }
       placeholder="Loading variants..."
       rowHeight={40}
       popoverWidth="min(760px, 90vw)"

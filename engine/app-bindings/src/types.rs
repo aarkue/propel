@@ -2,6 +2,7 @@
 //! `serde` + `schemars::JsonSchema` for the registry.
 use std::collections::{HashMap, HashSet};
 
+use process_mining::analysis::durations::DurationSummary;
 use process_mining::core::event_data::case_centric::utils::activity_projection::EventLogActivityProjection;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -334,6 +335,21 @@ pub struct DfArcDuration {
     pub mean_ms: f64,
     pub median_ms: f64,
     pub p90_ms: f64,
+}
+
+impl DfArcDuration {
+    pub fn new(source: String, target: String, s: DurationSummary) -> Self {
+        Self {
+            source,
+            target,
+            count: s.count,
+            min_ms: s.min,
+            max_ms: s.max,
+            mean_ms: s.mean,
+            median_ms: s.median,
+            p90_ms: s.p90,
+        }
+    }
 }
 
 /// Per-object-type DF performance statistics.

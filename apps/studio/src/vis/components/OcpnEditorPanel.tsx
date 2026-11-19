@@ -2,6 +2,7 @@ import type { IDockviewPanelProps } from "dockview";
 import { useState } from "react";
 import { normalizePetriNet, ObjectCentricPetriNetWorkbench, type Ocpn } from "@r4pm/components";
 import { readPanelParam, usePanelDraft } from "../../panels/panel-state";
+import { OcpnSaveButton } from "./OcpnActions";
 import { saveOcTraceAsOcel } from "./save-oc-trace";
 
 const EMPTY_OCPN: Ocpn = { places: [], transitions: [], arcs: [], initial_marking: {}, final_marking: {} };
@@ -47,6 +48,7 @@ export function OcpnEditorPanel(props: IDockviewPanelProps) {
       initialMode="edit"
       onNetChange={persist}
       onSaveTraceAsLog={saveOcTraceAsOcel}
+      toolbar={(net) => <OcpnSaveButton net={net} name="Drawn OCPN" />}
     />
   );
 }

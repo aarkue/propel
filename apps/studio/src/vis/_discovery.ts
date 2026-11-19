@@ -4,15 +4,15 @@ import type {
   EventLogActivityProjectionHandle,
   EventLogHandle,
   InductiveMiner,
+  CallOptions,
 } from "@r4pm/client";
 
 // Case-centric discovery calls shared by the Petri net, process tree and OCPN vizzes. `_`-prefixed
 // so the vis registry glob skips it.
 
-const IM = "process_mining::discovery::case_centric::inductive_miner" as const;
-export const IM_PROCESS_TREE = `${IM}::discover_inductive_tree_with` as const;
-export const IM_PETRI_NET = `${IM}::discover_inductive_net_with` as const;
-export const IM_OPTIONS = `${IM}::inductive_miner_options` as const;
+export const IM_PROCESS_TREE = "process_mining::discover_inductive_tree" as const;
+export const IM_PETRI_NET = "process_mining::discover_inductive_net" as const;
+export const IM_OPTIONS = "process_mining::inductive_miner_options" as const;
 export const ALPHA_PETRI_NET = "app_bindings::discover_petri_net" as const;
 
 export type MinerVariant = "IM" | "IMf" | "IMa" | "IMd" | "IMfd" | "Alpha";
@@ -87,15 +87,21 @@ export async function discoverPetriNet(
   backend: Backend,
   eventLog: string,
   choice: MinerChoice,
+  job?: CallOptions,
 ): Promise<AcceptingPetriNet> {
   if (choice.variant === "Alpha") {
-    return backend.callBinding(ALPHA_PETRI_NET, { event_log: eventLog as EventLogHandle });
+    return backend.callBinding(ALPHA_PETRI_NET, { event_log: eventLog as EventLogHandle }, job);
   }
   const miner = await inductiveMiner(backend, choice);
-  return backend.callBinding(IM_PETRI_NET, { log: projection(eventLog), miner });
+  return backend.callBinding(IM_PETRI_NET, { log: projection(eventLog), miner }, job);
 }
 
-export async function discoverProcessTree(backend: Backend, eventLog: string, choice: MinerChoice) {
+export async function discoverProcessTree(
+  backend: Backend,
+  eventLog: string,
+  choice: MinerChoice,
+  job?: CallOptions,
+) {
   const miner = await inductiveMiner(backend, choice);
-  return backend.callBinding(IM_PROCESS_TREE, { log: projection(eventLog), miner });
+  return backend.callBinding(IM_PROCESS_TREE, { log: projection(eventLog), miner }, job);
 }

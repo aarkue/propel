@@ -9,8 +9,8 @@ import { backend } from "../../backends";
 import { usePanelDraft } from "../../panels/panel-state";
 import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
-const FROM_JSON = "app_bindings::event_log::event_log_from_json" as const;
-const TO_JSON = "app_bindings::event_log::event_log_to_json" as const;
+const FROM_JSON = "app_bindings::event_log_from_json" as const;
+const TO_JSON = "app_bindings::event_log_to_json" as const;
 
 export function EventLogEditorPanel(props: IDockviewPanelProps) {
   const [model, setModel] = usePanelDraft<EventLogModel>(props, "model", EMPTY_LOG);

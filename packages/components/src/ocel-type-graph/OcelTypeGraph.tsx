@@ -402,7 +402,7 @@ function OcelTypeGraphInner({
         </Button>
         {capped && (
           <span style={{ fontSize: 11, color: "var(--amber-11)" }}>
-            showing top {VISIBLE_CAP} — refine scope
+            showing top {VISIBLE_CAP}, refine the scope to see more
           </span>
         )}
       </div>

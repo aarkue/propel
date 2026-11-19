@@ -1,7 +1,7 @@
 //! Regenerates `bundle.fileAssociations` in `engine/app/tauri.conf.json` from the engine's own
 //! import formats, so OS "Open with propel" stays in lockstep with what the engine can actually
-//! parse. Sources of truth: `RegistryItemKind` (event logs / OCEL / ...) and `PropelArtifact`
-//! (engine-stored values like PetriNet). Each kind delegates to its `Importable` impl.
+//! parse. Sources of truth: `RegistryItemKind` (event logs, OCEL, process models, ...) and
+//! `PropelArtifact` (OC-DECLARE models). Each kind delegates to its `Importable` impl.
 //!
 //! Run: `cargo run -p meta-gen --bin file-assoc [-- <tauri.conf.json path>]`.
 //! Default path: `../app/tauri.conf.json` relative to this crate.
@@ -10,6 +10,20 @@ use std::collections::BTreeSet;
 
 use backend_shared::{get_all_artifact_kinds, get_all_item_kinds};
 use serde_json::{json, Value};
+
+/// The name the OS shows for a kind's files.
+fn display_name(kind: &str) -> &str {
+    match kind {
+        "EventLog" => "Event log",
+        "AcceptingPetriNet" => "Petri net",
+        "ProcessTree" => "Process tree",
+        "ObjectCentricPetriNet" => "Object-centric Petri net",
+        "OCDeclare" => "OC-DECLARE model",
+        "ReflowMapping" => "Reflow mapping",
+        "TabularSource" => "Table",
+        other => other,
+    }
+}
 
 fn main() {
     // (display name, [(extension, mime)]) per kind, in a stable order. An extension is assigned to
@@ -35,7 +49,7 @@ fn main() {
         };
 
     for info in get_all_item_kinds().expect("get_all_item_kinds") {
-        let name = serde_json::to_value(&info.kind)
+        let name = serde_json::to_value(info.kind)
             .ok()
             .and_then(|v| v.as_str().map(str::to_string))
             .unwrap_or_else(|| format!("{:?}", info.kind));
@@ -51,8 +65,8 @@ fn main() {
             let mime = exts[0].1.clone();
             json!({
                 "ext": exts.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>(),
-                "name": format!("{name} file"),
-                "description": format!("{name} file"),
+                "name": format!("{} file", display_name(&name)),
+                "description": format!("{} file", display_name(&name)),
                 "mimeType": mime,
                 "role": "Editor",
             })

@@ -52,6 +52,8 @@ export type TransitionData = ElementHandlers & {
   style?: React.CSSProperties;
   /** Replace the transition's inner content entirely (e.g. an icon). */
   renderContent?: () => React.ReactNode;
+  /** SVG markup the exported image draws over the transition. See `ElementPresentation`. */
+  exportDecoration?: (box: { x: number; y: number; width: number; height: number }) => string;
 };
 /** One drawn token: a dot or square, optionally colored/faded. */
 export type TokenMark = { shape: "dot" | "square"; color?: string; opacity?: number; title?: string };
@@ -341,6 +343,7 @@ function InnerEditor() {
         fitViewOptions={{ padding: 0.15 }}
         maxZoom={10}
         minZoom={0.05}
+        deleteKeyCode={["Backspace", "Delete"]}
         onBeforeDelete={props.readOnly ? async () => false : undefined}
         proOptions={{ hideAttribution: true }}
         {...props.editorProps}

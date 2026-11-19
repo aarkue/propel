@@ -9,6 +9,8 @@ import { backend } from "../backends";
 import { exportDataset } from "./export-dataset";
 import { unloadDataset } from "../persistence/session";
 import { sendToPipeline } from "../panels/pipeline-bridge";
+import { isModelKind, openModel } from "../models";
+import toast from "react-hot-toast";
 import { ChipAction, ChipStrip, EntityChip, ExportLineageChipAction } from "./chips";
 
 /**
@@ -55,7 +57,10 @@ function DatasetChip({
   const handleUnload = async (close: () => void) => {
     close();
     await unloadDataset(backend, id);
-    await queryClient.invalidateQueries();
+    // Only results that read the unloaded dataset are gone; every other panel keeps its own.
+    const mentions = (v: unknown): boolean =>
+      v === id || (typeof v === "object" && v !== null && Object.values(v).some(mentions));
+    queryClient.removeQueries({ predicate: (q) => q.queryKey.some(mentions) });
   };
 
   const runExport = async (ext: string, mime: string, close: () => void) => {
@@ -75,6 +80,16 @@ function DatasetChip({
     >
       {(close) => (
         <>
+          {isModelKind(kind) && (
+            <ChipAction
+              onClick={() => {
+                close();
+                openModel(id, kind).catch((e) => toast.error(`Open failed: ${String(e)}`));
+              }}
+            >
+              Open viewer
+            </ChipAction>
+          )}
           {kinds.isLoading || !defaultFormat ? (
             <div className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-(--gray-10)">
               <span className="text-(--gray-11)">

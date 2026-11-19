@@ -2,6 +2,7 @@
 //! `#[register_binding]` macro maps that to an `EventLogHandle` resolved from the object store at dispatch time.
 use std::collections::{HashMap, HashSet};
 
+use process_mining::analysis::durations::summarize;
 use process_mining::bindings::register_binding;
 use process_mining::core::chrono::DateTime;
 use process_mining::core::event_data::case_centric::utils::activity_projection::EventLogActivityProjection;
@@ -19,6 +20,7 @@ use crate::types::{
     NumericStats, TraceBrowserPage, TraceBrowserRow, TraceDetail, TraceEventRow, TraceSortField,
     TraceVariants, ATTR_VALUES_CAP,
 };
+use crate::xes_event::{event_activity, event_time_ms};
 
 /// Build an event log from one or more simulated traces: one case per trace, one event per
 /// activity name, timestamps spaced 1 minute apart. Caller is expected to have already removed silent/tau transitions.
@@ -195,7 +197,7 @@ pub fn event_log_to_json(event_log: &EventLog) -> EventLogInput {
                 .events
                 .iter()
                 .map(|e| {
-                    let activity = get_event_activity(e).unwrap_or("").to_string();
+                    let activity = event_activity(e).unwrap_or("").to_string();
                     let time = e
                         .attributes
                         .get_by_key("time:timestamp")
@@ -235,17 +237,8 @@ pub fn event_log_to_json(event_log: &EventLog) -> EventLogInput {
 #[register_binding]
 pub fn get_log_trace_variants(event_log: &EventLog) -> TraceVariants {
     let mut projection = EventLogActivityProjection::from(event_log);
-    projection.traces.sort_by(|a, b| b.1.cmp(&a.1));
+    projection.traces.sort_by_key(|x| std::cmp::Reverse(x.1));
     projection.into()
-}
-
-/// Get the activity name (`concept:name`) from an XES event.
-pub(crate) fn get_event_activity(event: &Event) -> Option<&str> {
-    event
-        .attributes
-        .get_by_key("concept:name")
-        .and_then(|a| a.value.try_as_string())
-        .map(|s| s.as_str())
 }
 
 /// Number of events per activity (`concept:name`).
@@ -254,12 +247,7 @@ pub fn get_activity_counts(event_log: &EventLog) -> HashMap<String, usize> {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for trace in &event_log.traces {
         for event in &trace.events {
-            let activity = event
-                .attributes
-                .get_by_key("concept:name")
-                .and_then(|a| a.value.try_as_string())
-                .map(|s| s.as_str())
-                .unwrap_or("UNKNOWN");
+            let activity = event_activity(event).unwrap_or("UNKNOWN");
             *counts.entry(activity.to_string()).or_default() += 1;
         }
     }
@@ -275,17 +263,6 @@ pub fn get_log_info(event_log: &EventLog) -> NumberOfTracesAndEvents {
     }
 }
 
-/// Get the timestamp (`time:timestamp`) of an XES event in epoch milliseconds.
-pub(crate) fn get_event_time_ms(event: &Event) -> Option<i64> {
-    event
-        .attributes
-        .get_by_key("time:timestamp")
-        .and_then(|a| match &a.value {
-            AttributeValue::Date(d) => Some(d.timestamp_millis()),
-            _ => None,
-        })
-}
-
 /// Time histogram of events, split per activity (`concept:name`).
 #[register_binding]
 pub fn get_event_log_timestamps(event_log: &EventLog, num_bins: usize) -> EventTimeHistogram {
@@ -294,8 +271,8 @@ pub fn get_event_log_timestamps(event_log: &EventLog, num_bins: usize) -> EventT
         .iter()
         .flat_map(|t| t.events.iter())
         .filter_map(|e| {
-            let ts = get_event_time_ms(e)?;
-            Some((ts, get_event_activity(e).unwrap_or("UNKNOWN").to_string()))
+            let ts = event_time_ms(e)?;
+            Some((ts, event_activity(e).unwrap_or("UNKNOWN").to_string()))
         })
         .collect();
     EventTimeHistogram::from_events(evs, num_bins)
@@ -311,12 +288,11 @@ pub fn get_df_performance(event_log: &EventLog) -> DfPerformance {
     for trace in &event_log.traces {
         for pair in trace.events.windows(2) {
             let (Some(src_act), Some(tgt_act)) =
-                (get_event_activity(&pair[0]), get_event_activity(&pair[1]))
+                (event_activity(&pair[0]), event_activity(&pair[1]))
             else {
                 continue;
             };
-            let (Some(src_ts), Some(tgt_ts)) =
-                (get_event_time_ms(&pair[0]), get_event_time_ms(&pair[1]))
+            let (Some(src_ts), Some(tgt_ts)) = (event_time_ms(&pair[0]), event_time_ms(&pair[1]))
             else {
                 continue;
             };
@@ -330,34 +306,15 @@ pub fn get_df_performance(event_log: &EventLog) -> DfPerformance {
 
     let mut arcs: Vec<DfArcDuration> = arc_durations
         .into_iter()
-        .map(|((source, target), mut durations)| {
-            durations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            let count = durations.len();
-            let min_ms = durations[0];
-            let max_ms = durations[count - 1];
-            let mean_ms = durations.iter().sum::<f64>() / count as f64;
-            let median_ms = if count % 2 == 0 {
-                (durations[count / 2 - 1] + durations[count / 2]) / 2.0
-            } else {
-                durations[count / 2]
-            };
-            let p90_idx = ((0.9 * count as f64).ceil() as usize)
-                .saturating_sub(1)
-                .min(count - 1);
-            let p90_ms = durations[p90_idx];
-            DfArcDuration {
+        .filter_map(|((source, target), mut durations)| {
+            Some(DfArcDuration::new(
                 source,
                 target,
-                count,
-                min_ms,
-                max_ms,
-                mean_ms,
-                median_ms,
-                p90_ms,
-            }
+                summarize(&mut durations)?,
+            ))
         })
         .collect();
-    arcs.sort_by(|a, b| b.count.cmp(&a.count));
+    arcs.sort_by_key(|x| std::cmp::Reverse(x.count));
     DfPerformance { arcs }
 }
 
@@ -742,7 +699,7 @@ pub fn get_attribute_summary(
             *freq.entry(v.clone()).or_default() += 1;
         }
         let mut top_values: Vec<(String, usize)> = freq.into_iter().collect();
-        top_values.sort_by(|a, b| b.1.cmp(&a.1));
+        top_values.sort_by_key(|x| std::cmp::Reverse(x.1));
         top_values.truncate(100);
 
         AttributeSummary {
@@ -852,7 +809,7 @@ pub fn get_removable_attributes_xes(event_log: &EventLog) -> Vec<AttributeCatalo
     let mut evt_by_act: HashMap<(String, String), (usize, HashSet<String>)> = HashMap::new();
     for trace in &event_log.traces {
         for ev in &trace.events {
-            let act = get_event_activity(ev).unwrap_or("UNKNOWN").to_string();
+            let act = event_activity(ev).unwrap_or("UNKNOWN").to_string();
             for a in ev.attributes.iter() {
                 if a.key == "concept:name" || a.key == "time:timestamp" {
                     continue;
@@ -1004,7 +961,7 @@ pub fn get_trace_events(event_log: &EventLog, case_index: usize) -> TraceDetail 
         .events
         .iter()
         .map(|e| {
-            let activity = get_event_activity(e).unwrap_or("UNKNOWN").to_string();
+            let activity = event_activity(e).unwrap_or("UNKNOWN").to_string();
             let timestamp = e
                 .attributes
                 .get_by_key("time:timestamp")

@@ -30,11 +30,11 @@ export const vis = defineResolvedVis({
   source: {
     needs: "EventLog",
     resolve: async (ctx, c) =>
-      asTree(await discoverProcessTree(ctx.backend, ctx.datasetId, minerChoice(c, VARIANTS))),
+      asTree(await discoverProcessTree(ctx.backend, ctx.datasetId, minerChoice(c, VARIANTS), ctx.job)),
   },
   viewer: { ProcessTree: asTree },
   panelControlsBar: (c, set) => (
-    <Flex align="center" px="2" py="1" style={{ borderBottom: "1px solid var(--gray-5)" }}>
+    <Flex align="center">
       <MinerPicker value={minerChoice(c, VARIANTS)} onChange={set} variants={VARIANTS} />
     </Flex>
   ),

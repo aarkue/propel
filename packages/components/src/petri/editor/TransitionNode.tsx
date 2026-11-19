@@ -4,6 +4,7 @@ import DeleteButton from "./DeleteButton";
 import { EditorPropsContext, type TransitionData } from "./Editor";
 import { TRANSITION_SIZE } from "./helpers/layout-graph";
 import { nodeStyleCss } from "./helpers/element-style";
+import { transitionLabelSize } from "./helpers/transition-label";
 import ExtraLabel from "./ExtraLabel";
 
 export default function TransitionNode({ data, id, selected }: NodeProps<Node<TransitionData>>) {
@@ -120,7 +121,7 @@ export default function TransitionNode({ data, id, selected }: NodeProps<Node<Tr
               position: "relative",
               fontWeight: 500,
               lineHeight: 1.15,
-              fontSize: `${Math.min(Math.max(300 / (data.label?.length ?? 1), 8), 14)}px`,
+              fontSize: `${transitionLabelSize(data.label)}px`,
             }}
           >
             {data.label}

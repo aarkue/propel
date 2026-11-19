@@ -1,8 +1,8 @@
 import { Controls, Description, Primary, Stories, Subtitle, Title } from "@storybook/addon-docs/blocks";
 import type { Preview } from "@storybook/react-vite";
 import { themes } from "storybook/theming";
-import type { ReactNode } from "react";
-import { Theme, ViewerConfigProvider, ViewerExportFrame } from "@r4pm/components";
+import { type ReactNode, useState } from "react";
+import { Theme, ToolbarHostContext, ViewerConfigProvider, ViewerExportFrame } from "@r4pm/components";
 import { wasmViz } from "@r4pm/components/viz/wasm";
 import { FullSource, ReferencedTypes } from "./doc-blocks";
 // Global styles so every story + autodocs canvas renders with the viewers' real styling.
@@ -22,6 +22,31 @@ import "./docs.css";
  */
 type Frame = { mode: "canvas"; height: number } | { mode: "pad"; width?: number };
 
+/** A view in a bordered box under a header row, as in a studio panel: the view's toolbar goes into
+ *  the row, and the export button sits there instead of over the view. */
+function CanvasBox({ height, children }: { height: number; children: ReactNode }) {
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  return (
+    <div
+      style={{
+        height,
+        width: "100%",
+        boxSizing: "border-box",
+        border: "1px solid var(--gray-a5)",
+        borderRadius: 8,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div ref={setHost} className="sb-toolbar-host" />
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        <ToolbarHostContext.Provider value={host}>{children}</ToolbarHostContext.Provider>
+      </div>
+    </div>
+  );
+}
+
 function Framed({
   frame,
   appearance,
@@ -35,18 +60,7 @@ function Framed({
     return (
       <Theme appearance={appearance} style={{ height: frame.height, minHeight: 0 }}>
         <ViewerExportFrame>
-          <div
-            style={{
-              height: frame.height,
-              width: "100%",
-              boxSizing: "border-box",
-              border: "1px solid var(--gray-a5)",
-              borderRadius: 8,
-              overflow: "hidden",
-            }}
-          >
-            {children}
-          </div>
+          <CanvasBox height={frame.height}>{children}</CanvasBox>
         </ViewerExportFrame>
       </Theme>
     );
@@ -128,6 +142,7 @@ const preview: Preview = {
             "Image Export",
             "Data Types",
             "For LLM Agents",
+            "Changelog",
           ],
           "Viewers",
           "Editors",

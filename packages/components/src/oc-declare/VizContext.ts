@@ -25,6 +25,10 @@ interface VizContextValue {
    *  neighbors. */
   onHideActivity?: (activity: string) => void;
   onFocusActivity?: (activity: string) => void;
+  /** Open an activity's statistics; absent without a statistics source. */
+  onActivityStats?: (activity: string) => void;
+  /** Open the violations of the constraint drawn as model edge `edgeId`; absent without a host for it. */
+  onExploreArc?: (edgeId: string) => void;
   /** Receives each arc's violation badges as drawn, or null when it draws none, for the export. */
   reportBadges?: (edgeId: string, badges: ViolationBadge[] | null) => void;
 }

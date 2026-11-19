@@ -16,9 +16,9 @@ export type CoreBackend = {
   listItemKinds: () => Promise<ItemKindInfo[]>;
   unloadObject: (id: string) => Promise<void>;
   downloadBinary: (binary: ArrayBuffer, filename: string) => Promise<void> | void;
-  getArtifact: (id: string) => Promise<unknown>;
-  loadArtifactBytes: (id: string, kind: string, data: Uint8Array, format: string) => Promise<void>;
-  loadArtifactPath?: (id: string, kind: string, path: string) => Promise<void>;
+  /** Parse a model file of a registry `kind` and return its JSON value. */
+  readModel: (kind: string, data: Uint8Array, format: string) => Promise<unknown>;
+  readModelPath?: (kind: string, path: string) => Promise<unknown>;
   pickFiles?: (opts: {
     filters?: { name: string; extensions: string[] }[];
     multiple?: boolean;
@@ -36,8 +36,7 @@ const PLACEHOLDER_BACKEND: CoreBackend = {
   listItemKinds: THROW_NO_BACKEND,
   unloadObject: THROW_NO_BACKEND,
   downloadBinary: THROW_NO_BACKEND,
-  getArtifact: THROW_NO_BACKEND,
-  loadArtifactBytes: THROW_NO_BACKEND,
+  readModel: THROW_NO_BACKEND,
 };
 
 export const BackendContext = createContext<CoreBackend>(PLACEHOLDER_BACKEND);

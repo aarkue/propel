@@ -91,6 +91,20 @@
     "code": "/** Orthogonal bend-point routing for an arc, in flow coordinates; `srcPos`/`tgtPos` are the source/\n *  target node *center* positions at layout time, used to detect a later drag. */\nexport type ArcRouting = {\n  kind: \"polyline\";\n  points: { x: number; y: number }[];\n  srcPos: { x: number; y: number };\n  tgtPos: { x: number; y: number };\n};"
   },
   {
+    "name": "ArcViolation",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare-explorer/model.ts",
+    "code": "export interface ArcViolation {\n  source: string;\n  time_ms: number;\n  kind: ViolationKind;\n  found: number;\n  objects: [string, string][];\n  instead?: string | null;\n}"
+  },
+  {
+    "name": "ArcViolations",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare-explorer/model.ts",
+    "code": "export interface ArcViolations {\n  sources: number;\n  violating_sources: number;\n  too_few: number;\n  too_many: number;\n  bindings: number;\n  violating_bindings: number;\n  found_histogram: { found: number; bindings: number; violating: boolean }[];\n  over_time: { start_ms: number; sources: number; violations: number }[];\n  bin_width_ms: number;\n  instead: { name: string; violations: number }[];\n  by_object_type: { name: string; violations: number }[];\n  top_objects: { object_type: string; id: string; violations: number }[];\n  examples: ArcViolation[];\n}"
+  },
+  {
     "name": "AsyncBoundaryProps",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -154,11 +168,25 @@
     "code": "/** Mirrors the backend `AttrValueCount`. */\nexport interface AttrValueCount {\n  value: string;\n  count: number;\n}"
   },
   {
+    "name": "BarProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface BarProps {\n  /** The filled share, 0 to 1. */\n  value: number;\n  color?: string;\n  /** Thickness in px. */\n  height?: number;\n  /** Corner radius in px; half the height by default. */\n  radius?: number;\n  /** Least fill in px for a value above 0, so small shares stay visible. */\n  minFill?: number;\n  width?: CSSProperties[\"width\"];\n  /** Shown above the bar on the left. */\n  label?: ReactNode;\n  /** Shown above the bar on the right, e.g., the value. */\n  hint?: ReactNode;\n  title?: string;\n  style?: CSSProperties;\n}"
+  },
+  {
     "name": "BinnedEdgeDurationStats",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/oc-declare/edit/edit-context.ts",
     "code": "/** Edge duration statistics payload (host-owned; mirrors backend `BinnedEdgeDurationStats`). */\nexport interface BinnedEdgeDurationStats {\n  bin_centers_ms: number[];\n  percentages: number[];\n  bin_labels: string[];\n  min_ms: number;\n  max_ms: number;\n}"
+  },
+  {
+    "name": "CardPickerButtonProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/ui",
+    "file": "src/ui/CardPickerButton.tsx",
+    "code": "export interface CardPickerButtonProps<T extends string> {\n  label: ReactNode;\n  icon?: ReactNode;\n  /** With one option the button runs it directly; with several it opens them as cards. */\n  options: CardSelectorOption<T>[];\n  onPick: (value: T) => void;\n  /** Shown above the cards. */\n  heading?: string;\n  size?: \"1\" | \"2\";\n  title?: string;\n}"
   },
   {
     "name": "CardSelectorOption",
@@ -172,7 +200,7 @@
     "kind": "interface",
     "entry": "@r4pm/components/ui",
     "file": "src/ui/CardSelector.tsx",
-    "code": "export interface CardSelectorProps<T extends string> {\n  options: CardSelectorOption<T>[];\n  value: T;\n  onValueChange: (value: T) => void;\n  /** Rendered below the cards -- pair with `CardSelectorContent` to show the selected option's\n   *  own form, which is the pattern this component exists for. */\n  children?: ReactNode;\n  className?: string;\n  /** Cards per row at the widest breakpoint. Defaults to the option count, capped at 3. */\n  columns?: 2 | 3 | 4;\n  /** Heading per group key. A group with no entry here renders without a heading. */\n  groupLabels?: Record<string, string>;\n  /** \"1\" is the compact card for popovers and toolbars: smaller type, no radio circle, and the\n   *  icon in a tinted square that turns solid when selected. Defaults to \"2\". */\n  size?: \"1\" | \"2\";\n  /** Accessible name for the group. */\n  \"aria-label\"?: string;\n}"
+    "code": "export interface CardSelectorProps<T extends string> {\n  options: CardSelectorOption<T>[];\n  value: T;\n  onValueChange: (value: T) => void;\n  /** Rendered below the cards -- pair with `CardSelectorContent` to show the selected option's\n   *  own form, which is the pattern this component exists for. */\n  children?: ReactNode;\n  className?: string;\n  /** Cards per row at the widest breakpoint. Defaults to the option count, capped at 3. */\n  columns?: 1 | 2 | 3 | 4;\n  /** Heading per group key. A group with no entry here renders without a heading. */\n  groupLabels?: Record<string, string>;\n  /** \"1\" is the compact card for popovers and toolbars: smaller type, no radio circle, and the\n   *  icon in a tinted square that turns solid when selected. Defaults to \"2\". */\n  size?: \"1\" | \"2\";\n  /** Accessible name for the group. */\n  \"aria-label\"?: string;\n}"
   },
   {
     "name": "CaseDurations",
@@ -208,6 +236,13 @@
     "entry": "@r4pm/components/ui",
     "file": "src/ui/Combobox.tsx",
     "code": "export interface ComboboxProps {\n  /** Currently selected value (controlled). */\n  value?: string;\n  /** Selectable options. */\n  options: readonly string[];\n  /** Called with the chosen value - an existing option, or the typed text when created. */\n  onValueChange: (value: string) => void;\n  /** Offer a \"Create ...\" row for a typed value that matches no option. */\n  allowCreate?: boolean;\n  /** Trigger text when nothing is selected. */\n  placeholder?: string;\n  /** Search-field placeholder. */\n  searchPlaceholder?: string;\n  /** Label for the create row; defaults to `Create \"<query>\"`. */\n  createLabel?: (query: string) => string;\n  /** Shown when no option matches and creation is unavailable. */\n  emptyLabel?: ReactNode;\n  /** Color swatch shown next to an option (and the selected value), e.g. an object type's color. */\n  optionColor?: (value: string) => string | undefined;\n  /** Keep the popover open after a choice, clearing the query and holding focus - so several values\n   *  can be added in a row (type, Enter, type, Enter). Best paired with a controlled `value=\"\"`. */\n  keepOpenOnSelect?: boolean;\n  /** Open the popover on mount (and focus its search) - e.g. to continue a keyboard flow into the\n   *  next field. Only the initial mount opens; it does not force-open on later renders. */\n  autoOpen?: boolean;\n  size?: \"1\" | \"2\" | \"3\";\n  disabled?: boolean;\n  /** Accessible name for the control and its listbox. */\n  \"aria-label\"?: string;\n  /** Style applied to the trigger. */\n  style?: CSSProperties;\n}"
+  },
+  {
+    "name": "ComparedArc",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/DfgDiff.tsx",
+    "code": "export interface ComparedArc {\n  kind: \"follows\" | \"start\" | \"end\";\n  from: string;\n  to: string;\n  a: number;\n  b: number;\n}"
   },
   {
     "name": "ConfirmButtonProps",
@@ -252,6 +287,13 @@
     "code": "export interface DeclareNode {\n  id: string;\n  type: string;\n  kind: \"activity\" | \"init\" | \"exit\";\n  position?: { x: number; y: number };\n}"
   },
   {
+    "name": "DescribedProgress",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/JobProgress.tsx",
+    "code": "export interface DescribedProgress {\n  title: string;\n  /** e.g. \"1,204 of 2,560 variants\", or \"1,204 steps\" without a total. */\n  detail: string;\n  /** 0..1, or null when the total is unknown. */\n  fraction: number | null;\n}"
+  },
+  {
     "name": "DfArcDuration",
     "kind": "type",
     "entry": "@r4pm/components",
@@ -266,6 +308,27 @@
     "code": "/** rust4pm `DirectlyFollowsGraph`. */\nexport interface Dfg {\n  activities: Record<string, number>;\n  directly_follows_relations: [[string, string], number][];\n  start_activities: Record<string, number>;\n  end_activities: Record<string, number>;\n}"
   },
   {
+    "name": "DfgComparison",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/DfgDiff.tsx",
+    "code": "export interface DfgComparison {\n  a_label: string;\n  b_label: string;\n  a_cases: number;\n  b_cases: number;\n  activities: { activity: string; a: number; b: number }[];\n  arcs: ComparedArc[];\n}"
+  },
+  {
+    "name": "DfgDiffViewerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/DfgDiff.tsx",
+    "code": "export interface DfgDiffViewerProps extends ViewerProps<DfgComparison> {\n  /** A caveat shown under the summary. */\n  note?: ReactNode;\n}"
+  },
+  {
+    "name": "DfgSource",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/dfg/viz-layout.ts",
+    "code": "/** What a DFG view shows: a DFG, or an OC-DFG drawn for the object types in `types`. */\nexport type DfgSource = { kind: \"dfg\"; data: Dfg } | { kind: \"ocdfg\"; data: OcDfg; types: string[] };"
+  },
+  {
     "name": "DFGViewerProps",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -278,6 +341,13 @@
     "entry": "@r4pm/components",
     "file": "src/dfg/util/performance-types.ts",
     "code": "/** Case-centric DF performance statistics: one entry per directly-follows arc. */\nexport type DfPerformance = {\n  arcs: Array<DfArcDuration>;\n};"
+  },
+  {
+    "name": "DiscoveredPathSchema",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/path-schemas.tsx",
+    "code": "export interface DiscoveredPathSchema {\n  schema: string;\n  length: number;\n  is_dead: boolean;\n  stats: {\n    metrics: {\n      support: number;\n      coverage: number;\n      selectivity: number;\n      reach: number;\n      sources_with_paths: number;\n      total_sources: number;\n    };\n    throughput?: { min: number; max: number; mean: number; median: number } | null;\n  };\n}"
   },
   {
     "name": "DiscoveryFormProps",
@@ -333,7 +403,21 @@
     "kind": "interface",
     "entry": "@r4pm/components/charts",
     "file": "src/charts/dotted-chart.tsx",
-    "code": "export interface DottedChartProps {\n  /** Computed dots (`dots_per_color` + `y_values`). Undefined while loading. */\n  data?: DottedChartData;\n  loading?: boolean;\n  error?: unknown;\n  onRetry?: () => void;\n  /** Controlled axis selection (the viz `controls`). Defaults to Time/Case/Activity when omitted. */\n  controls?: DottedChartAxisConfig;\n  /** When provided, shows the axis \"Configure\" popover and reports changes here; omit to hide axis controls (e.g. no backend). */\n  onControlsChange?: (next: DottedChartAxisConfig) => void;\n  /** Optional bridge for downstream filtering (time-range selection). */\n  onSelect?: (s: { scope: string; key: string }) => void;\n  title?: string;\n}"
+    "code": "export interface DottedChartProps {\n  /** Computed dots (`dots_per_color` + `y_values`). Undefined while loading. */\n  data?: DottedChartData;\n  loading?: boolean;\n  error?: unknown;\n  onRetry?: () => void;\n  /** Controlled axis selection (the viz `controls`). Defaults to Time/Case/Activity when omitted. */\n  controls?: DottedChartAxisConfig;\n  /** When provided, shows the axis \"Configure\" popover and reports changes here; omit to hide axis controls (e.g. no backend). */\n  onControlsChange?: (next: DottedChartAxisConfig) => void;\n  /** Optional bridge for downstream filtering (time-range selection). */\n  onSelect?: (s: { scope: string; key: string }) => void;\n  /** @deprecated The host panel shows the title. */\n  title?: string;\n}"
+  },
+  {
+    "name": "DurationStyle",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export type DurationStyle = \"short\" | \"long\";"
+  },
+  {
+    "name": "EdgeDurations",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare-explorer/model.ts",
+    "code": "/** Edge duration histogram, as the OC-DECLARE stats sheet takes it, with the number of durations. */\nexport type EdgeDurations = BinnedEdgeDurationStats & { total_count?: number };"
   },
   {
     "name": "EdgeRoute",
@@ -389,7 +473,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/petri-net.tsx",
-    "code": "/** What a transition/arc resolver returns; all fields optional. */\nexport interface ElementPresentation extends ElementInteractions {\n  /** Highlight, dim or annotate the element, on screen and in the exported image (rust4pm's\n   *  `ElementStyle`, e.g., a heatmap fill or an `extra_label` line under the label). */\n  elementStyle?: ElementStyle;\n  /** On-screen CSS only. */\n  style?: CSSProperties;\n  className?: string;\n  label?: string;\n  /** Replace the element's inner content entirely (e.g. an icon). */\n  renderContent?: () => ReactNode;\n}"
+    "code": "/** What a transition/arc resolver returns; all fields optional. */\nexport interface ElementPresentation extends ElementInteractions {\n  /** Highlight, dim or annotate the element, on screen and in the exported image (rust4pm's\n   *  `ElementStyle`, e.g., a heatmap fill or an `extra_label` line under the label). */\n  elementStyle?: ElementStyle;\n  /** On-screen CSS only. */\n  style?: CSSProperties;\n  className?: string;\n  label?: string;\n  /** Replace the element's inner content entirely (e.g. an icon). */\n  renderContent?: () => ReactNode;\n  /** SVG markup the exported image draws over a transition, in the image's coordinates, e.g., what\n   *  `renderContent` adds on screen. `box` is the transition's bounds. */\n  exportDecoration?: (box: SvgBox) => string;\n}"
   },
   {
     "name": "EmptyStateProps",
@@ -404,6 +488,20 @@
     "entry": "@r4pm/components",
     "file": "src/feedback/ErrorState.tsx",
     "code": "export interface ErrorStateProps {\n  /** The thrown value; its message is shown and its stack is offered under \"Details\". */\n  error?: unknown;\n  title?: string;\n  /** Override the derived message (defaults to `error.message`). */\n  message?: string;\n  onRetry?: () => void;\n  retryLabel?: string;\n  className?: string;\n}"
+  },
+  {
+    "name": "EscapingActivity",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export interface EscapingActivity {\n  /** `null`: stopping where traces never stop. */\n  activity?: string | null;\n  weight: number;\n}"
+  },
+  {
+    "name": "EscapingEdgeSummary",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "export interface EscapingEdgeSummary {\n  prefix_tail: (string | null)[];\n  prefix_len: number;\n  escaping?: string | null;\n  weight: number;\n}"
   },
   {
     "name": "EventLogEditorProps",
@@ -425,6 +523,83 @@
     "entry": "@r4pm/components",
     "file": "src/log-editor/model.ts",
     "code": "export interface EventRow {\n  rowId: string;\n  caseId: string;\n  activity: string;\n  /** RFC3339, or \"\" when unset (reflow fills non-manual rows). */\n  time: string;\n  /** True once the user edits the timestamp directly; reflow then leaves it alone. */\n  timeManual: boolean;\n  /** Raw string cell per attribute column name. */\n  attrs: Record<string, string>;\n}"
+  },
+  {
+    "name": "EventSignature",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/event-signatures.tsx",
+    "code": "export interface EventSignature {\n  /** One entry per related object type, sorted by object type. */\n  objects: SignatureObjects[];\n  events: number;\n}"
+  },
+  {
+    "name": "EventSignatures",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/event-signatures.tsx",
+    "code": "export interface EventSignatures {\n  event_types: EventTypeSignatures[];\n  object_types: string[];\n}"
+  },
+  {
+    "name": "EventSignaturesViewProps",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/event-signatures.tsx",
+    "code": "export type EventSignaturesViewProps = ViewerProps<EventSignatures>;"
+  },
+  {
+    "name": "EventTypeSignatures",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/event-signatures.tsx",
+    "code": "export interface EventTypeSignatures {\n  event_type: string;\n  events: number;\n  signatures: EventSignature[];\n  other_events: number;\n}"
+  },
+  {
+    "name": "ExecutionEdge",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/execution-graph.tsx",
+    "code": "export interface ExecutionEdge {\n  from: number;\n  to: number;\n  object_types: string[];\n  objects: string[];\n}"
+  },
+  {
+    "name": "ExecutionEvent",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/execution-graph.tsx",
+    "code": "export interface ExecutionEvent {\n  id: string;\n  activity: string;\n  time_ms: number;\n  objects: [string, string][];\n}"
+  },
+  {
+    "name": "ExecutionGraph",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/execution-graph.tsx",
+    "code": "export interface ExecutionGraph {\n  root: ExecutionObject;\n  objects: ExecutionObject[];\n  events: ExecutionEvent[];\n  edges: ExecutionEdge[];\n  truncated: boolean;\n  layout: Layout;\n}"
+  },
+  {
+    "name": "ExecutionGraphControls",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/execution-graph.tsx",
+    "code": "export interface ExecutionGraphControls {\n  /** The leading object's type; null for the host's choice. */\n  objectType?: string | null;\n  /** The leading object; null for the host's choice. */\n  objectId?: string | null;\n  /** How many relation hops from the leading object the graph reaches. */\n  depth: number;\n}"
+  },
+  {
+    "name": "ExecutionGraphViewProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/execution-graph.tsx",
+    "code": "export interface ExecutionGraphViewProps extends ViewerProps<ExecutionGraph> {\n  /** The leading types to pick from, e.g., with their object counts as descriptions. */\n  objectTypeOptions: Option<string>[];\n  /** The objects of the leading type to pick from. */\n  objectOptions: Option<string>[];\n  /** Object types left out, e.g., long-lived master data. */\n  excluded?: string[];\n  controls?: ExecutionGraphControls;\n  onControlsChange?: (next: ExecutionGraphControls) => void;\n}"
+  },
+  {
+    "name": "ExecutionObject",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/execution-graph.tsx",
+    "code": "export interface ExecutionObject {\n  id: string;\n  object_type: string;\n  distance: number;\n}"
+  },
+  {
+    "name": "ExpandableRowProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/table.tsx",
+    "code": "export interface ExpandableRowProps {\n  expanded: boolean;\n  onToggle: () => void;\n  /** The row's cells after the toggle. */\n  children: ReactNode;\n  /** Shown under the row while it is expanded. */\n  detail?: ReactNode;\n  /** Columns of the table, the toggle's included, for the detail to span. */\n  columns: number;\n}"
   },
   {
     "name": "ExportMenuPlacement",
@@ -483,11 +658,81 @@
     "code": "export interface GridRowModel {\n  rowId: string;\n}"
   },
   {
+    "name": "HealthFinding",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-health.tsx",
+    "code": "export interface HealthFinding {\n  check: string;\n  title: string;\n  /** The kind of issue and what it concerns, e.g., \"Imprecise time\". */\n  category: string;\n  description: string;\n  severity: HealthSeverity;\n  count: number;\n  examples: string[];\n  fixes: HealthFix[];\n}"
+  },
+  {
+    "name": "HealthFix",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-health.tsx",
+    "code": "/** A way to repair what a check found: engine repairs to apply in order. */\nexport interface HealthFix {\n  id: string;\n  label: string;\n  description: string;\n  recommended: boolean;\n  repairs: unknown[];\n}"
+  },
+  {
+    "name": "HealthSeverity",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-health.tsx",
+    "code": "export type HealthSeverity = \"warning\" | \"info\";"
+  },
+  {
     "name": "InMemoryVariant",
     "kind": "interface",
     "entry": "@r4pm/components/charts",
     "file": "src/charts/variant-time-profile-data.ts",
     "code": "export interface InMemoryVariant {\n  activities: string[];\n  num_cases: number;\n  steps: StepTimeStats[];\n  /** The cases to list and overlay (may be a sample). */\n  cases: CaseTimeCurve[];\n}"
+  },
+  {
+    "name": "InvolvementCard",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/type-badges.tsx",
+    "code": "/** How many objects of a type an event has, as OC-DECLARE's involvement classes. */\nexport type InvolvementCard = \"0..1\" | \"0..*\" | \"1..1\" | \"1..*\";"
+  },
+  {
+    "name": "JobProgressCardProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/JobProgress.tsx",
+    "code": "export interface JobProgressCardProps {\n  progress: JobProgressReport | null;\n  /** Absent when the backend cannot cancel (the in-browser engine). */\n  onCancel?: () => void;\n  /** Shown until the first report. */\n  label?: string;\n  units?: ProgressUnits;\n}"
+  },
+  {
+    "name": "JobProgressReport",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/JobProgress.tsx",
+    "code": "/**\n * How far a long call got: `done` of `total` units in `stage`, without `total` when unknown. The same\n * shape as `JobProgress` of `@r4pm/client`, so the client's reports pass in as they are.\n */\nexport interface JobProgressReport {\n  stage: string;\n  done: number;\n  total?: number | null;\n}"
+  },
+  {
+    "name": "JobProgressStripProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/JobProgress.tsx",
+    "code": "export interface JobProgressStripProps {\n  progress: JobProgressReport | null;\n  onCancel?: () => void;\n  units?: ProgressUnits;\n}"
+  },
+  {
+    "name": "Journey",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/ProcessMapAnimation.tsx",
+    "code": "export interface Journey {\n  id: string;\n  object_type?: string | null;\n  events: [string, number][];\n}"
+  },
+  {
+    "name": "Journeys",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/ProcessMapAnimation.tsx",
+    "code": "export interface Journeys {\n  journeys: Journey[];\n  total: number;\n  min_ms: number;\n  max_ms: number;\n}"
+  },
+  {
+    "name": "KindColor",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/shared/kinds.ts",
+    "code": "export type KindColor = NonNullable<ComponentProps<typeof Badge>[\"color\"]>;"
   },
   {
     "name": "Layout",
@@ -511,6 +756,62 @@
     "code": "export type LeafLabel = { type: \"Activity\"; value: string } | { type: \"Tau\" };"
   },
   {
+    "name": "LegendItemProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface LegendItemProps {\n  color: string;\n  label: ReactNode;\n  shape?: \"dot\" | \"line\" | \"square\";\n  dashed?: boolean;\n  /** Explanation shown on hover. */\n  title?: string;\n}"
+  },
+  {
+    "name": "LifecycleActivity",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/lifecycle-map.tsx",
+    "code": "export interface LifecycleActivity {\n  activity: string;\n  reach: number;\n  median_ms: number;\n  p25_ms: number;\n  p75_ms: number;\n  mean_count: number;\n}"
+  },
+  {
+    "name": "LifecycleMap",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/lifecycle-map.tsx",
+    "code": "export interface LifecycleMap {\n  object_types: TypeLifecycle[];\n}"
+  },
+  {
+    "name": "LifecycleMapViewProps",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/lifecycle-map.tsx",
+    "code": "export type LifecycleMapViewProps = ViewerProps<LifecycleMap>;"
+  },
+  {
+    "name": "Lifeline",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-lifelines.tsx",
+    "code": "export interface Lifeline {\n  id: string;\n  object_type: string;\n  events: number[];\n}"
+  },
+  {
+    "name": "LifelineEvent",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-lifelines.tsx",
+    "code": "export interface LifelineEvent {\n  id: string;\n  activity: string;\n  time_ms: number;\n}"
+  },
+  {
+    "name": "Lifelines",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-lifelines.tsx",
+    "code": "export interface Lifelines {\n  lifelines: Lifeline[];\n  events: LifelineEvent[];\n  total: number;\n}"
+  },
+  {
+    "name": "LifelinesWindow",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-lifelines.tsx",
+    "code": "/** Which objects the host loaded: the first, middle or last to appear, consecutive by start. */\nexport type LifelinesWindow = \"start\" | \"middle\" | \"end\";"
+  },
+  {
     "name": "LoadingStateProps",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -522,7 +823,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/shared/alignment-types.ts",
-    "code": "export interface LogAlignments {\n  net: PetriNet;\n  variant_alignments: VariantAlignmentResult[];\n  fitness?: FitnessResult | null;\n  aggregated: AlignmentAggregate;\n}"
+    "code": "export interface LogAlignments {\n  net: PetriNet;\n  variant_alignments: VariantAlignmentResult[];\n  fitness?: FitnessResult | null;\n  aggregated: AlignmentAggregate;\n  precision?: PrecisionSummary | null;\n}"
   },
   {
     "name": "LogGlobals",
@@ -530,6 +831,13 @@
     "entry": "@r4pm/components",
     "file": "src/shared/LogMetadataCard.tsx",
     "code": "export interface LogGlobals {\n  attributes: Record<string, string>;\n  extensions: LogExtensionInfo[];\n  classifiers: LogClassifierInfo[];\n  global_trace_attrs: Record<string, string>;\n  global_event_attrs: Record<string, string>;\n}"
+  },
+  {
+    "name": "LogHealth",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/log-overview.tsx",
+    "code": "export interface LogHealth {\n  num_cases: number;\n  num_events: number;\n  findings: OcelHealth[\"findings\"];\n}"
   },
   {
     "name": "LogJson",
@@ -546,6 +854,34 @@
     "code": "/** Loose form of the backend log, matching the generated `EventLogInput` (optional arrays). */\nexport interface LogJsonIn {\n  traces?: Array<{\n    caseId: string;\n    events?: Array<{\n      activity: string;\n      time: string;\n      attributes?: Array<{ name: string; type: string; value: string }>;\n    }>;\n    attributes?: Array<{ name: string; type: string; value: string }>;\n  }>;\n}"
   },
   {
+    "name": "LogOverview",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/log-overview.tsx",
+    "code": "export interface LogOverview {\n  num_cases: number;\n  num_events: number;\n  num_activities: number;\n  num_variants: number;\n  start_ms?: number | null;\n  end_ms?: number | null;\n  median_case_duration_ms?: number | null;\n  p90_case_duration_ms?: number | null;\n  top_variants: { activities: string[]; cases: number }[];\n  activities: [string, number][];\n  throughput: LogThroughput;\n  health: LogHealth;\n}"
+  },
+  {
+    "name": "LogOverviewBoardProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/log-overview.tsx",
+    "code": "export interface LogOverviewBoardProps extends ViewerProps<LogOverview> {\n  /** Opens a detail view; without it the board shows no links. */\n  onOpen?: (target: LogOverviewTarget) => void;\n}"
+  },
+  {
+    "name": "LogOverviewTarget",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/log-overview.tsx",
+    "code": "/** Detail views the board links to, by the host's view id. */\nexport type LogOverviewTarget =\n  | \"logVariants\"\n  | \"activityChart\"\n  | \"workload\"\n  | \"logHealth\"\n  | \"caseDuration\"\n  | \"eventsPerTime\"\n  | \"dfg\"\n  | \"prefixTree\";"
+  },
+  {
+    "name": "LogThroughput",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/log-overview.tsx",
+    "code": "export interface LogThroughput {\n  bin_starts_ms: number[];\n  bin_width_ms: number;\n  started: number[];\n  finished: number[];\n  median_duration_ms: (number | null)[];\n}"
+  },
+  {
     "name": "LogVariantsProps",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -558,6 +894,20 @@
     "entry": "@r4pm/components/petri",
     "file": "src/petri/sim.ts",
     "code": "export type Marking = Record<string, number>;"
+  },
+  {
+    "name": "MetricProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface MetricProps {\n  label: string;\n  value: ReactNode;\n  hint?: ReactNode;\n  tone?: \"good\" | \"warn\" | \"bad\";\n  /** 0..1, drawn as a thin bar under the value in the tone's color. */\n  progress?: number;\n}"
+  },
+  {
+    "name": "MetricRowProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "/** A row of {@link Metric}s. */\nexport interface MetricRowProps {\n  children: ReactNode;\n}"
   },
   {
     "name": "ModelLayout",
@@ -574,11 +924,32 @@
     "code": "/** A model's layout request and refs, without laying it out. */\nexport type ModelLayoutRequest<M extends VizModel> = Omit<ModelLayout<M>, \"layout\">;"
   },
   {
+    "name": "ModelSweepChartProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/model-sweep.tsx",
+    "code": "export interface ModelSweepChartProps extends ViewerProps<SweepPoint[]> {\n  /** The selected point's threshold. */\n  threshold?: number;\n  /** When given, clicking a measured point selects its threshold. */\n  onThresholdChange?: (threshold: number) => void;\n}"
+  },
+  {
     "name": "MoveKind",
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/shared/TraceAlignmentStrip.tsx",
     "code": "export type MoveKind = \"sync\" | \"log\" | \"model\";"
+  },
+  {
+    "name": "NetFiring",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/PetriNetAnimation.tsx",
+    "code": "export interface NetFiring {\n  transition: number;\n  time: number;\n  sync: boolean;\n}"
+  },
+  {
+    "name": "NetReplay",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/PetriNetAnimation.tsx",
+    "code": "export interface NetReplay {\n  journeys: { firings: NetFiring[]; log_moves: [string, number][] }[];\n  total: number;\n  unaligned: number;\n  min_ms: number;\n  max_ms: number;\n}"
   },
   {
     "name": "NumberOfTracesAndEvents",
@@ -613,14 +984,14 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/object-centric-petri-net.tsx",
-    "code": "/**\n * Object-centric Petri net viewer, drawn like rust4pm's `ocpn` export: places and arcs in their object\n * type's color (`ViewerConfig.colorOf`), variable arcs bold and dashed. Laid out and exported with\n * rust4pm's visualization (`ViewerConfig.viz`). The editable viewer is uncontrolled: it lays out\n * `data` on mount and reports edits via `onChange`.\n */\nexport interface ObjectCentricPetriNetViewerProps extends ViewerProps<Ocpn> {\n  editable?: boolean;\n  onChange?: (ocpn: Ocpn) => void;\n  /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */\n  exportKey?: string;\n}"
+    "code": "/**\n * Object-centric Petri net viewer, drawn like rust4pm's `ocpn` export: places and arcs in their object\n * type's color (`ViewerConfig.colorOf`), variable arcs bold and dashed. Laid out and exported with\n * rust4pm's visualization (`ViewerConfig.viz`). The editable viewer is uncontrolled: it lays out\n * `data` on mount and reports edits via `onChange`.\n */\nexport interface ObjectCentricPetriNetViewerProps extends ViewerProps<Ocpn> {\n  editable?: boolean;\n  onChange?: (ocpn: Ocpn) => void;\n  /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */\n  exportKey?: string;\n  /** Object types drawn in the transition of an activity, e.g., a Reflow mapping's non-flow types\n   *  (read-only view only). */\n  badges?: Record<string, OcpnBadge[]>;\n}"
   },
   {
     "name": "ObjectCentricPetriNetWorkbenchProps",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/object-centric-petri-net-workbench.tsx",
-    "code": "export interface ObjectCentricPetriNetWorkbenchProps extends ViewerProps<Ocpn> {\n  /** Mode shown on mount. Defaults to \"view\". */\n  initialMode?: OcpnMode;\n  /** Fired whenever the current (possibly edited) net changes. */\n  onNetChange?: (net: Ocpn) => void;\n  /** Host-supplied buttons (e.g. backend PNML export); receive the current net. */\n  toolbar?: (net: Ocpn) => ReactNode;\n  /** Host handler to turn a simulation trace into an OCEL. When set, the simulator shows a\n   *  \"Save as OCEL\" button. */\n  onSaveTraceAsLog?: (trace: OcSequenceStep[]) => void;\n}"
+    "code": "export interface ObjectCentricPetriNetWorkbenchProps extends ViewerProps<Ocpn> {\n  /** Mode shown on mount. Defaults to \"view\". */\n  initialMode?: OcpnMode;\n  /** Fired whenever the current (possibly edited) net changes. */\n  onNetChange?: (net: Ocpn) => void;\n  /** Host-supplied buttons (e.g. backend PNML export); receive the current net. */\n  toolbar?: (net: Ocpn) => ReactNode;\n  /** Host handler to turn a simulation trace into an OCEL. When set, the simulator shows a\n   *  \"Save as OCEL\" button. */\n  onSaveTraceAsLog?: (trace: OcSequenceStep[]) => void;\n  /** Object types drawn in the transitions of the view, by activity. */\n  badges?: Record<string, OcpnBadge[]>;\n}"
   },
   {
     "name": "ObjectCentricSequenceProps",
@@ -630,11 +1001,53 @@
     "code": "export interface ObjectCentricSequenceProps {\n  steps: OcSequenceStep[];\n  /** Object type -> color (hex). Defaults to the ambient `ViewerConfig` colorOf\n   *  (scope \"objectType\"), falling back to a stable hashed palette. */\n  colorOf?: (objectType: string) => string;\n  /** Activity name -> chevron-chip color. Defaults to the ambient `ViewerConfig` colorOf\n   *  (scope \"activity\"), falling back to a stable hashed palette. */\n  activityColorOf?: (activity: string) => string;\n  /** Render a single object chip instead of the default colored pill. */\n  renderObject?: (obj: OcSequenceObject, color: string) => ReactNode;\n  /** Show the object-type legend above the sequence. Default true. */\n  showLegend?: boolean;\n  /** Shown when there are no steps yet. */\n  emptyLabel?: ReactNode;\n}"
   },
   {
+    "name": "ObjectLane",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare-explorer/model.ts",
+    "code": "export interface ObjectLane {\n  object_type: string;\n  id: string;\n  events: { id: string; activity: string; time_ms: number }[];\n}"
+  },
+  {
+    "name": "ObjectLifelinesControls",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-lifelines.tsx",
+    "code": "export interface ObjectLifelinesControls {\n  /** Only objects of this type; null for a share of every type. */\n  objectType?: string | null;\n  window?: LifelinesWindow;\n}"
+  },
+  {
+    "name": "ObjectLifelinesViewProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-lifelines.tsx",
+    "code": "export interface ObjectLifelinesViewProps extends ViewerProps<Lifelines> {\n  /** The types the objects menu offers. */\n  objectTypes: string[];\n  controls?: ObjectLifelinesControls;\n  onControlsChange?: (next: ObjectLifelinesControls) => void;\n}"
+  },
+  {
+    "name": "ObjectPopulation",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-population.tsx",
+    "code": "export interface ObjectPopulation {\n  bin_starts_ms: number[];\n  bin_width_ms: number;\n  object_types: ObjectTypePopulation[];\n}"
+  },
+  {
+    "name": "ObjectPopulationViewProps",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-population.tsx",
+    "code": "export type ObjectPopulationViewProps = ViewerProps<ObjectPopulation>;"
+  },
+  {
     "name": "ObjectTypeAssociation",
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/oc-declare/index.tsx",
     "code": "export type ObjectTypeAssociation =\n  | {\n      object_type: string;\n      type: \"Simple\";\n    }\n  | {\n      first: string;\n      second: string;\n      reversed: boolean;\n      type: \"O2O\";\n    };"
+  },
+  {
+    "name": "ObjectTypePopulation",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/object-population.tsx",
+    "code": "export interface ObjectTypePopulation {\n  object_type: string;\n  objects: number;\n  objects_without_events: number;\n  alive: number[];\n  started: number[];\n  ended: number[];\n}"
   },
   {
     "name": "OCDeclareArc",
@@ -662,7 +1075,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/oc-declare/OCDeclareViz.tsx",
-    "code": "export interface OCDeclareVizProps {\n  /** Constraint model to render; read-only hosts build it via `arcsToModel`, edit mode passes the controlled model. */\n  value?: DeclareFlowModel;\n  /** Collapse complementary EF/EP (and DF/DP) pairs into one both-ended arc (display-only). Default on. */\n  combineEfEp?: boolean;\n  editable?: boolean;\n  onChange?: (next: DeclareFlowModel) => void;\n  /** Palette + support sources (from the host OCEL info). */\n  eventTypes?: string[];\n  objectTypes?: string[];\n  /** Object types related to an activity, used for drag-connect auto-labels. */\n  relatedTypes?: (activity: string) => Record<string, number>;\n  getSupport?: (assoc: ObjectTypeAssociation, ctx: SupportCtx) => number | undefined;\n  /** Injected backend callbacks; a missing one hides its UI affordance. */\n  onDiscover?: EditCallbacks[\"onDiscover\"];\n  onEvaluate?: EditCallbacks[\"onEvaluate\"];\n  onActivityStatistics?: EditCallbacks[\"onActivityStatistics\"];\n  onEdgeStatistics?: EditCallbacks[\"onEdgeStatistics\"];\n  onTemplateString?: EditCallbacks[\"onTemplateString\"];\n  /**\n   * Whether the graph may re-arrange itself: after a node is dropped, and when a change such as\n   * switching the involvement notation alters how much room the arcs need. The Layout button and\n   * Alt+L keep working, so turning this off leaves the user in charge of the arrangement.\n   * @default true\n   */\n  relayoutOnChange?: boolean;\n  /** Render object involvement as text notation instead of dots; controlled when `onShowTextLabelsChange` is given. */\n  showTextLabels?: boolean;\n  onShowTextLabelsChange?: (value: boolean) => void;\n  /** Restore a saved pan/zoom on mount (else the view fits the graph). */\n  defaultViewport?: { x: number; y: number; zoom: number };\n  /** Fires on ReactFlow move-end with the current pan/zoom, for host persistence. */\n  onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;\n  /** Override the activity color resolver (defaults to the canonical `colorForKey` mapping). */\n  activityColor?: ColorResolver;\n  /** Override the object-type color resolver (same default mapping). */\n  objectTypeColor?: ColorResolver;\n  /** Per-activity object-type involvement counts from the OCEL; shape matches `get_ocel_activity_object_involvements`. */\n  activityInvolvements?: {\n    [activity: string]: { [objectType: string]: { min: number; max: number } | undefined } | undefined;\n  };\n  /** Event-type occurrence counts from the OCEL (activity -> count). */\n  eventTypeCounts?: Record<string, number>;\n  /** Objects per object type from the OCEL, to sort the object-type picker by frequency. */\n  objectTypeCounts?: Record<string, number>;\n  /** Default true. False leaves the activity picker out of the controls card (the host offers one). */\n  activityPicker?: boolean;\n  /** Default true. With `editable`, false keeps the layout in the model (positions, routing, saved\n   *  drags) but offers no content editing: no toolbar, connecting, rename or delete. */\n  editTools?: boolean;\n  /** Without content editing (read-only, or `editTools={false}`): hovering an activity offers Hide\n   *  (project it away) and Focus (keep it and its neighbors). Absent: no hover actions. */\n  onHideActivity?: (activity: string) => void;\n  onFocusActivity?: (activity: string) => void;\n  /** Filters are controlled when the matching `on...Change` is given; otherwise seed the built-in filter. */\n  hiddenArcTypes?: Set<string>;\n  onHiddenArcTypesChange?: (next: Set<string>) => void;\n  hiddenObjectTypes?: Set<string>;\n  onHiddenObjectTypesChange?: (next: Set<string>) => void;\n  /** Activity chips for the controls card; a host that filters the model itself must pass the FULL list so hidden chips stay toggleable. */\n  activities?: string[];\n  /** Hidden activities; when uncontrolled this is a visibility hide that never mutates the model. */\n  hiddenActivities?: Set<string>;\n  onHiddenActivitiesChange?: (next: Set<string>) => void;\n  /** Lossless projection onto kept activities; when given and some are hidden, shows a display-only\n   *  overlay (removed activities' constraints folded into survivors) and pauses editing until cleared. */\n  onProjectActivities?: (arcs: OCDeclareArc[], activities: string[]) => Promise<OCDeclareArc[]>;\n  /** Count shown in the controls card footer; defaults to the model's edge count. */\n  arcsCount?: number;\n  className?: string;\n  /** Optional callback when the focused node changes. */\n  onFocusChange?: (id: string | null) => void;\n  /** Layout direction; \"DOWN\" fits narrow, page-shaped surfaces. Controlled when `onDirectionChange` is given. */\n  direction?: \"RIGHT\" | \"DOWN\";\n  onDirectionChange?: (d: \"RIGHT\" | \"DOWN\") => void;\n  /** rust4pm's visualization, which lays the constraints out and draws the SVG export. Defaults to\n   *  the ambient `ViewerConfig.viz`. Without one, the activities stack in a column and only the\n   *  snapshot export is offered. */\n  viz?: VizTransport;\n}"
+    "code": "export interface OCDeclareVizProps {\n  /** Constraint model to render; read-only hosts build it via `arcsToModel`, edit mode passes the controlled model. */\n  value?: DeclareFlowModel;\n  /** Collapse complementary EF/EP (and DF/DP) pairs into one both-ended arc (display-only). Default on. */\n  combineEfEp?: boolean;\n  editable?: boolean;\n  onChange?: (next: DeclareFlowModel) => void;\n  /** Palette + support sources (from the host OCEL info). */\n  eventTypes?: string[];\n  objectTypes?: string[];\n  /** Object types related to an activity, used for drag-connect auto-labels. */\n  relatedTypes?: (activity: string) => Record<string, number>;\n  getSupport?: (assoc: ObjectTypeAssociation, ctx: SupportCtx) => number | undefined;\n  /** Injected backend callbacks; a missing one hides its UI affordance. */\n  onDiscover?: EditCallbacks[\"onDiscover\"];\n  onEvaluate?: EditCallbacks[\"onEvaluate\"];\n  onActivityStatistics?: EditCallbacks[\"onActivityStatistics\"];\n  onEdgeStatistics?: EditCallbacks[\"onEdgeStatistics\"];\n  onTemplateString?: EditCallbacks[\"onTemplateString\"];\n  onExploreViolations?: EditCallbacks[\"onExploreViolations\"];\n  /**\n   * Whether the graph may re-arrange itself: after a node is dropped, and when a change such as\n   * switching the involvement notation alters how much room the arcs need. The Layout button and\n   * Alt+L keep working, so turning this off leaves the user in charge of the arrangement.\n   * @default true\n   */\n  relayoutOnChange?: boolean;\n  /** Render object involvement as text notation instead of dots; controlled when `onShowTextLabelsChange` is given. */\n  showTextLabels?: boolean;\n  onShowTextLabelsChange?: (value: boolean) => void;\n  /** Restore a saved pan/zoom on mount (else the view fits the graph). */\n  defaultViewport?: { x: number; y: number; zoom: number };\n  /** Fires on ReactFlow move-end with the current pan/zoom, for host persistence. */\n  onViewportChange?: (viewport: { x: number; y: number; zoom: number }) => void;\n  /** Override the activity color resolver (defaults to the canonical `colorForKey` mapping). */\n  activityColor?: ColorResolver;\n  /** Override the object-type color resolver (same default mapping). */\n  objectTypeColor?: ColorResolver;\n  /** Per-activity object-type involvement counts from the OCEL; shape matches `get_ocel_activity_object_involvements`. */\n  activityInvolvements?: {\n    [activity: string]: { [objectType: string]: { min: number; max: number } | undefined } | undefined;\n  };\n  /** Event-type occurrence counts from the OCEL (activity -> count). */\n  eventTypeCounts?: Record<string, number>;\n  /** Objects per object type from the OCEL, to sort the object-type picker by frequency. */\n  objectTypeCounts?: Record<string, number>;\n  /** Default true. False leaves the activity picker out of the controls card (the host offers one). */\n  activityPicker?: boolean;\n  /** Default true. With `editable`, false keeps the layout in the model (positions, routing, saved\n   *  drags) but offers no content editing: no toolbar, connecting, rename or delete. */\n  editTools?: boolean;\n  /** Without content editing (read-only, or `editTools={false}`): hovering an activity offers Hide\n   *  (project it away) and Focus (keep it and its neighbors). Absent: no hover actions. */\n  onHideActivity?: (activity: string) => void;\n  onFocusActivity?: (activity: string) => void;\n  /** Filters are controlled when the matching `on...Change` is given; otherwise seed the built-in filter. */\n  hiddenArcTypes?: Set<string>;\n  onHiddenArcTypesChange?: (next: Set<string>) => void;\n  hiddenObjectTypes?: Set<string>;\n  onHiddenObjectTypesChange?: (next: Set<string>) => void;\n  /** Activity chips for the controls card; a host that filters the model itself must pass the FULL list so hidden chips stay toggleable. */\n  activities?: string[];\n  /** Hidden activities; when uncontrolled this is a visibility hide that never mutates the model. */\n  hiddenActivities?: Set<string>;\n  onHiddenActivitiesChange?: (next: Set<string>) => void;\n  /** Lossless projection onto kept activities; when given and some are hidden, shows a display-only\n   *  overlay (removed activities' constraints folded into survivors) and pauses editing until cleared. */\n  onProjectActivities?: (arcs: OCDeclareArc[], activities: string[]) => Promise<OCDeclareArc[]>;\n  /** Count shown in the controls card footer; defaults to the model's edge count. */\n  arcsCount?: number;\n  className?: string;\n  /** Optional callback when the focused node changes. */\n  onFocusChange?: (id: string | null) => void;\n  /** Layout direction; \"DOWN\" fits narrow, page-shaped surfaces. Controlled when `onDirectionChange` is given. */\n  direction?: \"RIGHT\" | \"DOWN\";\n  onDirectionChange?: (d: \"RIGHT\" | \"DOWN\") => void;\n  /** rust4pm's visualization, which lays the constraints out and draws the SVG export. Defaults to\n   *  the ambient `ViewerConfig.viz`. Without one, the activities stack in a column and only the\n   *  snapshot export is offered. */\n  viz?: VizTransport;\n}"
   },
   {
     "name": "OcDfg",
@@ -676,7 +1089,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/dfg/index.tsx",
-    "code": "/** Extra props for the OC-DFG viewer. `performance` enables the frequency/performance toggle; omit to show frequency only. */\nexport interface OCDFGViewerProps extends ViewerProps<OcDfg> {\n  performance?: OcelDfPerformance;\n  /** Objects per object type, to rank the object-type chips. Without it they rank by arc count. */\n  objectCounts?: Record<string, number>;\n}"
+    "code": "/** Extra props for the OC-DFG viewer. `performance` enables the frequency/performance toggle; omit to show frequency only. */\nexport interface OCDFGViewerProps extends ViewerProps<OcDfg> {\n  performance?: OcelDfPerformance;\n  /** Objects per object type, to rank the object-type chips. Without it they rank by arc count. */\n  objectCounts?: Record<string, number>;\n  /** Object types drawn as dots on activities, e.g., a Reflow mapping's non-flow types. */\n  badges?: Record<string, ActivityBadge[]>;\n  /** Extra UI floating in the top-left corner, e.g., an annotation picker. */\n  topLeftExtra?: ReactNode;\n}"
   },
   {
     "name": "OcelAttributeStats",
@@ -707,6 +1120,20 @@
     "code": "export interface OcelEventRow {\n  rowId: string;\n  id: string;\n  type: string;\n  time: string;\n  timeManual: boolean;\n  attrs: Record<string, string>;\n  /** Event-to-object relationships. */\n  e2o: OcelRel[];\n}"
   },
   {
+    "name": "OcelHealth",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-health.tsx",
+    "code": "export interface OcelHealth {\n  num_events: number;\n  num_objects: number;\n  findings: HealthFinding[];\n}"
+  },
+  {
+    "name": "OcelHealthViewProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-health.tsx",
+    "code": "export interface OcelHealthViewProps extends ViewerProps<OcelHealth> {\n  /** What the data is called, e.g., \"event log\". */\n  subject?: string;\n  /** What `num_objects` counts, e.g., cases. */\n  unit?: string;\n  /** What a finding's count is a share of, e.g., events or cases; default all events and objects. */\n  totalOf?: (f: HealthFinding) => { total: number; noun: string };\n  /** Applies the repairs of the picked fixes, e.g., to a new copy of the data. */\n  onRepair?: (repairs: unknown[]) => Promise<unknown> | undefined;\n}"
+  },
+  {
     "name": "OcelJson",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -733,6 +1160,27 @@
     "entry": "@r4pm/components",
     "file": "src/log-editor/ocel-model.ts",
     "code": "export interface OcelObjectRow {\n  rowId: string;\n  id: string;\n  type: string;\n  /** Single snapshot value per attribute; timestamped at the log start on export (v1). */\n  attrs: Record<string, string>;\n  /** Object-to-object relationships. */\n  o2o: OcelRel[];\n}"
+  },
+  {
+    "name": "OcelOverview",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-overview.tsx",
+    "code": "export interface OcelOverview {\n  population: ObjectPopulation;\n  signatures: EventSignatures;\n  health: OcelHealth;\n  lifecycles: LifecycleMap;\n}"
+  },
+  {
+    "name": "OcelOverviewBoardProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-overview.tsx",
+    "code": "export interface OcelOverviewBoardProps extends ViewerProps<OcelOverview> {\n  /** Opens a detail view; without it the board shows no links. */\n  onOpen?: (target: OcelOverviewTarget) => void;\n}"
+  },
+  {
+    "name": "OcelOverviewTarget",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/ocel-overview.tsx",
+    "code": "/** Detail views the board links to, by the host's view id. */\nexport type OcelOverviewTarget =\n  | \"objectPopulation\"\n  | \"eventSignatures\"\n  | \"ocelHealth\"\n  | \"lifecycleMap\"\n  | \"ocdfg\"\n  | \"ocelTypeGraph\";"
   },
   {
     "name": "OcelRel",
@@ -826,6 +1274,20 @@
     "code": "/** rust4pm's flat object-centric Petri net JSON (`ObjectCentricPetriNetJson`). Names are unique among\n *  places and transitions. Markings are by place name. A missing `label` is a silent transition, a\n *  missing arc `type` is `\"normal\"` and a missing `weight` is 1. */\nexport interface Ocpn {\n  places: { name: string; object_type: string }[];\n  transitions: { name: string; label?: string | null }[];\n  arcs: { source: string; target: string; type?: \"normal\" | \"variable\"; weight?: number }[];\n  initial_marking: Record<string, number>;\n  final_marking: Record<string, number>;\n}"
   },
   {
+    "name": "OcpnAnimationData",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/OcpnAnimation.tsx",
+    "code": "export interface OcpnAnimationData {\n  ocpn: Ocpn;\n  replay: OcpnReplay;\n}"
+  },
+  {
+    "name": "OcpnAnimationProps",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/animation/OcpnAnimation.tsx",
+    "code": "export type OcpnAnimationProps = ViewerProps<OcpnAnimationData>;"
+  },
+  {
     "name": "OcpnArc",
     "kind": "interface",
     "entry": "@r4pm/components/petri",
@@ -838,6 +1300,13 @@
     "entry": "@r4pm/components",
     "file": "src/viz/types.ts",
     "code": "/** `arc` indexes the flat OCPN's `arcs`. */\nexport interface OcpnArcRef {\n  arc: number;\n  source: OcpnNodeRef;\n  target: OcpnNodeRef;\n}"
+  },
+  {
+    "name": "OcpnBadge",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/object-centric-petri-net.tsx",
+    "code": "/** An object type drawn in a transition (rust4pm's `OcpnBadge`). */\nexport type OcpnBadge = TypeBadge;"
   },
   {
     "name": "OcpnFireGuard",
@@ -875,6 +1344,20 @@
     "code": "/** A place or transition of a flat OCPN, by its index in `places` or `transitions`. */\nexport type OcpnNodeRef = { kind: \"place\"; index: number } | { kind: \"transition\"; index: number };"
   },
   {
+    "name": "OcpnReplay",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/OcpnAnimation.tsx",
+    "code": "export interface OcpnReplay {\n  journeys: {\n    id: string;\n    object_type: string;\n    firings: OcpnReplayFiring[];\n    log_moves?: [string, number][];\n  }[];\n  total_objects: number;\n  min_ms: number;\n  max_ms: number;\n  types: {\n    object_type: string;\n    objects: number;\n    fitness?: number | null;\n    perfectly_fitting?: number | null;\n    unaligned: number;\n    log_moves: [string, number][];\n  }[];\n  transitions: { transition: number; object_type: string; sync: number; model: number }[];\n  sync: {\n    activity: string;\n    transition?: number | null;\n    events: number;\n    median_wait_ms: number;\n    p90_wait_ms: number;\n    mean_wait_ms: number;\n    last_ready: [string, number][];\n    simultaneous: number;\n  }[];\n}"
+  },
+  {
+    "name": "OcpnReplayFiring",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/OcpnAnimation.tsx",
+    "code": "export interface OcpnReplayFiring {\n  transition: number;\n  time: number;\n  sync: boolean;\n}"
+  },
+  {
     "name": "OcSequenceObject",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -889,6 +1372,13 @@
     "code": "/** One step of an object-centric simulation trace: a fired transition plus the object\n *  instances it touched. Objects are clustered and colored by type when rendered. */\nexport interface OcSequenceStep {\n  transitionId: string;\n  /** Activity label; null or empty for a silent (tau) transition. */\n  label: string | null;\n  /** Objects associated with this step (any number of types). */\n  objects: OcSequenceObject[];\n}"
   },
   {
+    "name": "OffsetChange",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/time-zone.tsx",
+    "code": "/** From `from_ms` on, until the next change, a time zone is `offset_minutes` ahead of UTC. */\nexport interface OffsetChange {\n  from_ms: number;\n  offset_minutes: number;\n}"
+  },
+  {
     "name": "OperatorData",
     "kind": "type",
     "entry": "@r4pm/components/process-tree",
@@ -901,6 +1391,20 @@
     "entry": "@r4pm/components/process-tree",
     "file": "src/process-tree/tree.ts",
     "code": "export type OperatorType = ProcessTreeOperatorType;"
+  },
+  {
+    "name": "Option",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface Option<T extends string> {\n  value: T;\n  label: string;\n  /** One line explaining what the option does. */\n  description?: string;\n  icon?: ReactNode;\n}"
+  },
+  {
+    "name": "OptionMenuProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface OptionMenuProps<T extends string> {\n  label: string;\n  value: T;\n  options: Option<T>[];\n  onChange: (v: T) => void;\n  disabled?: boolean;\n}"
   },
   {
     "name": "PagedList",
@@ -924,6 +1428,62 @@
     "code": "export interface PagedPage<T> {\n  /** Rows matching the query, across all pages. */\n  total: number;\n  rows: T[];\n}"
   },
   {
+    "name": "PartialResultStripProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/JobProgress.tsx",
+    "code": "export interface PartialResultStripProps {\n  onRun?: () => void;\n  what?: string;\n}"
+  },
+  {
+    "name": "PathSchemaControls",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/path-schemas.tsx",
+    "code": "export interface PathSchemaControls {\n  /** A {@link pathSchemaTypeKey}; null for the first of `typeOptions`. */\n  source?: string | null;\n  /** A {@link pathSchemaTypeKey}; null for any type. */\n  target?: string | null;\n  maxLength: number;\n}"
+  },
+  {
+    "name": "PathSchemaResult",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/path-schemas.tsx",
+    "code": "export interface PathSchemaResult {\n  source_type: string;\n  total_sources: number;\n  schemas: DiscoveredPathSchema[];\n  schema_limit_reached: boolean;\n}"
+  },
+  {
+    "name": "PathSchemasViewProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/path-schemas.tsx",
+    "code": "export interface PathSchemasViewProps extends ViewerProps<PathSchemaResult> {\n  /** The types a path can start or end at, keyed by {@link pathSchemaTypeKey}. */\n  typeOptions: Option<string>[];\n  /** The event types, to tell them apart from object types in a path. */\n  eventTypes: string[];\n  controls?: PathSchemaControls;\n  onControlsChange?: (next: PathSchemaControls) => void;\n}"
+  },
+  {
+    "name": "PathSchemaType",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/overview/path-schemas.tsx",
+    "code": "/** An event or object type, as the engine names a path's end. */\nexport type PathSchemaType = { Event: string } | { Object: string };"
+  },
+  {
+    "name": "PerformanceSpectrum",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/performance-spectrum.tsx",
+    "code": "export interface PerformanceSpectrum {\n  path: string[];\n  segments: SpectrumSegment[];\n  min_ms: number;\n  max_ms: number;\n  top_variants: { activities: string[]; cases: number }[];\n  num_cases: number;\n}"
+  },
+  {
+    "name": "PerformanceSpectrumControls",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/performance-spectrum.tsx",
+    "code": "export interface PerformanceSpectrumControls {\n  /** The activities of the path; null for the host's choice. */\n  path?: string[] | null;\n}"
+  },
+  {
+    "name": "PerformanceSpectrumViewProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/performance-spectrum.tsx",
+    "code": "export interface PerformanceSpectrumViewProps extends ViewerProps<PerformanceSpectrum> {\n  controls?: PerformanceSpectrumControls;\n  /** When given, a menu picks the path among the top variants. */\n  onControlsChange?: (next: PerformanceSpectrumControls) => void;\n}"
+  },
+  {
     "name": "PetriElements",
     "kind": "type",
     "entry": "@r4pm/components/petri",
@@ -936,6 +1496,20 @@
     "entry": "@r4pm/components",
     "file": "src/petri-net.tsx",
     "code": "/** Petri net data shape. `label` is optional (serializes as missing/null); assignable to/from the generated `@r4pm/client` `PetriNet` type. */\nexport interface PetriNet {\n  /** `name` is the external id (e.g., from PNML), kept so a round trip through rust4pm keeps it. */\n  places: Array<{ id: string; name?: string | null }>;\n  transitions: Array<{ id: string; label?: string | null; name?: string | null }>;\n  arcs: Array<{\n    nodes: [string, string];\n    weight?: number;\n  }>;\n  initial_marking?: Record<string, number> | null;\n  final_marking?: Record<string, number> | null;\n}"
+  },
+  {
+    "name": "PetriNetAnimationData",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/PetriNetAnimation.tsx",
+    "code": "export interface PetriNetAnimationData {\n  net: RustPetriNet;\n  replay: NetReplay;\n}"
+  },
+  {
+    "name": "PetriNetAnimationProps",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/animation/PetriNetAnimation.tsx",
+    "code": "export type PetriNetAnimationProps = ViewerProps<PetriNetAnimationData>;"
   },
   {
     "name": "PetriNetMode",
@@ -1022,6 +1596,55 @@
     "code": "export interface Point {\n  x: number;\n  y: number;\n}"
   },
   {
+    "name": "PrecisionSummary",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/alignment-types.ts",
+    "code": "/** Escaping-edges precision: where the model allows behavior the log never shows. */\nexport interface PrecisionSummary {\n  precision: number;\n  weighted_available: number;\n  weighted_escaping: number;\n  num_states: number;\n  search_limit_reached: boolean;\n  by_activity: EscapingActivity[];\n  top_edges: EscapingEdgeSummary[];\n}"
+  },
+  {
+    "name": "PrefixNode",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/prefix-tree.tsx",
+    "code": "export interface PrefixNode {\n  parent?: number | null;\n  activity: string;\n  depth: number;\n  cases: number;\n  ending: number;\n  median_remaining_ms?: number | null;\n  median_elapsed_ms?: number | null;\n  pruned_cases: number;\n}"
+  },
+  {
+    "name": "PrefixTree",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/prefix-tree.tsx",
+    "code": "export interface PrefixTree {\n  nodes: PrefixNode[];\n  max_depth: number;\n  min_cases: number;\n}"
+  },
+  {
+    "name": "PrefixTreeControls",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/prefix-tree.tsx",
+    "code": "/** Settings that change what the engine computes. */\nexport interface PrefixTreeControls {\n  /** Prefixes shared by fewer than this share of all cases are hidden. */\n  minShare: number;\n}"
+  },
+  {
+    "name": "PrefixTreeViewProps",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/prefix-tree.tsx",
+    "code": "export interface PrefixTreeViewProps extends ViewerProps<PrefixTree> {\n  controls?: PrefixTreeControls;\n  /** When given, a slider sets the smallest share of cases a shown prefix needs. */\n  onControlsChange?: (next: PrefixTreeControls) => void;\n}"
+  },
+  {
+    "name": "ProcessMapAnimationData",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/animation/ProcessMapAnimation.tsx",
+    "code": "export interface ProcessMapAnimationData {\n  /** The map the tokens move over: a DFG, or an OC-DFG with the object types to show. */\n  source: DfgSource;\n  journeys: Journeys;\n}"
+  },
+  {
+    "name": "ProcessMapAnimationProps",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/animation/ProcessMapAnimation.tsx",
+    "code": "export type ProcessMapAnimationProps = ViewerProps<ProcessMapAnimationData>;"
+  },
+  {
     "name": "ProcessTree",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -1064,6 +1687,27 @@
     "code": "export interface ProcessTreeWorkbenchProps extends ViewerProps<ProcessTree> {\n  /** Mode shown on mount. Defaults to \"view\". */\n  initialMode?: ProcessTreeMode;\n  /** Fired whenever the current (possibly edited) tree changes. */\n  onTreeChange?: (tree: ProcessTree) => void;\n  /** Host-supplied buttons; receive the current tree. */\n  toolbar?: (tree: ProcessTree) => ReactNode;\n}"
   },
   {
+    "name": "ProgressUnit",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/JobProgress.tsx",
+    "code": "/** How to show the counts of one stage. */\nexport interface ProgressUnit {\n  /** What the stage counts, after the numbers, e.g., \"variants\" or \"MB\". */\n  noun?: string;\n  /** Formats `done` and `total`; default with thousands separators. */\n  format?: (n: number) => string;\n  /** Shown instead of the stage name. */\n  title?: string;\n  /** The total is a limit the work rarely reaches, so a share of it says little: show the count only. */\n  totalIsLimit?: boolean;\n}"
+  },
+  {
+    "name": "ProgressUnits",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/feedback/JobProgress.tsx",
+    "code": "/** Units by stage name. A stage `<prefix>: <name>` uses the unit of `<name>`. */\nexport type ProgressUnits = Record<string, ProgressUnit>;"
+  },
+  {
+    "name": "RampLegendProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface RampLegendProps {\n  /** Label before the swatches, for the low end. */\n  low: ReactNode;\n  /** Label after the swatches, for the high end. */\n  high: ReactNode;\n  /** Swatch color for `t` in 0..1; {@link rampColor} by default. */\n  color?: (t: number) => string;\n  /** The `t` of each swatch. */\n  steps?: number[];\n  style?: CSSProperties;\n}"
+  },
+  {
     "name": "RankedBarListProps",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -1078,6 +1722,62 @@
     "code": "export interface Rect {\n  min: Point;\n  max: Point;\n}"
   },
   {
+    "name": "ReflowBadge",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/model.ts",
+    "code": "/** An object type drawn on an activity of a flow model: implied ones with the type they follow. */\nexport type ReflowBadge = TypeBadge;"
+  },
+  {
+    "name": "ReflowCell",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/model.ts",
+    "code": "export interface ReflowCell {\n  activity: string;\n  objectType: string;\n  state: ReflowCellState;\n  /** False for a cell Reflow added from a schema route (with expansion). */\n  recorded: boolean;\n  participations: number;\n  /** Fewest and most distinct objects of the type an event of the activity has, over the source log. */\n  minObjects: number;\n  maxObjects: number;\n  determinedBy?: {\n    from: string;\n    reconstruction: {\n      via:\n        | { kind: \"recorded\"; relations: { qualifier: string; reversed: boolean }[] }\n        | { kind: \"image\" }\n        | { kind: \"preimage\" };\n      share: number;\n    };\n  } | null;\n}"
+  },
+  {
+    "name": "ReflowCellState",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/model.ts",
+    "code": "export type ReflowCellState = \"flow\" | \"implied\" | \"involved\";"
+  },
+  {
+    "name": "ReflowControls",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/ReflowView.tsx",
+    "code": "export interface ReflowControls {\n  theta: number;\n  search: \"heuristic\" | \"exact\";\n  expand: boolean;\n}"
+  },
+  {
+    "name": "ReflowMapping",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/model.ts",
+    "code": "/** The saved mapping (`.reflow`): a summary and the logs it belongs to. */\nexport interface ReflowMapping {\n  version: number;\n  /** Label of the log Reflow ran on. */\n  source?: string;\n  /** Id of the flow log made alongside. */\n  flowLog?: string;\n  summary: ReflowSummary;\n}"
+  },
+  {
+    "name": "ReflowStats",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/model.ts",
+    "code": "export interface ReflowStats {\n  facts: number;\n  flow: number;\n  implied: number;\n  involved: number;\n  added: number;\n  arcsRecorded: number;\n  arcsFlow: number;\n  seed?: string | null;\n  repaired: number;\n  work: number;\n  limitReached: boolean;\n  expansionCandidates: number;\n}"
+  },
+  {
+    "name": "ReflowSummary",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/model.ts",
+    "code": "export interface ReflowSummary {\n  activities: string[];\n  objectTypes: string[];\n  cells: ReflowCell[];\n  stats: ReflowStats;\n}"
+  },
+  {
+    "name": "ReflowViewProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/reflow/ReflowView.tsx",
+    "code": "export interface ReflowViewProps extends ViewerProps<ReflowSummary> {\n  /** Without them the toolbar shows no settings. */\n  controls?: ReflowControls;\n  onControlsChange?: (next: ReflowControls) => void;\n  /** Toolbar actions at the end, e.g., making the flow log. */\n  toolbarEnd?: ReactNode;\n}"
+  },
+  {
     "name": "ResolvedMove",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -1089,7 +1789,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/petri/net-json.ts",
-    "code": "/** Petri net JSON as rust4pm (de)serializes an `AcceptingPetriNet`: nodes by index, each\n *  transition with its weighted input and output places, markings from place index to tokens. */\nexport interface RustPetriNet {\n  places: Array<{ name?: string | null }>;\n  transitions: Array<{\n    label?: string | null;\n    name?: string | null;\n    inputs: [number, number][];\n    outputs: [number, number][];\n  }>;\n  initial_marking: Record<string, number>;\n  final_marking: Record<string, number>;\n}"
+    "code": "/** Petri net JSON as rust4pm (de)serializes an `AcceptingPetriNet`: nodes by index, each\n *  transition with its weighted input and output places, markings from place index to tokens. */\nexport interface RustPetriNet {\n  places: Array<{ name?: string | null }>;\n  transitions: Array<{\n    label: string | null;\n    name?: string | null;\n    inputs: [number, number][];\n    outputs: [number, number][];\n  }>;\n  initial_marking: Record<string, number>;\n  final_marking: Record<string, number>;\n}"
   },
   {
     "name": "SaveBytesFn",
@@ -1103,7 +1803,14 @@
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/shared/alignment-types.ts",
-    "code": "export type SearchError = \"LimitReached\" | \"MemoryLimitReached\" | \"Unreachable\" | \"MaxEdgeCostTooLarge\";"
+    "code": "export type SearchError =\n  | \"LimitReached\"\n  | \"MemoryLimitReached\"\n  | \"Unreachable\"\n  | \"MaxEdgeCostTooLarge\"\n  | \"Cancelled\";"
+  },
+  {
+    "name": "SearchFieldProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/table.tsx",
+    "code": "export interface SearchFieldProps {\n  value: string;\n  onChange: (value: string) => void;\n  placeholder?: string;\n  /** Wait this many ms after the last keystroke before calling `onChange`; clearing is immediate. */\n  debounceMs?: number;\n  width?: CSSProperties[\"width\"];\n  \"aria-label\"?: string;\n}"
   },
   {
     "name": "SearchSelectProps",
@@ -1120,11 +1827,32 @@
     "code": "export interface SearchSelectRowState {\n  selected: boolean;\n  highlighted: boolean;\n  /** Current search text, e.g. to highlight what matched. */\n  query: string;\n}"
   },
   {
+    "name": "SectionProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface SectionProps {\n  title?: ReactNode;\n  subtitle?: ReactNode;\n  actions?: ReactNode;\n  children: ReactNode;\n  style?: CSSProperties;\n}"
+  },
+  {
+    "name": "SegmentedProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface SegmentedProps<T extends string> {\n  value: T;\n  options: Option<T>[];\n  onChange: (v: T) => void;\n  /** Small items, for narrow side rails. */\n  compact?: boolean;\n  /** Only the icons; the label becomes the item's name and tooltip. */\n  iconOnly?: boolean;\n  /** Stretch over the available width, items sharing it equally. */\n  fill?: boolean;\n  /** Wrap items onto more rows when they do not fit. */\n  wrap?: boolean;\n  tooltipSide?: \"top\" | \"right\" | \"bottom\" | \"left\";\n  disabled?: boolean;\n  \"aria-label\"?: string;\n}"
+  },
+  {
     "name": "SelectionActionsProps",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/inputs/SelectionActions.tsx",
     "code": "export interface SelectionActionsProps {\n  /** Full set of selectable keys (for All / Invert). */\n  allKeys: string[];\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  size?: \"1\" | \"2\";\n}"
+  },
+  {
+    "name": "SignatureObjects",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/event-signatures.tsx",
+    "code": "export interface SignatureObjects {\n  object_type: string;\n  min: number;\n  max: number;\n  mean: number;\n}"
   },
   {
     "name": "SimTrace",
@@ -1148,11 +1876,32 @@
     "code": "export interface Size {\n  width: number;\n  height: number;\n}"
   },
   {
+    "name": "SortableHeaderProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/table.tsx",
+    "code": "export interface SortableHeaderProps {\n  children: ReactNode;\n  /** How the table is sorted by this column, if it is. */\n  sorted?: \"asc\" | \"desc\" | null;\n  /** Without it, the header does not sort. */\n  onSort?: () => void;\n  align?: \"left\" | \"right\";\n  style?: CSSProperties;\n}"
+  },
+  {
+    "name": "SortIconProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/table.tsx",
+    "code": "export interface SortIconProps {\n  ascending: boolean;\n}"
+  },
+  {
+    "name": "SpectrumSegment",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/performance-spectrum.tsx",
+    "code": "export interface SpectrumSegment {\n  from: string;\n  to: string;\n  count: number;\n  lines: [number, number][];\n  quartiles: [number, number, number];\n}"
+  },
+  {
     "name": "StatCardsProps",
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/shared/StatCards.tsx",
-    "code": "export interface StatCardsProps {\n  items: StatItem[];\n  /** \"start\" = label over value, left aligned (metrics); \"center\" = centered big number. */\n  align?: \"start\" | \"center\";\n  /** Progress visualization for items with a `progress` value. Default \"ring\". */\n  indicator?: StatIndicator;\n}"
+    "code": "export interface StatCardsProps {\n  items: StatItem[];\n  /** \"center\" centers the row of tiles. */\n  align?: \"start\" | \"center\";\n  /** How items with a `progress` show it: a bar under the value (default) or a ring in its place. */\n  indicator?: StatIndicator;\n}"
   },
   {
     "name": "StaticViewerProps",
@@ -1197,11 +1946,39 @@
     "code": "export interface SupportCtx {\n  source: DeclareNode;\n  target: DeclareNode;\n}"
   },
   {
+    "name": "SvgBox",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/petri-net.tsx",
+    "code": "/** A node's bounds in the exported image: its top-left corner and size. */\nexport interface SvgBox {\n  x: number;\n  y: number;\n  width: number;\n  height: number;\n}"
+  },
+  {
+    "name": "SweepPoint",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/model-sweep.tsx",
+    "code": "export interface SweepPoint {\n  threshold: number;\n  quality?: SweepQuality;\n  /** Set while the point runs or after it failed. */\n  status?: \"running\" | \"error\";\n}"
+  },
+  {
+    "name": "SweepQuality",
+    "kind": "interface",
+    "entry": "@r4pm/components/charts",
+    "file": "src/charts/model-sweep.tsx",
+    "code": "/** One measured model of a sweep (the fields of the engine's `ModelQuality` the chart reads). */\nexport interface SweepQuality {\n  fitness?: number | null;\n  precision?: number | null;\n  f_score?: number | null;\n  places: number;\n  transitions: number;\n  silent_transitions: number;\n  arcs: number;\n}"
+  },
+  {
     "name": "SyncProdNetConstructionError",
     "kind": "type",
     "entry": "@r4pm/components",
     "file": "src/shared/alignment-types.ts",
     "code": "export type SyncProdNetConstructionError =\n  | { InvalidPlaceInMarking: PlaceID }\n  | { ArcWeightTooLarge: number }\n  | { MarkingTooLarge: [PlaceID, number] }\n  | { TraceTooLong: number };"
+  },
+  {
+    "name": "TablePagerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/table.tsx",
+    "code": "export interface TablePagerProps {\n  /** The current page, from 0. */\n  page: number;\n  pageSize: number;\n  /** Rows over all pages. */\n  total: number;\n  onPageChange: (page: number) => void;\n  /** With `onPageSizeChange`, a menu offers these page sizes. */\n  pageSizes?: readonly number[];\n  onPageSizeChange?: (pageSize: number) => void;\n}"
   },
   {
     "name": "ThemeColor",
@@ -1218,6 +1995,13 @@
     "code": "export interface TimeConfig {\n  /** RFC3339 start applied to the first (non-manual) event of every case. */\n  start: string;\n  stepSeconds: number;\n}"
   },
   {
+    "name": "TimeZonePickerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/time-zone.tsx",
+    "code": "export interface TimeZonePickerProps {\n  /** An IANA zone, \"UTC\", or `RECORDED_TIME`. */\n  value: string;\n  onChange: (zone: string) => void;\n  disabled?: boolean;\n}"
+  },
+  {
     "name": "TokenMark",
     "kind": "type",
     "entry": "@r4pm/components/petri",
@@ -1232,6 +2016,27 @@
     "code": "export type TokenMarking = Record<string, string[]>;"
   },
   {
+    "name": "ToolbarProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface ToolbarProps {\n  children?: ReactNode;\n  end?: ReactNode;\n}"
+  },
+  {
+    "name": "TooltipContent",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface TooltipContent {\n  title: ReactNode;\n  rows?: TooltipRow[];\n  footer?: ReactNode;\n}"
+  },
+  {
+    "name": "TooltipRow",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "/** One row of a {@link ChartTooltip}. */\nexport interface TooltipRow {\n  label: ReactNode;\n  value: ReactNode;\n  color?: string;\n}"
+  },
+  {
     "name": "TraceVariants",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -1243,7 +2048,7 @@
     "kind": "type",
     "entry": "@r4pm/components/petri",
     "file": "src/petri/editor/Editor.tsx",
-    "code": "export type TransitionData = ElementHandlers & {\n  label?: string | undefined;\n  /** Size to draw at, from the layout. Without one, the default transition size. */\n  size?: Size;\n  /** Highlight, dim or annotate the transition, on screen and in the exported image. */\n  elementStyle?: ElementStyle;\n  className?: string;\n  style?: React.CSSProperties;\n  /** Replace the transition's inner content entirely (e.g. an icon). */\n  renderContent?: () => React.ReactNode;\n};"
+    "code": "export type TransitionData = ElementHandlers & {\n  label?: string | undefined;\n  /** Size to draw at, from the layout. Without one, the default transition size. */\n  size?: Size;\n  /** Highlight, dim or annotate the transition, on screen and in the exported image. */\n  elementStyle?: ElementStyle;\n  className?: string;\n  style?: React.CSSProperties;\n  /** Replace the transition's inner content entirely (e.g. an icon). */\n  renderContent?: () => React.ReactNode;\n  /** SVG markup the exported image draws over the transition. See `ElementPresentation`. */\n  exportDecoration?: (box: { x: number; y: number; width: number; height: number }) => string;\n};"
   },
   {
     "name": "TransitionFireStats",
@@ -1288,6 +2093,34 @@
     "code": "/** A rooted tree or forest for the tidy-tree engine. */\nexport interface TreeRequest {\n  graph: GraphRequest[\"graph\"];\n  options?: Record<string, unknown>;\n}"
   },
   {
+    "name": "TypeBadge",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/type-badges.tsx",
+    "code": "/**\n * An object type drawn on an activity, as rust4pm's `TypeBadge` (`visualization::badges`): after\n * its source type's disc and an arrow when it follows from that type, among the plain discs when it\n * is only involved. Three discs for several objects per event, a dashed border when an event may\n * have none.\n */\nexport interface TypeBadge {\n  object_type: string;\n  from?: string | null;\n  card?: InvolvementCard | null;\n  from_card?: InvolvementCard | null;\n}"
+  },
+  {
+    "name": "TypeBadgesProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/type-badges.tsx",
+    "code": "export interface TypeBadgesProps {\n  badges: TypeBadge[];\n  color: (objectType: string) => string;\n  maxWidth?: number;\n}"
+  },
+  {
+    "name": "TypeChipProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/kit/index.tsx",
+    "code": "export interface TypeChipProps {\n  /** The type's color, drawn as a dot. */\n  color: string;\n  children: ReactNode;\n  /** Muted text after the content. */\n  suffix?: ReactNode;\n  /** The content in the code font, e.g., for object ids. */\n  mono?: boolean;\n  title?: string;\n  onClick?: () => void;\n}"
+  },
+  {
+    "name": "TypeLifecycle",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/lifecycle-map.tsx",
+    "code": "export interface TypeLifecycle {\n  object_type: string;\n  objects: number;\n  median_lifetime_ms: number;\n  p90_lifetime_ms: number;\n  activities: LifecycleActivity[];\n}"
+  },
+  {
     "name": "TypeScopeItem",
     "kind": "interface",
     "entry": "@r4pm/components",
@@ -1299,7 +2132,7 @@
     "kind": "interface",
     "entry": "@r4pm/components",
     "file": "src/ocel-type-graph/TypeScopeSelector.tsx",
-    "code": "export interface TypeScopeSelectorProps {\n  items: TypeScopeItem[];\n  /** Currently-visible ids (the graph's `visibleNodeIds`). */\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  /** Optional host action: reset scope to the host's automatic default. */\n  onResetAuto?: () => void;\n  /** Whether the current scope equals the automatic default (labels the trigger). */\n  isAuto?: boolean;\n  /** Shared color resolver so the frequency bars match the graph node colors. */\n  colorOf?: ColorResolver;\n  triggerVariant?: \"soft\" | \"surface\" | \"outline\";\n}"
+    "code": "export interface TypeScopeSelectorProps {\n  items: TypeScopeItem[];\n  /** Currently-visible ids (the graph's `visibleNodeIds`). */\n  value: Set<string>;\n  onChange: (next: Set<string>) => void;\n  /** Optional host action: reset scope to the host's automatic default. */\n  onResetAuto?: () => void;\n  /** Whether the current scope equals the automatic default (labels the trigger). */\n  isAuto?: boolean;\n  /** Shared color resolver so the frequency bars match the graph node colors. */\n  colorOf?: ColorResolver;\n}"
   },
   {
     "name": "VariantAlignmentResult",
@@ -1307,6 +2140,13 @@
     "entry": "@r4pm/components",
     "file": "src/shared/alignment-types.ts",
     "code": "export interface VariantAlignmentResult {\n  activities: string[];\n  frequency: number;\n  result: { Ok: AlignmentResult } | { Err: AlignmentError };\n}"
+  },
+  {
+    "name": "VariantOption",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/VariantSelect.tsx",
+    "code": "export interface VariantOption {\n  activities: string[];\n  cases: number;\n  /** Shown at the end of the row, e.g., a cost or a duration. */\n  note?: ReactNode;\n}"
   },
   {
     "name": "VariantPageRequest",
@@ -1321,6 +2161,20 @@
     "entry": "@r4pm/components/charts",
     "file": "src/charts/variant-time-profile-data.ts",
     "code": "export interface VariantProfileRequest {\n  activities: string[];\n  /** The sort `sort_position` refers to. */\n  variant_sort: VariantSort;\n  /** Tokens matched against the case id. */\n  case_query: string;\n  case_sort: CaseSort;\n  case_offset: number;\n  case_limit: number;\n  /** An exact case id: the page is just that case, and `focus_index` is its position. */\n  focus_case: string | null;\n}"
+  },
+  {
+    "name": "VariantRowProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/VariantSelect.tsx",
+    "code": "export interface VariantRowProps {\n  /** 0-based; shown as #1, #2, ... */\n  rank?: number;\n  activities: string[];\n  cases: number;\n  /** Share of all cases, 0 to 1. */\n  share: number;\n  note?: ReactNode;\n  matched?: number[];\n}"
+  },
+  {
+    "name": "VariantSelectProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/shared/VariantSelect.tsx",
+    "code": "export interface VariantSelectProps {\n  variants: VariantOption[];\n  value: number | null;\n  onChange: (index: number) => void;\n  /** What the shares are of; defaults to the cases of all `variants`. */\n  totalCases?: number;\n  placeholder?: ReactNode;\n  disabled?: boolean;\n}"
   },
   {
     "name": "VariantSort",
@@ -1414,6 +2268,20 @@
     "code": "/** A domain element a host can act on. `scope` is the kind (\"activity\", \"objectType\", ...). */\nexport interface ViewerTarget {\n  scope: string;\n  key: string;\n  data?: unknown;\n}"
   },
   {
+    "name": "ViolationExplorerProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare-explorer/ViolationExplorer.tsx",
+    "code": "export interface ViolationExplorerProps extends ViewerProps<ArcViolations> {\n  /** The constraint `data` checks. */\n  arc: OCDeclareArc;\n  /** Durations from source events to their first target event. */\n  edgeStats?: EdgeDurations | null;\n  /** The events of the given objects, for a violation's timeline. */\n  loadLanes?: (objectIds: string[]) => Promise<ObjectLane[]>;\n  /** Show an object's process execution, e.g., in a host panel. */\n  onOpenObject?: (objectType: string, id: string) => void;\n}"
+  },
+  {
+    "name": "ViolationKind",
+    "kind": "type",
+    "entry": "@r4pm/components",
+    "file": "src/oc-declare-explorer/model.ts",
+    "code": "export type ViolationKind = \"too_few\" | \"too_many\";"
+  },
+  {
     "name": "VizModel",
     "kind": "type",
     "entry": "@r4pm/components",
@@ -1433,5 +2301,33 @@
     "entry": "@r4pm/components",
     "file": "src/viz/index.ts",
     "code": "/**\n * Runs rust4pm's visualization bindings (`process_mining::visualization::bindings`) by name, with\n * the same JSON arguments a backend's `callBinding` takes. The embedded wasm (`wasmViz` from\n * `@r4pm/components/viz/wasm`) and a backend give the same results.\n */\nexport interface VizTransport {\n  call(fn: string, args: Record<string, unknown>): Promise<unknown>;\n}"
+  },
+  {
+    "name": "Workload",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/workload-calendar.tsx",
+    "code": "export interface Workload {\n  groups: WorkloadGroup[];\n  events_without_time: number;\n  /** Every event is at midnight in its own offset: the log records dates only. */\n  date_only: boolean;\n  span_ms?: [number, number] | null;\n}"
+  },
+  {
+    "name": "WorkloadCalendarProps",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/workload-calendar.tsx",
+    "code": "export interface WorkloadCalendarProps extends ViewerProps<Workload> {\n  /** What the groups are, e.g., \"Activity\". */\n  groupLabel?: string;\n  /** The attributes the host can group by; with `onControlsChange` and a `groupBy`, a menu offers them. */\n  groupByOptions?: Option<string>[];\n  controls?: WorkloadControls;\n  /** With it, a menu offers `groupByOptions` and a picker the time zones. */\n  onControlsChange?: (next: WorkloadControls) => void;\n}"
+  },
+  {
+    "name": "WorkloadControls",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/workload-calendar.tsx",
+    "code": "export interface WorkloadControls {\n  /** The attribute the groups are of, one of `groupByOptions`. */\n  groupBy?: string;\n  /** IANA zone the counts are in, or `RECORDED_TIME` for each event's own offset. */\n  timeZone?: string;\n}"
+  },
+  {
+    "name": "WorkloadGroup",
+    "kind": "interface",
+    "entry": "@r4pm/components",
+    "file": "src/overview/workload-calendar.tsx",
+    "code": "export interface WorkloadGroup {\n  key: string;\n  total: number;\n  /** 168 counts, `counts[day * 24 + hour]` with Monday as day 0. */\n  counts: number[];\n}"
   }
 ]

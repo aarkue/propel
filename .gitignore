@@ -12,3 +12,5 @@ engine/target/
 # wasm-pack output
 pkg/
 **/pkg/
+# pnpm thumbnails --check report
+apps/studio/.thumbnail-check/

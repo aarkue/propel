@@ -1,35 +1,18 @@
-import { Badge, Callout, Card, Table, Text } from "@r4pm/components/ui";
+import { Badge, Callout, Table, Text } from "@r4pm/components/ui";
+import { FitnessMetrics } from "./fitness";
+import { fmtInt, fmtPct, Toolbar } from "./kit";
 import { memo, useCallback, useMemo, useRef } from "react";
 import type { LogAlignments, VariantAlignmentResult } from "./shared/alignment-types";
 import { AlignmentStrip } from "./shared/AlignmentStrip";
 import { CoverageBar } from "./shared/CoverageBar";
-import { StatCards } from "./shared/StatCards";
 import { resolveMove, type ResolvedMove } from "./shared/TraceAlignmentStrip";
 import { useVirtualRows } from "./shared/useVirtualRows";
 import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 
-const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 // Fixed virtualized row heights. The deviation strip is a two-lane + central-axis layout
 // (~92px), so it needs more room than the single-line trace strip.
 const ROW_H_TRACE = 116;
 const ROW_H_DEVIATION = 116;
-
-function FitnessHeader({ fitness }: { fitness: NonNullable<LogAlignments["fitness"]> }) {
-  return (
-    <StatCards
-      items={[
-        { label: "Avg. fitness", value: pct(fitness.average_fitness), progress: fitness.average_fitness },
-        { label: "Log fitness", value: pct(fitness.log_fitness), progress: fitness.log_fitness },
-        {
-          label: "Perfectly fitting",
-          value: pct(fitness.perfectly_fitting_frac),
-          progress: fitness.perfectly_fitting_frac,
-        },
-        { label: "Total cost", value: fitness.total_costs },
-      ]}
-    />
-  );
-}
 
 interface VariantRow {
   idx: number;
@@ -144,6 +127,8 @@ export function AlignmentListViewer(props: ViewerProps<LogAlignments>) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: Wanted side effect
   const movesCache = useMemo(() => new Map<number, ResolvedMove[]>(), [data]);
 
+  const fitting = rows.filter((r) => r.cost === 0).length;
+  const fittingCases = rows.filter((r) => r.cost === 0).reduce((s, r) => s + r.variant.frequency, 0);
   const padTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
   const padBottom =
     virtualItems.length > 0
@@ -151,23 +136,21 @@ export function AlignmentListViewer(props: ViewerProps<LogAlignments>) {
       : 0;
 
   return (
-    <div style={{ width: "100%", height: "100%", minHeight: 200, padding: 8 }}>
-      <Card className="relative w-full" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <div>
-            <Text as="div" size="4" weight="bold">
-              Alignments
-            </Text>
-            <Text size="1" color="gray">
-              {rows.length.toLocaleString("en")} variant{rows.length === 1 ? "" : "s"}
-            </Text>
-          </div>
-          {data.fitness && (
-            <div className="ml-auto">
-              <FitnessHeader fitness={data.fitness} />
-            </div>
-          )}
-        </div>
+    <div style={{ width: "100%", height: "100%", minHeight: 200, display: "flex", flexDirection: "column" }}>
+      <Toolbar
+        end={
+          <Text size="1" color="gray">
+            {fmtInt(fitting)} of {fmtInt(rows.length)} variants fit (
+            {fmtPct(fittingCases / Math.max(1, totalFreq))} of cases)
+          </Text>
+        }
+      >
+        <Text size="2" weight="medium">
+          Alignments per variant
+        </Text>
+      </Toolbar>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, padding: 16, gap: 14 }}>
+        {data.fitness && <FitnessMetrics data={data.fitness} />}
 
         {rows.length === 0 && (
           <Callout.Root size="1">
@@ -243,7 +226,7 @@ export function AlignmentListViewer(props: ViewerProps<LogAlignments>) {
             </Table.Root>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

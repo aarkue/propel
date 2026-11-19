@@ -1,7 +1,8 @@
-import { Button, Slider } from "@r4pm/components/ui";
-import { FaArrowDown, FaArrowRight, FaMinus, FaPlus } from "react-icons/fa";
-import { PiChartBar, PiTimer } from "react-icons/pi";
+import { IconButton, Slider, Tooltip } from "@r4pm/components/ui";
+import { FaArrowDown, FaArrowRight } from "react-icons/fa";
+import { PiChartBar, PiMinus, PiPlus, PiTimer } from "react-icons/pi";
 import { SlGraph } from "react-icons/sl";
+import { type Option, Segmented } from "../kit";
 import { type DfgCoverage, type DfgMetric, isPerformanceMetric } from "./util/dfg-model";
 
 export interface DfgSettingsProps {
@@ -14,19 +15,31 @@ export interface DfgSettingsProps {
   /** Layout flow direction: "TB" (top-to-bottom) or "LR" (left-to-right). */
   direction: "TB" | "LR";
   onDirectionChange: (d: "TB" | "LR") => void;
+  /** Hide the frequency/performance metric picker, for a view that labels arcs itself. */
+  hideMetrics?: boolean;
 }
 
-const FREQ_METRICS: { value: DfgMetric; label: string; title: string }[] = [
-  { value: "count", label: "#", title: "Absolute count" },
-  { value: "pct_source", label: "%", title: "% of source activity" },
+const FREQ_METRICS: Option<DfgMetric>[] = [
+  { value: "count", label: "#", description: "Count: how often the arc was taken" },
+  { value: "pct_source", label: "%", description: "Share of the source activity's occurrences" },
 ];
 
-const PERF_METRICS: { value: DfgMetric; label: string; title: string }[] = [
-  { value: "mean", label: "Avg", title: "Mean duration" },
-  { value: "median", label: "Med", title: "Median duration" },
-  { value: "p90", label: "P90", title: "90th percentile duration" },
-  { value: "min", label: "Min", title: "Minimum duration" },
-  { value: "max", label: "Max", title: "Maximum duration" },
+const PERF_METRICS: Option<DfgMetric>[] = [
+  { value: "mean", label: "Avg", description: "Mean time between the two activities" },
+  { value: "median", label: "Med", description: "Median time between the two activities" },
+  { value: "p90", label: "P90", description: "Time that 90% of passages stay within" },
+  { value: "min", label: "Min", description: "Shortest passage" },
+  { value: "max", label: "Max", description: "Longest passage" },
+];
+
+const DIRECTIONS: Option<"TB" | "LR">[] = [
+  { value: "TB", label: "Top-down layout", icon: <FaArrowDown /> },
+  { value: "LR", label: "Left-to-right layout", icon: <FaArrowRight /> },
+];
+
+const MODES: Option<"freq" | "perf">[] = [
+  { value: "freq", label: "Label arcs by frequency", icon: <PiChartBar size={14} /> },
+  { value: "perf", label: "Label arcs by time", icon: <PiTimer size={14} /> },
 ];
 
 export default function DfgSettings({
@@ -38,116 +51,106 @@ export default function DfgSettings({
   hasPerformanceData,
   direction,
   onDirectionChange,
+  hideMetrics,
 }: DfgSettingsProps) {
+  const max = Math.max(coverage.edges.sliderMax, 1);
   const isPerf = isPerformanceMetric(metric);
-  const subMetrics = isPerf ? PERF_METRICS : FREQ_METRICS;
-
   return (
-    <div className="flex flex-col items-center gap-y-1">
-      {/* Layout direction: vertical (top-down) vs horizontal (left-to-right). */}
-      <div className="flex items-center rounded-md border border-(--gray-6) overflow-hidden">
-        <button
-          type="button"
-          className={`p-1 text-[11px] ${direction === "TB" ? "bg-(--gray-12) text-(--gray-1)" : "bg-(--color-panel-solid) text-(--gray-9) hover:bg-(--gray-a3)"}`}
-          title="Vertical layout"
-          onClick={() => onDirectionChange("TB")}
-        >
-          <FaArrowDown />
-        </button>
-        <button
-          type="button"
-          className={`p-1 text-[11px] ${direction === "LR" ? "bg-(--gray-12) text-(--gray-1)" : "bg-(--color-panel-solid) text-(--gray-9) hover:bg-(--gray-a3)"}`}
-          title="Horizontal layout"
-          onClick={() => onDirectionChange("LR")}
-        >
-          <FaArrowRight />
-        </button>
-      </div>
-      <SlGraph className="size-4 text-[var(--gray-10)]" title="Arcs" />
+    <div
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "4px 2px" }}
+    >
+      <Segmented
+        value={direction}
+        options={DIRECTIONS}
+        onChange={onDirectionChange}
+        compact
+        iconOnly
+        tooltipSide="left"
+        aria-label="Layout direction"
+      />
+      <Divider />
+      <Tooltip content="Arcs shown, most frequent first" side="left">
+        <span style={{ color: "var(--gray-10)", display: "flex" }}>
+          <SlGraph size={15} aria-label="Arcs" />
+        </span>
+      </Tooltip>
+      <IconButton
+        size="1"
+        variant="ghost"
+        color="gray"
+        aria-label="More arcs"
+        onClick={() => setEdgeSlider((e) => Math.min((typeof e === "number" ? e : 0) + 1, max))}
+      >
+        <PiPlus />
+      </IconButton>
       <Slider
         size="2"
         orientation="vertical"
-        className="!h-24"
         min={0}
-        max={Math.max(coverage.edges.sliderMax, 1)}
+        max={max}
         step={1}
-        value={[Math.min(edgeSlider, Math.max(coverage.edges.sliderMax, 1))]}
+        value={[Math.min(edgeSlider, max)]}
         onValueChange={(v) => setEdgeSlider(v[0])}
+        style={{ height: 112 }}
       />
-      <div className="flex flex-col items-center text-[10px] leading-tight text-[var(--gray-10)] tabular-nums">
-        <span className="font-semibold text-[var(--gray-12)]">
+      <IconButton
+        size="1"
+        variant="ghost"
+        color="gray"
+        aria-label="Fewer arcs"
+        onClick={() => setEdgeSlider((e) => Math.max(typeof e === "number" ? e : 0, 1) - 1)}
+      >
+        <PiMinus />
+      </IconButton>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          lineHeight: 1.25,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--gray-12)" }}>
           {coverage.edges.shown} / {coverage.edges.total}
         </span>
-        <span>{coverage.edges.pct}% arcs</span>
-        <span className="text-[var(--gray-9)]">
+        <span style={{ fontSize: 10, color: "var(--gray-10)" }}>{coverage.edges.pct}% of flow</span>
+        <span style={{ fontSize: 10, color: "var(--gray-9)" }}>
           {coverage.activities.shown} / {coverage.activities.total} activities
         </span>
       </div>
-      <div className="flex gap-x-1">
-        <Button
-          size="1"
-          variant="ghost"
-          onClick={() => setEdgeSlider((e) => Math.max(typeof e === "number" ? e : 0, 1) - 1)}
-          title="Fewer arcs"
-        >
-          <FaMinus />
-        </Button>
-        <Button
-          size="1"
-          variant="ghost"
-          onClick={() =>
-            setEdgeSlider((e) => Math.min((typeof e === "number" ? e : 0) + 1, coverage.edges.sliderMax))
-          }
-          title="More arcs"
-        >
-          <FaPlus />
-        </Button>
-      </div>
-
-      {/* Mode toggle: frequency vs performance */}
-      <div className="flex gap-x-0.5 mt-1">
-        <button
-          type="button"
-          className={`p-1 rounded transition-colors ${!isPerf ? "bg-[var(--accent-9)] text-white" : "text-[var(--gray-9)] hover:bg-[var(--gray-3)]"}`}
-          onClick={() => {
-            if (isPerf) onMetricChange("count");
-          }}
-          title="Frequency"
-        >
-          <PiChartBar className="size-4" />
-        </button>
-        {hasPerformanceData && (
-          <button
-            type="button"
-            className={`p-1 rounded transition-colors ${isPerf ? "bg-[var(--accent-9)] text-white" : "text-[var(--gray-9)] hover:bg-[var(--gray-3)]"}`}
-            onClick={() => {
-              if (!isPerf) onMetricChange("mean");
-            }}
-            title="Performance"
-          >
-            <PiTimer className="size-4" />
-          </button>
-        )}
-      </div>
-
-      {/* Sub-metric selector */}
-      <div className="flex flex-wrap justify-center gap-0.5">
-        {subMetrics.map((m) => (
-          <button
-            key={m.value}
-            type="button"
-            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded transition-colors ${
-              metric === m.value
-                ? "bg-[var(--accent-3)] text-[var(--accent-11)] border border-[var(--accent-7)]"
-                : "text-[var(--gray-9)] hover:bg-[var(--gray-3)] border border-transparent"
-            }`}
-            onClick={() => onMetricChange(m.value)}
-            title={m.title}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      {!hideMetrics && (
+        <>
+          <Divider />
+          {hasPerformanceData && (
+            <Segmented
+              value={isPerf ? "perf" : "freq"}
+              options={MODES}
+              onChange={(m) => {
+                if (m === "perf" && !isPerf) onMetricChange("mean");
+                if (m === "freq" && isPerf) onMetricChange("count");
+              }}
+              compact
+              iconOnly
+              tooltipSide="left"
+              aria-label="Arc labels"
+            />
+          )}
+          <Segmented
+            value={metric}
+            options={isPerf ? PERF_METRICS : FREQ_METRICS}
+            onChange={onMetricChange}
+            compact
+            wrap
+            tooltipSide="left"
+            aria-label="Arc metric"
+          />
+        </>
+      )}
     </div>
   );
+}
+
+function Divider() {
+  return <div style={{ alignSelf: "stretch", height: 1, margin: "0 6px", background: "var(--gray-a4)" }} />;
 }

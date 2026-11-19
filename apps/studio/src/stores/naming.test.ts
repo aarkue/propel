@@ -7,7 +7,7 @@ describe("naming", () => {
   beforeEach(() => {
     useDatasets.setState({ datasets: [{ id: "rtfm", kind: "EventLog", label: "Road Traffic" }] });
     useArtifacts.setState({
-      artifacts: [{ id: "Petri net", kind: "PetriNet", label: "IMf of Road Traffic" }],
+      artifacts: [{ id: "Petri net", kind: "OCDeclare", label: "IMf of Road Traffic" }],
     });
   });
 
@@ -29,7 +29,7 @@ describe("naming", () => {
   });
 
   it("describes provenance by source labels and op", () => {
-    const op = { fn: "app_bindings::transforms::apply_event_log_transforms", args: {} };
+    const op = { fn: "app_bindings::apply_event_log_transforms", args: {} };
     expect(describeProvenance({ sources: ["rtfm"], op, source_gen: 0 })).toBe(
       "From Road Traffic via apply event log transforms",
     );

@@ -9,7 +9,7 @@ import {
 } from "./lineage-to-pipeline";
 
 const applyTransforms: FunctionMeta = {
-  id: "app_bindings::transforms::apply_event_log_transforms",
+  id: "app_bindings::apply_event_log_transforms",
   name: "apply_event_log_transforms",
   return_type: {},
   required_args: ["event_log", "transforms"],
@@ -62,7 +62,7 @@ describe("buildPipelineFromLineage", () => {
       label: "Filtered",
       storeKind: "dataset",
       provenance: prov(
-        "app_bindings::transforms::apply_event_log_transforms",
+        "app_bindings::apply_event_log_transforms",
         { event_log: "log1", transforms: [{ FilterActivities: {} }] },
         ["log1"],
       ),

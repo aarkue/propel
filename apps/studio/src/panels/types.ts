@@ -47,19 +47,3 @@ export interface PanelCategoryMeta {
   label: string;
   icon: IconType;
 }
-
-/** True if the panel has no hard data requirement and should always show. */
-export function panelHasNoRequirement(panel: PanelDefinition): boolean {
-  return !panel.supports || panel.supports.length === 0;
-}
-
-/** True if the panel's category or any of its tags matches the filter. */
-export function panelMatchesCategory(panel: PanelDefinition, cat: PanelCategory): boolean {
-  return panel.category === cat || panel.tags?.includes(cat) === true;
-}
-
-/** True if the panel is usable given the set of currently-loaded object kinds. */
-export function panelIsCompatible(panel: PanelDefinition, loadedKinds: Set<string>): boolean {
-  if (!panel.supports || panel.supports.length === 0) return true;
-  return panel.supports.some((kind) => loadedKinds.has(kind));
-}

@@ -1,11 +1,21 @@
-import { Card, SegmentedControl, Switch, Text } from "@r4pm/components/ui";
 import { useViewSetting } from "../viewer/view-state";
-import { RxBarChart, RxListBullet, RxPieChart } from "react-icons/rx";
+import { fmtInt, fmtPct, Metric, MetricRow, type Option, OptionMenu, Toolbar, ToolbarDivider } from "../kit";
 import { useViewerConfig } from "../viewer/viewer-config";
 import { ThemedPlot } from "./themed-plot";
 import { RankedBarList } from "../shared/RankedBarList";
 
 type ChartType = "vbar" | "hbar" | "pie" | "list";
+
+const CHARTS: Option<ChartType>[] = [
+  { value: "list", label: "Ranked list", description: "Activities with bars, most frequent first" },
+  { value: "hbar", label: "Bars", description: "Horizontal bars, long names stay readable" },
+  { value: "vbar", label: "Columns", description: "Vertical bars" },
+  { value: "pie", label: "Donut", description: "Shares of all events" },
+];
+const GROUPING: Option<"group" | "all">[] = [
+  { value: "group", label: "Grouped under 1%", description: "Rare activities fold into Other" },
+  { value: "all", label: "All activities", description: "Every activity on its own" },
+];
 
 export interface ActivityChartProps {
   /** Raw per-activity event counts (activity name -> count). */
@@ -31,99 +41,91 @@ export function ActivityChart({ counts: raw, numEvents }: ActivityChartProps) {
     }
   }
 
-  const colorFor = (act: string) =>
-    act === "Other" ? "lightgray" : (colorOf?.("activity", act) ?? "#888888");
+  const colorFor = (act: string) => (act === "Other" ? "#a1a1aa" : (colorOf?.("activity", act) ?? "#888888"));
+
+  const top = activities.find((a) => a !== "Other");
+  const share = (n: number) => fmtPct(n / Math.max(1, numEvents));
+  const plotStyle = { width: "100%", height: "100%" };
 
   return (
-    <div data-testid="activity-chart" style={{ width: "100%", height: "100%", padding: 8 }}>
-      <Card style={{ position: "relative", height: "100%", width: "100%" }}>
-        <Text
-          as="div"
-          size="4"
-          weight="bold"
-          mb="2"
-          style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
-        >
-          Activity Frequency
-          <SegmentedControl.Root
-            data-export-ignore
-            size="1"
-            value={chartType}
-            onValueChange={(v) => setChartType(v as ChartType)}
-          >
-            <SegmentedControl.Item value="list" aria-label="List">
-              <RxListBullet />
-            </SegmentedControl.Item>
-            <SegmentedControl.Item value="vbar" aria-label="Vertical bars">
-              <RxBarChart />
-            </SegmentedControl.Item>
-            <SegmentedControl.Item value="hbar" aria-label="Horizontal bars">
-              <RxBarChart style={{ transform: "rotate(90deg)" }} />
-            </SegmentedControl.Item>
-            <SegmentedControl.Item value="pie" aria-label="Pie">
-              <RxPieChart />
-            </SegmentedControl.Item>
-          </SegmentedControl.Root>
-          <span
-            style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 500 }}
-          >
-            <Switch checked={groupOther} onCheckedChange={setGroupOther} />
-            <Text size="1">Group Other</Text>
-          </span>
-        </Text>
-
+    <div
+      data-testid="activity-chart"
+      style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}
+    >
+      <div data-export-ignore>
+        <Toolbar>
+          <OptionMenu label="Chart" value={chartType} options={CHARTS} onChange={setChartType} />
+          <ToolbarDivider />
+          <OptionMenu
+            label="Rare activities"
+            value={groupOther ? "group" : "all"}
+            options={GROUPING}
+            onChange={(v) => setGroupOther(v === "group")}
+          />
+        </Toolbar>
+      </div>
+      <div style={{ padding: "14px 16px 0" }}>
+        <MetricRow>
+          <Metric label="Activities" value={fmtInt(Object.keys(raw).length)} />
+          <Metric label="Events" value={fmtInt(numEvents)} />
+          {top && <Metric label="Most frequent" value={top} hint={`${share(raw[top])} of events`} />}
+        </MetricRow>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, padding: 16, position: "relative" }}>
         {chartType === "list" && (
-          <RankedBarList items={activities.map((a) => ({ key: a, count: counts[a] }))} />
-        )}
-
-        {chartType !== "list" && numEvents != null && (
-          <div style={{ position: "absolute", inset: 0, top: 44, padding: 8 }}>
-            <ThemedPlot
-              data={[
-                chartType === "pie"
-                  ? {
-                      type: "pie",
-                      labels: activities,
-                      values: activities.map((a) => counts[a]),
-                      marker: { colors: activities.map(colorFor) },
-                      textinfo: "percent",
-                      hole: 0.5,
-                    }
-                  : {
-                      type: "bar",
-                      orientation: chartType === "hbar" ? "h" : "v",
-                      x: chartType === "vbar" ? activities : activities.map((a) => counts[a]),
-                      y: chartType === "vbar" ? activities.map((a) => counts[a]) : activities,
-                      marker: { color: activities.map(colorFor) },
-                      textposition: "auto",
-                      text: activities.map(
-                        (a) =>
-                          `${((100 * counts[a]) / numEvents).toLocaleString("en", { maximumFractionDigits: 2 })}%`,
-                      ),
-                    },
-              ]}
-              layout={{
-                autosize: true,
-                margin: { t: 8, b: 40, l: 56, r: 8 },
-                showlegend: chartType === "pie",
-                xaxis: {
-                  automargin: true,
-                  fixedrange: true,
-                  title: { text: chartType === "hbar" ? "Number of Events" : "Activity" },
-                },
-                yaxis: {
-                  automargin: true,
-                  fixedrange: true,
-                  title: { text: chartType === "hbar" ? "Activity" : "Number of Events" },
-                },
-              }}
-              config={{ displaylogo: false, displayModeBar: false, responsive: true }}
-              style={{ width: "100%", height: "100%" }}
-              useResizeHandler
-            />
+          <div style={{ maxWidth: 900, height: "100%" }}>
+            <RankedBarList items={activities.map((a) => ({ key: a, count: counts[a] }))} />
           </div>
         )}
-      </Card>
+        {chartType !== "list" && numEvents != null && (
+          <ThemedPlot
+            data={[
+              chartType === "pie"
+                ? {
+                    type: "pie",
+                    labels: activities,
+                    values: activities.map((a) => counts[a]),
+                    marker: { colors: activities.map(colorFor) },
+                    textinfo: "percent",
+                    hole: 0.6,
+                    sort: false,
+                    hovertemplate: "<b>%{label}</b><br>%{value:,} events (%{percent})<extra></extra>",
+                  }
+                : {
+                    type: "bar",
+                    orientation: chartType === "hbar" ? "h" : "v",
+                    x: chartType === "vbar" ? activities : activities.map((a) => counts[a]),
+                    y: chartType === "vbar" ? activities.map((a) => counts[a]) : activities,
+                    marker: { color: activities.map(colorFor) },
+                    hovertemplate:
+                      chartType === "hbar"
+                        ? "<b>%{y}</b><br>%{x:,} events<extra></extra>"
+                        : "<b>%{x}</b><br>%{y:,} events<extra></extra>",
+                  },
+            ]}
+            layout={{
+              autosize: true,
+              margin: { t: 8, b: 40, l: 56, r: 8 },
+              showlegend: chartType === "pie",
+              bargap: 0.25,
+              xaxis: {
+                automargin: true,
+                fixedrange: true,
+                title: chartType === "hbar" ? "Events" : undefined,
+              },
+              yaxis: {
+                automargin: true,
+                fixedrange: true,
+                autorange: chartType === "hbar" ? "reversed" : undefined,
+                title: chartType === "vbar" ? "Events" : undefined,
+              },
+            }}
+            config={{ displaylogo: false, displayModeBar: false, responsive: true }}
+            style={plotStyle}
+            useResizeHandler
+          />
+        )}
+      </div>
     </div>
   );
 }

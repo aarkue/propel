@@ -5,8 +5,9 @@ import llmsTxt from "../../llms.txt?raw";
 export const STARTING_PROMPT = `Add the @r4pm/components React library to this project.
 
 @r4pm/components is a set of process-mining viewers (Petri nets, object-centric Petri nets,
-directly-follows graphs, dotted charts, alignments, OCEL/event-log summaries, process trees, ...) and
-the primitives they're built from. npm: https://www.npmjs.com/package/@r4pm/components. Source +
+directly-follows graphs, dotted charts, alignments, process trees, ...), analysis views for event
+logs and OCELs (overviews, data-quality checks with fixes, workload calendars, performance spectra,
+path schemas, token animations, ...), and the kit they're built from. npm: https://www.npmjs.com/package/@r4pm/components. Source +
 Storybook stories (*.stories.tsx next to each component): https://github.com/aarkue/propel/tree/main/packages/components/src.
 
 1. Install it: \`npm add @r4pm/components react react-dom\` (react/react-dom are peer deps, >=18).
@@ -17,7 +18,7 @@ Storybook stories (*.stories.tsx next to each component): https://github.com/aar
    - Import \`@r4pm/components/styles.css\` once and wrap the app in \`<Theme>\` from
      \`@r4pm/components/ui\` (use \`rules.css\` instead of \`styles.css\` only if this project already
      runs its own Tailwind build -- llms.txt has the exact setup for that case).
-   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri nets, process tree, OCEL type graph) lay out and
+   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri nets, process tree, OCEL type graph, animations) lay out and
      export through rust4pm's visualization: pass it via
      \`<ViewerConfigProvider value={{ viz: wasmViz }}>\`, importing \`wasmViz\` from
      \`@r4pm/components/viz/wasm\`. Without it, graphs render with their nodes in a plain row or

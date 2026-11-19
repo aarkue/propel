@@ -210,6 +210,12 @@ export function flattenColor(color: string, bgHex = "#ffffff"): string {
   return toHex(r * a + br * (1 - a), g * a + bg * (1 - a), b * a + bb * (1 - a));
 }
 
+/** Near-black or white, whichever reads better as text on `color` (any CSS color). */
+export function inkOn(color: string): string {
+  const [r, g, b] = hexTriple(flattenColor(color));
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#1c2024" : "#ffffff";
+}
+
 /** Soft-badge styling from a hex. Uses color-mix with CSS system colors so the tint and text
  *  automatically adapt to light and dark mode without class detection. */
 export function softBadgeStyle(hex: string): CSSProperties {

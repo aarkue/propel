@@ -203,9 +203,29 @@ export async function petriElementsSvg(
   const ids = petriGraphIds(n, request);
   // A re-route at the on-screen centres gives a complete layout of this graph to draw the screen's geometry over.
   const template = await rerouteModel(viz, request, petriPositions(ids, elements.nodes));
-  return modelSvg(viz, "petri_net", rust, screenLayout(template, ids, elements), {
+  const svg = await modelSvg(viz, "petri_net", rust, screenLayout(template, ids, elements), {
     overrides: petriStyleOverrides(ids, elements),
   });
+  return withDecorations(svg, elements);
+}
+
+/** `svg` with the transitions' `exportDecoration`s drawn last. The image uses the screen's
+ *  coordinates, with node positions as centres. */
+function withDecorations(svg: string, elements: PetriElements): string {
+  const extra = elements.nodes
+    .map((n) => {
+      if (n.type !== "transition" || !n.data.exportDecoration) return "";
+      const { width, height } = nodeSizeOf(n);
+      return n.data.exportDecoration({
+        x: n.position.x - width / 2,
+        y: n.position.y - height / 2,
+        width,
+        height,
+      });
+    })
+    .join("");
+  const end = svg.lastIndexOf("</svg>");
+  return extra && end >= 0 ? `${svg.slice(0, end)}${extra}${svg.slice(end)}` : svg;
 }
 
 /** `base` with the node positions and sizes and the arc routes of `changed`, matched by id. Keeps

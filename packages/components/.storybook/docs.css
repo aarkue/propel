@@ -23,3 +23,18 @@
 .sbdocs-content li > ol {
   margin: 6px 0;
 }
+
+/* The header row of a canvas story (see CanvasBox in preview.tsx), as in a studio panel: views put
+   their toolbar there, and the export button sits in it instead of over the view. */
+.sb-toolbar-host {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 60px 6px 12px;
+  min-height: 44px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--gray-a4);
+  background: var(--color-panel-solid);
+  flex: 0 0 auto;
+}

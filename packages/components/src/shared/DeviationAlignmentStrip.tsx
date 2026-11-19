@@ -1,12 +1,11 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
-import { colorToHex } from "../dfg/util/colors";
+import { MOVE_TERMS, moveColor } from "./move-terms";
 import { ActivityChip, SVG_PILL_H } from "./ActivitySequence";
 import { svgEl, serializeSvg, SVG_NS } from "../dfg/util/svg-export";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { useColorOf } from "../viewer/viewer-config";
 import { isDarkMode } from "../viewer/dark-mode";
 import {
-  MOVE_COLOR,
   MoveGlyphIcon,
   svgChipWidth,
   svgMoveChip,
@@ -42,7 +41,7 @@ const MOVE_ICON: Record<MoveKind, ReactNode> = {
 
 function cellColor(move: ResolvedMove, colorOf?: (activity: string) => string): string {
   if (move.kind === "model" && move.hidden) return SKIP_COLOR;
-  return colorOf?.(move.label) ?? colorToHex(MOVE_COLOR[move.kind]);
+  return colorOf?.(move.label) ?? moveColor(move.kind);
 }
 
 /** One x-position in the trace: a lone `sync` move on the axis, or a deviation column carrying a
@@ -108,7 +107,7 @@ function MoveChip({
           [badge]: -8,
           display: "flex",
           lineHeight: 1,
-          color: colorToHex(MOVE_COLOR[move.kind]),
+          color: moveColor(move.kind),
           background: PANEL_BG,
           borderRadius: 9999,
           padding: 2,
@@ -176,8 +175,14 @@ function Skip({ dir }: { dir: "up" | "down" }) {
 
 /** Faint left-side legend naming the two deviation lanes, aligned to the lane bands. */
 function LaneLabels() {
-  const text = (label: string, align: "flex-start" | "flex-end", border: "borderTop" | "borderBottom") => (
+  const text = (
+    label: string,
+    align: "flex-start" | "flex-end",
+    border: "borderTop" | "borderBottom",
+    title: string,
+  ) => (
     <div
+      title={title}
       style={{
         height: REGION_H,
         display: "flex",
@@ -205,9 +210,9 @@ function LaneLabels() {
   );
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch" }}>
-      {text("log", "flex-start", "borderTop")}
+      {text("extra · log move", "flex-start", "borderTop", MOVE_TERMS.log.explain("case"))}
       <div style={{ height: AXIS_H }} />
-      {text("model", "flex-end", "borderBottom")}
+      {text("missing · model move", "flex-end", "borderBottom", MOVE_TERMS.model.explain("case"))}
     </div>
   );
 }

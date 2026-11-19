@@ -62,6 +62,15 @@ export function groupValidationErrors(errors: ValidationError[], nodes: EditorNo
       case "missing-type-for-create":
         addMapping(e.mapping, e);
         break;
+      case "ambiguous-join-column":
+        addNode(e.node, e);
+        break;
+      case "uncoercible-literal":
+      case "incomparable-compare":
+        // `location` is a `Filter` node id or a mapping reference.
+        if (nodes.some((n) => n.id === e.location)) addNode(e.location, e);
+        else addMapping(e.location, e);
+        break;
       case "unsupported-version":
       case "invalid-regex":
       case "invalid-template":
@@ -99,5 +108,11 @@ export function describeValidationError(e: ValidationError): string {
       return `Invalid regex "${e.pattern}": ${e.message}`;
     case "invalid-template":
       return `Invalid template "${e.template}": ${e.reason}`;
+    case "ambiguous-join-column":
+      return `Join "${e.node}": output column "${e.column}" is ambiguous.`;
+    case "uncoercible-literal":
+      return `${e.location}: "${e.literal}" is not a valid ${e.expected} for column "${e.column}" (${e.col_type}).`;
+    case "incomparable-compare":
+      return `${e.location}: cannot compare ${e.left_kind} with ${e.right_kind}.`;
   }
 }

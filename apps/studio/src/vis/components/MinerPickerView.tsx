@@ -54,9 +54,10 @@ function changedTweaks(preset: Record<string, unknown> | undefined, tweaks: Reco
   return preset ? Object.keys(tweaks).filter((key) => preset[key] !== tweaks[key]) : [];
 }
 
-export function minerSummary(choice: MinerChoice): string {
+/** Without `withNoise`, for a view that sets the noise itself. */
+export function minerSummary(choice: MinerChoice, withNoise = true): string {
   const parts = [VARIANTS[choice.variant].name];
-  if (usesNoise(choice.variant)) parts.push(`noise ${choice.noise.toFixed(2)}`);
+  if (withNoise && usesNoise(choice.variant)) parts.push(`noise ${choice.noise.toFixed(2)}`);
   if (usesPreset(choice.variant) && choice.preset !== "default") parts.push(PRESET_LABELS[choice.preset]);
   return parts.join(" · ");
 }
@@ -75,17 +76,22 @@ function SettingRow({ label, help, children }: { label: string; help: string; ch
 }
 
 /** Which miner a discovery view runs: the bar shows the choice, the popover changes it.
- *  `presetValues` are the options of the preset the choice starts from, once loaded. */
+ *  `presetValues` are the options of the preset the choice starts from, once loaded. Without
+ *  `withNoise` the noise threshold is left out, for a view that sets it itself. */
 export function MinerPickerView({
   value,
   onChange,
   variants,
   presetValues,
+  withNoise = true,
+  disabled,
 }: {
   value: MinerChoice;
   onChange: (value: MinerChoice) => void;
   variants: readonly MinerVariant[];
   presetValues: Record<string, unknown> | undefined;
+  withNoise?: boolean;
+  disabled?: boolean;
 }) {
   const [fineTuneOpen, setFineTuneOpen] = useState(false);
   const tunable = value.variant !== "Alpha";
@@ -99,8 +105,8 @@ export function MinerPickerView({
       </Text>
       <Popover.Root>
         <Popover.Trigger>
-          <Button size="1" variant="soft" color="gray">
-            {minerSummary(value)}
+          <Button size="1" variant="soft" color="gray" disabled={disabled}>
+            {minerSummary(value, withNoise)}
             {changed.length > 0 ? (
               <Badge size="1" color="indigo">
                 {changed.length} changed
@@ -128,7 +134,7 @@ export function MinerPickerView({
 
           {tunable ? (
             <div className="flex flex-col">
-              {usesNoise(value.variant) ? (
+              {withNoise && usesNoise(value.variant) ? (
                 <SettingRow
                   label="Noise threshold"
                   help="How much infrequent behavior to filter, from 0 (none) to 1."

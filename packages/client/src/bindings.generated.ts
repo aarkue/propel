@@ -1,78 +1,27 @@
 // AUTO-GENERATED from engine binding metadata. Do not edit.
 
+import type { CallOptions } from "./jobs";
+
 /** A registry-stored object referenced by id; never the value itself. */
 export type Handle<T extends string> = string & { readonly __ref: T };
 
+export type AcceptingPetriNetHandle = Handle<"AcceptingPetriNet">;
+export type AnnotatedOcpnHandle = Handle<"AnnotatedOcpn">;
 export type EventLogHandle = Handle<"EventLog">;
 export type EventLogActivityProjectionHandle = Handle<"EventLogActivityProjection">;
-export type IndexLinkedOCELHandle = Handle<"IndexLinkedOCEL">;
 export type OCELHandle = Handle<"OCEL">;
+export type ObjectCentricPetriNetHandle = Handle<"ObjectCentricPetriNet">;
+export type ReflowResultHandle = Handle<"ReflowResult">;
 export type SlimLinkedOCELHandle = Handle<"SlimLinkedOCEL">;
 
+/** Every registry kind a binding takes or returns by handle. */
+export const REGISTRY_KINDS = ["AcceptingPetriNet","AnnotatedOcpn","EventLog","EventLogActivityProjection","OCEL","ObjectCentricPetriNet","ReflowResult","SlimLinkedOCEL"] as const;
+export type RegistryKind = (typeof REGISTRY_KINDS)[number];
+
 export type PlaceID = number
-
 /**
- * A [`PetriNet`] with an initial and a final marking
- * 
- * In JSON, the net's fields sit next to `initial_marking` and `final_marking`.
+ * A single alignment step
  */
-
-export interface Place {
-/**
- * External identifier (e.g., the PNML id), not used for identity
- */
-name?: (string | null)
-}
-/**
- * Transition in a [`PetriNet`]
- */
-
-export interface Transition {
-/**
- * Activity label (`None` if this transition is silent)
- */
-label?: (string | null)
-/**
- * External identifier (e.g., the PNML id), not used for identity
- */
-name?: (string | null)
-/**
- * The places this transition takes tokens from, with the number of tokens
- */
-inputs: [PlaceID, number][]
-/**
- * The places this transition puts tokens into, with the number of tokens
- */
-outputs: [PlaceID, number][]
-}
-/**
- * The marking the net starts in
- */
-
-export interface Marking {
-/**
- * This interface was referenced by `Marking`'s JSON-Schema definition
- * via the `patternProperty` "^\d+$".
- * 
- * This interface was referenced by `Marking1`'s JSON-Schema definition
- * via the `patternProperty` "^\d+$".
- */
-[k: string]: number
-}
-/**
- * The marking a complete run ends in
- */
-
-export interface Marking1 {
-/**
- * This interface was referenced by `Marking`'s JSON-Schema definition
- * via the `patternProperty` "^\d+$".
- * 
- * This interface was referenced by `Marking1`'s JSON-Schema definition
- * via the `patternProperty` "^\d+$".
- */
-[k: string]: number
-}
 
 export type AlignmentMove = ({
 SyncMove: {
@@ -121,7 +70,7 @@ SyncProdNetConstructionFailed: SyncProdNetConstructionError
  * Reason [`search`] found no path
  */
 
-export type SearchError = ("LimitReached" | "MemoryLimitReached" | "Unreachable" | "MaxEdgeCostTooLarge")
+export type SearchError = ("LimitReached" | "MemoryLimitReached" | "Unreachable" | "MaxEdgeCostTooLarge" | "Cancelled")
 /**
  * Error when constructing the sync product net
  */
@@ -158,6 +107,66 @@ final_marking: Marking1
 }
 /**
  * Place in a [`PetriNet`]
+ */
+
+export interface Place {
+/**
+ * External name (e.g., the PNML `<name>`), not used for identity
+ */
+name?: (string | null)
+}
+/**
+ * Transition in a [`PetriNet`]
+ */
+
+export interface Transition {
+/**
+ * Activity label (`None` if this transition is silent)
+ */
+label: (string | null)
+/**
+ * External identifier (e.g., the PNML id), not used for identity
+ */
+name?: (string | null)
+/**
+ * The places this transition takes tokens from, with the number of tokens
+ */
+inputs: [PlaceID, number][]
+/**
+ * The places this transition puts tokens into, with the number of tokens
+ */
+outputs: [PlaceID, number][]
+}
+/**
+ * The marking the net starts in
+ */
+
+export interface Marking {
+/**
+ * This interface was referenced by `Marking`'s JSON-Schema definition
+ * via the `patternProperty` "^\d+$".
+ * 
+ * This interface was referenced by `Marking1`'s JSON-Schema definition
+ * via the `patternProperty` "^\d+$".
+ */
+[k: string]: number
+}
+/**
+ * The marking a complete run ends in
+ */
+
+export interface Marking1 {
+/**
+ * This interface was referenced by `Marking`'s JSON-Schema definition
+ * via the `patternProperty` "^\d+$".
+ * 
+ * This interface was referenced by `Marking1`'s JSON-Schema definition
+ * via the `patternProperty` "^\d+$".
+ */
+[k: string]: number
+}
+/**
+ * Alignment result for a single trace variant
  */
 
 export interface VariantAlignmentResult {
@@ -210,7 +219,8 @@ log_fitness: number
  */
 average_fitness: number
 /**
- * Fraction of traces that perfectly fit (i.e., have an alignment cost of `0`)
+ * Fraction of traces that perfectly fit (i.e., whose alignment has no log moves and no
+ * model moves of visible transitions)
  */
 perfectly_fitting_frac: number
 /**
@@ -254,6 +264,226 @@ sync_fires: number
  */
 model_fires: number
 }
+/**
+ * Escaping-edges precision with the escaping edges summarized for display.
+ */
+
+export interface PrecisionSummary {
+/**
+ * Weighted share of the behavior the model allows that the log takes
+ */
+precision: number
+weighted_available: number
+weighted_escaping: number
+num_states: number
+/**
+ * A search limit was hit, so `precision` may be off
+ */
+search_limit_reached: boolean
+/**
+ * Per escaping activity (`None` = stopping where traces never stop), its total weight, highest first
+ */
+by_activity: EscapingActivity[]
+/**
+ * The heaviest escaping edges, highest weight first
+ */
+top_edges: EscapingEdgeSummary[]
+}
+
+export interface EscapingActivity {
+activity?: (string | null)
+weight: number
+}
+
+export interface EscapingEdgeSummary {
+/**
+ * The last steps of the path to the state, oldest first
+ */
+prefix_tail: (string | null)[]
+/**
+ * Length of the full path to the state
+ */
+prefix_len: number
+escaping?: (string | null)
+weight: number
+}
+
+export type TimeframeMode = ("AnyEvent" | "AllEvents" | "SpanWithin" | "SpanEncloses" | "StartsWithin" | "EndsWithin" | "Overlaps" | "Before" | "After")
+/**
+ * How related entities (events / objects) must satisfy a sub-condition in an
+ * `EventMatch` / `ObjectMatch` predicate.
+ */
+
+export type MatchQuantifier = ("Any" | "All" | "First" | "Last")
+
+export type KeepOrRemove = ("Keep" | "Remove")
+
+export type RelabelTarget = ({
+value: string
+type: "Literal"
+} | {
+template: string
+type: "Template"
+})
+
+export type RequiredOrForbidden = ("Required" | "Forbidden")
+/**
+ * Where an attribute lives in a dataset.
+ */
+
+export type AttributeScope = ({
+type: "LogGlobal"
+} | {
+activity?: (string | null)
+type: "Event"
+} | {
+object_type?: (string | null)
+type: "Object"
+})
+
+export interface RelabelRule {
+target: RelabelTarget
+condition?: (Condition | null)
+}
+
+export type ArcKind = ("follows" | "start" | "end")
+
+export interface ComparedActivity {
+activity: string
+a: number
+b: number
+}
+/**
+ * One arc with its count in each side. `from` is empty for a start arc, `to` for an end arc.
+ */
+
+export interface ComparedArc {
+kind: ArcKind
+from: string
+to: string
+a: number
+b: number
+}
+
+export interface InductiveMinerOptions {
+/**
+ * Deviation threshold `f ∈ [0, 1]` of `IMf`, clamped to that range. `0.0` turns filtering
+ * off.
+ */
+noise_threshold?: number
+/**
+ * Whether to try the fall throughs before resorting to a flower model.
+ */
+use_fallthroughs?: boolean
+/**
+ * Whether to merge the parts of a sequence cut that only occur together with a skippable
+ * neighbor.
+ */
+strict_sequence?: boolean
+/**
+ * Whether to look for interleaved (`↔`) cuts, tried before concurrency. Under `IMf` they still
+ * read the unfiltered traces, so noise can prevent them.
+ */
+use_interleaved?: boolean
+/**
+ * Whether to regroup concurrent cuts into nested concurrency, optionality and inclusive
+ * choice (`∨`).
+ */
+use_inclusive_choice?: boolean
+/**
+ * Whether to refuse a cut whose split leaves a part without any events, which only the
+ * filtering splits of `IMf` can do, and fall through instead. Otherwise the cut is taken and
+ * the part becomes `τ`, as in the thesis.
+ */
+guard_empty_cut_parts?: boolean
+/**
+ * Whether concurrency detection consults the minimum-self-distance relation (∧↔.1), which
+ * tells `a` and `b` running concurrently from `a` looping around `b`. A concurrent cut that
+ * keeps such activities together is preferred. If there is none, the plain one is taken.
+ */
+use_minimum_self_distance?: boolean
+/**
+ * Whether to take a tau loop that cuts every trace into single events, as the thesis does.
+ * Mining those single events gives the flower model, so this only decides whether
+ * the two-activities-concurrent fall through gets a chance first.
+ */
+use_degenerate_tau_loops?: boolean
+/**
+ * Whether `IMf` keeps the single-activity base case despite repetitions when single
+ * executions dominate (§6.2.2.3). Without it any repetition ends the recursion in a loop.
+ */
+filter_single_activity?: boolean
+/**
+ * Whether the activity-concurrent fall through also
+ * accepts a candidate whose remaining log only has a cut after filtering. The thesis
+ * (§6.2.2.4) probes the unfiltered graph.
+ */
+filter_activity_concurrent_probe?: boolean
+/**
+ * Whether `IMf` keeps an edge, a start or end activity, or the empty traces, when their
+ * frequency is exactly at the threshold.
+ */
+keep_at_threshold?: boolean
+/**
+ * Whether `IMf` also removes infrequent start and end activities.
+ */
+filter_start_end?: boolean
+/**
+ * Whether the activity-concurrent fall through tries the
+ * activities by name instead of the most frequent first. It takes the first whose removal
+ * leaves a cut.
+ */
+activity_concurrent_by_name?: boolean
+/**
+ * Whether to [fold](crate::core::process_models::process_tree::Node::fold) the tree, e.g.,
+ * `→(→(a, b), c)` into `→(a, b, c)` and `→(τ, a)` into `a`.
+ */
+fold?: boolean
+}
+/**
+ * Settings of the DFG variant of the Inductive Miner. Settings that need traces, such as the
+ * interleaved cut, do not exist here.
+ * 
+ * Fields missing in JSON take their default value.
+ */
+
+export interface InductiveMinerDfgOptions {
+/**
+ * Deviation threshold `f ∈ [0, 1]` of `IMfd`, clamped to that range. `0.0` is plain `IMd`.
+ */
+noise_threshold?: number
+/**
+ * Whether to merge the parts of a sequence cut that only occur together with a skippable
+ * neighbor.
+ */
+strict_sequence?: boolean
+/**
+ * Whether to collapse nested occurrences of the same associative operator, turning, e.g.,
+ * `→(→(a, b), c)` into `→(a, b, c)`.
+ */
+fold?: boolean
+/**
+ * Whether to try the tau loops (§6.6.3.3) before resorting to a flower model.
+ */
+use_tau_loops?: boolean
+/**
+ * Whether the flower model allows the empty trace, i.e., is `↺(τ, ×(a₁, ..., aₙ))` instead of
+ * the thesis' `↺(×(a₁, ..., aₙ), τ)`. The empty-traces step runs before any fall through, so
+ * allowing one here only loses precision.
+ */
+flower_accepts_empty?: boolean
+/**
+ * Whether a lone activity with a self edge becomes a flower instead of `↺(a, τ)`. The
+ * thesis hands the case to its tau loops (§6.6.3.3). With
+ * [`flower_accepts_empty`](Self::flower_accepts_empty), this turns `a⁺` into `a*`.
+ */
+repeated_activity_to_flower?: boolean
+/**
+ * Whether `IMfd` keeps the single-activity base case despite a self edge when single
+ * executions dominate (§6.6.4.3). Without it a self edge always ends the recursion in a loop.
+ */
+filter_single_activity?: boolean
+}
 
 export interface XesTraceInput {
 caseId: string
@@ -292,6 +522,15 @@ median: number
 stddev: number
 }
 
+export interface Journey {
+id: string
+/**
+ * The object type, for an object; `None` for a case
+ */
+object_type?: (string | null)
+events: [string, number][]
+}
+
 export interface DfArcDuration {
 source: string
 target: string
@@ -301,6 +540,362 @@ max_ms: number
 mean_ms: number
 median_ms: number
 p90_ms: number
+}
+
+export interface OffsetChange {
+from_ms: number
+offset_minutes: number
+}
+
+export interface WorkloadGroup {
+key: string
+total: number
+/**
+ * 168 counts, `counts[day * 24 + hour]` with Monday as day 0
+ */
+counts: number[]
+}
+
+export interface EventTypeSignatures {
+event_type: string
+events: number
+/**
+ * Most frequent first
+ */
+signatures: EventSignature[]
+/**
+ * Events whose signature is not among `signatures`
+ */
+other_events: number
+}
+/**
+ * Events of one event type that are related to exactly the same set of object types.
+ */
+
+export interface EventSignature {
+/**
+ * One entry per object type, sorted by object type
+ */
+objects: SignatureObjects[]
+events: number
+}
+/**
+ * How many objects of one type the events of a signature are related to.
+ */
+
+export interface SignatureObjects {
+object_type: string
+min: number
+max: number
+mean: number
+}
+
+export type EdgeId = number
+/**
+ * A lane group. Nodes sharing one are drawn in a lane of their own.
+ * 
+ * Groups are opaque ids, only compared and ordered. Lanes appear only when nodes carry at least
+ * two distinct groups (see [`Node::group`]).
+ */
+
+export type GroupId = number
+
+export interface ExecutionObject {
+id: string
+object_type: string
+/**
+ * Hops from the leading object
+ */
+distance: number
+}
+
+export interface ExecutionEvent {
+id: string
+activity: string
+time_ms: number
+/**
+ * `(object type, object id)` of the execution's objects the event is related to
+ */
+objects: [string, string][]
+}
+/**
+ * Consecutive events of one or more objects: `from` directly precedes `to` in their lifecycles.
+ */
+
+export interface ExecutionEdge {
+from: number
+to: number
+object_types: string[]
+objects: string[]
+}
+/**
+ * One laid-out drawing.
+ */
+
+export interface Layout {
+/**
+ * One entry per input node, in [`crate::NodeId`] order.
+ */
+nodes: Placement[]
+/**
+ * One entry per input edge, in [`crate::EdgeId`] order.
+ */
+edges: EdgeRoute[]
+bounds: Rect
+/**
+ * Number of layers in a layered drawing, or of depth rows in a tidy tree. `0` for an empty
+ * graph.
+ */
+layer_count: number
+/**
+ * Edges the layering saw the other way round: Those the cycle breaker reversed, plus those
+ * with [`crate::Edge::reverse_for_ranking`] (an edge that is both is not listed). Their
+ * polylines still run source to target.
+ */
+reversed: EdgeId[]
+stats: LayoutStats
+/**
+ * Where a merged edge branches off a shared trunk ([`crate::Routing::merge_edges`]), for a
+ * renderer to mark with a dot. Empty unless edges were merged.
+ */
+junctions?: Point1[]
+/**
+ * The swimlanes of a drawing with [`crate::GroupLanes::Strict`] lanes, in order along the
+ * order axis. Empty otherwise.
+ */
+lanes?: Lane[]
+}
+/**
+ * Where one node ended up.
+ */
+
+export interface Placement {
+center: Point
+size: Size
+/**
+ * Layer index. `None` for an edgeless node packed into the grid below the layered drawing.
+ */
+rank?: (number | null)
+/**
+ * Position within the layer. Routing waypoints count too, so two nodes with a long edge's
+ * track between them are two apart.
+ */
+order: number
+}
+/**
+ * Centre of the node's box, in output space.
+ */
+
+export interface Point {
+/**
+ * Horizontal coordinate, growing to the right.
+ */
+x: number
+/**
+ * Vertical coordinate, growing downwards (SVG convention).
+ */
+y: number
+}
+/**
+ * The node's size, echoed from the input so a renderer needs only the layout.
+ */
+
+export interface Size {
+/**
+ * Extent along `x`.
+ */
+width: number
+/**
+ * Extent along `y`.
+ */
+height: number
+}
+/**
+ * How one edge was drawn.
+ */
+
+export interface EdgeRoute {
+/**
+ * Border-to-border polyline, source first. At least two points for a routed edge, four for
+ * a [`RouteKind::SelfLoop`] and none for [`RouteKind::Unrouted`].
+ */
+points: Point1[]
+/**
+ * Where the polyline leaves the source node, or `None` when there is no polyline.
+ */
+source_port?: (PortInfo | null)
+/**
+ * Where the polyline enters the target node, or `None` when there is no polyline.
+ */
+target_port?: (PortInfo | null)
+/**
+ * What kind of route this is.
+ */
+kind: ("direct" | {
+chained: {
+/**
+ * How many layer gaps it crosses (always `> 1`).
+ */
+spans: number
+}
+} | "selfloop" | {
+bundled: {
+/**
+ * Index of this edge's lane within its bundle, in edge order.
+ */
+lane: number
+}
+} | "unrouted")
+/**
+ * Where to centre this edge's label, when [`crate::Edge::label_size`] is set.
+ */
+label_anchor?: (Point1 | null)
+}
+/**
+ * A point in output (drawing) space, in px.
+ */
+
+export interface Point1 {
+/**
+ * Horizontal coordinate, growing to the right.
+ */
+x: number
+/**
+ * Vertical coordinate, growing downwards (SVG convention).
+ */
+y: number
+}
+/**
+ * How an edge attaches to one of its nodes.
+ */
+
+export interface PortInfo {
+point: Point2
+/**
+ * Which border that is, in output space. For an end placed by a port hint
+ * ([`crate::Edge::source_port`] / [`crate::Edge::target_port`]), the hinted border.
+ */
+side: ("right" | "left" | "top" | "bottom")
+/**
+ * Signed distance in px along the border from its middle to [`PortInfo::point`]. Positive
+ * is down on the left and right borders and right on the top and bottom borders.
+ */
+offset: number
+}
+/**
+ * A point in output (drawing) space, in px.
+ */
+
+export interface Point2 {
+/**
+ * Horizontal coordinate, growing to the right.
+ */
+x: number
+/**
+ * Vertical coordinate, growing downwards (SVG convention).
+ */
+y: number
+}
+/**
+ * Bounding box of every node box, polyline point and label anchor, without padding.
+ */
+
+export interface Rect {
+min: Point3
+max: Point4
+}
+/**
+ * A point in output (drawing) space, in px.
+ */
+
+export interface Point3 {
+/**
+ * Horizontal coordinate, growing to the right.
+ */
+x: number
+/**
+ * Vertical coordinate, growing downwards (SVG convention).
+ */
+y: number
+}
+/**
+ * A point in output (drawing) space, in px.
+ */
+
+export interface Point4 {
+/**
+ * Horizontal coordinate, growing to the right.
+ */
+x: number
+/**
+ * Vertical coordinate, growing downwards (SVG convention).
+ */
+y: number
+}
+/**
+ * Counters about the run.
+ */
+
+export interface LayoutStats {
+/**
+ * Routing waypoints (dummy nodes) the long edges were cut into.
+ */
+dummy_count: number
+}
+/**
+ * One swimlane: a strip across the whole drawing that holds one group's nodes.
+ */
+
+export interface Lane {
+/**
+ * The group the lane holds, or `None` for the lane of nodes without a group.
+ */
+group?: (GroupId | null)
+rect: Rect1
+}
+/**
+ * The lane's rectangle. Adjacent lanes share their border, halfway across the gap between
+ * their nodes, and every lane spans the drawing's full extent along the layer axis.
+ */
+
+export interface Rect1 {
+min: Point3
+max: Point4
+}
+
+export interface TypeLifecycle {
+object_type: string
+objects: number
+/**
+ * Median time from an object's first to its last event, in milliseconds
+ */
+median_lifetime_ms: number
+p90_lifetime_ms: number
+/**
+ * Sorted by `median_ms`
+ */
+activities: LifecycleActivity[]
+}
+/**
+ * Where an activity falls in the lifetime of the objects of one type.
+ */
+
+export interface LifecycleActivity {
+activity: string
+/**
+ * Share of the type's objects (with events) that have the activity
+ */
+reach: number
+/**
+ * Time from an object's first event to its first event of this activity, in milliseconds
+ */
+median_ms: number
+p25_ms: number
+p75_ms: number
+/**
+ * Mean number of such events per object that has the activity
+ */
+mean_count: number
 }
 
 export interface LogExtensionInfo {
@@ -314,6 +909,120 @@ name: string
 keys: string[]
 }
 
+export type Severity = ("warning" | "info")
+/**
+ * One repair of an event log or OCEL. A repair that does not apply to the input is skipped.
+ */
+
+export type Repair = ({
+defect: EventDefect
+type: "RemoveEvents"
+} | {
+defect: EventDefect
+type: "RemoveCasesWith"
+} | {
+type: "SortCasesByTime"
+} | {
+exact: boolean
+type: "RemoveDuplicateEvents"
+} | {
+type: "RemoveEmptyCases"
+} | {
+type: "RemoveLongCases"
+} | {
+type: "OrderTies"
+} | {
+type: "SpreadTies"
+} | {
+type: "RemoveEventsWithoutObjects"
+} | {
+keep_related: boolean
+type: "RemoveObjectsWithoutEvents"
+} | {
+type: "RemoveSelfRelations"
+} | {
+type: "RemoveUnusedTypes"
+})
+/**
+ * Which events a repair removes, or whose cases it removes.
+ */
+
+export type EventDefect = ("NoActivity" | "NoTime" | "EpochTime")
+
+export interface HealthFinding {
+/**
+ * Stable id of the check, e.g., `objects_without_events`
+ */
+check: string
+title: string
+/**
+ * The kind of issue and what it concerns, e.g., "Imprecise time" or "Missing object"
+ */
+category: string
+/**
+ * What the check looks for and what it affects
+ */
+description: string
+severity: Severity
+count: number
+/**
+ * A few affected event ids, object ids, type names or attribute names
+ */
+examples: string[]
+/**
+ * Ways to repair it; empty when there is no deterministic repair
+ */
+fixes: HealthFix[]
+}
+/**
+ * A way to repair what a check found, as repairs to apply in order.
+ */
+
+export interface HealthFix {
+id: string
+label: string
+/**
+ * What the fix changes, including what it removes
+ */
+description: string
+/**
+ * The fix to pick unless there is a reason not to
+ */
+recommended: boolean
+repairs: Repair[]
+}
+
+export interface VariantShare {
+activities: string[]
+cases: number
+}
+/**
+ * Cases started and finished per time bin, and how long the cases started in a bin took.
+ */
+
+export interface Throughput {
+bin_starts_ms: number[]
+bin_width_ms: number
+started: number[]
+finished: number[]
+/**
+ * Median duration of the cases started in each bin; `None` where none started
+ */
+median_duration_ms: (number | null)[]
+}
+
+export interface LogHealth {
+num_cases: number
+num_events: number
+/**
+ * Every check, failed ones (most severe first) before passed ones
+ */
+findings: HealthFinding[]
+}
+/**
+ * One data-quality check over an OCEL. A check with `count` 0 passed.
+ */
+
 export interface TraceBrowserRow {
 case_index: number
 case_id: string
@@ -323,26 +1032,30 @@ end_time?: (string | null)
 duration_ms?: (number | null)
 }
 
-export type AttributeScope = ({
-type: "LogGlobal"
-} | {
-activity?: (string | null)
-type: "Event"
-} | {
-object_type?: (string | null)
-type: "Object"
-})
-
+export interface NetJourney {
+firings: NetFiring[]
 /**
- * One entry in the attribute catalog returned by `get_removable_attributes_xes`.
+ * Events the model could not follow (log moves), as `(activity, epoch milliseconds)`
+ */
+log_moves: [string, number][]
+}
+/**
+ * A transition firing of a replayed case.
  */
 
-export interface TraceEventRow {
-activity: string
-timestamp?: (string | null)
-attributes: {
-[k: string]: string
-}
+export interface NetFiring {
+/**
+ * Index of the transition in the net
+ */
+transition: number
+/**
+ * Epoch milliseconds; a model-only move takes the time of the event before it
+ */
+time: number
+/**
+ * Whether an event matched the firing (`false` for a model-only move)
+ */
+sync: boolean
 }
 
 export interface ObjectEventRow {
@@ -353,6 +1066,45 @@ timestamp: string
  * (object_id, object_type)
  */
 other_objects: [string, string][]
+}
+
+export interface Lifeline {
+id: string
+object_type: string
+/**
+ * Indices into `events`, by time
+ */
+events: number[]
+}
+
+export interface LifelineEvent {
+id: string
+activity: string
+time_ms: number
+}
+
+export interface ObjectTypePopulation {
+object_type: string
+/**
+ * Objects of the type that have at least one event
+ */
+objects: number
+/**
+ * Objects of the type without any event, which have no lifetime
+ */
+objects_without_events: number
+/**
+ * Objects alive at some point in each bin
+ */
+alive: number[]
+/**
+ * Objects whose first event falls in each bin
+ */
+started: number[]
+/**
+ * Objects whose last event falls in each bin
+ */
+ended: number[]
 }
 
 export interface ObjectInvolvementCounts {
@@ -401,6 +1153,368 @@ distinct_qualifiers: number
 export interface OcelTypeQualifierCount {
 qualifier: string
 count: number
+}
+
+export interface JsonPlace {
+/**
+ * Unique among all places and transitions.
+ */
+name: string
+/**
+ * The object type whose tokens this place holds.
+ */
+object_type: string
+}
+/**
+ * A transition, silent if it has no label.
+ */
+
+export interface JsonTransition {
+/**
+ * Unique among all places and transitions. For a labeled transition, the activity itself.
+ */
+name: string
+/**
+ * The activity, or `None` for a silent transition.
+ */
+label?: (string | null)
+}
+/**
+ * An arc from a place to a transition or the other way round.
+ */
+
+export interface JsonArc {
+/**
+ * Name of the place or transition the arc leaves.
+ */
+source: string
+/**
+ * Name of the place or transition the arc enters.
+ */
+target: string
+/**
+ * Whether the arc moves one object or a whole set of them.
+ */
+type?: ("normal" | "variable")
+/**
+ * How many tokens the arc moves.
+ */
+weight?: number
+}
+
+export interface OcpnJourney {
+id: string
+object_type: string
+firings: OcpnFiring[]
+/**
+ * Events the type's net could not follow (log moves), as `(activity, epoch milliseconds)`
+ */
+log_moves: [string, number][]
+}
+/**
+ * A transition firing of a replayed object.
+ */
+
+export interface OcpnFiring {
+/**
+ * Index of the transition in the OCPN's `transitions`
+ */
+transition: number
+/**
+ * Epoch milliseconds; a model-only move takes the time of the event before it
+ */
+time: number
+/**
+ * Whether an event matched the firing (`false` for a model-only move)
+ */
+sync: boolean
+}
+/**
+ * Alignment-based conformance of one object type with its net.
+ */
+
+export interface TypeConformance {
+object_type: string
+objects: number
+fitness?: (number | null)
+perfectly_fitting?: (number | null)
+/**
+ * Objects whose alignment failed, left out of the numbers
+ */
+unaligned: number
+/**
+ * Per activity, events of this type's objects the net could not follow, most first
+ */
+log_moves: [string, number][]
+}
+/**
+ * How often one object type fired a transition in sync with an event or as a model-only move.
+ */
+
+export interface TransitionConformance {
+transition: number
+object_type: string
+sync: number
+model: number
+}
+/**
+ * Waiting at an activity several object types take part in: per event, the time from the moment
+ * the first object type was ready (its objects' previous events done) until the last one was.
+ */
+
+export interface SyncPoint {
+activity: string
+/**
+ * Index of the activity's transition in the OCPN
+ */
+transition?: (number | null)
+/**
+ * Events where at least two object types had a previous event
+ */
+events: number
+median_wait_ms: number
+p90_wait_ms: number
+mean_wait_ms: number
+/**
+ * How often each object type was the last one ready, most first
+ */
+last_ready: [string, number][]
+/**
+ * Events where every object type was ready at the same moment
+ */
+simultaneous: number
+}
+
+export interface SpectrumSegment {
+from: string
+to: string
+/**
+ * Passages through the segment (a directly followed by b, both with a time)
+ */
+count: number
+/**
+ * `[time of a, time of b]` in epoch milliseconds, sorted by the time of a; sampled evenly
+ * down to `max_lines` when there are more
+ */
+lines: [number, number][]
+/**
+ * Quartiles of the segment's durations in milliseconds, for coloring
+ * 
+ * @minItems 3
+ * @maxItems 3
+ */
+quartiles: [number, number, number]
+}
+
+export interface SpectrumVariant {
+activities: string[]
+cases: number
+}
+
+export interface PrefixNode {
+/**
+ * Index of the parent in `nodes`; `None` for the root
+ */
+parent?: (number | null)
+/**
+ * The last activity of the prefix; empty for the root
+ */
+activity: string
+depth: number
+/**
+ * Cases that start with this prefix
+ */
+cases: number
+/**
+ * Cases that end right after this prefix
+ */
+ending: number
+/**
+ * Median time from the prefix's last event to the case's last event, in milliseconds
+ */
+median_remaining_ms?: (number | null)
+/**
+ * Median time from the case's first event to the prefix's last event, in milliseconds
+ */
+median_elapsed_ms?: (number | null)
+/**
+ * Children too small to list (below `min_cases`), summed up
+ */
+pruned_cases: number
+}
+
+export interface TraceEventRow {
+activity: string
+timestamp?: (string | null)
+attributes: {
+[k: string]: string
+}
+}
+
+export interface VariantTimeProfile {
+rank: number
+/**
+ * Position in `variant_sort` order.
+ */
+sort_position: number
+activities: string[]
+num_cases: number
+/**
+ * One entry per step, aligned with `activities`.
+ */
+steps: StepTimeStats[]
+/**
+ * Cases matching the case query.
+ */
+cases_total: number
+cases: CaseTimeCurve[]
+/**
+ * Position of `focus_case` in `case_sort` order.
+ */
+focus_index?: (number | null)
+}
+/**
+ * Distribution of the elapsed time since case start at one step of a variant, in ms.
+ */
+
+export interface StepTimeStats {
+min_ms: number
+p10_ms: number
+p25_ms: number
+median_ms: number
+p75_ms: number
+p90_ms: number
+max_ms: number
+mean_ms: number
+}
+/**
+ * One case with its elapsed time since case start per step, in ms.
+ */
+
+export interface CaseTimeCurve {
+case_id: string
+elapsed_ms: number[]
+}
+
+export interface VariantSummary {
+/**
+ * 0-based frequency rank.
+ */
+rank: number
+activities: string[]
+num_cases: number
+/**
+ * Median time from case start to the last step.
+ */
+median_total_ms: number
+/**
+ * Activity indices the query matched.
+ */
+matched: number[]
+}
+
+export type ObjectTypeAssociation = ({
+/**
+ * The object type
+ */
+object_type: string
+type: "Simple"
+} | {
+/**
+ * First object type (for source event)
+ */
+first: string
+/**
+ * Second object type (for target event)
+ */
+second: string
+/**
+ * Specifies the direction of the O2O relationship.
+ * 
+ * If reversed is `False`, `(first,second)` is considered
+ */
+reversed: boolean
+type: "O2O"
+})
+
+/**
+ * OC-DECLARE Constraint arc/edge between two nodes (i.e., activities)
+ */
+
+export interface OCDeclareArcLabel {
+/**
+ * Each (for each object of that type separately, there must be the specified number of relevant target events)
+ */
+each: ObjectTypeAssociation[]
+/**
+ * Any (there must be the specified number of relevant target events involving at least one of the objects of this type involved in the source event)
+ */
+any: ObjectTypeAssociation[]
+/**
+ * All (there must be the specified number of relevant target events involving all of the objects of this type involved in the source event)
+ */
+all: ObjectTypeAssociation[]
+}
+
+export interface LaneEvent {
+id: string
+activity: string
+time_ms: number
+}
+
+export type ViolationKind = ("too_few" | "too_many")
+
+export interface FoundBucket {
+/**
+ * Target events found for a binding (50 means 50 or more)
+ */
+found: number
+bindings: number
+/**
+ * Whether this count violates the constraint
+ */
+violating: boolean
+}
+
+export interface ViolationTimeBin {
+start_ms: number
+sources: number
+violations: number
+}
+
+export interface CountedName {
+name: string
+violations: number
+}
+
+export interface ViolatingObject {
+object_type: string
+id: string
+violations: number
+}
+/**
+ * One violating source event, with the first of its bindings that violates the constraint.
+ */
+
+export interface ArcViolation {
+/**
+ * The event id, or `<init> <object id>` / `<exit> <object id>` for a lifecycle event
+ */
+source: string
+time_ms: number
+kind: ViolationKind
+/**
+ * Matching target events the binding has (capped at 50)
+ */
+found: number
+/**
+ * `(object type, object id)` of the binding's objects
+ */
+objects: [string, string][]
+/**
+ * For too few: the activity the binding's objects did next (before, for EP/DP) instead
+ */
+instead?: (string | null)
 }
 
 export interface OcelTypeInput {
@@ -469,1930 +1583,6 @@ id: string
 objectType: string
 }
 
-export type TimeframeMode = ("AnyEvent" | "AllEvents" | "SpanWithin" | "SpanEncloses" | "StartsWithin" | "EndsWithin" | "Overlaps" | "Before" | "After")
-/**
- * How related entities (events / objects) must satisfy a sub-condition in an
- * `EventMatch` / `ObjectMatch` predicate.
- */
-
-export type MatchQuantifier = ("Any" | "All" | "First" | "Last")
-
-export type KeepOrRemove = ("Keep" | "Remove")
-
-export type RelabelTarget = ({
-value: string
-type: "Literal"
-} | {
-template: string
-type: "Template"
-})
-
-export type RequiredOrForbidden = ("Required" | "Forbidden")
-/**
- * Where an attribute lives in a dataset.
- */
-
-export interface RelabelRule {
-target: RelabelTarget
-condition?: (Condition | null)
-}
-
-export interface VariantTimeProfile {
-rank: number
-/**
- * Position in `variant_sort` order.
- */
-sort_position: number
-activities: string[]
-num_cases: number
-/**
- * One entry per step, aligned with `activities`.
- */
-steps: StepTimeStats[]
-/**
- * Cases matching the case query.
- */
-cases_total: number
-cases: CaseTimeCurve[]
-/**
- * Position of `focus_case` in `case_sort` order.
- */
-focus_index?: (number | null)
-}
-/**
- * Distribution of the elapsed time since case start at one step of a variant, in ms.
- */
-
-export interface StepTimeStats {
-min_ms: number
-p10_ms: number
-p25_ms: number
-median_ms: number
-p75_ms: number
-p90_ms: number
-max_ms: number
-mean_ms: number
-}
-/**
- * One case with its elapsed time since case start per step, in ms.
- */
-
-export interface CaseTimeCurve {
-case_id: string
-elapsed_ms: number[]
-}
-
-export interface VariantSummary {
-/**
- * 0-based frequency rank.
- */
-rank: number
-activities: string[]
-num_cases: number
-/**
- * Median time from case start to the last step.
- */
-median_total_ms: number
-/**
- * Activity indices the query matched.
- */
-matched: number[]
-}
-
-export interface DottedChartPoints {
-/**
- * X-axis values (interpretation depends on [`DottedChartXAxis`]).
- */
-x: number[]
-/**
- * Y-axis indices into [`DottedChartData::y_values`].
- */
-y: number[]
-}
-
-export interface AttributeChange {
-/**
- * Timestamp of the change.
- */
-time: string
-/**
- * Attribute value at this point in time.
- */
-value: (number | boolean | string | null)
-}
-
-export type Literal = (boolean | number | string | {
-/**
- * The instant.
- */
-timestamp: string
-})
-
-export type MappingEntry = ((Mapping & {
-type: "single"
-}) | {
-/**
- * Mappings, in priority order.
- */
-mappings: Mapping[]
-type: "ordered"
-})
-
-export type TimestampFormat = ({
-type: "auto"
-} | {
-/**
- * The format.
- */
-format: string
-type: "format-string"
-} | {
-type: "unix-seconds"
-} | {
-type: "unix-millis"
-})
-/**
- * _Types_ of attribute values in OCEL2
- */
-
-export type OCELAttributeType = ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
-/**
- * Where an entity's timestamp comes from.
- * 
- * `deny_unknown_fields`: a misspelled key would otherwise be ignored, leaving a timestamp that
- * silently drops every row.
- */
-
-export type TimestampSource = ({
-/**
- * Where the text comes from.
- */
-source: ValueExpression
-/**
- * How to read it. `None` means auto-detection.
- */
-format?: (TimestampFormat | null)
-type: "value"
-} | {
-/**
- * Where the date comes from, if anywhere.
- */
-date?: (TimestampPart | null)
-/**
- * Where the time comes from, if anywhere.
- */
-time?: (TimestampPart | null)
-type: "components"
-})
-
-/**
- * A declarative mapping from relational rows to an OCEL.
- * 
- * Carries no connection details and no schema snapshot: both are supplied by the caller, which
- * keeps a blueprint portable, shareable and free of secrets.
- */
-
-export interface Node {
-/**
- * Unique id, referenced by other nodes and by mappings.
- */
-id: string
-/**
- * Display label. No semantic role.
- */
-label?: (string | null)
-/**
- * The operation.
- */
-op: ({
-/**
- * Source id, resolved to a connection at execution time.
- */
-source_id: string
-/**
- * Table name.
- */
-table: string
-type: "source"
-} | {
-/**
- * Input node id.
- */
-input: string
-/**
- * The condition.
- */
-condition: Predicate
-type: "filter"
-} | {
-/**
- * Left input node id.
- */
-left: string
-/**
- * Right input node id.
- */
-right: string
-/**
- * Column pairs, as `(left column, right column)`.
- */
-on: [string, string][]
-type: "join"
-} | {
-/**
- * Input node ids.
- */
-inputs: string[]
-type: "union"
-})
-}
-/**
- * One mapping from a node's rows to entities.
- */
-
-export interface Mapping {
-/**
- * The node whose rows this reads.
- */
-node: string
-/**
- * Display label, also used to name this mapping in diagnostics.
- */
-label?: (string | null)
-/**
- * Only rows satisfying this produce anything. `None` accepts every row.
- */
-when?: (Predicate | null)
-/**
- * What to produce.
- */
-target: ({
-/**
- * Event type.
- */
-event_type: ValueExpression
-/**
- * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
- * be compiled to a view.
- * 
- * It is also what coalesces a fan-out: over a join of orders and their items, a `None`
- * id makes one event per item, an id naming the order one event per order, still related
- * to every item. The repeated rows count as
- * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated) while
- * `objects` below is emitted for each.
- */
-id?: (ValueExpression | null)
-/**
- * When it happened.
- */
-timestamp: ({
-/**
- * Where the text comes from.
- */
-source: ValueExpression
-/**
- * How to read it. `None` means auto-detection.
- */
-format?: (TimestampFormat | null)
-type: "value"
-} | {
-/**
- * Where the date comes from, if anywhere.
- */
-date?: (TimestampPart | null)
-/**
- * Where the time comes from, if anywhere.
- */
-time?: (TimestampPart | null)
-type: "components"
-})
-/**
- * Event attributes.
- */
-attributes?: AttributeMapping[]
-/**
- * Objects related to this event.
- */
-objects?: InlineObjectRef[]
-type: "event"
-} | {
-/**
- * Object type.
- */
-object_type: ValueExpression
-/**
- * Object id.
- */
-id: ValueExpression
-/**
- * When the attribute values below were observed. `None` records them as static
- * values stamped at the Unix epoch.
- */
-timestamp?: (TimestampSource | null)
-/**
- * Object attributes.
- */
-attributes?: AttributeMapping[]
-type: "object"
-} | {
-event: EventEndpoint
-object: ObjectEndpoint1
-/**
- * Relation qualifier.
- */
-qualifier?: (ValueExpression | null)
-type: "e2o"
-} | {
-source: ObjectEndpoint2
-target: ObjectEndpoint3
-/**
- * Relation qualifier.
- */
-qualifier?: (ValueExpression | null)
-type: "o2o"
-})
-}
-/**
- * One value read as a timestamp: where the text comes from, and how to read it.
- */
-
-export interface TimestampPart {
-/**
- * Where the text comes from.
- */
-source: ValueExpression
-/**
- * How to read it. `None` means auto-detection.
- */
-format?: (TimestampFormat | null)
-}
-/**
- * Maps a source column to a named OCEL attribute.
- */
-
-export interface AttributeMapping {
-/**
- * Column to read.
- */
-source_column: string
-/**
- * Attribute name in the resulting log.
- */
-name: string
-/**
- * Declared attribute type, or `None` to take the catalog's type for `source_column`.
- */
-value_type?: (OCELAttributeType | null)
-}
-/**
- * An object related to an event declared by the same mapping.
- */
-
-export interface InlineObjectRef {
-object: ObjectEndpoint
-/**
- * Relation qualifier.
- */
-qualifier?: (ValueExpression | null)
-}
-/**
- * The object.
- */
-
-export interface ObjectEndpoint {
-/**
- * The object's id.
- */
-id: ValueExpression
-/**
- * The object's type. Required under [`IdRendering::TypePrefixed`] and under
- * [`MissingEndpointPolicy::Create`].
- */
-object_type?: (ValueExpression | null)
-/**
- * Split the id cell into several ids, producing one relation per part.
- */
-split?: (SplitSpec | null)
-}
-/**
- * How to split one cell into several values.
- */
-
-export interface SplitSpec {
-/**
- * The splitting rule.
- */
-kind: ({
-/**
- * The separator.
- */
-delimiter: string
-type: "delimiter"
-} | {
-/**
- * The pattern.
- */
-pattern: string
-type: "regex"
-})
-/**
- * Trim surrounding whitespace from each part.
- */
-trim: boolean
-}
-/**
- * The event.
- */
-
-export interface EventEndpoint {
-/**
- * The event's id.
- */
-id: ValueExpression
-/**
- * The event's type. Required under [`IdRendering::TypePrefixed`].
- */
-event_type?: (ValueExpression | null)
-}
-/**
- * The object.
- */
-
-export interface ObjectEndpoint1 {
-/**
- * The object's id.
- */
-id: ValueExpression
-/**
- * The object's type. Required under [`IdRendering::TypePrefixed`] and under
- * [`MissingEndpointPolicy::Create`].
- */
-object_type?: (ValueExpression | null)
-/**
- * Split the id cell into several ids, producing one relation per part.
- */
-split?: (SplitSpec | null)
-}
-/**
- * The source object.
- */
-
-export interface ObjectEndpoint2 {
-/**
- * The object's id.
- */
-id: ValueExpression
-/**
- * The object's type. Required under [`IdRendering::TypePrefixed`] and under
- * [`MissingEndpointPolicy::Create`].
- */
-object_type?: (ValueExpression | null)
-/**
- * Split the id cell into several ids, producing one relation per part.
- */
-split?: (SplitSpec | null)
-}
-/**
- * The target object.
- */
-
-export interface ObjectEndpoint3 {
-/**
- * The object's id.
- */
-id: ValueExpression
-/**
- * The object's type. Required under [`IdRendering::TypePrefixed`] and under
- * [`MissingEndpointPolicy::Create`].
- */
-object_type?: (ValueExpression | null)
-/**
- * Split the id cell into several ids, producing one relation per part.
- */
-split?: (SplitSpec | null)
-}
-
-export interface TableSchema {
-/**
- * Table name.
- */
-name: string
-/**
- * Columns, keyed by name.
- */
-columns: {
-[k: string]: ColumnSchema
-}
-}
-/**
- * One column's declared shape.
- */
-
-export interface ColumnSchema {
-/**
- * Column name.
- */
-name: string
-/**
- * The source's own type name, verbatim, for example `INTEGER` or `timestamp`.
- */
-col_type: string
-/**
- * Whether the source permits `NULL` here.
- */
-nullable: boolean
-}
-/**
- * A few real rows of one table, for display only.
- * 
- * Rows are aligned to [`TablePreview::columns`] so a wide table can be read across. A cell is
- * `None` for SQL `NULL`, distinct from `Some(String::new())`.
- */
-
-export interface TablePreview {
-/**
- * Column names, in the order the rows are aligned to.
- */
-columns: string[]
-/**
- * Rows, each the same length as `columns`.
- */
-rows: (string | null)[][]
-}
-
-export type SqlDialect = ("DuckDb" | "Postgres")
-/**
- * Which OCEL surface the compiler emits.
- */
-
-export type EmissionShape = ("PerType" | "Consolidated")
-
-/**
- * A blueprint compiled to SQL.
- * 
- * Serializable but not deserializable: [`Self::errors`] holds [`CompileError`], which is not, so
- * neither is this. Crosses a bindings boundary outbound only, as a compile binding's return
- * value.
- */
-
-export interface ViewDef {
-/**
- * The relation's name, unquoted.
- */
-name: string
-/**
- * A bare `SELECT` body with no `CREATE` wrapper, so the same text serves a view, a CTE and
- * a `CREATE TABLE AS`.
- */
-body: string
-}
-/**
- * A data-dependent assumption the compiled relations make, as SQL that returns zero rows when
- * the assumption holds.
- */
-
-export interface Probe {
-/**
- * The mapping this is about, or `None` for a whole-log check.
- */
-mapping?: (MappingRef | null)
-/**
- * What it guards.
- */
-kind: ("AmbiguousObjectIdentity" | "AmbiguousEventIdentity" | "AmbiguousStaticObjectAttributes" | {
-StaleTypeDomain: {
-/**
- * The column the domain came from.
- */
-column: string
-}
-})
-/**
- * The check itself, as a `SELECT` returning zero rows when the guard holds.
- */
-sql: string
-}
-/**
- * Points a diagnostic back at the mapping it came from.
- */
-
-export interface MappingRef {
-/**
- * Position in the desugared, flattened mapping list this run executed.
- */
-index: number
-/**
- * The mapping's own label, if it has one.
- */
-label?: (string | null)
-/**
- * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
- * a diagnostic points at what the author wrote rather than a position in the flattened
- * list.
- */
-path: string
-/**
- * What this mapping produces, derived from its target: `event "appoint officer"`,
- * `event -> object relation`, and so on. Present whether or not a `label` was typed.
- */
-describes: string
-}
-/**
- * A mapping that produced no view, and why.
- * 
- * Compilation never fails wholesale: an uncompilable mapping is skipped and recorded here, and
- * everything else still compiles.
- * 
- * Serializable but not deserializable: [`RejectReason`] is not, so neither is this.
- */
-
-export interface CompileError {
-/**
- * The mapping this is about, or `None` for a blueprint-level problem.
- */
-mapping?: (MappingRef | null)
-/**
- * Why it could not be compiled.
- */
-reason: ({
-SynthesizedId: {
-/**
- * The absent field.
- */
-field: string
-}
-} | {
-DynamicTypeName: {
-/**
- * The position whose type is dynamic.
- */
-field: string
-/**
- * Why no domain was available.
- */
-detail: string
-}
-} | {
-TypeDomainTooLarge: {
-/**
- * The column the domain came from.
- */
-column: string
-/**
- * How many values it has.
- */
-size: number
-/**
- * The cap.
- */
-cap: number
-}
-} | {
-ReservedTypeName: {
-/**
- * The offending type name.
- */
-name: string
-}
-} | {
-UnknownNode: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-UnresolvedNodeSchema: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-NodeCycle: {
-/**
- * A node id taking part in the cycle.
- */
-node: string
-}
-} | {
-EmptyProjection: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-EmptyUnion: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-UnknownColumn: {
-/**
- * The column name.
- */
-column: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-UndeclaredColumnKind: {
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-UnstableIdentityRendering: {
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-UnstableDisplayRendering: {
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-ResidualTimestamp: {
-/**
- * What about it is residual.
- */
-detail: string
-}
-} | {
-UndecidableJoinKey: {
-/**
- * The join node's id.
- */
-node: string
-/**
- * Which side the column is on.
- */
-side: string
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-}
-} | {
-InvalidRegex: {
-/**
- * The pattern.
- */
-pattern: string
-/**
- * The compiler's message.
- */
-message: string
-}
-} | {
-InvalidTemplate: {
-/**
- * The template text.
- */
-template: string
-/**
- * What is wrong with it.
- */
-reason: string
-}
-} | {
-AttributeCoercion: {
-/**
- * The attribute name.
- */
-attribute: string
-/**
- * The source column.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * The declared OCEL attribute type.
- */
-declared: string
-}
-} | {
-DynamicTypeAttributeConflict: {
-/**
- * The attribute name.
- */
-attribute: string
-}
-} | {
-ViewCycle: {
-/**
- * The relation's name.
- */
-view: string
-}
-} | {
-Invalid: {
-/**
- * The rendered validation error.
- */
-detail: string
-}
-})
-}
-
-export interface ExtractionCatalog {
-/**
- * Table schemas, keyed by source id then table name.
- */
-tables: {
-[k: string]: {
-[k: string]: TableSchema
-}
-}
-/**
- * Column domains, keyed by source id, then table name, then column name.
- */
-domains: {
-[k: string]: {
-[k: string]: {
-[k: string]: string[]
-}
-}
-}
-/**
- * A handful of real rows per table, keyed by source id then table name, to show a person
- * what the data looks like.
- * 
- * Deliberately unreachable through the [`Catalog`] trait: unlike
- * [`domains`](ExtractionCatalog::domains), a preview is incomplete, so compiling from one
- * would emit views only for the types that happened to appear first.
- */
-previews?: {
-[k: string]: {
-[k: string]: TablePreview
-}
-}
-}
-/**
- * One table's declared shape.
- */
-
-export type ExtractionError = ({
-Invalid: ValidationError[]
-} | {
-MissingProvider: {
-/**
- * The missing source id.
- */
-source_id: string
-}
-} | {
-InvalidRegex: {
-/**
- * The offending pattern.
- */
-pattern: string
-/**
- * The compiler's message.
- */
-message: string
-}
-} | {
-JoinKeyColumnMissing: {
-/**
- * The `Join` node.
- */
-node: string
-/**
- * `"left"` or `"right"`.
- */
-side: string
-/**
- * The key column, as named on that side.
- */
-column: string
-}
-} | {
-Provider: {
-/**
- * The node being read when the failure happened.
- */
-node: string
-/**
- * The underlying error.
- */
-source: ({
-UnknownTable: {
-/**
- * The table name.
- */
-table: string
-}
-} | {
-UnknownColumn: {
-/**
- * The table name.
- */
-table: string
-/**
- * The column name.
- */
-column: string
-}
-} | "QueryUnsupported" | {
-Backend: {
-/**
- * The table being read when the failure happened.
- */
-table: string
-/**
- * The backend's error message.
- */
-message: string
-}
-})
-}
-} | {
-Sink: {
-/**
- * What was being added when the failure happened.
- */
-context: string
-/**
- * The underlying error.
- */
-source: ({
-DuplicateEvent: {
-/**
- * The repeated id.
- */
-id: string
-}
-} | {
-DuplicateObject: {
-/**
- * The repeated id.
- */
-id: string
-}
-} | {
-IdTypeCollision: {
-/**
- * The contested id.
- */
-id: string
-}
-} | {
-UnknownType: {
-/**
- * `"event"` or `"object"`.
- */
-kind: string
-/**
- * The undeclared type name.
- */
-name: string
-}
-} | "InvalidRef" | {
-Backend: string
-})
-}
-} | {
-IdTypeCollision: {
-mapping: MappingRef1
-/**
- * The contested id.
- */
-id: string
-/**
- * The type this row wanted the id for. The type that already holds it is whatever the
- * sink reports for that id.
- */
-requested_type: string
-}
-} | {
-ConflictingAttributeType: {
-/**
- * `"event"` or `"object"`.
- */
-kind: string
-/**
- * The entity type.
- */
-type_name: string
-/**
- * The attribute.
- */
-attribute: string
-/**
- * The type it was declared with first.
- */
-declared: ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
-/**
- * The type the later declaration gave it.
- */
-conflicting: ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
-}
-} | {
-DuplicateObject: {
-mapping: MappingRef2
-/**
- * The repeated id.
- */
-id: string
-}
-} | {
-MissingEndpoint: {
-mapping: MappingRef3
-/**
- * Which endpoint (`"event"`, `"object"`, `"source"`, `"target"`, ...).
- */
-endpoint: string
-/**
- * The unresolved id.
- */
-id: string
-}
-} | {
-MissingEndpointsAtFinalize: {
-/**
- * How many relations the sink could not resolve. Usually equals an eager sink's
- * [`MissingEndpoint`](Self::MissingEndpoint) count for the same run, but can exceed it:
- * a deferring sink also stages the inline references of a `Target::Event` whose event
- * this run dropped, which an eager sink never asks about.
- */
-count: number
-}
-})
-/**
- * A reason a blueprint cannot be executed or compiled.
- */
-
-export type ValidationError = ({
-/**
- * The blueprint's version.
- */
-found: number
-/**
- * The newest version this build reads.
- */
-supported: number
-type: "unsupported-version"
-} | {
-/**
- * The repeated id.
- */
-id: string
-type: "duplicate-node-id"
-} | {
-/**
- * Who referred to it.
- */
-from: string
-/**
- * The missing id.
- */
-id: string
-type: "unknown-node-ref"
-} | {
-/**
- * One node id participating in the cycle.
- */
-id: string
-type: "node-cycle"
-} | {
-/**
- * The source id.
- */
-source_id: string
-type: "unknown-source"
-} | {
-/**
- * The source id.
- */
-source_id: string
-/**
- * The table name.
- */
-table: string
-type: "unknown-table"
-} | {
-/**
- * The node whose rows were being read.
- */
-node: string
-/**
- * The column name.
- */
-column: string
-type: "unknown-column"
-} | {
-/**
- * Which mapping, by label or index.
- */
-mapping: string
-/**
- * Which endpoint.
- */
-endpoint: string
-type: "missing-type-for-prefixing"
-} | {
-/**
- * Which mapping, by label or index.
- */
-mapping: string
-/**
- * Which endpoint.
- */
-endpoint: string
-type: "missing-type-for-create"
-} | {
-/**
- * The node id.
- */
-node: string
-type: "empty-union"
-} | {
-/**
- * The pattern.
- */
-pattern: string
-/**
- * The compiler's message.
- */
-message: string
-type: "invalid-regex"
-} | {
-/**
- * The template text.
- */
-template: string
-/**
- * What is wrong with it.
- */
-reason: string
-type: "invalid-template"
-} | {
-/**
- * The `Join` node.
- */
-node: string
-/**
- * The contested output column name.
- */
-column: string
-type: "ambiguous-join-column"
-} | {
-/**
- * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
- */
-location: string
-/**
- * The column compared against.
- */
-column: string
-/**
- * That column's declared type, verbatim from the catalog.
- */
-col_type: string
-/**
- * The literal, as authored.
- */
-literal: string
-/**
- * The kind `col_type` names: `text`, `integer`, `float`, `boolean` or `timestamp`.
- */
-expected: string
-type: "uncoercible-literal"
-} | {
-/**
- * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
- */
-location: string
-/**
- * The left operand's declared kind: `text`, `integer`, `float`, `boolean` or `timestamp`.
- */
-left_kind: string
-/**
- * The right operand's declared kind.
- */
-right_kind: string
-type: "incomparable-compare"
-})
-
-/**
- * What [`extract`](super::extract::extract) produced, beyond the OCEL itself.
- * 
- * Serializable but not deserializable: [`ExtractionError`] carries `&'static str` fields (a
- * borrow no deserializer can manufacture), so this only ever crosses a bindings boundary
- * outbound, as a `#[register_binding]` return value.
- */
-
-export interface MappingStats {
-mapping: MappingRef
-/**
- * Rows the mapping's node produced, before `when` was applied.
- */
-rows_read: number
-/**
- * Entities or relations this mapping handed to the sink, which is not the same as
- * "survived the run" for a sink that defers resolution.
- * 
- * An eager sink refuses a dangling relation at the call site, so it lands in
- * [`DropReason::UnresolvedEndpoint`] and never here. A deferring sink writes it, counts it
- * here, and deletes it at [`finalize`](super::sink::ExtractionSink::finalize), reporting it
- * in [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) instead. To count
- * what a run produced, subtract `ExtractionReport::finalize.unresolved_endpoints` from the
- * total.
- */
-entities_emitted: number
-/**
- * Rows that tried to create an entity the sink already had. Not a loss: an object mapping
- * at event grain names the same object on every row by design. See
- * [`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what
- * turns a repeat into a loss instead.
- * 
- * One increment per row whose entity-creating call found the entity already present, across
- * mappings, since the sink is what answers.
- * 
- * Resolving a relation endpoint is never counted, so an `E2O`/`O2O` mapping reports zero
- * however often its rows repeat an id: finding an existing endpoint is the normal successful
- * case. A blueprint that wants its inline references' repeats counted can name the objects
- * with their own [`Target::Object`](super::blueprint::Target::Object) mapping.
- */
-deduplicated: number
-/**
- * Rows dropped, by reason. A row that matches several reasons at once (rare) is counted
- * once, under the first one detected.
- */
-dropped: {
-[k: string]: number
-}
-/**
- * Attribute values that would not convert to their attribute's declared type, stored as
- * `Null`. Not a dropped row: the entity was written, with one of its attributes empty.
- */
-uncoercible_attributes?: number
-}
-/**
- * Which mapping.
- */
-
-export interface MappingRef1 {
-/**
- * Position in the desugared, flattened mapping list this run executed.
- */
-index: number
-/**
- * The mapping's own label, if it has one.
- */
-label?: (string | null)
-/**
- * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
- * a diagnostic points at what the author wrote rather than a position in the flattened
- * list.
- */
-path: string
-/**
- * What this mapping produces, derived from its target: `event "appoint officer"`,
- * `event -> object relation`, and so on. Present whether or not a `label` was typed.
- */
-describes: string
-}
-/**
- * The mapping whose row named the repeat.
- */
-
-export interface MappingRef2 {
-/**
- * Position in the desugared, flattened mapping list this run executed.
- */
-index: number
-/**
- * The mapping's own label, if it has one.
- */
-label?: (string | null)
-/**
- * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
- * a diagnostic points at what the author wrote rather than a position in the flattened
- * list.
- */
-path: string
-/**
- * What this mapping produces, derived from its target: `event "appoint officer"`,
- * `event -> object relation`, and so on. Present whether or not a `label` was typed.
- */
-describes: string
-}
-/**
- * The mapping whose row named the endpoint.
- */
-
-export interface MappingRef3 {
-/**
- * Position in the desugared, flattened mapping list this run executed.
- */
-index: number
-/**
- * The mapping's own label, if it has one.
- */
-label?: (string | null)
-/**
- * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
- * a diagnostic points at what the author wrote rather than a position in the flattened
- * list.
- */
-path: string
-/**
- * What this mapping produces, derived from its target: `event "appoint officer"`,
- * `event -> object relation`, and so on. Present whether or not a `label` was typed.
- */
-describes: string
-}
-/**
- * One node the compiler refused to push down to its source, and why.
- */
-
-export interface PushdownDeclined {
-/**
- * The node id, as the blueprint names it.
- */
-node: string
-/**
- * What the compiler objected to.
- */
-reason: ({
-SynthesizedId: {
-/**
- * The absent field.
- */
-field: string
-}
-} | {
-DynamicTypeName: {
-/**
- * The position whose type is dynamic.
- */
-field: string
-/**
- * Why no domain was available.
- */
-detail: string
-}
-} | {
-TypeDomainTooLarge: {
-/**
- * The column the domain came from.
- */
-column: string
-/**
- * How many values it has.
- */
-size: number
-/**
- * The cap.
- */
-cap: number
-}
-} | {
-ReservedTypeName: {
-/**
- * The offending type name.
- */
-name: string
-}
-} | {
-UnknownNode: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-UnresolvedNodeSchema: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-NodeCycle: {
-/**
- * A node id taking part in the cycle.
- */
-node: string
-}
-} | {
-EmptyProjection: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-EmptyUnion: {
-/**
- * The node id.
- */
-node: string
-}
-} | {
-UnknownColumn: {
-/**
- * The column name.
- */
-column: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-UndeclaredColumnKind: {
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-UnstableIdentityRendering: {
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-UnstableDisplayRendering: {
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * Which position referenced it.
- */
-field: string
-}
-} | {
-ResidualTimestamp: {
-/**
- * What about it is residual.
- */
-detail: string
-}
-} | {
-UndecidableJoinKey: {
-/**
- * The join node's id.
- */
-node: string
-/**
- * Which side the column is on.
- */
-side: string
-/**
- * The column name.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-}
-} | {
-InvalidRegex: {
-/**
- * The pattern.
- */
-pattern: string
-/**
- * The compiler's message.
- */
-message: string
-}
-} | {
-InvalidTemplate: {
-/**
- * The template text.
- */
-template: string
-/**
- * What is wrong with it.
- */
-reason: string
-}
-} | {
-AttributeCoercion: {
-/**
- * The attribute name.
- */
-attribute: string
-/**
- * The source column.
- */
-column: string
-/**
- * The catalog's own type string.
- */
-col_type: string
-/**
- * The declared OCEL attribute type.
- */
-declared: string
-}
-} | {
-DynamicTypeAttributeConflict: {
-/**
- * The attribute name.
- */
-attribute: string
-}
-} | {
-ViewCycle: {
-/**
- * The relation's name.
- */
-view: string
-}
-} | {
-Invalid: {
-/**
- * The rendered validation error.
- */
-detail: string
-}
-})
-}
-/**
- * What the sink did at [`ExtractionSink::finalize`](super::sink::ExtractionSink::finalize).
- * 
- * All zero for a sink that resolves relation endpoints eagerly, which reports everything
- * through [`per_mapping`](Self::per_mapping) instead. See
- * [`Resolution`](super::sink::Resolution).
- */
-
-export interface FinalizeReport {
-/**
- * Relations written against a [`Resolution::Deferred`] endpoint that resolved to a real
- * entity at finalize.
- */
-resolved_relations: number
-/**
- * Relations whose deferred endpoint did not resolve. An eager sink counts these per mapping
- * as [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint).
- */
-unresolved_endpoints: number
-/**
- * Objects synthesized at finalize under `on_missing_endpoint: Create`, for deferred
- * endpoints that turned out not to exist.
- */
-objects_created: number
-/**
- * Repeated entity ids removed at finalize: a deferring sink's share of
- * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated).
- */
-duplicates_removed: number
-}
-/**
- * How long a run spent, split by phase, in milliseconds. Schema discovery is a fixed cost a
- * caller holding a catalog can skip, so it is reported apart from the row reading.
- */
-
-export interface ExtractionTiming {
-/**
- * Connecting to each source and reading its schema. Zero when the caller supplied a catalog.
- */
-discovery_ms: number
-/**
- * Reading rows and emitting entities: `extract` itself.
- */
-extraction_ms: number
-}
-
-export interface ResolvedStep {
-edge: TypeEdge
-/**
- * Whether the edge is traversed in reverse direction.
- */
-reverse: boolean
-}
-/**
- * The typed edge traversed in this step.
- */
-
-export interface TypeEdge {
-/**
- * Source type of the edge.
- */
-source: ({
-Event: string
-} | {
-Object: string
-})
-/**
- * Target type of the edge.
- */
-target: ({
-Event: string
-} | {
-Object: string
-})
-/**
- * Relationship qualifier this edge represents.
- */
-qualifier: string
-}
-
-export type EventIndex = number
-/**
- * An Object Index
- * 
- * Points to an object in the context of a given OCEL
- */
-
-export type ObjectIndex = number
-
-/**
- * Connections of a single schema, with metrics and throughput.
- */
-
-export interface SchemaStats {
-metrics: SchemaMetrics
-/**
- * Event-to-event throughput times, if both endpoints are events.
- */
-throughput?: (ThroughputStats | null)
-}
-/**
- * Schema quality metrics.
- */
-
-export interface SchemaMetrics {
-/**
- * Number of distinct (source, target) pairs connected.
- */
-support: number
-/**
- * Fraction of source-type instances with at least one connection.
- */
-coverage: number
-/**
- * Inverse average fan-out: `1 / (avg distinct targets per connected source)`. High = discriminating.
- */
-selectivity: number
-/**
- * Total number of connections.
- */
-path_count: number
-/**
- * Number of distinct source entities with at least one connection.
- */
-sources_with_paths: number
-/**
- * Total number of source entities of this type.
- */
-total_sources: number
-/**
- * Fraction of target-type instances reached.
- */
-reach: number
-/**
- * Inverse average fan-in: `|distinct targets| / support`. High = each target reached by few sources.
- */
-exclusivity: number
-}
-/**
- * Throughput time statistics (seconds) over event-to-event connections.
- */
-
-export interface ThroughputStats {
-/**
- * Minimum duration in seconds.
- */
-min: number
-/**
- * Maximum duration in seconds.
- */
-max: number
-/**
- * Mean duration in seconds.
- */
-mean: number
-/**
- * Median duration in seconds.
- */
-median: number
-}
-/**
- * A discovered connection between two entities, with timestamps.
- * 
- * Only source and target are materialized (not the full intermediate path).
- */
-
-export interface Connection {
-/**
- * Source entity of the connection.
- */
-source: ({
-Event: EventIndex
-} | {
-Object: ObjectIndex
-})
-/**
- * Target entity of the connection.
- */
-target: ({
-Event: EventIndex
-} | {
-Object: ObjectIndex
-})
-/**
- * Timestamp of the source (only present if the source is an event).
- */
-source_time?: (string | null)
-/**
- * Timestamp of the target (only present if the target is an event).
- */
-target_time?: (string | null)
-}
-
-export type TypeRef = ({
-Event: string
-} | {
-Object: string
-})
-
-/**
- * A discovery query: source/target types, max schema length, and connection params.
- */
-
-export interface PathConnectionParams {
-/**
- * Temporal constraint applied along each path.
- */
-temporal: ("None" | "Forward" | {
-Bounded: number
-})
-/**
- * Which target event(s) to keep per source.
- */
-selection: ("All" | "First" | "Last" | "Closest")
-/**
- * Global cap on the number of connections: a coarse safety limit, checked between
- * sources, so a single high-fan-out source can overshoot it.
- */
-max_connections?: (number | null)
-/**
- * Store only one connection per (source, target) pair.
- */
-dedup_targets: boolean
-/**
- * Terminate early once selectivity is provably below this threshold.
- */
-selectivity_threshold?: (number | null)
-}
-
-export interface DiscoveredSchema {
-/**
- * Enumeration index (stable for a given `source`/`target`/`max_length`/`allowed_types`).
- */
-index: number
-/**
- * Human-readable schema string.
- */
-schema: string
-/**
- * Source type.
- */
-source: ({
-Event: string
-} | {
-Object: string
-})
-/**
- * Target type.
- */
-target: ({
-Event: string
-} | {
-Object: string
-})
-/**
- * Number of steps in the schema.
- */
-length: number
-stats: SchemaStats
-/**
- * Whether the schema has zero connections.
- */
-is_dead: boolean
-/**
- * Whether selectivity-based early termination was triggered.
- */
-selectivity_pruned: boolean
-/**
- * Whether the connection limit was reached (results may be incomplete).
- */
-limit_reached: boolean
-/**
- * Index into [`PathSchemaDiscovery::equivalence_classes`].
- */
-equivalence_class: number
-}
-/**
- * Computed metrics and throughput.
- */
-
-export interface ConnectionEquivalenceClass {
-/**
- * Representative schema (shortest display string in the class).
- */
-representative: string
-/**
- * All schemas in this class (display strings).
- */
-schemas: string[]
-/**
- * Number of unique (source, target) connections shared by every schema in the class.
- */
-connection_count: number
-}
-
-export interface PathSchemaTypeNode {
-/**
- * Type name (activity / object class).
- */
-name: string
-/**
- * Whether this is an event type (`true`) or object type (`false`).
- */
-is_event: boolean
-/**
- * Number of entities of this type.
- */
-count: number
-}
-/**
- * A directed, typed edge in the type graph (a qualified E2O or O2O relationship type).
- */
-
-export type OCELAttributeValue = (number | boolean | string | null)
-
 export interface OCELType {
 /**
  * Name
@@ -2417,190 +1607,9 @@ name: string
  */
 type: string
 }
-
-export interface OCELEventAttribute {
 /**
- * Name of event attribute
+ * OCEL Event
  */
-name: string
-/**
- * Value of attribute
- */
-value: (number | boolean | string | null)
-}
-/**
- * OCEL Relationship (qualified; referring back to an [`OCELObject`])
- */
-
-export interface OCELRelationship {
-/**
- * ID of referenced [`OCELObject`]
- */
-objectId: string
-/**
- * Qualifier of relationship
- */
-qualifier: string
-}
-
-export interface OCELObjectAttribute {
-/**
- * Name of attribute
- */
-name: string
-/**
- * Value of attribute
- */
-value: (number | boolean | string | null)
-/**
- * Time of attribute value
- */
-time: string
-}
-/**
- * OCEL Relationship (qualified; referring back to an [`OCELObject`])
- */
-
-export interface CostFunction {
-/**
- * Default cost for a model move (visible transition fires without matching log event)
- */
-model_move_cost: number
-/**
- * Default cost for a log move (log event not matched by model)
- */
-log_move_cost: number
-/**
- * Default cost for a synchronous move
- */
-sync_move_cost: number
-/**
- * Default cost for a silent/tau move
- */
-silent_move_cost: number
-}
-
-export interface AlignmentOptions {
-cost_fn: CostFunction
-/**
- * Maximum number of states to visit before aborting (per trace, both search directions
- * together). `None` means no limit.
- * 
- * This bounds runtime. See [`AlignmentOptions::max_memory_mib`] for memory.
- */
-max_states?: (number | null)
-/**
- * Memory in MiB that all alignment searches of one call may hold together (default 6 GiB).
- * `None` means no limit.
- * 
- * Traces are aligned in parallel, so each search gets an even share: the budget divided by
- * `rayon::current_num_threads()`, or by the number of variants if there are fewer. A single
- * search (e.g., [`align_trace`]) gets all of it. A trace that needs more than its share fails with
- * [`SearchError::MemoryLimitReached`], while the other traces are aligned as usual.
- * 
- * This bounds the buffers of the searches. The event log, the model and the alignments come
- * on top, as does memory the allocator keeps, so leave some headroom.
- * 
- * [`align_variants_with_retry`] aligns the traces that ran out again, one at a time with
- * the whole budget. By hand:
- * 
- * ```no_run
- * # use process_mining::{conformance::alignments::{*, petri_net::AlignmentError}, utils::dijkstra_search::SearchError, AcceptingPetriNet};
- * # use process_mining::core::event_data::case_centric::utils::activity_projection::EventLogActivityProjection;
- * # fn retry(net: &AcceptingPetriNet, log: &EventLogActivityProjection, options: &AlignmentOptions) {
- * let mut results = align_variants(net, log, options);
- * for variant in &mut results {
- *     if variant.result == Err(AlignmentError::SearchError(SearchError::MemoryLimitReached)) {
- *         let trace: Vec<&str> = variant.activities.iter().map(String::as_str).collect();
- *         variant.result = align_trace(net, &trace, options);
- *     }
- * }
- * # }
- * ```
- */
-max_memory_mib?: (number | null)
-}
-/**
- * Cost function for alignment moves
- */
-
-export type PathStep = ({
-Activity: string
-} | {
-Transition: TransitionID
-} | "End")
-/**
- * Id of a transition, handed out by its [`PetriNet`] in creation order
- */
-
-export type TransitionID = number
-
-/**
- * Result of [`escaping_edges_precision`]
- */
-
-export interface EscapingEdge {
-/**
- * The state, as the path leading to it
- */
-prefix: PathStep[]
-/**
- * One step of a path through the model: an activity, or a transition when
- * [`SilentTransitions::AsActivities`] is used
- */
-escaping: ({
-Activity: string
-} | {
-Transition: TransitionID
-} | "End")
-/**
- * Weight of the state
- */
-weight: number
-}
-
-export type ObjectTypeAssociation = ({
-/**
- * The object type
- */
-object_type: string
-type: "Simple"
-} | {
-/**
- * First object type (for source event)
- */
-first: string
-/**
- * Second object type (for target event)
- */
-second: string
-/**
- * Specifies the direction of the O2O relationship.
- * 
- * If reversed is `False`, `(first,second)` is considered
- */
-reversed: boolean
-type: "O2O"
-})
-
-/**
- * OC-DECLARE Constraint arc/edge between two nodes (i.e., activities)
- */
-
-export interface OCDeclareArcLabel {
-/**
- * Each (for each object of that type separately, there must be the specified number of relevant target events)
- */
-each: ObjectTypeAssociation[]
-/**
- * Any (there must be the specified number of relevant target events involving at least one of the objects of this type involved in the source event)
- */
-any: ObjectTypeAssociation[]
-/**
- * All (there must be the specified number of relevant target events involving all of the objects of this type involved in the source event)
- */
-all: ObjectTypeAssociation[]
-}
 
 export interface OCELEvent {
 /**
@@ -2628,6 +1637,34 @@ relationships?: OCELRelationship[]
  * OCEL Event Attributes
  */
 
+export interface OCELEventAttribute {
+/**
+ * Name of event attribute
+ */
+name: string
+/**
+ * Value of attribute
+ */
+value: (number | boolean | string | null)
+}
+/**
+ * OCEL Relationship (qualified; referring back to an [`OCELObject`])
+ */
+
+export interface OCELRelationship {
+/**
+ * ID of referenced [`OCELObject`]
+ */
+objectId: string
+/**
+ * Qualifier of relationship
+ */
+qualifier: string
+}
+/**
+ * OCEL Object
+ */
+
 export interface OCELObject {
 /**
  * Object ID
@@ -2652,211 +1689,38 @@ relationships?: OCELRelationship[]
  * Describing a named value _at a certain point in time_
  */
 
-export interface DirectlyFollowsGraph {
+export interface OCELObjectAttribute {
 /**
- * Activities
- */
-activities: {
-[k: string]: number
-}
-/**
- * Directly-follows relations
- */
-directly_follows_relations: [[string, string], number][]
-/**
- * Start activities, with how many traces start with each
- */
-start_activities: {
-[k: string]: number
-}
-/**
- * End activities, with how many traces end with each
- */
-end_activities: {
-[k: string]: number
-}
-}
-
-export interface InductiveMinerOptions {
-/**
- * Deviation threshold `f ∈ [0, 1]` of `IMf`, clamped to that range. `0.0` turns filtering
- * off.
- */
-noise_threshold?: number
-/**
- * Whether to try the [fall throughs](fallthrough) before resorting to a flower model.
- */
-use_fallthroughs?: boolean
-/**
- * Whether to merge the parts of a sequence cut that only occur together with a skippable
- * neighbor.
- */
-strict_sequence?: boolean
-/**
- * Whether to look for interleaved (`↔`) cuts, tried before concurrency. Under `IMf` they still
- * read the unfiltered traces, so noise can prevent them.
- */
-use_interleaved?: boolean
-/**
- * Whether to regroup concurrent cuts into nested concurrency, optionality and inclusive
- * choice (`∨`).
- */
-use_inclusive_choice?: boolean
-/**
- * Whether to refuse a cut whose split leaves a part without any events, which only the
- * filtering splits of `IMf` can do, and fall through instead. Otherwise the cut is taken and
- * the part becomes `τ`, as in the thesis.
- */
-guard_empty_cut_parts?: boolean
-/**
- * Whether concurrency detection consults the minimum-self-distance relation (∧↔.1), which
- * tells `a` and `b` running concurrently from `a` looping around `b`. A concurrent cut that
- * keeps such activities together is preferred. If there is none, the plain one is taken.
- */
-use_minimum_self_distance?: boolean
-/**
- * Whether to take a tau loop that cuts every trace into single events, as the thesis does.
- * Mining those single events gives the flower model, so this only decides whether
- * [`two_activities_concurrent`](fallthrough::two_activities_concurrent) gets a chance first.
- */
-use_degenerate_tau_loops?: boolean
-/**
- * Whether `IMf` keeps the single-activity base case despite repetitions when single
- * executions dominate (§6.2.2.3). Without it any repetition ends the recursion in a loop.
- */
-filter_single_activity?: boolean
-/**
- * Whether the [activity-concurrent fall through](fallthrough::activity_concurrent) also
- * accepts a candidate whose remaining log only has a cut after filtering. The thesis
- * (§6.2.2.4) probes the unfiltered graph.
- */
-filter_activity_concurrent_probe?: boolean
-/**
- * Whether `IMf` keeps an edge, a start or end activity, or the empty traces, when their
- * frequency is exactly at the threshold.
- */
-keep_at_threshold?: boolean
-/**
- * Whether `IMf` also removes infrequent start and end activities.
- */
-filter_start_end?: boolean
-/**
- * Whether the [activity-concurrent fall through](fallthrough::activity_concurrent) tries the
- * activities by name instead of the most frequent first. It takes the first whose removal
- * leaves a cut.
- */
-activity_concurrent_by_name?: boolean
-/**
- * Whether to [fold](crate::core::process_models::process_tree::Node::fold) the tree, e.g.,
- * `→(→(a, b), c)` into `→(a, b, c)` and `→(τ, a)` into `a`.
- */
-fold?: boolean
-}
-/**
- * Settings of the DFG variant of the Inductive Miner. Settings that need traces, such as the
- * interleaved cut, do not exist here.
- * 
- * Fields missing in JSON take their default value.
- */
-
-export interface InductiveMinerDfgOptions {
-/**
- * Deviation threshold `f ∈ [0, 1]` of `IMfd`, clamped to that range. `0.0` is plain `IMd`.
- */
-noise_threshold?: number
-/**
- * Whether to merge the parts of a sequence cut that only occur together with a skippable
- * neighbor.
- */
-strict_sequence?: boolean
-/**
- * Whether to collapse nested occurrences of the same associative operator, turning, e.g.,
- * `→(→(a, b), c)` into `→(a, b, c)`.
- */
-fold?: boolean
-/**
- * Whether to try the [tau loops](strict_dfg_tau_loop) before resorting to a flower model.
- */
-use_tau_loops?: boolean
-/**
- * Whether the flower model allows the empty trace, i.e., is `↺(τ, ×(a₁, ..., aₙ))` instead of
- * the thesis' `↺(×(a₁, ..., aₙ), τ)`. The empty-traces step runs before any fall through, so
- * allowing one here only loses precision.
- */
-flower_accepts_empty?: boolean
-/**
- * Whether a lone activity with a self edge becomes a flower instead of `↺(a, τ)`. The
- * thesis hands the case to [`strict_dfg_tau_loop`] (§6.6.3.3). With
- * [`flower_accepts_empty`](Self::flower_accepts_empty), this turns `a⁺` into `a*`.
- */
-repeated_activity_to_flower?: boolean
-/**
- * Whether `IMfd` keeps the single-activity base case despite a self edge when single
- * executions dominate (§6.6.4.3). Without it a self edge always ends the recursion in a loop.
- */
-filter_single_activity?: boolean
-}
-
-export interface Leaf {
-/**
- * The silent or non-silent activity label [`LeafLabel`]
- */
-activity_label: ({
-Activity: string
-} | "Tau")
-}
-
-export type OCDeclareArcType = ("AS" | "EF" | "EP" | "DF" | "DP")
-
-/**
- * Options for the automatic discovery of OC-DECLARE constraints
- */
-
-export interface JsonPlace {
-/**
- * Unique among all places and transitions.
+ * Name of attribute
  */
 name: string
 /**
- * The object type whose tokens this place holds.
+ * Value of attribute
  */
-object_type: string
+value: (number | boolean | string | null)
+/**
+ * Time of attribute value
+ */
+time: string
 }
-/**
- * A transition, silent if it has no label.
- */
 
-export interface JsonTransition {
+export interface CostFunction {
 /**
- * Unique among all places and transitions. For a labeled transition, the activity itself.
+ * Default cost for a model move (visible transition fires without matching log event)
  */
-name: string
+model_move_cost: number
 /**
- * The activity, or `None` for a silent transition.
+ * Default cost for a log move (log event not matched by model)
  */
-label?: (string | null)
-}
+log_move_cost: number
 /**
- * An arc from a place to a transition or the other way round.
+ * Default cost for a synchronous move
  */
-
-export interface JsonArc {
+sync_move_cost: number
 /**
- * Name of the place or transition the arc leaves.
+ * Default cost for a silent/tau move
  */
-source: string
-/**
- * Name of the place or transition the arc enters.
- */
-target: string
-/**
- * Whether the arc moves one object or a whole set of them.
- */
-type?: ("normal" | "variable")
-/**
- * How many tokens the arc moves.
- */
-weight?: number
+silent_move_cost: number
 }
 
 export type Direction = ("leftright" | "topbottom")
@@ -2872,6 +1736,12 @@ kind: "end"
 kind: "activity"
 name: string
 })
+/**
+ * How many objects of a type an event has, as OC-DECLARE's involvement classes: at least none
+ * or one, at most one or several.
+ */
+
+export type InvolvementCard = ("0..1" | "0..*" | "1..1" | "1..*")
 
 /**
  * How a [`DirectlyFollowsGraph`] is turned into a [`Graph`].
@@ -3604,213 +2474,30 @@ weight?: (number | null)
  */
 thickness?: (number | null)
 }
-
-export type EdgeId = number
 /**
- * A lane group. Nodes sharing one are drawn in a lane of their own.
- * 
- * Groups are opaque ids, only compared and ordered. Lanes appear only when nodes carry at least
- * two distinct groups (see [`Node::group`]).
+ * An object type drawn as a badge in the node of an activity, e.g., one that takes part without
+ * places or edges of its own, alone or after the badge of the type it follows from.
  */
 
-export type GroupId = number
-
+export interface TypeBadge {
 /**
- * One laid-out drawing.
+ * The object type the badge stands for.
  */
-
-export interface Placement {
-center: Point
-size: Size
+object_type: string
 /**
- * Layer index. `None` for an edgeless node packed into the grid below the layered drawing.
+ * The object type the badge follows from, drawn as a disc and an arrow before the badges
+ * that follow from it.
  */
-rank?: (number | null)
+from?: (string | null)
 /**
- * Position within the layer. Routing waypoints count too, so two nodes with a long edge's
- * track between them are two apart.
+ * How many objects of `object_type` an event has. `None` draws one disc with a solid
+ * border, as `"1..1"`.
  */
-order: number
-}
+card?: (InvolvementCard | null)
 /**
- * Centre of the node's box, in output space.
+ * How many objects of `from` an event has. A group takes that of its first badge.
  */
-
-export interface Point {
-/**
- * Horizontal coordinate, growing to the right.
- */
-x: number
-/**
- * Vertical coordinate, growing downwards (SVG convention).
- */
-y: number
-}
-/**
- * The node's size, echoed from the input so a renderer needs only the layout.
- */
-
-export interface Size {
-/**
- * Extent along `x`.
- */
-width: number
-/**
- * Extent along `y`.
- */
-height: number
-}
-/**
- * How one edge was drawn.
- */
-
-export interface EdgeRoute {
-/**
- * Border-to-border polyline, source first. At least two points for a routed edge, four for
- * a [`RouteKind::SelfLoop`] and none for [`RouteKind::Unrouted`].
- */
-points: Point1[]
-/**
- * Where the polyline leaves the source node, or `None` when there is no polyline.
- */
-source_port?: (PortInfo | null)
-/**
- * Where the polyline enters the target node, or `None` when there is no polyline.
- */
-target_port?: (PortInfo | null)
-/**
- * What kind of route this is.
- */
-kind: ("direct" | {
-chained: {
-/**
- * How many layer gaps it crosses (always `> 1`).
- */
-spans: number
-}
-} | "selfloop" | {
-bundled: {
-/**
- * Index of this edge's lane within its bundle, in edge order.
- */
-lane: number
-}
-} | "unrouted")
-/**
- * Where to centre this edge's label, when [`crate::Edge::label_size`] is set.
- */
-label_anchor?: (Point1 | null)
-}
-/**
- * A point in output (drawing) space, in px.
- */
-
-export interface Point1 {
-/**
- * Horizontal coordinate, growing to the right.
- */
-x: number
-/**
- * Vertical coordinate, growing downwards (SVG convention).
- */
-y: number
-}
-/**
- * How an edge attaches to one of its nodes.
- */
-
-export interface PortInfo {
-point: Point2
-/**
- * Which border that is, in output space. For an end placed by a port hint
- * ([`crate::Edge::source_port`] / [`crate::Edge::target_port`]), the hinted border.
- */
-side: ("right" | "left" | "top" | "bottom")
-/**
- * Signed distance in px along the border from its middle to [`PortInfo::point`]. Positive
- * is down on the left and right borders and right on the top and bottom borders.
- */
-offset: number
-}
-/**
- * A point in output (drawing) space, in px.
- */
-
-export interface Point2 {
-/**
- * Horizontal coordinate, growing to the right.
- */
-x: number
-/**
- * Vertical coordinate, growing downwards (SVG convention).
- */
-y: number
-}
-/**
- * Bounding box of every node box, polyline point and label anchor, without padding.
- */
-
-export interface Rect {
-min: Point3
-max: Point4
-}
-/**
- * A point in output (drawing) space, in px.
- */
-
-export interface Point3 {
-/**
- * Horizontal coordinate, growing to the right.
- */
-x: number
-/**
- * Vertical coordinate, growing downwards (SVG convention).
- */
-y: number
-}
-/**
- * A point in output (drawing) space, in px.
- */
-
-export interface Point4 {
-/**
- * Horizontal coordinate, growing to the right.
- */
-x: number
-/**
- * Vertical coordinate, growing downwards (SVG convention).
- */
-y: number
-}
-/**
- * Counters about the run.
- */
-
-export interface LayoutStats {
-/**
- * Routing waypoints (dummy nodes) the long edges were cut into.
- */
-dummy_count: number
-}
-/**
- * One swimlane: a strip across the whole drawing that holds one group's nodes.
- */
-
-export interface Lane {
-/**
- * The group the lane holds, or `None` for the lane of nodes without a group.
- */
-group?: (GroupId | null)
-rect: Rect1
-}
-/**
- * The lane's rectangle. Adjacent lanes share their border, halfway across the gap between
- * their nodes, and every lane spans the drawing's full extent along the layer axis.
- */
-
-export interface Rect1 {
-min: Point3
-max: Point4
+from_card?: (InvolvementCard | null)
 }
 
 export type PortSides = ("any" | "facing_only" | "facing_preferred" | "long_edges_any")
@@ -3956,6 +2643,94 @@ edges?: Edge[]
  * 
  * Only [`Node::size`] must be set, so `Node { size, ..Node::default() }` is the usual form. The
  * default size is `0 x 0`, which [`Graph::validate`] rejects.
+ */
+
+export interface Node {
+size?: Size
+/**
+ * Border shape. The box in [`Node::size`] is the bounding box either way.
+ */
+shape?: ("box" | "ellipse")
+/**
+ * Where the node may land on the layer axis.
+ */
+rank?: ("free" | "first" | "last" | {
+fixed: number
+})
+/**
+ * Lane group, e.g., an object type or a swimlane.
+ * 
+ * Nodes sharing a group are drawn in a lane, a band of the cross axis. Lanes cost crossings,
+ * so [`crate::OrderOptions`] budgets them. With fewer than two distinct groups there are no
+ * lanes.
+ */
+group?: (GroupId | null)
+/**
+ * Sort key within a group's lane. In each layer, keyed members of a lane are sorted among
+ * the positions they already hold, and unkeyed members stay put.
+ */
+lane_key?: (number | null)
+/**
+ * Warm-start centre in output space. If any node has one, cross-axis placement follows the
+ * seeds, which keeps a relayout stable, and [`crate::SeedMode`] says whether layers and order
+ * are kept too. Required on every node by [`crate::reroute`]. Ignored in a graph with
+ * compounds ([`Node::parent`]).
+ */
+position?: (Point | null)
+/**
+ * Hold [`Node::position`] exactly on both axes, e.g., for a just-dragged node. Other nodes
+ * make room. No effect without a position.
+ */
+pinned?: boolean
+margin?: Margins
+/**
+ * Which borders an edge end may attach to on this node. `None` inherits
+ * [`crate::Routing::port_sides`].
+ */
+port_sides?: (PortSides | null)
+/**
+ * The compound this node is drawn inside, if any. Parents must not form a cycle.
+ * [`crate::reroute`] and [`crate::tree::layout`] reject graphs that use it.
+ * 
+ * A compound's box is its children's drawing plus [`crate::Spacing::compound_padding`] and
+ * [`crate::Spacing::compound_header`], and at least its own [`Node::size`]. Its
+ * [`crate::Placement`] carries that size.
+ * 
+ * ```
+ * use graphlay::{layout, GraphBuilder, LayoutOptions, Node, Rect, Size};
+ * 
+ * let mut b = GraphBuilder::new();
+ * let order = b.add_box(Size::new(80.0, 40.0));
+ * let billing = b.add_box(Size::new(1.0, 1.0)); // the compound, sized by its children
+ * let inside = Node { size: Size::new(80.0, 40.0), parent: Some(billing), ..Node::default() };
+ * let invoice = b.add_node(inside.clone());
+ * let pay = b.add_node(inside);
+ * b.connect(order, invoice); // crosses billing's border
+ * b.connect(invoice, pay);
+ * let l = layout(&b.build(), &LayoutOptions::layered_default())?;
+ * 
+ * let boxed = |i: usize| Rect::from_center(l.nodes[i].center, l.nodes[i].size);
+ * let outer = boxed(billing.index());
+ * assert!(outer.width() > 2.0 * 80.0);
+ * for child in [invoice, pay] {
+ *     let inner = boxed(child.index());
+ *     assert!(inner.min.x >= outer.min.x && inner.max.x <= outer.max.x);
+ *     assert!(inner.min.y >= outer.min.y && inner.max.y <= outer.max.y);
+ * }
+ * # Ok::<(), graphlay::LayoutError>(())
+ * ```
+ */
+parent?: (NodeId | null)
+/**
+ * A stable identity for the node, such as an activity name.
+ * 
+ * When every node has a unique key, ties are broken by key and the drawing does not depend
+ * on input order. Otherwise ties go by input position.
+ */
+key?: (string | null)
+}
+/**
+ * Width and height of the node's box, in px. Both must be finite and `> 0`.
  */
 
 export interface Margins {
@@ -5904,6 +4679,1799 @@ arc_label_bg: string
 export_bg: string
 }
 
+export interface Leaf {
+/**
+ * The silent or non-silent activity label [`LeafLabel`]
+ */
+activity_label: ({
+Activity: string
+} | "Tau")
+}
+
+export type OCDeclareArcType = ("AS" | "EF" | "EP" | "DF" | "DP")
+
+/**
+ * Options for the automatic discovery of OC-DECLARE constraints
+ */
+
+export interface DirectlyFollowsGraph {
+/**
+ * Activities
+ */
+activities: {
+[k: string]: number
+}
+/**
+ * Directly-follows relations
+ */
+directly_follows_relations: [[string, string], number][]
+/**
+ * Start activities, with how many traces start with each
+ */
+start_activities: {
+[k: string]: number
+}
+/**
+ * End activities, with how many traces end with each
+ */
+end_activities: {
+[k: string]: number
+}
+}
+
+export type TypeRef = ({
+Event: string
+} | {
+Object: string
+})
+
+/**
+ * A discovery query: source/target types, max schema length, and connection params.
+ */
+
+export interface PathConnectionParams {
+/**
+ * Temporal constraint applied along each path.
+ */
+temporal: ("None" | "Forward" | {
+Bounded: number
+})
+/**
+ * Which target event(s) to keep per source.
+ */
+selection: ("All" | "First" | "Last" | "Closest")
+/**
+ * Global cap on the number of connections, taken from sources in source order. The
+ * path-enumerating scan stops exactly at the cap. The set-based scan (used with
+ * `dedup_targets` when no type repeats along the schema) checks it between sources, so a
+ * single high-fan-out source can overshoot it.
+ */
+max_connections?: (number | null)
+/**
+ * Store only one connection per (source, target) pair.
+ */
+dedup_targets: boolean
+/**
+ * Terminate early once selectivity is provably below this threshold.
+ */
+selectivity_threshold?: (number | null)
+}
+
+export interface DiscoveredSchema {
+/**
+ * Enumeration index (stable for a given `source`/`target`/`max_length`/`allowed_types`).
+ */
+index: number
+/**
+ * Human-readable schema string.
+ */
+schema: string
+/**
+ * Source type.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Target type.
+ */
+target: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Number of steps in the schema.
+ */
+length: number
+stats: SchemaStats
+/**
+ * Whether the schema has zero connections.
+ */
+is_dead: boolean
+/**
+ * Whether selectivity-based early termination was triggered.
+ */
+selectivity_pruned: boolean
+/**
+ * Whether the connection limit was reached (results may be incomplete).
+ */
+limit_reached: boolean
+/**
+ * Index into [`PathSchemaDiscovery::equivalence_classes`].
+ */
+equivalence_class: number
+}
+/**
+ * Computed metrics and throughput.
+ */
+
+export interface SchemaStats {
+metrics: SchemaMetrics
+/**
+ * Event-to-event throughput times, if both endpoints are events.
+ */
+throughput?: (ThroughputStats | null)
+}
+/**
+ * Schema quality metrics.
+ */
+
+export interface SchemaMetrics {
+/**
+ * Number of distinct (source, target) pairs connected.
+ */
+support: number
+/**
+ * Fraction of source-type instances with at least one connection.
+ */
+coverage: number
+/**
+ * Inverse average fan-out: `1 / (avg distinct targets per connected source)`. High =
+ * discriminating.
+ */
+selectivity: number
+/**
+ * Total number of connections.
+ */
+path_count: number
+/**
+ * Number of distinct source entities with at least one connection.
+ */
+sources_with_paths: number
+/**
+ * Total number of source entities of this type.
+ */
+total_sources: number
+/**
+ * Fraction of target-type instances reached.
+ */
+reach: number
+/**
+ * Inverse average fan-in: `|distinct targets| / support`. High = each target reached by few
+ * sources.
+ */
+exclusivity: number
+}
+/**
+ * Throughput time statistics (seconds) over event-to-event connections.
+ */
+
+export interface ThroughputStats {
+/**
+ * Minimum duration in seconds.
+ */
+min: number
+/**
+ * Maximum duration in seconds.
+ */
+max: number
+/**
+ * Mean duration in seconds.
+ */
+mean: number
+/**
+ * Median duration in seconds.
+ */
+median: number
+}
+/**
+ * A group of schemas that connect the same set of (source, target) pairs.
+ */
+
+export interface ConnectionEquivalenceClass {
+/**
+ * Representative schema (shortest display string in the class).
+ */
+representative: string
+/**
+ * All schemas in this class (display strings).
+ */
+schemas: string[]
+/**
+ * Number of unique (source, target) connections shared by every schema in the class.
+ */
+connection_count: number
+}
+
+export interface AlignmentOptions {
+cost_fn: CostFunction
+/**
+ * Maximum number of states to visit before aborting (per trace, both search directions
+ * together). `None` means no limit.
+ * 
+ * This bounds runtime. See [`AlignmentOptions::max_memory_mib`] for memory.
+ */
+max_states?: (number | null)
+/**
+ * Memory in MiB that all alignment searches of one call may hold together (default 6 GiB).
+ * `None` means no limit.
+ * 
+ * Traces are aligned in parallel, so each search gets an even share: the budget divided by
+ * `rayon::current_num_threads()`, or by the number of variants if there are fewer. A single
+ * search (e.g., [`align_trace`]) gets all of it. A trace that needs more than its share fails with
+ * [`SearchError::MemoryLimitReached`], while the other traces are aligned as usual.
+ * 
+ * This bounds the buffers of the searches. The event log, the model and the alignments come
+ * on top, as does memory the allocator keeps, so leave some headroom.
+ * 
+ * See [`AlignmentOptions::retry_out_of_memory`] for aligning the traces that ran out again.
+ */
+max_memory_mib?: (number | null)
+/**
+ * Whether [`align_variants`] aligns every variant that ran out of its memory share again, one
+ * at a time with the whole [`AlignmentOptions::max_memory_mib`] (default `false`).
+ */
+retry_out_of_memory?: boolean
+}
+/**
+ * Cost function for alignment moves
+ */
+
+export type PathStep = ({
+Activity: string
+} | {
+Transition: TransitionID
+} | "End")
+/**
+ * Id of a transition, handed out by its [`PetriNet`] in creation order
+ */
+
+export type TransitionID = number
+
+/**
+ * Result of [`escaping_edges_precision`]
+ */
+
+export interface EscapingEdge {
+/**
+ * The state, as the path leading to it
+ */
+prefix: PathStep[]
+/**
+ * One step of a path through the model: an activity, or a transition when
+ * [`SilentTransitions::AsActivities`] is used
+ */
+escaping: ({
+Activity: string
+} | {
+Transition: TransitionID
+} | "End")
+/**
+ * Weight of the state
+ */
+weight: number
+}
+
+export type Literal = (boolean | number | string | {
+/**
+ * The instant.
+ */
+timestamp: string
+})
+
+export type MappingEntry = ((Mapping & {
+type: "single"
+}) | {
+/**
+ * Mappings, in priority order.
+ */
+mappings: Mapping[]
+type: "ordered"
+})
+
+export type TimestampFormat = ({
+type: "auto"
+} | {
+/**
+ * The format.
+ */
+format: string
+type: "format-string"
+} | {
+type: "unix-seconds"
+} | {
+type: "unix-millis"
+})
+/**
+ * _Types_ of attribute values in OCEL2
+ */
+
+export type OCELAttributeType = ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
+/**
+ * Where an entity's timestamp comes from.
+ * 
+ * `deny_unknown_fields`: a misspelled key would otherwise be ignored, leaving a timestamp that
+ * silently drops every row.
+ */
+
+export type TimestampSource = ({
+/**
+ * Where the text comes from.
+ */
+source: ValueExpression
+/**
+ * How to read it. `None` means auto-detection.
+ */
+format?: (TimestampFormat | null)
+type: "value"
+} | {
+/**
+ * Where the date comes from, if anywhere.
+ */
+date?: (TimestampPart | null)
+/**
+ * Where the time comes from, if anywhere.
+ */
+time?: (TimestampPart | null)
+type: "components"
+})
+
+/**
+ * A declarative mapping from relational rows to an OCEL.
+ * 
+ * Carries no connection details and no schema snapshot: both are supplied by the caller, which
+ * keeps a blueprint portable, shareable and free of secrets.
+ */
+
+export interface Mapping {
+/**
+ * The node whose rows this reads.
+ */
+node: string
+/**
+ * Display label, also used to name this mapping in diagnostics.
+ */
+label?: (string | null)
+/**
+ * Only rows satisfying this produce anything. `None` accepts every row.
+ */
+when?: (Predicate | null)
+/**
+ * What to produce.
+ */
+target: ({
+/**
+ * Event type.
+ */
+event_type: ValueExpression
+/**
+ * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
+ * be compiled to a view.
+ * 
+ * It is also what coalesces a fan-out: over a join of orders and their items, a `None`
+ * id makes one event per item, an id naming the order one event per order, still related
+ * to every item. The repeated rows count as
+ * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated) while
+ * `objects` below is emitted for each.
+ */
+id?: (ValueExpression | null)
+/**
+ * When it happened.
+ */
+timestamp: ({
+/**
+ * Where the text comes from.
+ */
+source: ValueExpression
+/**
+ * How to read it. `None` means auto-detection.
+ */
+format?: (TimestampFormat | null)
+type: "value"
+} | {
+/**
+ * Where the date comes from, if anywhere.
+ */
+date?: (TimestampPart | null)
+/**
+ * Where the time comes from, if anywhere.
+ */
+time?: (TimestampPart | null)
+type: "components"
+})
+/**
+ * Event attributes.
+ */
+attributes?: AttributeMapping[]
+/**
+ * Objects related to this event.
+ */
+objects?: InlineObjectRef[]
+type: "event"
+} | {
+/**
+ * Object type.
+ */
+object_type: ValueExpression
+/**
+ * Object id.
+ */
+id: ValueExpression
+/**
+ * When the attribute values below were observed. `None` records them as static
+ * values stamped at the Unix epoch.
+ */
+timestamp?: (TimestampSource | null)
+/**
+ * Object attributes.
+ */
+attributes?: AttributeMapping[]
+type: "object"
+} | {
+event: EventEndpoint
+object: ObjectEndpoint1
+/**
+ * Relation qualifier.
+ */
+qualifier?: (ValueExpression | null)
+type: "e2o"
+} | {
+source: ObjectEndpoint2
+target: ObjectEndpoint3
+/**
+ * Relation qualifier.
+ */
+qualifier?: (ValueExpression | null)
+type: "o2o"
+})
+}
+/**
+ * One value read as a timestamp: where the text comes from, and how to read it.
+ */
+
+export interface TimestampPart {
+/**
+ * Where the text comes from.
+ */
+source: ValueExpression
+/**
+ * How to read it. `None` means auto-detection.
+ */
+format?: (TimestampFormat | null)
+}
+/**
+ * Maps a source column to a named OCEL attribute.
+ */
+
+export interface AttributeMapping {
+/**
+ * Column to read.
+ */
+source_column: string
+/**
+ * Attribute name in the resulting log.
+ */
+name: string
+/**
+ * Declared attribute type, or `None` to take the catalog's type for `source_column`.
+ */
+value_type?: (OCELAttributeType | null)
+}
+/**
+ * An object related to an event declared by the same mapping.
+ */
+
+export interface InlineObjectRef {
+object: ObjectEndpoint
+/**
+ * Relation qualifier.
+ */
+qualifier?: (ValueExpression | null)
+}
+/**
+ * The object.
+ */
+
+export interface ObjectEndpoint {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+/**
+ * How to split one cell into several values.
+ */
+
+export interface SplitSpec {
+/**
+ * The splitting rule.
+ */
+kind: ({
+/**
+ * The separator.
+ */
+delimiter: string
+type: "delimiter"
+} | {
+/**
+ * The pattern.
+ */
+pattern: string
+type: "regex"
+})
+/**
+ * Trim surrounding whitespace from each part.
+ */
+trim: boolean
+}
+/**
+ * The event.
+ */
+
+export interface EventEndpoint {
+/**
+ * The event's id.
+ */
+id: ValueExpression
+/**
+ * The event's type. Required under [`IdRendering::TypePrefixed`].
+ */
+event_type?: (ValueExpression | null)
+}
+/**
+ * The object.
+ */
+
+export interface ObjectEndpoint1 {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+/**
+ * The source object.
+ */
+
+export interface ObjectEndpoint2 {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+/**
+ * The target object.
+ */
+
+export interface ObjectEndpoint3 {
+/**
+ * The object's id.
+ */
+id: ValueExpression
+/**
+ * The object's type. Required under [`IdRendering::TypePrefixed`] and under
+ * [`MissingEndpointPolicy::Create`].
+ */
+object_type?: (ValueExpression | null)
+/**
+ * Split the id cell into several ids, producing one relation per part.
+ */
+split?: (SplitSpec | null)
+}
+
+export interface TableSchema {
+/**
+ * Table name.
+ */
+name: string
+/**
+ * Columns, keyed by name.
+ */
+columns: {
+[k: string]: ColumnSchema
+}
+}
+/**
+ * One column's declared shape.
+ */
+
+export interface ColumnSchema {
+/**
+ * Column name.
+ */
+name: string
+/**
+ * The source's own type name, verbatim, for example `INTEGER` or `timestamp`.
+ */
+col_type: string
+/**
+ * Whether the source permits `NULL` here.
+ */
+nullable: boolean
+}
+/**
+ * A few real rows of one table, for display only.
+ * 
+ * Rows are aligned to [`TablePreview::columns`] so a wide table can be read across. A cell is
+ * `None` for SQL `NULL`, distinct from `Some(String::new())`.
+ */
+
+export interface TablePreview {
+/**
+ * Column names, in the order the rows are aligned to.
+ */
+columns: string[]
+/**
+ * Rows, each the same length as `columns`.
+ */
+rows: (string | null)[][]
+}
+
+export type SqlDialect = ("DuckDb" | "Postgres")
+/**
+ * Which OCEL surface the compiler emits.
+ */
+
+export type EmissionShape = ("PerType" | "Consolidated")
+
+/**
+ * A blueprint compiled to SQL.
+ * 
+ * Serializable but not deserializable: [`Self::errors`] holds [`CompileError`], which is not, so
+ * neither is this. Crosses a bindings boundary outbound only, as a compile binding's return
+ * value.
+ */
+
+export interface ViewDef {
+/**
+ * The relation's name, unquoted.
+ */
+name: string
+/**
+ * A bare `SELECT` body with no `CREATE` wrapper, so the same text serves a view, a CTE and
+ * a `CREATE TABLE AS`.
+ */
+body: string
+}
+/**
+ * A data-dependent assumption the compiled relations make, as SQL that returns zero rows when
+ * the assumption holds.
+ */
+
+export interface Probe {
+/**
+ * The mapping this is about, or `None` for a whole-log check.
+ */
+mapping?: (MappingRef | null)
+/**
+ * What it guards.
+ */
+kind: ("AmbiguousObjectIdentity" | "AmbiguousEventIdentity" | "AmbiguousStaticObjectAttributes" | {
+StaleTypeDomain: {
+/**
+ * The column the domain came from.
+ */
+column: string
+}
+})
+/**
+ * The check itself, as a `SELECT` returning zero rows when the guard holds.
+ */
+sql: string
+}
+/**
+ * Points a diagnostic back at the mapping it came from.
+ */
+
+export interface MappingRef {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * A mapping that produced no view, and why.
+ * 
+ * Compilation never fails wholesale: an uncompilable mapping is skipped and recorded here, and
+ * everything else still compiles.
+ * 
+ * Serializable but not deserializable: [`RejectReason`] is not, so neither is this.
+ */
+
+export interface CompileError {
+/**
+ * The mapping this is about, or `None` for a blueprint-level problem.
+ */
+mapping?: (MappingRef | null)
+/**
+ * Why it could not be compiled.
+ */
+reason: ({
+SynthesizedId: {
+/**
+ * The absent field.
+ */
+field: string
+}
+} | {
+DynamicTypeName: {
+/**
+ * The position whose type is dynamic.
+ */
+field: string
+/**
+ * Why no domain was available.
+ */
+detail: string
+}
+} | {
+TypeDomainTooLarge: {
+/**
+ * The column the domain came from.
+ */
+column: string
+/**
+ * How many values it has.
+ */
+size: number
+/**
+ * The cap.
+ */
+cap: number
+}
+} | {
+ReservedTypeName: {
+/**
+ * The offending type name.
+ */
+name: string
+}
+} | {
+UnknownNode: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnresolvedNodeSchema: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+NodeCycle: {
+/**
+ * A node id taking part in the cycle.
+ */
+node: string
+}
+} | {
+EmptyProjection: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+EmptyUnion: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnknownColumn: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UndeclaredColumnKind: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableIdentityRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableDisplayRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+ResidualTimestamp: {
+/**
+ * What about it is residual.
+ */
+detail: string
+}
+} | {
+UndecidableJoinKey: {
+/**
+ * The join node's id.
+ */
+node: string
+/**
+ * Which side the column is on.
+ */
+side: string
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+}
+} | {
+InvalidRegex: {
+/**
+ * The pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+}
+} | {
+InvalidTemplate: {
+/**
+ * The template text.
+ */
+template: string
+/**
+ * What is wrong with it.
+ */
+reason: string
+}
+} | {
+AttributeCoercion: {
+/**
+ * The attribute name.
+ */
+attribute: string
+/**
+ * The source column.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * The declared OCEL attribute type.
+ */
+declared: string
+}
+} | {
+DynamicTypeAttributeConflict: {
+/**
+ * The attribute name.
+ */
+attribute: string
+}
+} | {
+ViewCycle: {
+/**
+ * The relation's name.
+ */
+view: string
+}
+} | {
+Invalid: {
+/**
+ * The rendered validation error.
+ */
+detail: string
+}
+})
+}
+
+export interface ExtractionCatalog {
+/**
+ * Table schemas, keyed by source id then table name.
+ */
+tables: {
+[k: string]: {
+[k: string]: TableSchema
+}
+}
+/**
+ * Column domains, keyed by source id, then table name, then column name.
+ */
+domains: {
+[k: string]: {
+[k: string]: {
+[k: string]: string[]
+}
+}
+}
+/**
+ * A handful of real rows per table, keyed by source id then table name, to show a person
+ * what the data looks like.
+ * 
+ * Deliberately unreachable through the [`Catalog`] trait: unlike
+ * [`domains`](ExtractionCatalog::domains), a preview is incomplete, so compiling from one
+ * would emit views only for the types that happened to appear first.
+ */
+previews?: {
+[k: string]: {
+[k: string]: TablePreview
+}
+}
+}
+/**
+ * One table's declared shape.
+ */
+
+export type ExtractionError = ({
+Invalid: ValidationError[]
+} | {
+MissingProvider: {
+/**
+ * The missing source id.
+ */
+source_id: string
+}
+} | {
+InvalidRegex: {
+/**
+ * The offending pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+}
+} | {
+JoinKeyColumnMissing: {
+/**
+ * The `Join` node.
+ */
+node: string
+/**
+ * `"left"` or `"right"`.
+ */
+side: string
+/**
+ * The key column, as named on that side.
+ */
+column: string
+}
+} | {
+Provider: {
+/**
+ * The node being read when the failure happened.
+ */
+node: string
+/**
+ * The underlying error.
+ */
+source: ({
+UnknownTable: {
+/**
+ * The table name.
+ */
+table: string
+}
+} | {
+UnknownColumn: {
+/**
+ * The table name.
+ */
+table: string
+/**
+ * The column name.
+ */
+column: string
+}
+} | "QueryUnsupported" | {
+Backend: {
+/**
+ * The table being read when the failure happened.
+ */
+table: string
+/**
+ * The backend's error message.
+ */
+message: string
+}
+})
+}
+} | {
+Sink: {
+/**
+ * What was being added when the failure happened.
+ */
+context: string
+/**
+ * The underlying error.
+ */
+source: ({
+DuplicateEvent: {
+/**
+ * The repeated id.
+ */
+id: string
+}
+} | {
+DuplicateObject: {
+/**
+ * The repeated id.
+ */
+id: string
+}
+} | {
+IdTypeCollision: {
+/**
+ * The contested id.
+ */
+id: string
+}
+} | {
+UnknownType: {
+/**
+ * `"event"` or `"object"`.
+ */
+kind: string
+/**
+ * The undeclared type name.
+ */
+name: string
+}
+} | "InvalidRef" | {
+Backend: string
+})
+}
+} | {
+IdTypeCollision: {
+mapping: MappingRef1
+/**
+ * The contested id.
+ */
+id: string
+/**
+ * The type this row wanted the id for. The type that already holds it is whatever the
+ * sink reports for that id.
+ */
+requested_type: string
+}
+} | {
+ConflictingAttributeType: {
+/**
+ * `"event"` or `"object"`.
+ */
+kind: string
+/**
+ * The entity type.
+ */
+type_name: string
+/**
+ * The attribute.
+ */
+attribute: string
+/**
+ * The type it was declared with first.
+ */
+declared: ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
+/**
+ * The type the later declaration gave it.
+ */
+conflicting: ("String" | "Time" | "Integer" | "Float" | "Boolean" | "Null")
+}
+} | {
+DuplicateObject: {
+mapping: MappingRef2
+/**
+ * The repeated id.
+ */
+id: string
+}
+} | {
+MissingEndpoint: {
+mapping: MappingRef3
+/**
+ * Which endpoint (`"event"`, `"object"`, `"source"`, `"target"`, ...).
+ */
+endpoint: string
+/**
+ * The unresolved id.
+ */
+id: string
+}
+} | {
+MissingEndpointsAtFinalize: {
+/**
+ * How many relations the sink could not resolve. Usually equals an eager sink's
+ * [`MissingEndpoint`](Self::MissingEndpoint) count for the same run, but can exceed it:
+ * a deferring sink also stages the inline references of a `Target::Event` whose event
+ * this run dropped, which an eager sink never asks about.
+ */
+count: number
+}
+})
+/**
+ * A reason a blueprint cannot be executed or compiled.
+ */
+
+export type ValidationError = ({
+/**
+ * The blueprint's version.
+ */
+found: number
+/**
+ * The newest version this build reads.
+ */
+supported: number
+type: "unsupported-version"
+} | {
+/**
+ * The repeated id.
+ */
+id: string
+type: "duplicate-node-id"
+} | {
+/**
+ * Who referred to it.
+ */
+from: string
+/**
+ * The missing id.
+ */
+id: string
+type: "unknown-node-ref"
+} | {
+/**
+ * One node id participating in the cycle.
+ */
+id: string
+type: "node-cycle"
+} | {
+/**
+ * The source id.
+ */
+source_id: string
+type: "unknown-source"
+} | {
+/**
+ * The source id.
+ */
+source_id: string
+/**
+ * The table name.
+ */
+table: string
+type: "unknown-table"
+} | {
+/**
+ * The node whose rows were being read.
+ */
+node: string
+/**
+ * The column name.
+ */
+column: string
+type: "unknown-column"
+} | {
+/**
+ * Which mapping, by label or index.
+ */
+mapping: string
+/**
+ * Which endpoint.
+ */
+endpoint: string
+type: "missing-type-for-prefixing"
+} | {
+/**
+ * Which mapping, by label or index.
+ */
+mapping: string
+/**
+ * Which endpoint.
+ */
+endpoint: string
+type: "missing-type-for-create"
+} | {
+/**
+ * The node id.
+ */
+node: string
+type: "empty-union"
+} | {
+/**
+ * The pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+type: "invalid-regex"
+} | {
+/**
+ * The template text.
+ */
+template: string
+/**
+ * What is wrong with it.
+ */
+reason: string
+type: "invalid-template"
+} | {
+/**
+ * The `Join` node.
+ */
+node: string
+/**
+ * The contested output column name.
+ */
+column: string
+type: "ambiguous-join-column"
+} | {
+/**
+ * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
+ */
+location: string
+/**
+ * The column compared against.
+ */
+column: string
+/**
+ * That column's declared type, verbatim from the catalog.
+ */
+col_type: string
+/**
+ * The literal, as authored.
+ */
+literal: string
+/**
+ * The kind `col_type` names: `text`, `integer`, `float`, `boolean` or `timestamp`.
+ */
+expected: string
+type: "uncoercible-literal"
+} | {
+/**
+ * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
+ */
+location: string
+/**
+ * The left operand's declared kind: `text`, `integer`, `float`, `boolean` or `timestamp`.
+ */
+left_kind: string
+/**
+ * The right operand's declared kind.
+ */
+right_kind: string
+type: "incomparable-compare"
+})
+
+/**
+ * What [`extract`](super::extract::extract) produced, beyond the OCEL itself.
+ * 
+ * Serializable but not deserializable: [`ExtractionError`] carries `&'static str` fields (a
+ * borrow no deserializer can manufacture), so this only ever crosses a bindings boundary
+ * outbound, as a `#[register_binding]` return value.
+ */
+
+export interface MappingStats {
+mapping: MappingRef
+/**
+ * Rows the mapping's node produced, before `when` was applied.
+ */
+rows_read: number
+/**
+ * Entities or relations this mapping handed to the sink, which is not the same as
+ * "survived the run" for a sink that defers resolution.
+ * 
+ * An eager sink refuses a dangling relation at the call site, so it lands in
+ * [`DropReason::UnresolvedEndpoint`] and never here. A deferring sink writes it, counts it
+ * here, and deletes it at [`finalize`](super::sink::ExtractionSink::finalize), reporting it
+ * in [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) instead. To count
+ * what a run produced, subtract `ExtractionReport::finalize.unresolved_endpoints` from the
+ * total.
+ */
+entities_emitted: number
+/**
+ * Rows that tried to create an entity the sink already had. Not a loss: an object mapping
+ * at event grain names the same object on every row by design. See
+ * [`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what
+ * turns a repeat into a loss instead.
+ * 
+ * One increment per row whose entity-creating call found the entity already present, across
+ * mappings, since the sink is what answers.
+ * 
+ * Resolving a relation endpoint is never counted, so an `E2O`/`O2O` mapping reports zero
+ * however often its rows repeat an id: finding an existing endpoint is the normal successful
+ * case. A blueprint that wants its inline references' repeats counted can name the objects
+ * with their own [`Target::Object`](super::blueprint::Target::Object) mapping.
+ */
+deduplicated: number
+/**
+ * Rows dropped, by reason. A row that matches several reasons at once (rare) is counted
+ * once, under the first one detected.
+ */
+dropped: {
+[k: string]: number
+}
+/**
+ * Attribute values that would not convert to their attribute's declared type, stored as
+ * `Null`. Not a dropped row: the entity was written, with one of its attributes empty.
+ */
+uncoercible_attributes?: number
+}
+/**
+ * Which mapping.
+ */
+
+export interface MappingRef1 {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * The mapping whose row named the repeat.
+ */
+
+export interface MappingRef2 {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * The mapping whose row named the endpoint.
+ */
+
+export interface MappingRef3 {
+/**
+ * Position in the desugared, flattened mapping list this run executed.
+ */
+index: number
+/**
+ * The mapping's own label, if it has one.
+ */
+label?: (string | null)
+/**
+ * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+ * a diagnostic points at what the author wrote rather than a position in the flattened
+ * list.
+ */
+path: string
+/**
+ * What this mapping produces, derived from its target: `event "appoint officer"`,
+ * `event -> object relation`, and so on. Present whether or not a `label` was typed.
+ */
+describes: string
+}
+/**
+ * One node the compiler refused to push down to its source, and why.
+ */
+
+export interface PushdownDeclined {
+/**
+ * The node id, as the blueprint names it.
+ */
+node: string
+/**
+ * What the compiler objected to.
+ */
+reason: ({
+SynthesizedId: {
+/**
+ * The absent field.
+ */
+field: string
+}
+} | {
+DynamicTypeName: {
+/**
+ * The position whose type is dynamic.
+ */
+field: string
+/**
+ * Why no domain was available.
+ */
+detail: string
+}
+} | {
+TypeDomainTooLarge: {
+/**
+ * The column the domain came from.
+ */
+column: string
+/**
+ * How many values it has.
+ */
+size: number
+/**
+ * The cap.
+ */
+cap: number
+}
+} | {
+ReservedTypeName: {
+/**
+ * The offending type name.
+ */
+name: string
+}
+} | {
+UnknownNode: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnresolvedNodeSchema: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+NodeCycle: {
+/**
+ * A node id taking part in the cycle.
+ */
+node: string
+}
+} | {
+EmptyProjection: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+EmptyUnion: {
+/**
+ * The node id.
+ */
+node: string
+}
+} | {
+UnknownColumn: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UndeclaredColumnKind: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableIdentityRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+UnstableDisplayRendering: {
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * Which position referenced it.
+ */
+field: string
+}
+} | {
+ResidualTimestamp: {
+/**
+ * What about it is residual.
+ */
+detail: string
+}
+} | {
+UndecidableJoinKey: {
+/**
+ * The join node's id.
+ */
+node: string
+/**
+ * Which side the column is on.
+ */
+side: string
+/**
+ * The column name.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+}
+} | {
+InvalidRegex: {
+/**
+ * The pattern.
+ */
+pattern: string
+/**
+ * The compiler's message.
+ */
+message: string
+}
+} | {
+InvalidTemplate: {
+/**
+ * The template text.
+ */
+template: string
+/**
+ * What is wrong with it.
+ */
+reason: string
+}
+} | {
+AttributeCoercion: {
+/**
+ * The attribute name.
+ */
+attribute: string
+/**
+ * The source column.
+ */
+column: string
+/**
+ * The catalog's own type string.
+ */
+col_type: string
+/**
+ * The declared OCEL attribute type.
+ */
+declared: string
+}
+} | {
+DynamicTypeAttributeConflict: {
+/**
+ * The attribute name.
+ */
+attribute: string
+}
+} | {
+ViewCycle: {
+/**
+ * The relation's name.
+ */
+view: string
+}
+} | {
+Invalid: {
+/**
+ * The rendered validation error.
+ */
+detail: string
+}
+})
+}
+/**
+ * What the sink did at [`ExtractionSink::finalize`](super::sink::ExtractionSink::finalize).
+ * 
+ * All zero for a sink that resolves relation endpoints eagerly, which reports everything
+ * through [`per_mapping`](Self::per_mapping) instead. See
+ * [`Resolution`](super::sink::Resolution).
+ */
+
+export interface FinalizeReport {
+/**
+ * Relations written against a [`Resolution::Deferred`] endpoint that resolved to a real
+ * entity at finalize.
+ */
+resolved_relations: number
+/**
+ * Relations whose deferred endpoint did not resolve. An eager sink counts these per mapping
+ * as [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint).
+ */
+unresolved_endpoints: number
+/**
+ * Objects synthesized at finalize under `on_missing_endpoint: Create`, for deferred
+ * endpoints that turned out not to exist.
+ */
+objects_created: number
+/**
+ * Repeated entity ids removed at finalize: a deferring sink's share of
+ * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated).
+ */
+duplicates_removed: number
+}
+/**
+ * How long a run spent, split by phase, in milliseconds. Schema discovery is a fixed cost a
+ * caller holding a catalog can skip, so it is reported apart from the row reading.
+ */
+
+export interface ExtractionTiming {
+/**
+ * Connecting to each source and reading its schema. Zero when the caller supplied a catalog.
+ */
+discovery_ms: number
+/**
+ * Reading rows and emitting entities: `extract` itself.
+ */
+extraction_ms: number
+}
+
+export interface DottedChartPoints {
+/**
+ * X-axis values (interpretation depends on [`DottedChartXAxis`]).
+ */
+x: number[]
+/**
+ * Y-axis indices into [`DottedChartData::y_values`].
+ */
+y: number[]
+}
+
+export interface AttributeChange {
+/**
+ * Timestamp of the change.
+ */
+time: string
+/**
+ * Attribute value at this point in time.
+ */
+value: (number | boolean | string | null)
+}
+
 export interface TreeOptions {
 /**
  * Which way the tree grows. `TopBottom` puts the roots at the top, `LeftRight` on the left.
@@ -5932,6 +6500,12 @@ level_alignment?: "by_depth"
  */
 edge_style?: ("straight" | "elbow")
 }
+
+export type OCELAttributeValue = (number | boolean | string | null)
+
+export type EventIndex = number
+
+export type ObjectIndex = number
 
 export interface OcTypeGraphNode {
 /**
@@ -6002,9 +6576,9 @@ index: number
 kind: "transition"
 index: number
 })
-
 /**
- * How an object-centric Petri net is turned into a [`Graph`].
+ * How many objects of a type an event has, as OC-DECLARE's involvement classes: at least none
+ * or one, at most one or several.
  */
 
 export interface AnnotationsFor_OcpnNodeRef {
@@ -6061,6 +6635,93 @@ name: string
 keys: string[]
 }
 
+export interface ResolvedStep {
+edge: TypeEdge
+/**
+ * Whether the edge is traversed in reverse direction.
+ */
+reverse: boolean
+}
+/**
+ * The typed edge traversed in this step.
+ */
+
+export interface TypeEdge {
+/**
+ * Source type of the edge.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Target type of the edge.
+ */
+target: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Relationship qualifier this edge represents.
+ */
+qualifier: string
+}
+
+export interface Connection {
+/**
+ * Source entity of the connection.
+ */
+source: ({
+Event: EventIndex
+} | {
+Object: ObjectIndex
+})
+/**
+ * Target entity of the connection.
+ */
+target: ({
+Event: EventIndex
+} | {
+Object: ObjectIndex
+})
+/**
+ * Timestamp of the source (only present if the source is an event).
+ */
+source_time?: (string | null)
+/**
+ * Timestamp of the target (only present if the target is an event).
+ */
+target_time?: (string | null)
+}
+
+export interface ResolvedPathSchema {
+/**
+ * The starting type.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Ordered traversal steps with embedded typed edges.
+ */
+steps: ResolvedStep[]
+/**
+ * The ending type.
+ */
+target: ({
+Event: string
+} | {
+Object: string
+})
+}
+/**
+ * One step of a [`ResolvedPathSchema`]: a typed edge plus traversal direction.
+ */
+
 export type PetriNodeRef = ({
 kind: "place"
 index: PlaceID
@@ -6113,6 +6774,279 @@ interleaving?: string
 inclusive_choice?: string
 }
 
+export interface OcpnDiscoveryOptions {
+/**
+ * How the Petri net of each object type is discovered from its flattened log, by default
+ * `IMf` at `0.2`, The [DFG variant](InductiveMiner::Dfg) reads log only once, good for large data.
+ */
+miner?: ((InductiveMinerOptions & {
+kind: "log"
+}) | (InductiveMinerDfgOptions & {
+kind: "dfg"
+}))
+/**
+ * Object types to discover a net for. If this is `None`, every object type of the log is used.
+ * 
+ * Each type's net and variable arcs are discovered independently, so leaving a type out does
+ * not change the nets of the others.
+ */
+object_types_to_use?: (string[] | null)
+/**
+ * Activities to keep. If this is `None`, every activity is kept.
+ * 
+ * The other activities' events are removed from each flattened log before mining, so the
+ * nets describe the log without them. An object left without events adds no trace.
+ */
+activities_to_use?: (string[] | null)
+/**
+ * Fraction of an activity's executions that may involve other than exactly one object of a
+ * type while its arc to that type still counts as normal.
+ * 
+ * The default `0.0` is the strict reading. A small tolerance keeps data-quality noise from
+ * making arcs variable.
+ */
+variable_arc_tolerance?: number
+}
+/**
+ * Settings of the Inductive Miner. Each constructor sets up one variant:
+ * - [`default`](Self::default): IM
+ * - [`imf`](Self::imf): `IMf` with the given noise threshold
+ * - [`ima`](Self::ima): IM with the cuts of `IMa`
+ * - [`im_thesis`](Self::im_thesis) and [`imf_thesis`](Self::imf_thesis): IM and `IMf` as
+ *   published, without the refinements of this implementation
+ * - [`prom`](Self::prom) and [`pm4py`](Self::pm4py): the settings closest to those tools
+ * 
+ * Fields missing in JSON take their default value.
+ */
+
+export interface ObjectCentricPetriNetJson {
+/**
+ * The places, each belonging to one object type.
+ */
+places: JsonPlace[]
+/**
+ * The transitions, each appearing once even when several object types share it.
+ */
+transitions: JsonTransition[]
+/**
+ * The arcs, each between a place and a transition.
+ */
+arcs: JsonArc[]
+/**
+ * Tokens per place at the start, by place name.
+ */
+initial_marking: {
+[k: string]: number
+}
+/**
+ * Tokens per place at the end, by place name.
+ */
+final_marking: {
+[k: string]: number
+}
+}
+/**
+ * A place of one object type.
+ */
+
+export interface OcpnBuildOptions {
+/**
+ * Flow direction. `None` is the model's own default.
+ */
+direction?: (Direction | null)
+/**
+ * Fields of the engine options to change, as a partial
+ * [`LayoutOptions`](graphlay::LayoutOptions) object deep-merged over the model's preset and
+ * the direction, e.g., `{"routing": {"style": "diagonal"}}`. `null` changes nothing.
+ */
+layout_patch?: (LayoutOptions | null)
+annotations?: AnnotationsFor_OcpnNodeRef
+/**
+ * Object types drawn as a row of badges in the transition of an activity, by activity,
+ * e.g., types that take part without places of their own. See [`super::badges`].
+ */
+badges?: {
+[k: string]: TypeBadge[]
+}
+}
+/**
+ * Everything that steers one layout run.
+ */
+
+export interface StyleOverrides {
+/**
+ * By node index.
+ */
+nodes?: {
+[k: string]: ElementStyle
+}
+/**
+ * By edge index.
+ */
+edges?: {
+[k: string]: ElementStyle
+}
+}
+/**
+ * A change to how one node or edge is drawn, e.g., to highlight, dim or annotate it.
+ * 
+ * This interface was referenced by `undefined`'s JSON-Schema definition
+ * via the `patternProperty` "^\d+$".
+ * 
+ * This interface was referenced by `undefined`'s JSON-Schema definition
+ * via the `patternProperty` "^\d+$".
+ */
+
+export type SearchSeed = ("greedy" | "handoff" | "exact")
+
+/**
+ * The cells and counts of a [`ReflowResult`].
+ */
+
+export interface ReflowCell {
+/**
+ * The activity.
+ */
+activity: string
+/**
+ * The object type.
+ */
+objectType: string
+/**
+ * Whether the participations flow.
+ */
+state: ("flow" | "implied" | "involved")
+/**
+ * `false` for a cell expansion added, which always flows.
+ */
+recorded: boolean
+/**
+ * The cell's participations (distinct event and object pairs).
+ */
+participations: number
+/**
+ * The fewest distinct objects of the type an event of the activity has, `0` if some event
+ * has none. A recorded cell counts the recorded participations, so a tagged log gives the
+ * counts of its source log, and an added cell those expansion adds.
+ */
+minObjects: number
+/**
+ * The most distinct objects of the type an event of the activity has, counted as for
+ * [`Self::min_objects`].
+ */
+maxObjects: number
+/**
+ * For an implied cell, what determines it.
+ */
+determinedBy?: (Determination | null)
+}
+/**
+ * The reconstruction that recovers an implied cell: the last step of the shortest chain from
+ * the flow cells at its activity.
+ */
+
+export interface Determination {
+/**
+ * The object type whose cell at the same activity the participations are recomputed
+ * from. It flows or is implied itself.
+ */
+from: string
+reconstruction: Reconstruction
+}
+/**
+ * How they are recomputed.
+ */
+
+export interface Reconstruction {
+/**
+ * How the objects are recomputed.
+ */
+via: ({
+/**
+ * The relations, at least one.
+ */
+relations: QualifiedRelation[]
+kind: "recorded"
+} | {
+kind: "image"
+} | {
+kind: "preimage"
+})
+/**
+ * Share of the activity's events at which the recomputed objects are exactly the recorded
+ * ones, at least the determination threshold.
+ */
+share: number
+}
+/**
+ * A recorded object-to-object relation, by qualifier and direction.
+ */
+
+export interface QualifiedRelation {
+/**
+ * The object-to-object qualifier.
+ */
+qualifier: string
+/**
+ * Whether the recorded edges run from the reconstructed type to the reconstructing one.
+ */
+reversed: boolean
+}
+/**
+ * Sizes and how the search went.
+ */
+
+export interface ReflowStats {
+/**
+ * Facts the abstraction extracts over the candidate cells.
+ */
+facts: number
+/**
+ * Recorded cells that flow.
+ */
+flow: number
+/**
+ * Recorded cells that are implied.
+ */
+implied: number
+/**
+ * Recorded cells that are involved.
+ */
+involved: number
+/**
+ * Unrecorded cells in the flow layer.
+ */
+added: number
+/**
+ * Directly-follows arcs (per object type) when every recorded cell flows.
+ */
+arcsRecorded: number
+/**
+ * Directly-follows arcs of the flow layer.
+ */
+arcsFlow: number
+/**
+ * The seed of the layer the search kept, `None` if the layer was given.
+ */
+seed?: (SearchSeed | null)
+/**
+ * Cells the repair phase added back.
+ */
+repaired: number
+/**
+ * Work done, in the unit of [`ReflowOptions::max_work`].
+ */
+work: number
+/**
+ * Whether the work limit stopped the search or expansion early.
+ */
+limitReached: boolean
+/**
+ * Unrecorded cells a relation writes, admitted or not.
+ */
+expansionCandidates: number
+}
+
 export interface LogAlignments {
 net: AcceptingPetriNet
 /**
@@ -6124,270 +7058,13 @@ variant_alignments: VariantAlignmentResult[]
  */
 fitness?: (FitnessResult | null)
 aggregated: AlignmentAggregate
+/**
+ * Escaping-edges precision from the same alignments (`None` if it could not be computed).
+ */
+precision?: (PrecisionSummary | null)
 }
 /**
  * The process model the log was aligned against (the caller-supplied net, echoed back).
- */
-
-export type output_id = (string | null)
-
-export interface EventLogInput {
-traces?: XesTraceInput[]
-}
-/**
- * One authored trace (case): its id plus events, with optional case-level attributes.
- */
-
-export interface Map_of_uint {
-[k: string]: number
-}
-
-export interface AttributeInfo {
-name: string
-level: AttributeLevel
-kind: AttributeKind
-unique_count: number
-total_count: number
-missing_count: number
-}
-
-export interface AttributeSummary {
-name: string
-level: AttributeLevel
-kind: AttributeKind
-total: number
-missing: number
-/**
- * For categorical: top values and their counts (sorted desc)
- */
-top_values: [string, number][]
-/**
- * For numeric: histogram bin edges
- */
-hist_bin_edges: number[]
-/**
- * For numeric: histogram counts
- */
-hist_counts: number[]
-/**
- * For numeric: basic stats
- */
-numeric_stats?: (NumericStats | null)
-}
-
-export interface AttributeValues {
-/**
- * Distinct values with their occurrence counts, sorted by count desc then value asc.
- * Truncated to `ATTR_VALUES_CAP` entries; `total_distinct` gives the untruncated count.
- */
-values: [string, number][]
-/**
- * True number of distinct values before truncation.
- */
-total_distinct: number
-}
-
-export interface CaseDurations {
-num_cases: number
-num_empty_cases: number
-min_ms: number
-max_ms: number
-mean_ms: number
-median_ms: number
-p90_ms: number
-p95_ms: number
-p99_ms: number
-hist_bin_edges_ms: number[]
-hist_counts: number[]
-ecdf_x_ms: number[]
-ecdf_y: number[]
-}
-
-export interface DfPerformance {
-arcs: DfArcDuration[]
-}
-/**
- * Per-arc duration statistics.
- */
-
-export interface EventTimeHistogram {
-/**
- * Event counts keyed by bin-start epoch millis (as a string) then by event type / activity.
- */
-events_per_timestamp: {
-[k: string]: {
-[k: string]: number
-}
-}
-activities: string[]
-bin_width_ms: number
-}
-
-export interface LogGlobals {
-/**
- * Log-level free-form attributes.
- */
-attributes: {
-[k: string]: string
-}
-extensions: LogExtensionInfo[]
-classifiers: LogClassifierInfo[]
-/**
- * Global trace-level attribute defaults (XES 2.0).
- */
-global_trace_attrs: {
-[k: string]: string
-}
-/**
- * Global event-level attribute defaults (XES 2.0).
- */
-global_event_attrs: {
-[k: string]: string
-}
-}
-
-export interface NumberOfTracesAndEvents {
-num_traces: number
-num_events: number
-}
-
-export interface TraceVariants {
-activities: string[]
-act_to_index: {
-[k: string]: number
-}
-traces: [number[], number][]
-}
-
-export type TraceSortField = ("CaseId" | "NumEvents" | "StartTime" | "Duration")
-
-export interface TraceBrowserPage {
-rows: TraceBrowserRow[]
-total: number
-}
-
-export interface AttributeCatalogEntry {
-scope: AttributeScope
-key: string
-/**
- * None for OCEL (declared attributes, no scan); Some for XES.
- */
-occurrence_count?: (number | null)
-/**
- * Up to 5 distinct sample values. Empty for OCEL.
- */
-sample_values: string[]
-}
-
-export interface TraceDetail {
-/**
- * Trace-level attributes, excluding `concept:name`.
- */
-case_attributes: {
-[k: string]: string
-}
-events: TraceEventRow[]
-}
-
-export interface ObjectDetail {
-object_id: string
-object_type: string
-events: ObjectEventRow[]
-/**
- * (object_id, object_type) via O2O
- */
-related_objects: [string, string][]
-attributes: {
-[k: string]: string
-}
-}
-
-export interface Map_of_Map_of_ObjectInvolvementCounts {
-[k: string]: {
-[k: string]: ObjectInvolvementCounts
-}
-}
-/**
- * Min/max number of objects of a type involved with an activity.
- */
-
-export interface OcelAttributeInfo {
-name: string
-level: OcelAttributeLevel
-kind: AttributeKind
-unique_count: number
-total_count: number
-missing_count: number
-}
-
-export interface OcelAttributeSummary {
-name: string
-level: OcelAttributeLevel
-kind: AttributeKind
-total: number
-missing: number
-top_values: [string, number][]
-hist_bin_edges: number[]
-hist_counts: number[]
-numeric_stats?: (NumericStats | null)
-}
-
-export interface OcelDfPerformance {
-arcs_per_object_type: {
-[k: string]: DfArcDuration[]
-}
-}
-/**
- * Per-arc duration statistics.
- */
-
-export interface OCELInfo {
-num_objects: number
-num_events: number
-event_types: string[]
-object_types: string[]
-}
-
-export interface OCELObjectAttributeChanges {
-traces: {
-[k: string]: [string, string][]
-}
-}
-
-export type ObjectSortField = ("ObjectId" | "ObjectType" | "NumEvents" | "FirstTime")
-
-export type Nullable_string = (string | null)
-
-export interface ObjectBrowserPage {
-rows: ObjectBrowserRow[]
-total: number
-object_types: string[]
-}
-
-export interface OcelTypeRelations {
-e2o_type_relations: OcelTypePairRelation[]
-o2o_type_relations: OcelTypePairRelation[]
-}
-/**
- * Aggregated relation between two types (event->object for E2O, object->object for O2O).
- */
-
-export interface OcelInput {
-eventTypes?: OcelTypeInput[]
-objectTypes?: OcelTypeInput[]
-events?: OcelEventInput[]
-objects?: OcelObjectInput[]
-}
-/**
- * A declared type (event or object) with its attribute schema, as authored in the editor.
- */
-
-export interface OcSimTraceStep {
-activity: string
-objects: OcSimTraceObject[]
-}
-/**
- * One object instance taking part in a simulated firing.
  */
 
 export type Condition = ({
@@ -6554,6 +7231,527 @@ keys: string[]
 type: "RemoveAttributes"
 })
 
+export type output_id = (string | null)
+
+export type Nullable_int64 = (number | null)
+
+export interface DfgComparison {
+a_label: string
+b_label: string
+a_cases: number
+b_cases: number
+activities: ComparedActivity[]
+arcs: ComparedArc[]
+}
+
+export type InductiveMiner = ((InductiveMinerOptions & {
+kind: "log"
+}) | (InductiveMinerDfgOptions & {
+kind: "dfg"
+}))
+
+/**
+ * Settings of the Inductive Miner. Each constructor sets up one variant:
+ * - [`default`](Self::default): IM
+ * - [`imf`](Self::imf): `IMf` with the given noise threshold
+ * - [`ima`](Self::ima): IM with the cuts of `IMa`
+ * - [`im_thesis`](Self::im_thesis) and [`imf_thesis`](Self::imf_thesis): IM and `IMf` as
+ *   published, without the refinements of this implementation
+ * - [`prom`](Self::prom) and [`pm4py`](Self::pm4py): the settings closest to those tools
+ * 
+ * Fields missing in JSON take their default value.
+ */
+
+export interface ModelQuality {
+net: AcceptingPetriNet
+/**
+ * Average trace fitness from alignments
+ */
+fitness?: (number | null)
+perfectly_fitting?: (number | null)
+/**
+ * Escaping-edges precision from the same alignments
+ */
+precision?: (number | null)
+/**
+ * Harmonic mean of `fitness` and `precision`
+ */
+f_score?: (number | null)
+places: number
+transitions: number
+silent_transitions: number
+arcs: number
+/**
+ * Variants whose alignment failed (e.g., a search limit), left out of the numbers
+ */
+unaligned_variants: number
+}
+/**
+ * A [`PetriNet`] with an initial and a final marking
+ * 
+ * In JSON, the net's fields sit next to `initial_marking` and `final_marking`.
+ */
+
+export interface EventLogInput {
+traces?: XesTraceInput[]
+}
+/**
+ * One authored trace (case): its id plus events, with optional case-level attributes.
+ */
+
+export interface Map_of_uint {
+[k: string]: number
+}
+
+export interface AttributeInfo {
+name: string
+level: AttributeLevel
+kind: AttributeKind
+unique_count: number
+total_count: number
+missing_count: number
+}
+
+export interface AttributeSummary {
+name: string
+level: AttributeLevel
+kind: AttributeKind
+total: number
+missing: number
+/**
+ * For categorical: top values and their counts (sorted desc)
+ */
+top_values: [string, number][]
+/**
+ * For numeric: histogram bin edges
+ */
+hist_bin_edges: number[]
+/**
+ * For numeric: histogram counts
+ */
+hist_counts: number[]
+/**
+ * For numeric: basic stats
+ */
+numeric_stats?: (NumericStats | null)
+}
+
+export interface AttributeValues {
+/**
+ * Distinct values with their occurrence counts, sorted by count desc then value asc.
+ * Truncated to `ATTR_VALUES_CAP` entries; `total_distinct` gives the untruncated count.
+ */
+values: [string, number][]
+/**
+ * True number of distinct values before truncation.
+ */
+total_distinct: number
+}
+
+export interface CaseDurations {
+num_cases: number
+num_empty_cases: number
+min_ms: number
+max_ms: number
+mean_ms: number
+median_ms: number
+p90_ms: number
+p95_ms: number
+p99_ms: number
+hist_bin_edges_ms: number[]
+hist_counts: number[]
+ecdf_x_ms: number[]
+ecdf_y: number[]
+}
+
+export type Nullable_uint = (number | null)
+
+export interface Journeys {
+/**
+ * Cases or objects with at least one timed event, sampled evenly when there are more than
+ * asked for
+ */
+journeys: Journey[]
+/**
+ * How many there were before sampling
+ */
+total: number
+min_ms: number
+max_ms: number
+}
+/**
+ * One case or object: its events in order, as `(activity, epoch milliseconds)`.
+ */
+
+export interface DfPerformance {
+arcs: DfArcDuration[]
+}
+/**
+ * Per-arc duration statistics.
+ */
+
+export interface EventTimeHistogram {
+/**
+ * Event counts keyed by bin-start epoch millis (as a string) then by event type / activity.
+ */
+events_per_timestamp: {
+[k: string]: {
+[k: string]: number
+}
+}
+activities: string[]
+bin_width_ms: number
+}
+
+export type Nullable_string = (string | null)
+
+export type Nullable_Array_of_OffsetChange = (OffsetChange[] | null)
+
+/**
+ * From `from_ms` on (until the next change), a time zone is `offset_minutes` ahead of UTC.
+ */
+
+export interface Workload {
+/**
+ * The groups, most events first
+ */
+groups: WorkloadGroup[]
+/**
+ * Events without a readable timestamp, left out of every group
+ */
+events_without_time: number
+/**
+ * Every timed event is at midnight in its own offset: the log records dates only, so the
+ * counts use the recorded dates and ignore any time zone
+ */
+date_only: boolean
+/**
+ * First and last event time in epoch milliseconds
+ * 
+ * @minItems 2
+ * @maxItems 2
+ */
+span_ms?: ([number, number] | null)
+}
+
+export interface EventSignatures {
+/**
+ * Most events first
+ */
+event_types: EventTypeSignatures[]
+/**
+ * Every object type that occurs in a signature, sorted, for a stable color order
+ */
+object_types: string[]
+}
+
+export type Nullable_Array_of_string = (string[] | null)
+
+export interface ExecutionGraph {
+root: ExecutionObject
+objects: ExecutionObject[]
+/**
+ * Sorted by time; `layout.nodes[i]` is the place of `events[i]`
+ */
+events: ExecutionEvent[]
+/**
+ * `layout.edges[i]` is the route of `edges[i]`
+ */
+edges: ExecutionEdge[]
+/**
+ * More objects or events were reachable than the limits allow
+ */
+truncated: boolean
+layout: Layout
+}
+
+export interface LifecycleMap {
+/**
+ * Most objects first
+ */
+object_types: TypeLifecycle[]
+}
+
+export interface LogGlobals {
+/**
+ * Log-level free-form attributes.
+ */
+attributes: {
+[k: string]: string
+}
+extensions: LogExtensionInfo[]
+classifiers: LogClassifierInfo[]
+/**
+ * Global trace-level attribute defaults (XES 2.0).
+ */
+global_trace_attrs: {
+[k: string]: string
+}
+/**
+ * Global event-level attribute defaults (XES 2.0).
+ */
+global_event_attrs: {
+[k: string]: string
+}
+}
+
+export interface NumberOfTracesAndEvents {
+num_traces: number
+num_events: number
+}
+
+export interface LogOverview {
+num_cases: number
+num_events: number
+num_activities: number
+num_variants: number
+/**
+ * First and last event time in epoch milliseconds
+ */
+start_ms?: (number | null)
+end_ms?: (number | null)
+median_case_duration_ms?: (number | null)
+p90_case_duration_ms?: (number | null)
+/**
+ * Most frequent first
+ */
+top_variants: VariantShare[]
+/**
+ * `(activity, events)`, most frequent first
+ */
+activities: [string, number][]
+throughput: Throughput
+health: LogHealth
+}
+
+export interface TraceVariants {
+activities: string[]
+act_to_index: {
+[k: string]: number
+}
+traces: [number[], number][]
+}
+
+export type TraceSortField = ("CaseId" | "NumEvents" | "StartTime" | "Duration")
+
+export interface TraceBrowserPage {
+rows: TraceBrowserRow[]
+total: number
+}
+
+export interface NetReplay {
+journeys: NetJourney[]
+/**
+ * Cases with timed events before sampling
+ */
+total: number
+/**
+ * Sampled cases whose variant could not be aligned, left out
+ */
+unaligned: number
+min_ms: number
+max_ms: number
+}
+/**
+ * One case replayed on a Petri net: the transitions its alignment fires, with times.
+ */
+
+export interface ObjectDetail {
+object_id: string
+object_type: string
+events: ObjectEventRow[]
+/**
+ * (object_id, object_type) via O2O
+ */
+related_objects: [string, string][]
+attributes: {
+[k: string]: string
+}
+}
+
+export type LifelineWindow = ("start" | "middle" | "end")
+
+export interface Lifelines {
+/**
+ * Grouped by object type, then by first event
+ */
+lifelines: Lifeline[]
+events: LifelineEvent[]
+/**
+ * Objects of the chosen types with events, before sampling
+ */
+total: number
+}
+
+export interface ObjectPopulation {
+/**
+ * Start of each bin in epoch milliseconds; bins are `bin_width_ms` wide
+ */
+bin_starts_ms: number[]
+bin_width_ms: number
+/**
+ * Most objects first
+ */
+object_types: ObjectTypePopulation[]
+}
+
+export interface Map_of_Map_of_ObjectInvolvementCounts {
+[k: string]: {
+[k: string]: ObjectInvolvementCounts
+}
+}
+/**
+ * Min/max number of objects of a type involved with an activity.
+ */
+
+export interface OcelAttributeInfo {
+name: string
+level: OcelAttributeLevel
+kind: AttributeKind
+unique_count: number
+total_count: number
+missing_count: number
+}
+
+export interface OcelAttributeSummary {
+name: string
+level: OcelAttributeLevel
+kind: AttributeKind
+total: number
+missing: number
+top_values: [string, number][]
+hist_bin_edges: number[]
+hist_counts: number[]
+numeric_stats?: (NumericStats | null)
+}
+
+export interface OcelDfPerformance {
+arcs_per_object_type: {
+[k: string]: DfArcDuration[]
+}
+}
+/**
+ * Per-arc duration statistics.
+ */
+
+export interface OcelHealth {
+num_events: number
+num_objects: number
+/**
+ * Every check, failed ones (most severe first) before passed ones
+ */
+findings: HealthFinding[]
+}
+/**
+ * One data-quality check over an OCEL. A check with `count` 0 passed.
+ */
+
+export interface OCELInfo {
+num_objects: number
+num_events: number
+event_types: string[]
+object_types: string[]
+}
+
+export interface OCELObjectAttributeChanges {
+traces: {
+[k: string]: [string, string][]
+}
+}
+
+export type ObjectSortField = ("ObjectId" | "ObjectType" | "NumEvents" | "FirstTime")
+
+export interface ObjectBrowserPage {
+rows: ObjectBrowserRow[]
+total: number
+object_types: string[]
+}
+
+export interface OcelTypeRelations {
+e2o_type_relations: OcelTypePairRelation[]
+o2o_type_relations: OcelTypePairRelation[]
+}
+/**
+ * Aggregated relation between two types (event->object for E2O, object->object for O2O).
+ */
+
+export interface OcpnReplay {
+/**
+ * Sampled objects with their firings
+ */
+journeys: OcpnJourney[]
+/**
+ * Objects of the net's types with events, before sampling
+ */
+total_objects: number
+min_ms: number
+max_ms: number
+types: TypeConformance[]
+transitions: TransitionConformance[]
+/**
+ * Longest median wait first
+ */
+sync: SyncPoint[]
+}
+
+export interface PerformanceSpectrum {
+/**
+ * The path the segments follow
+ */
+path: string[]
+segments: SpectrumSegment[]
+min_ms: number
+max_ms: number
+/**
+ * The most frequent variants, as paths to pick from
+ */
+top_variants: SpectrumVariant[]
+/**
+ * Cases in the log, for the share of each variant
+ */
+num_cases: number
+}
+
+export type Nullable_double = (number | null)
+
+export interface PrefixTree {
+/**
+ * Parents before their children; `nodes[0]` is the root
+ */
+nodes: PrefixNode[]
+/**
+ * The tree stops at this depth; deeper events are left out
+ */
+max_depth: number
+min_cases: number
+}
+/**
+ * One prefix: the path from the root to this node.
+ */
+
+export interface AttributeCatalogEntry {
+scope: AttributeScope
+key: string
+/**
+ * None for OCEL (declared attributes, no scan); Some for XES.
+ */
+occurrence_count?: (number | null)
+/**
+ * Up to 5 distinct sample values. Empty for OCEL.
+ */
+sample_values: string[]
+}
+
+export interface TraceDetail {
+/**
+ * Trace-level attributes, excluding `concept:name`.
+ */
+case_attributes: {
+[k: string]: string
+}
+events: TraceEventRow[]
+}
+
 export type VariantSort = ("Frequency" | "SlowestFirst" | "FastestFirst" | "LongestFirst" | "ShortestFirst")
 
 export type CaseSort = ("LogOrder" | "FastestFirst" | "SlowestFirst")
@@ -6581,47 +7779,516 @@ num_untimed_cases: number
 rows: VariantSummary[]
 }
 
-export interface DottedChartOptions {
+export interface ActivityStatistics {
 /**
- * X-axis mode.
+ * Per object type, for each of its objects: how many events of the activity it has
  */
-x_axis: ("Time" | "TimeSinceCaseStart" | "TimeRelativeToCaseDuration" | "StepNumberSinceCaseStart")
+num_evs_per_ot_type: {
+[k: string]: number[]
+}
 /**
- * Y-axis mode.
+ * Per object type, for each event of the activity: how many objects of the type it has
  */
-y_axis: ("Case" | "Resource" | {
-EventAttribute: string
-} | {
-CaseAttribute: string
-})
-/**
- * Color-axis mode.
- */
-color_axis: ("Activity" | "Resource" | "Case" | {
-EventAttribute: string
-} | {
-CaseAttribute: string
-})
-/**
- * Event attribute key used to extract the timestamp.
- */
-timestamp_key: string
+num_obs_of_ot_per_ev: {
+[k: string]: number[]
+}
 }
 
-export interface DottedChartData {
+export interface OCDeclareArc {
 /**
- * Points grouped by color-axis value.
+ * Source node (e.g., triggering activity)
  */
-dots_per_color: {
-[k: string]: DottedChartPoints
+from: string
+/**
+ * Target node (e.g., target activity)
+ */
+to: string
+/**
+ * Arc type, modeling temporal relation
+ */
+arc_type: ("AS" | "EF" | "EP" | "DF" | "DP")
+label: OCDeclareArcLabel
+/**
+ * First tuple element: min count (optional), Second: max count (optional)
+ * 
+ * @minItems 2
+ * @maxItems 2
+ */
+counts: [(number | null), (number | null)]
 }
 /**
- * Ordered list of y-axis labels (index corresponds to [`DottedChartPoints::y`] values).
+ * Arc label specifying object involvement criteria
  */
-y_values: string[]
+
+export interface BinnedEdgeDurationStats {
+bin_centers_ms: number[]
+/**
+ * Share of all durations per bin, in percent
+ */
+percentages: number[]
+bin_labels: string[]
+total_count: number
+min_ms: number
+max_ms: number
+}
+
+export interface ObjectLane {
+object_type: string
+id: string
+/**
+ * By time
+ */
+events: LaneEvent[]
+}
+
+export interface ArcViolations {
+/**
+ * Source events (with lifecycle events for `<init>`/`<exit>` sources)
+ */
+sources: number
+violating_sources: number
+too_few: number
+too_many: number
+bindings: number
+violating_bindings: number
+/**
+ * How many target events bindings have, fewest first
+ */
+found_histogram: FoundBucket[]
+over_time: ViolationTimeBin[]
+bin_width_ms: number
+/**
+ * For too few: what the objects did instead, most frequent first
+ */
+instead: CountedName[]
+/**
+ * Object types of the violating bindings' objects, most frequent first
+ */
+by_object_type: CountedName[]
+/**
+ * Objects in the most violations
+ */
+top_objects: ViolatingObject[]
+/**
+ * The violations, by time, at most `max_examples`
+ */
+examples: ArcViolation[]
+}
+
+export interface OcelInput {
+eventTypes?: OcelTypeInput[]
+objectTypes?: OcelTypeInput[]
+events?: OcelEventInput[]
+objects?: OcelObjectInput[]
 }
 /**
- * A series of (x, y) coordinates for one color group in a dotted chart.
+ * A declared type (event or object) with its attribute schema, as authored in the editor.
+ */
+
+export interface OcSimTraceStep {
+activity: string
+objects: OcSimTraceObject[]
+}
+/**
+ * One object instance taking part in a simulated firing.
+ */
+
+export interface OCEL {
+/**
+ * Event Types in OCEL
+ */
+eventTypes: OCELType[]
+/**
+ * Object Types in OCEL
+ */
+objectTypes: OCELType[]
+/**
+ * Events contained in OCEL
+ */
+events?: OCELEvent[]
+/**
+ * Objects contained in OCEL
+ */
+objects?: OCELObject[]
+}
+/**
+ * OCEL Event/Object Type
+ */
+
+export interface DfgBuildOptions {
+/**
+ * Flow direction. `None` is the model's own default.
+ */
+direction?: (Direction | null)
+/**
+ * Fields of the engine options to change, as a partial
+ * [`LayoutOptions`](graphlay::LayoutOptions) object deep-merged over the model's preset and
+ * the direction, e.g., `{"routing": {"style": "diagonal"}}`. `null` changes nothing.
+ */
+layout_patch?: (LayoutOptions | null)
+/**
+ * Draw the artificial START / END terminals. On by default.
+ */
+terminals?: boolean
+annotations?: AnnotationsFor_DfgNodeRef
+/**
+ * Object types drawn as a row of badges in the box of an activity, by activity. See
+ * [`super::badges`].
+ */
+badges?: {
+[k: string]: TypeBadge[]
+}
+}
+/**
+ * Everything that steers one layout run.
+ */
+
+export interface ModelLayoutRequest {
+request: LayoutRequest
+/**
+ * The model element behind each graph node.
+ */
+nodes: DfgNodeRef[]
+/**
+ * The model element behind each graph edge.
+ */
+edges: DfgEdgeRef[]
+}
+/**
+ * The graph, preset and options patch, for the engine.
+ */
+
+export interface DfgStyle {
+base?: BaseStyle
+/**
+ * Fill of the START terminal.
+ */
+start_fill?: string
+/**
+ * Fill of the END terminal.
+ */
+end_fill?: string
+}
+/**
+ * Colors and paddings shared with every other model.
+ */
+
+export interface Scene {
+/**
+ * Colour of a rectangle filling the whole view box, padding included. `None` leaves the
+ * background transparent.
+ */
+background?: (string | null)
+/**
+ * Space kept around the scene's bounding box.
+ */
+padding?: number
+/**
+ * User `<defs>` content, emitted verbatim.
+ */
+defs?: RawSvg[]
+/**
+ * Reusable fragments, emitted whether or not anything uses them.
+ */
+symbols?: SymbolDef[]
+/**
+ * Custom markers, for [`MarkerRef::Custom`].
+ */
+markers?: MarkerDef[]
+/**
+ * The nodes, painted in list order.
+ */
+nodes?: SceneNode[]
+/**
+ * The edges, painted in list order.
+ */
+edges?: SceneEdge[]
+/**
+ * Fragments and panels drawn under or over the graph.
+ */
+overlays?: Overlay[]
+/**
+ * Whether edges are painted under or over the nodes.
+ */
+order?: ("edges_under_nodes" | "edges_over_nodes")
+attrs?: Attrs19
+font?: FontSpec
+}
+/**
+ * Raw SVG the caller vouches for, emitted verbatim exactly once.
+ * 
+ * `bounds` is mandatory because the renderer cannot parse the markup. It is the only way the
+ * fragment takes part in [`Scene::bounds`].
+ */
+
+export type Nullable_Palette = (Palette | null)
+
+/**
+ * The six colours every drawable falls back to.
+ * 
+ * Pass the on-screen theme's resolved colours here so an export matches the screen.
+ */
+
+export interface AlphaPPPConfig {
+/**
+ * Balance threshold (for filtering place candidates)
+ */
+balance_thresh: number
+/**
+ * Fitness threshold (for filtering place candidates)
+ */
+fitness_thresh: number
+/**
+ * Replay threshold (for filtering place candidates)
+ */
+replay_thresh: number
+/**
+ * Log repair threshold for skips (wrt. to weighted DFG)
+ */
+log_repair_skip_df_thresh_rel: number
+/**
+ * Log repair threshold for loops (wrt. to weighted DFG)
+ */
+log_repair_loop_df_thresh_rel: number
+/**
+ * Absolute threshold for weighted DFG cleaning
+ */
+absolute_df_clean_thresh: number
+/**
+ * Relative threshold for weighted DFG cleaning
+ */
+relative_df_clean_thresh: number
+}
+
+export interface Operator {
+/**
+ * The [`OperatorType`] of the tree itself
+ */
+operator_type: ("Sequence" | "ExclusiveChoice" | "Concurrency" | "Loop" | "Interleaving" | "InclusiveChoice")
+/**
+ * The children nodes of the operator node
+ */
+children: Node[]
+}
+
+export interface ProcessTree {
+/**
+ * The root of the object-centric process tree
+ */
+root: Node
+}
+
+export interface OCDeclareDiscoveryOptions {
+/**
+ * Noise threshold (i.e., what fraction of events are allowed to violate a discovered constraint)
+ */
+noise_threshold: number
+/**
+ * Determines if/how object-to-object relationships are considered
+ */
+o2o_mode: ("None" | "Direct" | "Reversed" | "Bidirectional")
+/**
+ * Activities to use for the discovery. If this is `None`, all activities of the OCEL are used
+ */
+acts_to_use?: (string[] | null)
+/**
+ * Object types to use for the discovery. If this is `None`, all object types of the OCEL are used
+ * 
+ * An object-to-object association is only used if both of its object types are selected.
+ */
+object_types_to_use?: (string[] | null)
+/**
+ * What min/max counts to use for the candidate generation steps
+ * 
+ * @minItems 2
+ * @maxItems 2
+ */
+counts_for_generation: [(number | null), (number | null)]
+/**
+ * What min/max counts to use for the candidate filtering step (when the arrow type is determined)
+ * 
+ * @minItems 2
+ * @maxItems 2
+ */
+counts_for_filter: [(number | null), (number | null)]
+/**
+ * If/how the discovered constraints should be reduced
+ */
+reduction: ("None" | "Lossless" | "Lossy")
+/**
+ * Determines if the object involvement of discovered constraints should be made more
+ * precise/strict after initial discovery and reduction
+ */
+refinement: boolean
+/**
+ * The arrow types to consider when deriving the final constraints
+ * 
+ * Should be non-empty!
+ */
+considered_arrow_types: OCDeclareArcType[]
+}
+
+export interface OCDirectlyFollowsGraph {
+/**
+ * The DFG per object type
+ */
+object_type_to_dfg: {
+[k: string]: DirectlyFollowsGraph
+}
+}
+/**
+ * A directly-follows graph of [`Activity`]s, with its start and end activities.
+ * Activities and directly-follows relations are annotated with their frequency, and start and
+ * end activities with how many traces start or end with them.
+ */
+
+export interface PathSchemaQuery {
+/**
+ * Source type to start schemas from.
+ */
+source: ({
+Event: string
+} | {
+Object: string
+})
+/**
+ * Optional target type; if `None`, schemas to any type are enumerated.
+ */
+target?: (TypeRef | null)
+/**
+ * Maximum number of steps per schema.
+ */
+max_length: number
+/**
+ * Whether a schema may revisit the same type.
+ */
+allow_cycles: boolean
+/**
+ * Optional set of types the intermediate steps may pass through; `None` allows all. The
+ * source (the start) and the target (when one is given) are always permitted, so only the
+ * steps in between are constrained.
+ */
+allowed_types?: (TypeRef[] | null)
+/**
+ * Maximum number of schemas to enumerate (see [`enumerate_schemas`]).
+ */
+max_schemas?: number
+params: PathConnectionParams
+}
+/**
+ * Connection-finding parameters.
+ */
+
+export interface PathSchemaDiscovery {
+/**
+ * Source entity type the query started from.
+ */
+source_type: string
+/**
+ * Total number of source-type entities.
+ */
+total_sources: number
+/**
+ * Enumerated schemas with their stats.
+ */
+schemas: DiscoveredSchema[]
+/**
+ * Connection-equivalence classes over the enumerated schemas.
+ */
+equivalence_classes: ConnectionEquivalenceClass[]
+/**
+ * Whether schema enumeration hit a limit, so `schemas` may be incomplete.
+ */
+schema_limit_reached: boolean
+}
+/**
+ * One enumerated schema with its computed stats and equivalence class.
+ */
+
+export type EscapingEdgesPreset = ("default" | "prom" | "pm4py")
+
+export interface EscapingEdgesOptions {
+/**
+ * Where the paths through the model come from
+ */
+log_paths?: ({
+Aligned: {
+options: AlignmentOptions
+}
+} | "ReplayUntilDeviation")
+/**
+ * How silent transitions take part
+ */
+silent_transitions?: ("Skip" | "AsActivities")
+/**
+ * How traces that end in a state count there
+ */
+trace_ends?: ("Ignore" | "Weigh" | "AsActivity")
+/**
+ * Whether to count escaping edges in the initial state. Without it, only the activities the
+ * traces start with count as available there.
+ */
+count_escaping_edges_at_start?: boolean
+/**
+ * Whether an activity only counts as available if the final marking can still be reached
+ * after it, so that the dead ends of an unsound net are not counted as allowed behavior
+ */
+exclude_dead_ends?: boolean
+/**
+ * Limit on the markings visited per search (following silent transitions, or checking that
+ * the final marking can be reached). Reaching it can make the precision wrong in either
+ * direction, see [`EscapingEdgesPrecision::search_limit_reached`].
+ */
+search_limit?: (number | null)
+/**
+ * Whether to return every escaping edge
+ */
+report_escaping_edges?: boolean
+}
+/**
+ * How to align the variants
+ */
+
+export interface EscapingEdgesPrecision {
+/**
+ * Weighted share of available behavior that the log takes, `1.0` if nothing is available
+ */
+precision: number
+/**
+ * Sum over all states of their weight times the number of available activities
+ */
+weighted_available: number
+/**
+ * Sum over all states of their weight times the number of escaping edges
+ */
+weighted_escaping: number
+/**
+ * Number of states with a positive weight
+ */
+num_states: number
+/**
+ * Traces left out because their alignment failed (e.g., a search limit was reached, or the
+ * trace is too long)
+ */
+unaligned_traces: number
+/**
+ * Traces only measured up to the first step the model could not follow (a deviation, or a
+ * search stopped at `search_limit`)
+ */
+truncated_traces: number
+/**
+ * Whether a search stopped at `search_limit` somewhere, which can make `precision` too high
+ * (fewer activities available after silent transitions) or too low (a dead end counted as
+ * completing)
+ */
+search_limit_reached: boolean
+/**
+ * Every escaping edge, if `report_escaping_edges` was set
+ */
+escaping_edges?: (EscapingEdge[] | null)
+}
+/**
+ * An activity (or transition) the model allows in a state, but no trace takes there
  */
 
 export interface EventTimestampOptions {
@@ -6664,23 +8331,6 @@ activities: string[]
  */
 bin_width_ms: number
 }
-
-export interface ObjectAttributeChanges {
-/**
- * Attribute change traces keyed by attribute name.
- * 
- * Each entry contains the chronological list of value changes
- * for that attribute.
- */
-traces: {
-[k: string]: AttributeChange[]
-}
-}
-/**
- * A single attribute value change at a point in time.
- */
-
-export type Nullable_uint = (number | null)
 
 export interface Map_of_string {
 [k: string]: string
@@ -6919,298 +8569,62 @@ timing?: (ExtractionTiming | null)
  * Counts for one mapping's run.
  */
 
-export interface OCELTypeStats {
+export interface DottedChartOptions {
 /**
- * Number of events per event type/activity
+ * X-axis mode.
  */
-event_type_counts: {
-[k: string]: number
-}
+x_axis: ("Time" | "TimeSinceCaseStart" | "TimeRelativeToCaseDuration" | "StepNumberSinceCaseStart")
 /**
- * Number of objects per object type
+ * Y-axis mode.
  */
-object_type_counts: {
-[k: string]: number
-}
-}
-
-export interface ResolvedPathSchema {
-/**
- * The starting type.
- */
-source: ({
-Event: string
+y_axis: ("Case" | "Resource" | {
+EventAttribute: string
 } | {
-Object: string
+CaseAttribute: string
 })
 /**
- * Ordered traversal steps with embedded typed edges.
+ * Color-axis mode.
  */
-steps: ResolvedStep[]
-/**
- * The ending type.
- */
-target: ({
-Event: string
+color_axis: ("Activity" | "Resource" | "Case" | {
+EventAttribute: string
 } | {
-Object: string
-})
-}
-/**
- * One step of a [`ResolvedPathSchema`]: a typed edge plus traversal direction.
- */
-
-export interface PathSchemaConnections {
-/**
- * Human-readable schema string.
- */
-schema: string
-stats: SchemaStats
-/**
- * The connections, with entities referenced by their OCEL index.
- */
-connections: Connection[]
-/**
- * Whether the connection limit was reached (results may be incomplete).
- */
-limit_reached: boolean
-/**
- * Whether selectivity-based early termination was triggered.
- */
-selectivity_pruned: boolean
-}
-/**
- * Metrics and throughput for the connections.
- */
-
-export interface PathSchemaQuery {
-/**
- * Source type to start schemas from.
- */
-source: ({
-Event: string
-} | {
-Object: string
+CaseAttribute: string
 })
 /**
- * Optional target type; if `None`, schemas to any type are enumerated.
+ * Event attribute key used to extract the timestamp.
  */
-target?: (TypeRef | null)
+timestamp_key: string
+}
+
+export interface DottedChartData {
 /**
- * Maximum number of steps per schema.
+ * Points grouped by color-axis value.
  */
-max_length: number
-/**
- * Whether a schema may revisit the same type.
- */
-allow_cycles: boolean
-/**
- * Optional set of types the intermediate steps may pass through; `None` allows all. The
- * source (the start) and the target (when one is given) are always permitted, so only the
- * steps in between are constrained.
- */
-allowed_types?: (TypeRef[] | null)
-params: PathConnectionParams
+dots_per_color: {
+[k: string]: DottedChartPoints
 }
 /**
- * Connection-finding parameters.
+ * Ordered list of y-axis labels (index corresponds to [`DottedChartPoints::y`] values).
  */
-
-export interface PathSchemaDiscovery {
-/**
- * Source entity type the query started from.
- */
-source_type: string
-/**
- * Total number of source-type entities.
- */
-total_sources: number
-/**
- * Enumerated schemas with their stats.
- */
-schemas: DiscoveredSchema[]
-/**
- * Connection-equivalence classes over the enumerated schemas.
- */
-equivalence_classes: ConnectionEquivalenceClass[]
+y_values: string[]
 }
 /**
- * One enumerated schema with its computed stats and equivalence class.
+ * A series of (x, y) coordinates for one color group in a dotted chart.
  */
 
-export type Nullable_TypeRef = (TypeRef | null)
+export interface ObjectAttributeChanges {
 /**
- * A reference to an OCEL type: an event type or an object type, by name.
+ * Attribute change traces keyed by attribute name.
  * 
- * Type-level analogue of [`EntityRef`] (which references an instance). Event and object
- * types live in separate namespaces, so the same name can denote both; carrying the kind
- * here keeps them distinct everywhere a type is named.
+ * Each entry contains the chronological list of value changes
+ * for that attribute.
  */
-
-export type Nullable_Array_of_TypeRef = (TypeRef[] | null)
-/**
- * A reference to an OCEL type: an event type or an object type, by name.
- * 
- * Type-level analogue of [`EntityRef`] (which references an instance). Event and object
- * types live in separate namespaces, so the same name can denote both; carrying the kind
- * here keeps them distinct everywhere a type is named.
- */
-
-export interface PathSchemaTypeGraph {
-/**
- * Event and object type nodes.
- */
-nodes: PathSchemaTypeNode[]
-/**
- * Qualified E2O / O2O relationship edges.
- */
-edges: TypeEdge[]
+traces: {
+[k: string]: AttributeChange[]
+}
 }
 /**
- * A node (event or object type) of the OCEL type graph, with its entity count.
- */
-
-export type Nullable_Array_of_string = (string[] | null)
-
-export type Nullable_EventIndex = (EventIndex | null)
-/**
- * An Event Index
- * 
- * Points to an event in the context of a given OCEL
- */
-
-export type Nullable_ObjectIndex = (ObjectIndex | null)
-/**
- * An Object Index
- * 
- * Points to an object in the context of a given OCEL
- */
-
-export type Nullable_OCELAttributeValue = (OCELAttributeValue | null)
-/**
- * OCEL Attribute Values
- */
-
-export type Nullable_OCELType = (OCELType | null)
-
-/**
- * OCEL Event/Object Type
- */
-
-export interface EscapingEdgesOptions {
-/**
- * Where the paths through the model come from
- */
-log_paths?: ({
-Aligned: {
-options: AlignmentOptions
-/**
- * Whether to align the variants that ran out of their memory share again, one at a time
- * with the whole budget (as [`align_variants_with_retry`] does). This can take long, and
- * they may still run out.
- */
-retry_out_of_memory?: boolean
-}
-} | "ReplayUntilDeviation")
-/**
- * How silent transitions take part
- */
-silent_transitions?: ("Skip" | "AsActivities")
-/**
- * How traces that end in a state count there
- */
-trace_ends?: ("Ignore" | "Weigh" | "AsActivity")
-/**
- * Whether to count escaping edges in the initial state. Without it, only the activities the
- * traces start with count as available there.
- */
-count_escaping_edges_at_start?: boolean
-/**
- * Whether an activity only counts as available if the final marking can still be reached
- * after it, so that the dead ends of an unsound net are not counted as allowed behavior
- */
-exclude_dead_ends?: boolean
-/**
- * Limit on the markings visited per search (following silent transitions, or checking that
- * the final marking can be reached). Reaching it can make the precision wrong in either
- * direction, see [`EscapingEdgesPrecision::search_limit_reached`].
- */
-search_limit?: (number | null)
-/**
- * Whether to return every escaping edge
- */
-report_escaping_edges?: boolean
-}
-/**
- * How to align the variants
- */
-
-export interface EscapingEdgesPrecision {
-/**
- * Weighted share of available behavior that the log takes, `1.0` if nothing is available
- */
-precision: number
-/**
- * Sum over all states of their weight times the number of available activities
- */
-weighted_available: number
-/**
- * Sum over all states of their weight times the number of escaping edges
- */
-weighted_escaping: number
-/**
- * Number of states with a positive weight
- */
-num_states: number
-/**
- * Traces left out because their alignment failed (e.g., a search limit was reached, or the
- * trace is too long)
- */
-unaligned_traces: number
-/**
- * Traces only measured up to the first step the model could not follow (a deviation, or a
- * search stopped at `search_limit`)
- */
-truncated_traces: number
-/**
- * Whether a search stopped at `search_limit` somewhere, which can make `precision` too high
- * (fewer activities available after silent transitions) or too low (a dead end counted as
- * completing)
- */
-search_limit_reached: boolean
-/**
- * Every escaping edge, if `report_escaping_edges` was set
- */
-escaping_edges?: (EscapingEdge[] | null)
-}
-/**
- * An activity (or transition) the model allows in a state, but no trace takes there
- */
-
-export interface OCDeclareArc {
-/**
- * Source node (e.g., triggering activity)
- */
-from: string
-/**
- * Target node (e.g., target activity)
- */
-to: string
-/**
- * Arc type, modeling temporal relation
- */
-arc_type: ("AS" | "EF" | "EP" | "DF" | "DP")
-label: OCDeclareArcLabel
-/**
- * First tuple element: min count (optional), Second: max count (optional)
- * 
- * @minItems 2
- * @maxItems 2
- */
-counts: [(number | null), (number | null)]
-}
-/**
- * Arc label specifying object involvement criteria
+ * A single attribute value change at a point in time.
  */
 
 export interface ProcessVariant {
@@ -7228,406 +8642,9 @@ count: number
 percentage: number
 }
 
-export interface OCEL {
-/**
- * Event Types in OCEL
- */
-eventTypes: OCELType[]
-/**
- * Object Types in OCEL
- */
-objectTypes: OCELType[]
-/**
- * Events contained in OCEL
- */
-events?: OCELEvent[]
-/**
- * Objects contained in OCEL
- */
-objects?: OCELObject[]
-}
-/**
- * OCEL Event/Object Type
- */
-
-export interface OCDirectlyFollowsGraph {
-/**
- * The DFG per object type
- */
-object_type_to_dfg: {
-[k: string]: DirectlyFollowsGraph
-}
-}
-/**
- * A directly-follows graph of [`Activity`]s, with its start and end activities.
- * Activities and directly-follows relations are annotated with their frequency, and start and
- * end activities with how many traces start or end with them.
- */
-
-export interface AlphaPPPConfig {
-/**
- * Balance threshold (for filtering place candidates)
- */
-balance_thresh: number
-/**
- * Fitness threshold (for filtering place candidates)
- */
-fitness_thresh: number
-/**
- * Replay threshold (for filtering place candidates)
- */
-replay_thresh: number
-/**
- * Log repair threshold for skips (wrt. to weighted DFG)
- */
-log_repair_skip_df_thresh_rel: number
-/**
- * Log repair threshold for loops (wrt. to weighted DFG)
- */
-log_repair_loop_df_thresh_rel: number
-/**
- * Absolute threshold for weighted DFG cleaning
- */
-absolute_df_clean_thresh: number
-/**
- * Relative threshold for weighted DFG cleaning
- */
-relative_df_clean_thresh: number
-}
-
 export type InductiveMinerVariant = ("IM" | "IMf" | "IMa" | "IMd" | "IMfd")
 
 export type InductiveMinerPreset = ("default" | "thesis" | "prom" | "pm4py")
-
-export type InductiveMiner = ((InductiveMinerOptions & {
-kind: "log"
-}) | (InductiveMinerDfgOptions & {
-kind: "dfg"
-}))
-
-/**
- * Settings of the Inductive Miner. Each constructor sets up one variant:
- * - [`default`](Self::default): IM
- * - [`imf`](Self::imf): `IMf` with the given noise threshold
- * - [`ima`](Self::ima): IM with the cuts of `IMa`
- * - [`im_thesis`](Self::im_thesis) and [`imf_thesis`](Self::imf_thesis): IM and `IMf` as
- *   published, without the refinements of this implementation
- * - [`prom`](Self::prom) and [`pm4py`](Self::pm4py): the settings closest to those tools
- * 
- * Fields missing in JSON take their default value.
- */
-
-export interface Operator {
-/**
- * The [`OperatorType`] of the tree itself
- */
-operator_type: ("Sequence" | "ExclusiveChoice" | "Concurrency" | "Loop" | "Interleaving" | "InclusiveChoice")
-/**
- * The children nodes of the operator node
- */
-children: Node[]
-}
-
-export interface ProcessTree {
-/**
- * The root of the object-centric process tree
- */
-root: Node
-}
-
-export interface OCDeclareDiscoveryOptions {
-/**
- * Noise threshold (i.e., what fraction of events are allowed to violate a discovered constraint)
- */
-noise_threshold: number
-/**
- * Determines if/how object-to-object relationships are considered
- */
-o2o_mode: ("None" | "Direct" | "Reversed" | "Bidirectional")
-/**
- * Activities to use for the discovery. If this is `None`, all activities of the OCEL are used
- */
-acts_to_use?: (string[] | null)
-/**
- * Object types to use for the discovery. If this is `None`, all object types of the OCEL are used
- * 
- * An object-to-object association is only used if both of its object types are selected.
- */
-object_types_to_use?: (string[] | null)
-/**
- * What min/max counts to use for the candidate generation steps
- * 
- * @minItems 2
- * @maxItems 2
- */
-counts_for_generation: [(number | null), (number | null)]
-/**
- * What min/max counts to use for the candidate filtering step (when the arrow type is determined)
- * 
- * @minItems 2
- * @maxItems 2
- */
-counts_for_filter: [(number | null), (number | null)]
-/**
- * If/how the discovered constraints should be reduced
- */
-reduction: ("None" | "Lossless" | "Lossy")
-/**
- * Determines if the object involvement of discovered constraints should be made more precise/strict after initial discovery and reduction
- */
-refinement: boolean
-/**
- * The arrow types to consider when deriving the final constraints
- * 
- * Should be non-empty!
- */
-considered_arrow_types: OCDeclareArcType[]
-}
-
-export type OCDeclareReductionMode = ("None" | "Lossless" | "Lossy")
-
-export interface OcpnDiscoveryOptions {
-/**
- * How the Petri net of each object type is discovered from its flattened log. The
- * [DFG variant](InductiveMiner::Dfg) reads each log once, which suits large logs.
- */
-miner?: ((InductiveMinerOptions & {
-kind: "log"
-}) | (InductiveMinerDfgOptions & {
-kind: "dfg"
-}))
-/**
- * Object types to discover a net for. If this is `None`, every object type of the log is used.
- * 
- * Each type's net and variable arcs are discovered independently, so leaving a type out does
- * not change the nets of the others.
- */
-object_types_to_use?: (string[] | null)
-/**
- * Activities to keep. If this is `None`, every activity is kept.
- * 
- * The other activities' events are removed from each flattened log before mining, so the
- * nets describe the log without them. An object left without events adds no trace.
- */
-activities_to_use?: (string[] | null)
-/**
- * Fraction of an activity's executions that may involve other than exactly one object of a
- * type while its arc to that type still counts as normal.
- * 
- * The default `0.0` is the strict reading. A small tolerance keeps data-quality noise from
- * making arcs variable.
- */
-variable_arc_tolerance?: number
-}
-/**
- * Settings of the Inductive Miner. Each constructor sets up one variant:
- * - [`default`](Self::default): IM
- * - [`imf`](Self::imf): `IMf` with the given noise threshold
- * - [`ima`](Self::ima): IM with the cuts of `IMa`
- * - [`im_thesis`](Self::im_thesis) and [`imf_thesis`](Self::imf_thesis): IM and `IMf` as
- *   published, without the refinements of this implementation
- * - [`prom`](Self::prom) and [`pm4py`](Self::pm4py): the settings closest to those tools
- * 
- * Fields missing in JSON take their default value.
- */
-
-export interface ObjectCentricPetriNetJson {
-/**
- * The places, each belonging to one object type.
- */
-places: JsonPlace[]
-/**
- * The transitions, each appearing once even when several object types share it.
- */
-transitions: JsonTransition[]
-/**
- * The arcs, each between a place and a transition.
- */
-arcs: JsonArc[]
-/**
- * Tokens per place at the start, by place name.
- */
-initial_marking: {
-[k: string]: number
-}
-/**
- * Tokens per place at the end, by place name.
- */
-final_marking: {
-[k: string]: number
-}
-}
-/**
- * A place of one object type.
- */
-
-export interface DfgBuildOptions {
-/**
- * Flow direction. `None` is the model's own default.
- */
-direction?: (Direction | null)
-/**
- * Fields of the engine options to change, as a partial
- * [`LayoutOptions`](graphlay::LayoutOptions) object deep-merged over the model's preset and
- * the direction, e.g., `{"routing": {"style": "diagonal"}}`. `null` changes nothing.
- */
-layout_patch?: (LayoutOptions | null)
-/**
- * Draw the artificial START / END terminals. On by default.
- */
-terminals?: boolean
-annotations?: AnnotationsFor_DfgNodeRef
-}
-/**
- * Everything that steers one layout run.
- */
-
-export interface Layout {
-/**
- * One entry per input node, in [`crate::NodeId`] order.
- */
-nodes: Placement[]
-/**
- * One entry per input edge, in [`crate::EdgeId`] order.
- */
-edges: EdgeRoute[]
-bounds: Rect
-/**
- * Number of layers in a layered drawing, or of depth rows in a tidy tree. `0` for an empty
- * graph.
- */
-layer_count: number
-/**
- * Edges the layering saw the other way round: Those the cycle breaker reversed, plus those
- * with [`crate::Edge::reverse_for_ranking`] (an edge that is both is not listed). Their
- * polylines still run source to target.
- */
-reversed: EdgeId[]
-stats: LayoutStats
-/**
- * Where a merged edge branches off a shared trunk ([`crate::Routing::merge_edges`]), for a
- * renderer to mark with a dot. Empty unless edges were merged.
- */
-junctions?: Point1[]
-/**
- * The swimlanes of a drawing with [`crate::GroupLanes::Strict`] lanes, in order along the
- * order axis. Empty otherwise.
- */
-lanes?: Lane[]
-}
-/**
- * Where one node ended up.
- */
-
-export interface ModelLayoutRequest {
-request: LayoutRequest
-/**
- * The model element behind each graph node.
- */
-nodes: DfgNodeRef[]
-/**
- * The model element behind each graph edge.
- */
-edges: DfgEdgeRef[]
-}
-/**
- * The graph, preset and options patch, for the engine.
- */
-
-export interface DfgStyle {
-base?: BaseStyle
-/**
- * Fill of the START terminal.
- */
-start_fill?: string
-/**
- * Fill of the END terminal.
- */
-end_fill?: string
-}
-/**
- * Colors and paddings shared with every other model.
- */
-
-export interface StyleOverrides {
-/**
- * By node index.
- */
-nodes?: {
-[k: string]: ElementStyle
-}
-/**
- * By edge index.
- */
-edges?: {
-[k: string]: ElementStyle
-}
-}
-/**
- * A change to how one node or edge is drawn, e.g., to highlight, dim or annotate it.
- * 
- * This interface was referenced by `undefined`'s JSON-Schema definition
- * via the `patternProperty` "^\d+$".
- * 
- * This interface was referenced by `undefined`'s JSON-Schema definition
- * via the `patternProperty` "^\d+$".
- */
-
-export interface Scene {
-/**
- * Colour of a rectangle filling the whole view box, padding included. `None` leaves the
- * background transparent.
- */
-background?: (string | null)
-/**
- * Space kept around the scene's bounding box.
- */
-padding?: number
-/**
- * User `<defs>` content, emitted verbatim.
- */
-defs?: RawSvg[]
-/**
- * Reusable fragments, emitted whether or not anything uses them.
- */
-symbols?: SymbolDef[]
-/**
- * Custom markers, for [`MarkerRef::Custom`].
- */
-markers?: MarkerDef[]
-/**
- * The nodes, painted in list order.
- */
-nodes?: SceneNode[]
-/**
- * The edges, painted in list order.
- */
-edges?: SceneEdge[]
-/**
- * Fragments and panels drawn under or over the graph.
- */
-overlays?: Overlay[]
-/**
- * Whether edges are painted under or over the nodes.
- */
-order?: ("edges_under_nodes" | "edges_over_nodes")
-attrs?: Attrs19
-font?: FontSpec
-}
-/**
- * Raw SVG the caller vouches for, emitted verbatim exactly once.
- * 
- * `bounds` is mandatory because the renderer cannot parse the markup. It is the only way the
- * fragment takes part in [`Scene::bounds`].
- */
-
-export type Nullable_Palette = (Palette | null)
-
-/**
- * The six colours every drawable falls back to.
- * 
- * Pass the on-screen theme's resolved colours here so an export matches the screen.
- */
 
 export interface TreeRequest {
 graph?: Graph
@@ -7635,6 +8652,71 @@ options?: TreeOptions
 }
 /**
  * The rooted tree or forest to lay out.
+ */
+
+export interface OCELAppendBatch {
+/**
+ * Event types to declare. Attributes of an already declared type are merged.
+ */
+event_types?: OCELType[]
+/**
+ * Object types to declare. Attributes of an already declared type are merged.
+ */
+object_types?: OCELType[]
+/**
+ * Objects to add. An object whose id already exists, or occurs earlier in the batch, is
+ * updated instead: Its attribute values are added to the histories and its relationships
+ * are added as O2O relationships.
+ */
+objects?: OCELObject[]
+/**
+ * Events to add
+ */
+events?: OCELEvent[]
+}
+/**
+ * OCEL Event/Object Type
+ */
+
+export interface OCELAppendSummary {
+/**
+ * Number of events added
+ */
+events_added: number
+/**
+ * Number of objects added
+ */
+objects_added: number
+/**
+ * Number of objects that existed before the batch and received attribute values or
+ * relationships
+ */
+objects_updated: number
+}
+
+export type Nullable_OCELAttributeValue = (OCELAttributeValue | null)
+/**
+ * OCEL Attribute Values
+ */
+
+export type Nullable_EventIndex = (EventIndex | null)
+/**
+ * An Event Index
+ * 
+ * Points to an event in the context of a given OCEL
+ */
+
+export type Nullable_OCELType = (OCELType | null)
+
+/**
+ * OCEL Event/Object Type
+ */
+
+export type Nullable_ObjectIndex = (ObjectIndex | null)
+/**
+ * An Object Index
+ * 
+ * Points to an object in the context of a given OCEL
  */
 
 export interface OCDeclareBuildOptions {
@@ -7780,6 +8862,13 @@ terminals?: boolean
  */
 object_types?: string[]
 annotations?: AnnotationsFor_OcdfgNodeRef
+/**
+ * Object types drawn as a row of badges in the box of an activity, by activity. See
+ * [`super::badges`].
+ */
+badges?: {
+[k: string]: TypeBadge[]
+}
 }
 /**
  * Everything that steers one layout run.
@@ -7797,22 +8886,20 @@ fill_lightness?: number
  * Colors and paddings shared with every other model.
  */
 
-export interface OcpnBuildOptions {
+export interface OCELTypeStats {
 /**
- * Flow direction. `None` is the model's own default.
+ * Number of events per event type/activity
  */
-direction?: (Direction | null)
-/**
- * Fields of the engine options to change, as a partial
- * [`LayoutOptions`](graphlay::LayoutOptions) object deep-merged over the model's preset and
- * the direction, e.g., `{"routing": {"style": "diagonal"}}`. `null` changes nothing.
- */
-layout_patch?: (LayoutOptions | null)
-annotations?: AnnotationsFor_OcpnNodeRef
+event_type_counts: {
+[k: string]: number
 }
 /**
- * Everything that steers one layout run.
+ * Number of objects per object type
  */
+object_type_counts: {
+[k: string]: number
+}
+}
 
 export interface OcpnStyle {
 petri?: PetriStyle
@@ -7927,6 +9014,62 @@ base?: BaseStyle
  * Colors and paddings shared with every other model.
  */
 
+export interface PathSchemaConnections {
+/**
+ * Human-readable schema string.
+ */
+schema: string
+stats: SchemaStats
+/**
+ * The connections, with entities referenced by their OCEL index.
+ */
+connections: Connection[]
+/**
+ * Whether the connection limit was reached (results may be incomplete).
+ */
+limit_reached: boolean
+/**
+ * Whether selectivity-based early termination was triggered.
+ */
+selectivity_pruned: boolean
+}
+/**
+ * Metrics and throughput for the connections.
+ */
+
+export type Nullable_TypeRef = (TypeRef | null)
+/**
+ * A reference to an OCEL type: an event type or an object type, by name.
+ * 
+ * Type-level analogue of [`EntityRef`] (which references an instance). Event and object
+ * types live in separate namespaces, so the same name can denote both; carrying the kind
+ * here keeps them distinct everywhere a type is named.
+ */
+
+export type Nullable_Array_of_TypeRef = (TypeRef[] | null)
+/**
+ * A reference to an OCEL type: an event type or an object type, by name.
+ * 
+ * Type-level analogue of [`EntityRef`] (which references an instance). Event and object
+ * types live in separate namespaces, so the same name can denote both; carrying the kind
+ * here keeps them distinct everywhere a type is named.
+ */
+
+export interface PathSchemaEnumeration {
+/**
+ * The enumerated schemas.
+ */
+schemas: ResolvedPathSchema[]
+/**
+ * Whether enumeration hit a limit (results may be incomplete).
+ */
+limit_reached: boolean
+}
+/**
+ * A self-contained, serializable path schema: edges are embedded, so no [`TypeGraph`]
+ * is needed to interpret or traverse it. Produced via [`PathSchema::resolve`].
+ */
+
 export interface PetriBuildOptions {
 /**
  * Flow direction. `None` is the model's own default.
@@ -7996,65 +9139,204 @@ operator_colors?: OperatorColors
  * Colors and paddings shared with every other model.
  */
 
+export type OCDeclareReductionMode = ("None" | "Lossless" | "Lossy")
+
+export interface ReflowOptions {
+/**
+ * Share of an activity's events at which a reconstruction must give exactly the recorded
+ * objects for a cell to count as determined.
+ */
+theta?: number
+/**
+ * Also consider unrecorded cells that a relation of the object schema admits (the
+ * expansion case). Off by default: the result then only tags the log.
+ */
+expand?: boolean
+/**
+ * Share of an expanded cell's participations that must fall inside the recorded lifetime
+ * of their object.
+ */
+lifetimeShare?: number
+/**
+ * Which facts must stay visible or entailed.
+ */
+abstraction?: "ordering"
+/**
+ * How the flow layer is searched.
+ */
+search?: ("heuristic" | "exact")
+/**
+ * Most work before expansion is skipped and the search stops early, in units of roughly a
+ * nanosecond, counted from the operations done so the outcome does not depend on the
+ * machine. The result is preserving either way and reports [`ReflowStats::limit_reached`].
+ */
+maxWork?: number
+}
+
+export interface AnnotatedOcpnOptions {
+discovery?: OcpnDiscoveryOptions
+/**
+ * Also draw the non-flow cells as places: an involved cell as a self-loop place at its
+ * transition, an implied cell as a copy of the determining flow type's places.
+ */
+places?: boolean
+}
+/**
+ * How the net is discovered from the flow projection.
+ */
+
+export interface AnnotatedOcpnDrawing {
+ocpn: ObjectCentricPetriNetJson
+options: OcpnBuildOptions
+overrides: StyleOverrides
+}
+/**
+ * The net in its flat JSON form.
+ */
+
+export interface ReflowSummary {
+/**
+ * Activities, sorted.
+ */
+activities: string[]
+/**
+ * Object types, sorted.
+ */
+objectTypes: string[]
+/**
+ * Every recorded cell and every added one, with the fewest and most objects per event.
+ */
+cells: ReflowCell[]
+stats: ReflowStats
+}
+/**
+ * One cell of the result.
+ */
+
+export interface ReflowCellRef {
+/**
+ * The activity.
+ */
+activity: string
+/**
+ * The object type.
+ */
+objectType: string
+}
+
 export interface Bindings {
-  "app_bindings::alignments::align_event_log": { args: {
+  "app_bindings::align_event_log": { args: {
     "event_log": EventLogHandle;
-    "net": AcceptingPetriNet;
+    "net": AcceptingPetriNetHandle;
     }; ret: LogAlignments };
   "app_bindings::alphappp_auto": { args: {
     "log_proj": EventLogActivityProjectionHandle;
     }; ret: AcceptingPetriNet };
   "app_bindings::app_ping": { args: {}; ret: string };
+  "app_bindings::apply_event_log_transforms": { args: {
+    "event_log": EventLogHandle;
+    "transforms": Transform[];
+    "output_id"?: output_id;
+    }; ret: EventLogHandle };
+  "app_bindings::apply_ocel_transforms": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "transforms": Transform[];
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "app_bindings::compare_dfg_periods": { args: {
+    "event_log": EventLogHandle;
+    "split_ms"?: Nullable_int64;
+    }; ret: DfgComparison };
+  "app_bindings::compare_dfgs": { args: {
+    "log_a": EventLogHandle;
+    "log_b": EventLogHandle;
+    }; ret: DfgComparison };
   "app_bindings::discover_petri_net": { args: {
     "event_log": EventLogHandle;
     }; ret: AcceptingPetriNet };
-  "app_bindings::event_log::event_log_from_activities": { args: {
+  "app_bindings::evaluate_inductive_net": { args: {
+    "log": EventLogActivityProjectionHandle;
+    "miner": InductiveMiner;
+    }; ret: ModelQuality };
+  "app_bindings::event_log_from_activities": { args: {
     "traces": string[][];
     "output_id"?: output_id;
     }; ret: EventLogHandle };
-  "app_bindings::event_log::event_log_from_json": { args: {
+  "app_bindings::event_log_from_json": { args: {
     "log": EventLogInput;
     "output_id"?: output_id;
     }; ret: EventLogHandle };
-  "app_bindings::event_log::event_log_to_json": { args: {
+  "app_bindings::event_log_to_json": { args: {
     "event_log": EventLogHandle;
     }; ret: EventLogInput };
-  "app_bindings::event_log::get_activity_counts": { args: {
+  "app_bindings::export_petri_net_pnml": { args: {
+    "net": AcceptingPetriNet;
+    }; ret: string };
+  "app_bindings::get_activity_counts": { args: {
     "event_log": EventLogHandle;
     }; ret: Map_of_uint };
-  "app_bindings::event_log::get_attribute_names": { args: {
+  "app_bindings::get_attribute_names": { args: {
     "event_log": EventLogHandle;
     }; ret: AttributeInfo[] };
-  "app_bindings::event_log::get_attribute_summary": { args: {
+  "app_bindings::get_attribute_summary": { args: {
     "event_log": EventLogHandle;
     "attr_name": string;
     "level": AttributeLevel;
     }; ret: AttributeSummary };
-  "app_bindings::event_log::get_attribute_values": { args: {
+  "app_bindings::get_attribute_values": { args: {
     "event_log": EventLogHandle;
     "attr_name": string;
     "level": AttributeLevel;
     }; ret: AttributeValues };
-  "app_bindings::event_log::get_case_durations": { args: {
+  "app_bindings::get_case_durations": { args: {
     "event_log": EventLogHandle;
     }; ret: CaseDurations };
-  "app_bindings::event_log::get_df_performance": { args: {
+  "app_bindings::get_case_journeys": { args: {
+    "event_log": EventLogHandle;
+    "max_cases"?: Nullable_uint;
+    }; ret: Journeys };
+  "app_bindings::get_df_performance": { args: {
     "event_log": EventLogHandle;
     }; ret: DfPerformance };
-  "app_bindings::event_log::get_event_log_timestamps": { args: {
+  "app_bindings::get_event_log_timestamps": { args: {
     "event_log": EventLogHandle;
     "num_bins": number;
     }; ret: EventTimeHistogram };
-  "app_bindings::event_log::get_log_globals": { args: {
+  "app_bindings::get_event_log_workload": { args: {
+    "event_log": EventLogHandle;
+    "group_by"?: Nullable_string;
+    "time_zone"?: Nullable_Array_of_OffsetChange;
+    }; ret: Workload };
+  "app_bindings::get_event_signatures": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: EventSignatures };
+  "app_bindings::get_execution_graph": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "object_id": string;
+    "depth"?: Nullable_uint;
+    "max_objects"?: Nullable_uint;
+    "max_events"?: Nullable_uint;
+    "exclude_types"?: Nullable_Array_of_string;
+    }; ret: ExecutionGraph };
+  "app_bindings::get_lifecycle_map": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: LifecycleMap };
+  "app_bindings::get_log_globals": { args: {
     "event_log": EventLogHandle;
     }; ret: LogGlobals };
-  "app_bindings::event_log::get_log_info": { args: {
+  "app_bindings::get_log_health": { args: {
+    "event_log": EventLogHandle;
+    }; ret: LogHealth };
+  "app_bindings::get_log_info": { args: {
     "event_log": EventLogHandle;
     }; ret: NumberOfTracesAndEvents };
-  "app_bindings::event_log::get_log_trace_variants": { args: {
+  "app_bindings::get_log_overview": { args: {
+    "event_log": EventLogHandle;
+    }; ret: LogOverview };
+  "app_bindings::get_log_trace_variants": { args: {
     "event_log": EventLogHandle;
     }; ret: TraceVariants };
-  "app_bindings::event_log::get_log_traces": { args: {
+  "app_bindings::get_log_traces": { args: {
     "event_log": EventLogHandle;
     "offset": number;
     "limit": number;
@@ -8062,51 +9344,71 @@ export interface Bindings {
     "sort_asc": boolean;
     "filter": string;
     }; ret: TraceBrowserPage };
-  "app_bindings::event_log::get_removable_attributes_xes": { args: {
+  "app_bindings::get_net_replay": { args: {
     "event_log": EventLogHandle;
-    }; ret: AttributeCatalogEntry[] };
-  "app_bindings::event_log::get_trace_events": { args: {
-    "event_log": EventLogHandle;
-    "case_index": number;
-    }; ret: TraceDetail };
-  "app_bindings::ocel::get_object_detail": { args: {
+    "net": AcceptingPetriNetHandle;
+    "max_cases"?: Nullable_uint;
+    }; ret: NetReplay };
+  "app_bindings::get_object_detail": { args: {
     "ocel": SlimLinkedOCELHandle;
     "object_id": string;
     }; ret: ObjectDetail };
-  "app_bindings::ocel::get_ocel_activity_object_involvements": { args: {
+  "app_bindings::get_object_journeys": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "max_objects"?: Nullable_uint;
+    }; ret: Journeys };
+  "app_bindings::get_object_lifelines": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "object_types"?: Nullable_Array_of_string;
+    "max_objects"?: Nullable_uint;
+    "window"?: LifelineWindow;
+    }; ret: Lifelines };
+  "app_bindings::get_object_population": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "num_bins"?: Nullable_uint;
+    }; ret: ObjectPopulation };
+  "app_bindings::get_objects_by_event_count": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "object_type": string;
+    "limit"?: Nullable_uint;
+    }; ret: [string, number][] };
+  "app_bindings::get_ocel_activity_object_involvements": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: Map_of_Map_of_ObjectInvolvementCounts };
-  "app_bindings::ocel::get_ocel_attribute_names": { args: {
+  "app_bindings::get_ocel_attribute_names": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OcelAttributeInfo[] };
-  "app_bindings::ocel::get_ocel_attribute_summary": { args: {
+  "app_bindings::get_ocel_attribute_summary": { args: {
     "ocel": SlimLinkedOCELHandle;
     "attr_name": string;
     "level": OcelAttributeLevel;
     }; ret: OcelAttributeSummary };
-  "app_bindings::ocel::get_ocel_attribute_values": { args: {
+  "app_bindings::get_ocel_attribute_values": { args: {
     "ocel": SlimLinkedOCELHandle;
     "attr_name": string;
     "level": OcelAttributeLevel;
     }; ret: AttributeValues };
-  "app_bindings::ocel::get_ocel_df_performance": { args: {
+  "app_bindings::get_ocel_df_performance": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OcelDfPerformance };
-  "app_bindings::ocel::get_ocel_event_timestamps": { args: {
+  "app_bindings::get_ocel_event_timestamps": { args: {
     "ocel": SlimLinkedOCELHandle;
     "num_bins": number;
     }; ret: EventTimeHistogram };
-  "app_bindings::ocel::get_ocel_info": { args: {
+  "app_bindings::get_ocel_health": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: OcelHealth };
+  "app_bindings::get_ocel_info": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: OCELInfo };
-  "app_bindings::ocel::get_ocel_object_changes_plot": { args: {
+  "app_bindings::get_ocel_object_changes_plot": { args: {
     "ocel": SlimLinkedOCELHandle;
     "object_id": string;
     }; ret: OCELObjectAttributeChanges };
-  "app_bindings::ocel::get_ocel_object_ids": { args: {
+  "app_bindings::get_ocel_object_ids": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: string[] };
-  "app_bindings::ocel::get_ocel_objects_page": { args: {
+  "app_bindings::get_ocel_objects_page": { args: {
     "ocel": SlimLinkedOCELHandle;
     "offset": number;
     "limit": number;
@@ -8115,38 +9417,43 @@ export interface Bindings {
     "filter": string;
     "type_filter": Nullable_string;
     }; ret: ObjectBrowserPage };
-  "app_bindings::ocel::get_ocel_type_relations": { args: {
+  "app_bindings::get_ocel_type_relations": { args: {
     "ocel": SlimLinkedOCELHandle;
     "max_qualifiers_per_pair": number;
     }; ret: OcelTypeRelations };
-  "app_bindings::ocel::get_removable_attributes_ocel": { args: {
+  "app_bindings::get_ocel_workload": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "time_zone"?: Nullable_Array_of_OffsetChange;
+    }; ret: Workload };
+  "app_bindings::get_ocpn_json": { args: {
+    "ocpn": ObjectCentricPetriNetHandle;
+    }; ret: ObjectCentricPetriNetJson };
+  "app_bindings::get_ocpn_replay": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "ocpn": ObjectCentricPetriNetJson;
+    "max_objects"?: Nullable_uint;
+    }; ret: OcpnReplay };
+  "app_bindings::get_performance_spectrum": { args: {
+    "event_log": EventLogHandle;
+    "path"?: Nullable_Array_of_string;
+    "max_lines"?: Nullable_uint;
+    }; ret: PerformanceSpectrum };
+  "app_bindings::get_prefix_tree": { args: {
+    "event_log": EventLogHandle;
+    "max_depth"?: Nullable_uint;
+    "min_share"?: Nullable_double;
+    }; ret: PrefixTree };
+  "app_bindings::get_removable_attributes_ocel": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: AttributeCatalogEntry[] };
-  "app_bindings::ocel::ocel_from_json": { args: {
-    "input": OcelInput;
-    "output_id"?: output_id;
-    }; ret: SlimLinkedOCELHandle };
-  "app_bindings::ocel::ocel_from_oc_sim_trace": { args: {
-    "trace": OcSimTraceStep[];
-    "output_id"?: output_id;
-    }; ret: SlimLinkedOCELHandle };
-  "app_bindings::ocel::ocel_to_json": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    }; ret: OcelInput };
-  "app_bindings::petri_net_io::export_petri_net_pnml": { args: {
-    "net": AcceptingPetriNet;
-    }; ret: string };
-  "app_bindings::transforms::apply_event_log_transforms": { args: {
+  "app_bindings::get_removable_attributes_xes": { args: {
     "event_log": EventLogHandle;
-    "transforms": Transform[];
-    "output_id"?: output_id;
-    }; ret: EventLogHandle };
-  "app_bindings::transforms::apply_ocel_transforms": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "transforms": Transform[];
-    "output_id"?: output_id;
-    }; ret: SlimLinkedOCELHandle };
-  "app_bindings::variant_timing::get_variant_time_profile": { args: {
+    }; ret: AttributeCatalogEntry[] };
+  "app_bindings::get_trace_events": { args: {
+    "event_log": EventLogHandle;
+    "case_index": number;
+    }; ret: TraceDetail };
+  "app_bindings::get_variant_time_profile": { args: {
     "event_log": EventLogHandle;
     "activities": string[];
     "variant_sort": VariantSort;
@@ -8156,714 +9463,733 @@ export interface Bindings {
     "case_limit": number;
     "focus_case": Nullable_string;
     }; ret: Nullable_VariantTimeProfile };
-  "app_bindings::variant_timing::get_variant_timing_page": { args: {
+  "app_bindings::get_variant_timing_page": { args: {
     "event_log": EventLogHandle;
     "query": string;
     "sort": VariantSort;
     "offset": number;
     "limit": number;
     }; ret: VariantTimingPage };
-  "process_mining::analysis::case_centric::dotted_chart::get_dotted_chart": { args: {
-    "xes": EventLogHandle;
-    "options"?: DottedChartOptions;
-    }; ret: DottedChartData };
-  "process_mining::analysis::case_centric::event_timestamp_histogram::get_event_timestamps": { args: {
-    "log": EventLogHandle;
-    "options"?: EventTimestampOptions;
-    }; ret: AggregatedEventTimestamps };
-  "process_mining::analysis::object_centric::object_attribute_changes::get_object_attribute_changes": { args: {
+  "app_bindings::oc_declare_activity_statistics": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "object_id": string;
-    }; ret: ObjectAttributeChanges };
-  "process_mining::analysis::object_centric::oc_performance::locel_oc_perf_sojourn_per_event": { args: {
+    "activity": string;
+    }; ret: ActivityStatistics };
+  "app_bindings::oc_declare_edge_statistics": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "top_k"?: Nullable_uint;
-    }; ret: [string, number][] };
-  "process_mining::analysis::object_centric::oc_performance::locel_oc_perf_sync_per_event": { args: {
+    "arc": OCDeclareArc;
+    }; ret: BinnedEdgeDurationStats };
+  "app_bindings::oc_declare_object_lanes": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "top_k"?: Nullable_uint;
-    }; ret: [string, number, string][] };
-  "process_mining::analysis::object_centric::oc_statistics::locel_conversion_rate": { args: {
+    "object_ids": string[];
+    }; ret: ObjectLane[] };
+  "app_bindings::oc_declare_violations": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "arc": OCDeclareArc;
+    "max_examples"?: Nullable_uint;
+    }; ret: ArcViolations };
+  "app_bindings::ocel_from_json": { args: {
+    "input": OcelInput;
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "app_bindings::ocel_from_oc_sim_trace": { args: {
+    "trace": OcSimTraceStep[];
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "app_bindings::ocel_to_json": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: OcelInput };
+  "app_bindings::repair_event_log": { args: {
+    "event_log": EventLogHandle;
+    "repairs": Repair[];
+    "output_id"?: output_id;
+    }; ret: EventLogHandle };
+  "app_bindings::repair_ocel": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "repairs": Repair[];
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::add_init_exit_events_to_ocel": { args: {
+    "ocel": OCEL;
+    "output_id"?: output_id;
+    }; ret: OCELHandle };
+  "process_mining::align_trace": { args: {
+    "net": AcceptingPetriNetHandle;
+    "trace": string[];
+    "options"?: AlignmentOptions;
+    }; ret: AlignmentResult };
+  "process_mining::align_variants": { args: {
+    "net": AcceptingPetriNetHandle;
+    "projection": EventLogActivityProjectionHandle;
+    "options"?: AlignmentOptions;
+    }; ret: VariantAlignmentResult[] };
+  "process_mining::compute_fitness": { args: {
+    "net": AcceptingPetriNetHandle;
+    "alignments": VariantAlignmentResult[];
+    "options"?: AlignmentOptions;
+    }; ret: FitnessResult };
+  "process_mining::conversion_rate": { args: {
     "ocel": SlimLinkedOCELHandle;
     "activity": string;
     "source_type": string;
     "target_type": string;
     }; ret: number };
-  "process_mining::analysis::object_centric::oc_statistics::locel_event_object_type_counts": { args: {
+  "process_mining::dfg_layout": { args: {
+    "dfg": DirectlyFollowsGraph;
+    "options"?: DfgBuildOptions;
+    }; ret: Layout };
+  "process_mining::dfg_layout_request": { args: {
+    "dfg": DirectlyFollowsGraph;
+    "options"?: DfgBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::dfg_scene_from_layout": { args: {
+    "dfg": DirectlyFollowsGraph;
+    "layout": Layout;
+    "options"?: DfgBuildOptions;
+    "style"?: DfgStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::dfg_svg": { args: {
+    "dfg": DirectlyFollowsGraph;
+    "options"?: DfgBuildOptions;
+    "style"?: DfgStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::dfg_svg_from_layout": { args: {
+    "dfg": DirectlyFollowsGraph;
+    "layout": Layout;
+    "options"?: DfgBuildOptions;
+    "style"?: DfgStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::discover_alphappp_net": { args: {
+    "log": EventLogActivityProjectionHandle;
+    "options"?: AlphaPPPConfig;
+    }; ret: AcceptingPetriNet };
+  "process_mining::discover_dfg": { args: {
+    "event_log": EventLogHandle;
+    }; ret: DirectlyFollowsGraph };
+  "process_mining::discover_inductive_net": { args: {
+    "log": EventLogActivityProjectionHandle;
+    "miner"?: InductiveMiner;
+    }; ret: AcceptingPetriNet };
+  "process_mining::discover_inductive_tree": { args: {
+    "log": EventLogActivityProjectionHandle;
+    "miner"?: InductiveMiner;
+    }; ret: ProcessTree };
+  "process_mining::discover_oc_declare": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "options"?: OCDeclareDiscoveryOptions;
+    }; ret: OCDeclareArc[] };
+  "process_mining::discover_ocdfg": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: OCDirectlyFollowsGraph };
+  "process_mining::discover_ocpn": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "options"?: OcpnDiscoveryOptions;
+    }; ret: ObjectCentricPetriNetJson };
+  "process_mining::discover_path_schemas": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "query": PathSchemaQuery;
+    }; ret: PathSchemaDiscovery };
+  "process_mining::escaping_edges_options": { args: {
+    "preset"?: EscapingEdgesPreset;
+    }; ret: EscapingEdgesOptions };
+  "process_mining::escaping_edges_precision": { args: {
+    "net": AcceptingPetriNetHandle;
+    "log": EventLogActivityProjectionHandle;
+    "options"?: EscapingEdgesOptions;
+    }; ret: EscapingEdgesPrecision };
+  "process_mining::escaping_edges_precision_from_alignments": { args: {
+    "net": AcceptingPetriNetHandle;
+    "alignments": VariantAlignmentResult[];
+    "options"?: EscapingEdgesOptions;
+    }; ret: EscapingEdgesPrecision };
+  "process_mining::event_object_type_counts": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: [string, string, number][] };
-  "process_mining::bindings::extraction_bindings::extraction_column_domain_items": { args: {
+  "process_mining::event_timestamp_histogram": { args: {
+    "log": EventLogHandle;
+    "options"?: EventTimestampOptions;
+    }; ret: AggregatedEventTimestamps };
+  "process_mining::extraction_column_domain": { args: {
+    "connections": Map_of_string;
+    "source_id": string;
+    "table": string;
+    "column": string;
+    }; ret: string[] };
+  "process_mining::extraction_column_domain_items": { args: {
     "sources": Map_of_string;
     "source_id": string;
     "table": string;
     "column": string;
     }; ret: string[] };
-  "process_mining::bindings::extraction_bindings::extraction_compile": { args: {
+  "process_mining::extraction_compile": { args: {
     "blueprint": Blueprint;
     "catalog": ExtractionCatalog;
     "shape": EmissionShape;
     "dialect"?: SqlDialect;
     }; ret: CompiledOcel };
-  "process_mining::bindings::extraction_bindings::extraction_discover_catalog_items": { args: {
+  "process_mining::extraction_connection_kinds": { args: {}; ret: string[] };
+  "process_mining::extraction_discover_catalog": { args: {
+    "connections": Map_of_string;
+    }; ret: ExtractionCatalog };
+  "process_mining::extraction_discover_catalog_items": { args: {
     "sources": Map_of_string;
     }; ret: ExtractionCatalog };
-  "process_mining::bindings::extraction_bindings::extraction_run_items": { args: {
+  "process_mining::extraction_run": { args: {
+    "blueprint": Blueprint;
+    "connections": Map_of_string;
+    "catalog"?: Nullable_ExtractionCatalog;
+    "output_id": string;
+    }; ret: ExtractionReport };
+  "process_mining::extraction_run_items": { args: {
     "blueprint": Blueprint;
     "sources": Map_of_string;
     "catalog"?: Nullable_ExtractionCatalog;
     "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
-  "process_mining::bindings::extraction_bindings::extraction_table_preview_items": { args: {
+  "process_mining::extraction_table_preview": { args: {
+    "connections": Map_of_string;
+    "source_id": string;
+    "table": string;
+    "limit"?: Nullable_uint;
+    }; ret: TablePreview };
+  "process_mining::extraction_table_preview_items": { args: {
     "sources": Map_of_string;
     "source_id": string;
     "table": string;
     "limit"?: Nullable_uint;
     }; ret: TablePreview };
-  "process_mining::bindings::extraction_bindings::extraction_validate": { args: {
+  "process_mining::extraction_validate": { args: {
     "blueprint": Blueprint;
     "catalog": ExtractionCatalog;
     }; ret: ValidationError[] };
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain": { args: {
-    "connections": Map_of_string;
-    "source_id": string;
-    "table": string;
-    "column": string;
-    }; ret: string[] };
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_connection_kinds": { args: {}; ret: string[] };
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog": { args: {
-    "connections": Map_of_string;
-    }; ret: ExtractionCatalog };
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_run": { args: {
+  "process_mining::flatten_ocel_on": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "blueprint": Blueprint;
-    "connections": Map_of_string;
-    "catalog"?: Nullable_ExtractionCatalog;
-    }; ret: ExtractionReport };
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview": { args: {
-    "connections": Map_of_string;
-    "source_id": string;
-    "table": string;
-    "limit"?: Nullable_uint;
-    }; ret: TablePreview };
-  "process_mining::bindings::index_link_ocel": { args: {
-    "ocel": OCELHandle;
+    "object_type": string;
     "output_id"?: output_id;
-    }; ret: IndexLinkedOCELHandle };
-  "process_mining::bindings::num_events": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    }; ret: number };
-  "process_mining::bindings::num_objects": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    }; ret: number };
-  "process_mining::bindings::ocel_type_stats": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    }; ret: OCELTypeStats };
-  "process_mining::bindings::path_schema_bindings::path_schema_connections": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "schema": ResolvedPathSchema;
-    "params"?: PathConnectionParams;
-    }; ret: PathSchemaConnections };
-  "process_mining::bindings::path_schema_bindings::path_schema_discover": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "query": PathSchemaQuery;
-    }; ret: PathSchemaDiscovery };
-  "process_mining::bindings::path_schema_bindings::path_schema_enumerate": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "source": TypeRef;
-    "target"?: Nullable_TypeRef;
-    "max_length": number;
-    "allow_cycles"?: boolean;
-    "allowed_types"?: Nullable_Array_of_TypeRef;
-    }; ret: ResolvedPathSchema[] };
-  "process_mining::bindings::path_schema_bindings::path_schema_type_graph": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    }; ret: PathSchemaTypeGraph };
-  "process_mining::bindings::slim_link_ocel": { args: {
-    "ocel": OCELHandle;
-    "output_id"?: output_id;
-    }; ret: SlimLinkedOCELHandle };
-  "process_mining::bindings::slim_ocel_bindings::get_dfg_of_object_type": { args: {
+    }; ret: EventLogHandle };
+  "process_mining::get_dfg_of_object_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob_type": string;
     }; ret: [[string, string], number][] };
-  "process_mining::bindings::slim_ocel_bindings::get_e2o_ids": { args: {
+  "process_mining::get_dotted_chart": { args: {
+    "log": EventLogHandle;
+    "options"?: DottedChartOptions;
+    }; ret: DottedChartData };
+  "process_mining::get_object_attribute_changes": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "ev_id": string;
-    }; ret: Nullable_Array_of_string };
-  "process_mining::bindings::slim_ocel_bindings::get_e2o_rev_ids": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ob_id": string;
-    }; ret: Nullable_Array_of_string };
-  "process_mining::bindings::slim_ocel_bindings::get_event_ids_of_type": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ev_type": string;
+    "object_id": string;
+    }; ret: ObjectAttributeChanges };
+  "process_mining::get_projection_activities": { args: {
+    "projection": EventLogActivityProjectionHandle;
     }; ret: string[] };
-  "process_mining::bindings::slim_ocel_bindings::get_event_timestamp_of_id": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ev_id": string;
-    }; ret: Nullable_string };
-  "process_mining::bindings::slim_ocel_bindings::get_event_type_of_id": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ev_id": string;
-    }; ret: Nullable_string };
-  "process_mining::bindings::slim_ocel_bindings::get_o2o_ids": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ob_id": string;
-    }; ret: Nullable_Array_of_string };
-  "process_mining::bindings::slim_ocel_bindings::get_obj_activity_trace": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ob": number;
-    }; ret: string[] };
-  "process_mining::bindings::slim_ocel_bindings::get_object_ids_of_type": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ob_type": string;
-    }; ret: string[] };
-  "process_mining::bindings::slim_ocel_bindings::get_object_type_of_id": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "ob_id": string;
-    }; ret: Nullable_string };
-  "process_mining::bindings::slim_ocel_bindings::get_variants_of_object_type": { args: {
+  "process_mining::get_top_n_variants": { args: {
+    "projection": EventLogActivityProjectionHandle;
+    "n": number;
+    }; ret: ProcessVariant[] };
+  "process_mining::get_variants": { args: {
+    "projection": EventLogActivityProjectionHandle;
+    }; ret: ProcessVariant[] };
+  "process_mining::get_variants_of_object_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob_type": string;
     }; ret: [string[], number][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_add_e2o": { args: {
+  "process_mining::inductive_miner_options": { args: {
+    "variant": InductiveMinerVariant;
+    "preset"?: InductiveMinerPreset;
+    "noise_threshold"?: number;
+    }; ret: InductiveMiner };
+  "process_mining::layout_graph": { args: {
+    "request": LayoutRequest;
+    }; ret: Layout };
+  "process_mining::layout_tree": { args: {
+    "request": TreeRequest;
+    }; ret: Layout };
+  "process_mining::locel_add_e2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "event": number;
     "object": number;
     "qualifier": string;
     }; ret: boolean };
-  "process_mining::bindings::slim_ocel_bindings::locel_add_event": { args: {
+  "process_mining::locel_add_event": { args: {
     "ocel": SlimLinkedOCELHandle;
     "event_type": string;
     "time": string;
     "id"?: Nullable_string;
     "attributes"?: OCELAttributeValue[];
     "relationships"?: [string, number][];
-    }; ret: Nullable_EventIndex };
-  "process_mining::bindings::slim_ocel_bindings::locel_add_event_type": { args: {
+    }; ret: number };
+  "process_mining::locel_add_event_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "event_type": string;
     "attributes"?: OCELTypeAttribute[];
     }; ret: null };
-  "process_mining::bindings::slim_ocel_bindings::locel_add_o2o": { args: {
+  "process_mining::locel_add_o2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "from_obj": number;
     "to_obj": number;
     "qualifier": string;
     }; ret: boolean };
-  "process_mining::bindings::slim_ocel_bindings::locel_add_object": { args: {
+  "process_mining::locel_add_object": { args: {
     "ocel": SlimLinkedOCELHandle;
     "object_type": string;
     "id"?: Nullable_string;
     "attributes"?: [string, OCELAttributeValue][][];
     "relationships"?: [string, number][];
-    }; ret: Nullable_ObjectIndex };
-  "process_mining::bindings::slim_ocel_bindings::locel_add_object_type": { args: {
+    }; ret: number };
+  "process_mining::locel_add_object_attribute_value": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "object": number;
+    "attribute": string;
+    "time": string;
+    "value": OCELAttributeValue;
+    }; ret: null };
+  "process_mining::locel_add_object_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "object_type": string;
     "attributes"?: OCELTypeAttribute[];
     }; ret: null };
-  "process_mining::bindings::slim_ocel_bindings::locel_construct_ocel": { args: {
+  "process_mining::locel_append_batch": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "output_id"?: output_id;
-    }; ret: OCELHandle };
-  "process_mining::bindings::slim_ocel_bindings::locel_conversion_rate": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "activity": string;
-    "source_type": string;
-    "target_type": string;
-    }; ret: number };
-  "process_mining::bindings::slim_ocel_bindings::locel_delete_e2o": { args: {
+    "batch": OCELAppendBatch;
+    }; ret: OCELAppendSummary };
+  "process_mining::locel_delete_e2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "event": number;
     "object": number;
     }; ret: boolean };
-  "process_mining::bindings::slim_ocel_bindings::locel_delete_o2o": { args: {
+  "process_mining::locel_delete_o2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "from_obj": number;
     "to_obj": number;
     }; ret: boolean };
-  "process_mining::bindings::slim_ocel_bindings::locel_event_object_type_counts": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    }; ret: [string, string, number][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_e2o": { args: {
+  "process_mining::locel_get_e2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev": number;
     }; ret: [string, number][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_e2o_rev": { args: {
+  "process_mining::locel_get_e2o_rev": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob": number;
     }; ret: [string, number][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_attr_val": { args: {
+  "process_mining::locel_get_e2o_rev_ids": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "ob_id": string;
+    }; ret: Nullable_Array_of_string };
+  "process_mining::locel_get_ev_attr_val": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev": number;
     "attr_name": string;
     }; ret: Nullable_OCELAttributeValue };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_by_id": { args: {
+  "process_mining::locel_get_ev_by_id": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev_id": string;
     }; ret: Nullable_EventIndex };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_id": { args: {
+  "process_mining::locel_get_ev_id": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev": number;
     }; ret: string };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_time": { args: {
+  "process_mining::locel_get_ev_ids_of_type": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "ev_type": string;
+    }; ret: string[] };
+  "process_mining::locel_get_ev_time": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev": number;
     }; ret: string };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_type": { args: {
+  "process_mining::locel_get_ev_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev_type": string;
     }; ret: Nullable_OCELType };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_type_of": { args: {
+  "process_mining::locel_get_ev_type_of": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev": number;
     }; ret: string };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_types": { args: {
+  "process_mining::locel_get_ev_types": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: string[] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_evs_of_type": { args: {
+  "process_mining::locel_get_evs_of_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev_type": string;
     }; ret: number[] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_full_ev": { args: {
+  "process_mining::locel_get_full_ev": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ev": number;
     }; ret: OCELEvent };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_full_ob": { args: {
+  "process_mining::locel_get_full_ob": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob": number;
     }; ret: OCELObject };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_o2o": { args: {
+  "process_mining::locel_get_o2o": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob": number;
     }; ret: [string, number][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_o2o_rev": { args: {
+  "process_mining::locel_get_o2o_rev": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob": number;
     }; ret: [string, number][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_attr_vals": { args: {
+  "process_mining::locel_get_ob_activity_trace": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "ob": number;
+    }; ret: string[] };
+  "process_mining::locel_get_ob_attr_vals": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob": number;
     "attr_name": string;
     }; ret: [string, OCELAttributeValue][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_by_id": { args: {
+  "process_mining::locel_get_ob_by_id": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob_id": string;
     }; ret: Nullable_ObjectIndex };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_id": { args: {
+  "process_mining::locel_get_ob_id": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob": number;
     }; ret: string };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_type": { args: {
+  "process_mining::locel_get_ob_ids_of_type": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "ob_type": string;
+    }; ret: string[] };
+  "process_mining::locel_get_ob_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob_type": string;
     }; ret: Nullable_OCELType };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_type_of": { args: {
+  "process_mining::locel_get_ob_type_of": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob": number;
     }; ret: string };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_types": { args: {
+  "process_mining::locel_get_ob_types": { args: {
     "ocel": SlimLinkedOCELHandle;
     }; ret: string[] };
-  "process_mining::bindings::slim_ocel_bindings::locel_get_obs_of_type": { args: {
+  "process_mining::locel_get_obs_of_type": { args: {
     "ocel": SlimLinkedOCELHandle;
     "ob_type": string;
     }; ret: number[] };
-  "process_mining::bindings::slim_ocel_bindings::locel_new": { args: {
+  "process_mining::locel_new": { args: {
     "output_id"?: output_id;
     }; ret: SlimLinkedOCELHandle };
-  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sojourn_per_event": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "top_k"?: Nullable_uint;
-    }; ret: [string, number][] };
-  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sync_per_event": { args: {
-    "ocel": SlimLinkedOCELHandle;
-    "top_k"?: Nullable_uint;
-    }; ret: [string, number, string][] };
-  "process_mining::bindings::test_some_inputs": { args: {
-    "s": string;
-    "n": number;
-    "i": number;
-    "f": number;
-    "b": boolean;
-    }; ret: string };
-  "process_mining::conformance::case_centric::alignments::align_empty_trace": { args: {
-    "net": AcceptingPetriNet;
-    "options"?: AlignmentOptions;
-    }; ret: AlignmentResult };
-  "process_mining::conformance::case_centric::alignments::align_trace_binding": { args: {
-    "net": AcceptingPetriNet;
-    "trace": string[];
-    "options"?: AlignmentOptions;
-    }; ret: AlignmentResult };
-  "process_mining::conformance::case_centric::alignments::align_variants": { args: {
-    "net": AcceptingPetriNet;
+  "process_mining::num_cases": { args: {
     "projection": EventLogActivityProjectionHandle;
-    "options"?: AlignmentOptions;
-    }; ret: VariantAlignmentResult[] };
-  "process_mining::conformance::case_centric::alignments::align_variants_with_retry": { args: {
-    "net": AcceptingPetriNet;
+    }; ret: number };
+  "process_mining::num_events": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: number };
+  "process_mining::num_objects": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: number };
+  "process_mining::num_variants": { args: {
     "projection": EventLogActivityProjectionHandle;
-    "options"?: AlignmentOptions;
-    }; ret: VariantAlignmentResult[] };
-  "process_mining::conformance::case_centric::alignments::compute_fitness": { args: {
-    "align_res": VariantAlignmentResult[];
-    "net": AcceptingPetriNet;
-    "options"?: AlignmentOptions;
-    }; ret: FitnessResult };
-  "process_mining::conformance::case_centric::precision::escaping_edges_precision": { args: {
-    "net": AcceptingPetriNet;
-    "log": EventLogActivityProjectionHandle;
-    "options"?: EscapingEdgesOptions;
-    }; ret: EscapingEdgesPrecision };
-  "process_mining::conformance::case_centric::precision::escaping_edges_precision_from_alignments": { args: {
-    "net": AcceptingPetriNet;
-    "alignments": VariantAlignmentResult[];
-    "options"?: EscapingEdgesOptions;
-    }; ret: EscapingEdgesPrecision };
-  "process_mining::conformance::object_centric::oc_declare::oc_declare_conformance": { args: {
+    }; ret: number };
+  "process_mining::oc_declare_conformance": { args: {
     "ocel": SlimLinkedOCELHandle;
     "arc": OCDeclareArc;
     }; ret: number };
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_num_cases": { args: {
-    "projection": EventLogActivityProjectionHandle;
-    }; ret: number };
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_num_variants": { args: {
-    "projection": EventLogActivityProjectionHandle;
-    }; ret: number };
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_projection_activities": { args: {
-    "projection": EventLogActivityProjectionHandle;
-    }; ret: string[] };
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_top_n_variants": { args: {
-    "projection": EventLogActivityProjectionHandle;
-    "n": number;
-    }; ret: ProcessVariant[] };
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_variants": { args: {
-    "projection": EventLogActivityProjectionHandle;
-    }; ret: ProcessVariant[] };
-  "process_mining::core::event_data::case_centric::utils::activity_projection::log_to_activity_projection": { args: {
-    "log": EventLogHandle;
-    "output_id"?: output_id;
-    }; ret: EventLogActivityProjectionHandle };
-  "process_mining::core::event_data::object_centric::utils::flatten::flatten_ocel_on": { args: {
+  "process_mining::oc_declare_involvements": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "object_type": string;
-    "output_id"?: output_id;
-    }; ret: EventLogHandle };
-  "process_mining::core::event_data::object_centric::utils::init_exit_events::add_init_exit_events_to_ocel": { args: {
-    "ocel": OCEL;
-    "output_id"?: output_id;
-    }; ret: OCELHandle };
-  "process_mining::core::process_models::object_centric::ocdfg::object_centric_dfg_struct::discover_dfg_from_slim_ocel": { args: {
+    }; ret: Map_of_Map_of_ObjectInvolvementCounts };
+  "process_mining::oc_declare_layout": { args: {
+    "arcs": OCDeclareArc[];
+    "options"?: OCDeclareBuildOptions;
+    }; ret: Layout };
+  "process_mining::oc_declare_layout_request": { args: {
+    "arcs": OCDeclareArc[];
+    "options"?: OCDeclareBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::oc_declare_scene_from_layout": { args: {
+    "arcs": OCDeclareArc[];
+    "layout": Layout;
+    "options"?: OCDeclareBuildOptions;
+    "style"?: OCDeclareStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::oc_declare_svg": { args: {
+    "arcs": OCDeclareArc[];
+    "options"?: OCDeclareBuildOptions;
+    "style"?: OCDeclareStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::oc_declare_svg_from_layout": { args: {
+    "arcs": OCDeclareArc[];
+    "layout": Layout;
+    "options"?: OCDeclareBuildOptions;
+    "style"?: OCDeclareStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::oc_perf_sojourn_per_event": { args: {
     "ocel": SlimLinkedOCELHandle;
-    }; ret: OCDirectlyFollowsGraph };
-  "process_mining::discovery::case_centric::alphappp::full::discover_alphappp_net": { args: {
-    "log": EventLogActivityProjectionHandle;
-    "config"?: AlphaPPPConfig;
-    }; ret: AcceptingPetriNet };
-  "process_mining::discovery::case_centric::dfg::discover_dfg": { args: {
-    "event_log": EventLogHandle;
-    }; ret: DirectlyFollowsGraph };
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_net": { args: {
-    "log": EventLogActivityProjectionHandle;
-    "variant"?: InductiveMinerVariant;
-    "noise_threshold"?: number;
-    "preset"?: InductiveMinerPreset;
-    }; ret: AcceptingPetriNet };
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_net_with": { args: {
-    "log": EventLogActivityProjectionHandle;
-    "miner"?: InductiveMiner;
-    }; ret: AcceptingPetriNet };
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_tree": { args: {
-    "log": EventLogActivityProjectionHandle;
-    "variant"?: InductiveMinerVariant;
-    "noise_threshold"?: number;
-    "preset"?: InductiveMinerPreset;
-    }; ret: ProcessTree };
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_tree_with": { args: {
-    "log": EventLogActivityProjectionHandle;
-    "miner"?: InductiveMiner;
-    }; ret: ProcessTree };
-  "process_mining::discovery::case_centric::inductive_miner::inductive_miner_options": { args: {
-    "variant": InductiveMinerVariant;
-    "preset"?: InductiveMinerPreset;
-    "noise_threshold"?: number;
-    }; ret: InductiveMiner };
-  "process_mining::discovery::object_centric::dfg::get_dfg_of_object_type": { args: {
+    "top_k"?: Nullable_uint;
+    }; ret: [string, number][] };
+  "process_mining::oc_perf_sync_per_event": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "ob_type": string;
-    }; ret: [[string, string], number][] };
-  "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints": { args: {
-    "locel": SlimLinkedOCELHandle;
-    "options"?: OCDeclareDiscoveryOptions;
-    }; ret: OCDeclareArc[] };
-  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs": { args: {
+    "top_k"?: Nullable_uint;
+    }; ret: [string, number, string][] };
+  "process_mining::oc_type_graph_from_ocel": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: OcTypeGraph };
+  "process_mining::oc_type_graph_layout": { args: {
+    "graph": OcTypeGraph;
+    "options"?: OcTypeGraphBuildOptions;
+    }; ret: Layout };
+  "process_mining::oc_type_graph_layout_request": { args: {
+    "graph": OcTypeGraph;
+    "options"?: OcTypeGraphBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::oc_type_graph_scene_from_layout": { args: {
+    "graph": OcTypeGraph;
+    "layout": Layout;
+    "options"?: OcTypeGraphBuildOptions;
+    "style"?: OcTypeGraphStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::oc_type_graph_svg": { args: {
+    "graph": OcTypeGraph;
+    "options"?: OcTypeGraphBuildOptions;
+    "style"?: OcTypeGraphStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::oc_type_graph_svg_from_layout": { args: {
+    "graph": OcTypeGraph;
+    "layout": Layout;
+    "options"?: OcTypeGraphBuildOptions;
+    "style"?: OcTypeGraphStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::ocdfg_layout": { args: {
+    "ocdfg": OCDirectlyFollowsGraph;
+    "options"?: OcdfgBuildOptions;
+    }; ret: Layout };
+  "process_mining::ocdfg_layout_request": { args: {
+    "ocdfg": OCDirectlyFollowsGraph;
+    "options"?: OcdfgBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::ocdfg_scene_from_layout": { args: {
+    "ocdfg": OCDirectlyFollowsGraph;
+    "layout": Layout;
+    "options"?: OcdfgBuildOptions;
+    "style"?: OcdfgStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::ocdfg_svg": { args: {
+    "ocdfg": OCDirectlyFollowsGraph;
+    "options"?: OcdfgBuildOptions;
+    "style"?: OcdfgStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::ocdfg_svg_from_layout": { args: {
+    "ocdfg": OCDirectlyFollowsGraph;
+    "layout": Layout;
+    "options"?: OcdfgBuildOptions;
+    "style"?: OcdfgStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::ocel_type_stats": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    }; ret: OCELTypeStats };
+  "process_mining::ocpn_layout": { args: {
+    "ocpn": ObjectCentricPetriNetJson;
+    "options"?: OcpnBuildOptions;
+    }; ret: Layout };
+  "process_mining::ocpn_layout_request": { args: {
+    "ocpn": ObjectCentricPetriNetJson;
+    "options"?: OcpnBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::ocpn_scene_from_layout": { args: {
+    "ocpn": ObjectCentricPetriNetJson;
+    "layout": Layout;
+    "options"?: OcpnBuildOptions;
+    "style"?: OcpnStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::ocpn_svg": { args: {
+    "ocpn": ObjectCentricPetriNetJson;
+    "options"?: OcpnBuildOptions;
+    "style"?: OcpnStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::ocpn_svg_from_layout": { args: {
+    "ocpn": ObjectCentricPetriNetJson;
+    "layout": Layout;
+    "options"?: OcpnBuildOptions;
+    "style"?: OcpnStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::partial_order_layout": { args: {
+    "trace": PartialOrderTrace;
+    "options"?: PartialOrderBuildOptions;
+    }; ret: Layout };
+  "process_mining::partial_order_layout_request": { args: {
+    "trace": PartialOrderTrace;
+    "options"?: PartialOrderBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::partial_order_scene_from_layout": { args: {
+    "trace": PartialOrderTrace;
+    "layout": Layout;
+    "options"?: PartialOrderBuildOptions;
+    "style"?: PartialOrderStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::partial_order_svg": { args: {
+    "trace": PartialOrderTrace;
+    "options"?: PartialOrderBuildOptions;
+    "style"?: PartialOrderStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::partial_order_svg_from_layout": { args: {
+    "trace": PartialOrderTrace;
+    "layout": Layout;
+    "options"?: PartialOrderBuildOptions;
+    "style"?: PartialOrderStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::path_schema_connections": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "schema": ResolvedPathSchema;
+    "params"?: PathConnectionParams;
+    }; ret: PathSchemaConnections };
+  "process_mining::path_schema_enumerate": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "source": TypeRef;
+    "target"?: Nullable_TypeRef;
+    "max_length": number;
+    "allow_cycles"?: boolean;
+    "allowed_types"?: Nullable_Array_of_TypeRef;
+    "max_schemas"?: number;
+    }; ret: PathSchemaEnumeration };
+  "process_mining::petri_net_layout": { args: {
+    "net": AcceptingPetriNet;
+    "options"?: PetriBuildOptions;
+    }; ret: Layout };
+  "process_mining::petri_net_layout_request": { args: {
+    "net": AcceptingPetriNet;
+    "options"?: PetriBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::petri_net_scene_from_layout": { args: {
+    "net": AcceptingPetriNet;
+    "layout": Layout;
+    "options"?: PetriBuildOptions;
+    "style"?: PetriStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::petri_net_svg": { args: {
+    "net": AcceptingPetriNet;
+    "options"?: PetriBuildOptions;
+    "style"?: PetriStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::petri_net_svg_from_layout": { args: {
+    "net": AcceptingPetriNet;
+    "layout": Layout;
+    "options"?: PetriBuildOptions;
+    "style"?: PetriStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::process_tree_layout": { args: {
+    "tree": ProcessTree;
+    "options"?: ProcessTreeBuildOptions;
+    }; ret: Layout };
+  "process_mining::process_tree_layout_request": { args: {
+    "tree": ProcessTree;
+    "options"?: ProcessTreeBuildOptions;
+    }; ret: ModelLayoutRequest };
+  "process_mining::process_tree_scene_from_layout": { args: {
+    "tree": ProcessTree;
+    "layout": Layout;
+    "options"?: ProcessTreeBuildOptions;
+    "style"?: ProcessTreeStyle;
+    "overrides"?: StyleOverrides;
+    }; ret: Scene };
+  "process_mining::process_tree_svg": { args: {
+    "tree": ProcessTree;
+    "options"?: ProcessTreeBuildOptions;
+    "style"?: ProcessTreeStyle;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::process_tree_svg_from_layout": { args: {
+    "tree": ProcessTree;
+    "layout": Layout;
+    "options"?: ProcessTreeBuildOptions;
+    "style"?: ProcessTreeStyle;
+    "overrides"?: StyleOverrides;
+    "palette"?: Nullable_Palette;
+    }; ret: string };
+  "process_mining::project_oc_arcs": { args: {
     "arcs": OCDeclareArc[];
     "activities": string[];
     "reduction": OCDeclareReductionMode;
     }; ret: OCDeclareArc[] };
-  "process_mining::discovery::object_centric::oc_declare::reduce_oc_arcs": { args: {
+  "process_mining::reduce_oc_arcs": { args: {
     "arcs": OCDeclareArc[];
     "lossless": boolean;
     }; ret: OCDeclareArc[] };
-  "process_mining::discovery::object_centric::ocpn::discover_ocpn": { args: {
-    "locel": SlimLinkedOCELHandle;
-    "options"?: OcpnDiscoveryOptions;
-    }; ret: ObjectCentricPetriNetJson };
-  "process_mining::discovery::object_centric::variants::get_variants_of_object_type": { args: {
+  "process_mining::reflow": { args: {
     "ocel": SlimLinkedOCELHandle;
-    "ob_type": string;
-    }; ret: [string[], number][] };
-  "process_mining::visualization::bindings::dfg_layout": { args: {
-    "dfg": DirectlyFollowsGraph;
-    "options"?: DfgBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::dfg_layout_request": { args: {
-    "dfg": DirectlyFollowsGraph;
-    "options"?: DfgBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::dfg_scene_from_layout": { args: {
-    "dfg": DirectlyFollowsGraph;
-    "layout": Layout;
-    "options"?: DfgBuildOptions;
-    "style"?: DfgStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::dfg_svg": { args: {
-    "dfg": DirectlyFollowsGraph;
-    "options"?: DfgBuildOptions;
-    "style"?: DfgStyle;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::dfg_svg_from_layout": { args: {
-    "dfg": DirectlyFollowsGraph;
-    "layout": Layout;
-    "options"?: DfgBuildOptions;
-    "style"?: DfgStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::layout_graph": { args: {
-    "request": LayoutRequest;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::layout_tree": { args: {
-    "request": TreeRequest;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::oc_declare_involvements": { args: {
-    "locel": SlimLinkedOCELHandle;
-    }; ret: Map_of_Map_of_ObjectInvolvementCounts };
-  "process_mining::visualization::bindings::oc_declare_layout": { args: {
-    "arcs": OCDeclareArc[];
-    "options"?: OCDeclareBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::oc_declare_layout_request": { args: {
-    "arcs": OCDeclareArc[];
-    "options"?: OCDeclareBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::oc_declare_scene_from_layout": { args: {
-    "arcs": OCDeclareArc[];
-    "layout": Layout;
-    "options"?: OCDeclareBuildOptions;
-    "style"?: OCDeclareStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::oc_declare_svg": { args: {
-    "arcs": OCDeclareArc[];
-    "options"?: OCDeclareBuildOptions;
-    "style"?: OCDeclareStyle;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::oc_declare_svg_from_layout": { args: {
-    "arcs": OCDeclareArc[];
-    "layout": Layout;
-    "options"?: OCDeclareBuildOptions;
-    "style"?: OCDeclareStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::oc_type_graph_from_ocel": { args: {
+    "options"?: ReflowOptions;
+    "output_id"?: output_id;
+    }; ret: ReflowResultHandle };
+  "process_mining::reflow_annotated_ocpn": { args: {
     "ocel": SlimLinkedOCELHandle;
-    }; ret: OcTypeGraph };
-  "process_mining::visualization::bindings::oc_type_graph_layout": { args: {
-    "graph": OcTypeGraph;
-    "options"?: OcTypeGraphBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::oc_type_graph_layout_request": { args: {
-    "graph": OcTypeGraph;
-    "options"?: OcTypeGraphBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::oc_type_graph_scene_from_layout": { args: {
-    "graph": OcTypeGraph;
-    "layout": Layout;
-    "options"?: OcTypeGraphBuildOptions;
-    "style"?: OcTypeGraphStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::oc_type_graph_svg": { args: {
-    "graph": OcTypeGraph;
-    "options"?: OcTypeGraphBuildOptions;
-    "style"?: OcTypeGraphStyle;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::oc_type_graph_svg_from_layout": { args: {
-    "graph": OcTypeGraph;
-    "layout": Layout;
-    "options"?: OcTypeGraphBuildOptions;
-    "style"?: OcTypeGraphStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::ocdfg_layout": { args: {
-    "ocdfg": OCDirectlyFollowsGraph;
-    "options"?: OcdfgBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::ocdfg_layout_request": { args: {
-    "ocdfg": OCDirectlyFollowsGraph;
-    "options"?: OcdfgBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::ocdfg_scene_from_layout": { args: {
-    "ocdfg": OCDirectlyFollowsGraph;
-    "layout": Layout;
-    "options"?: OcdfgBuildOptions;
-    "style"?: OcdfgStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::ocdfg_svg": { args: {
-    "ocdfg": OCDirectlyFollowsGraph;
-    "options"?: OcdfgBuildOptions;
-    "style"?: OcdfgStyle;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::ocdfg_svg_from_layout": { args: {
-    "ocdfg": OCDirectlyFollowsGraph;
-    "layout": Layout;
-    "options"?: OcdfgBuildOptions;
-    "style"?: OcdfgStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::ocpn_layout": { args: {
-    "ocpn": ObjectCentricPetriNetJson;
-    "options"?: OcpnBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::ocpn_layout_request": { args: {
-    "ocpn": ObjectCentricPetriNetJson;
-    "options"?: OcpnBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::ocpn_scene_from_layout": { args: {
-    "ocpn": ObjectCentricPetriNetJson;
-    "layout": Layout;
-    "options"?: OcpnBuildOptions;
-    "style"?: OcpnStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::ocpn_svg": { args: {
-    "ocpn": ObjectCentricPetriNetJson;
-    "options"?: OcpnBuildOptions;
+    "result": ReflowResultHandle;
+    "options"?: AnnotatedOcpnOptions;
+    "output_id"?: output_id;
+    }; ret: AnnotatedOcpnHandle };
+  "process_mining::reflow_annotated_ocpn_drawing": { args: {
+    "model": AnnotatedOcpnHandle;
+    }; ret: AnnotatedOcpnDrawing };
+  "process_mining::reflow_annotated_ocpn_net": { args: {
+    "model": AnnotatedOcpnHandle;
+    "output_id"?: output_id;
+    }; ret: ObjectCentricPetriNetHandle };
+  "process_mining::reflow_annotated_ocpn_svg": { args: {
+    "model": AnnotatedOcpnHandle;
     "style"?: OcpnStyle;
     "palette"?: Nullable_Palette;
     }; ret: string };
-  "process_mining::visualization::bindings::ocpn_svg_from_layout": { args: {
-    "ocpn": ObjectCentricPetriNetJson;
-    "layout": Layout;
-    "options"?: OcpnBuildOptions;
-    "style"?: OcpnStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::partial_order_layout": { args: {
-    "trace": PartialOrderTrace;
-    "options"?: PartialOrderBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::partial_order_layout_request": { args: {
-    "trace": PartialOrderTrace;
-    "options"?: PartialOrderBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::partial_order_scene_from_layout": { args: {
-    "trace": PartialOrderTrace;
-    "layout": Layout;
-    "options"?: PartialOrderBuildOptions;
-    "style"?: PartialOrderStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::partial_order_svg": { args: {
-    "trace": PartialOrderTrace;
-    "options"?: PartialOrderBuildOptions;
-    "style"?: PartialOrderStyle;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::partial_order_svg_from_layout": { args: {
-    "trace": PartialOrderTrace;
-    "layout": Layout;
-    "options"?: PartialOrderBuildOptions;
-    "style"?: PartialOrderStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::petri_net_layout": { args: {
-    "net": AcceptingPetriNet;
-    "options"?: PetriBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::petri_net_layout_request": { args: {
-    "net": AcceptingPetriNet;
-    "options"?: PetriBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::petri_net_scene_from_layout": { args: {
-    "net": AcceptingPetriNet;
-    "layout": Layout;
-    "options"?: PetriBuildOptions;
-    "style"?: PetriStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::petri_net_svg": { args: {
-    "net": AcceptingPetriNet;
-    "options"?: PetriBuildOptions;
-    "style"?: PetriStyle;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::petri_net_svg_from_layout": { args: {
-    "net": AcceptingPetriNet;
-    "layout": Layout;
-    "options"?: PetriBuildOptions;
-    "style"?: PetriStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::process_tree_layout": { args: {
-    "tree": ProcessTree;
-    "options"?: ProcessTreeBuildOptions;
-    }; ret: Layout };
-  "process_mining::visualization::bindings::process_tree_layout_request": { args: {
-    "tree": ProcessTree;
-    "options"?: ProcessTreeBuildOptions;
-    }; ret: ModelLayoutRequest };
-  "process_mining::visualization::bindings::process_tree_scene_from_layout": { args: {
-    "tree": ProcessTree;
-    "layout": Layout;
-    "options"?: ProcessTreeBuildOptions;
-    "style"?: ProcessTreeStyle;
-    "overrides"?: StyleOverrides;
-    }; ret: Scene };
-  "process_mining::visualization::bindings::process_tree_svg": { args: {
-    "tree": ProcessTree;
-    "options"?: ProcessTreeBuildOptions;
-    "style"?: ProcessTreeStyle;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::process_tree_svg_from_layout": { args: {
-    "tree": ProcessTree;
-    "layout": Layout;
-    "options"?: ProcessTreeBuildOptions;
-    "style"?: ProcessTreeStyle;
-    "overrides"?: StyleOverrides;
-    "palette"?: Nullable_Palette;
-    }; ret: string };
-  "process_mining::visualization::bindings::render_scene_svg": { args: {
+  "process_mining::reflow_cells": { args: {
+    "result": ReflowResultHandle;
+    }; ret: ReflowSummary };
+  "process_mining::reflow_flow_log": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "result": ReflowResultHandle;
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::reflow_flow_projection": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::reflow_from_tagged": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "options"?: ReflowOptions;
+    "output_id"?: output_id;
+    }; ret: ReflowResultHandle };
+  "process_mining::reflow_full_projection": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::reflow_tag": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "result": ReflowResultHandle;
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::reflow_untag": { args: {
+    "ocel": SlimLinkedOCELHandle;
+    "output_id"?: output_id;
+    }; ret: SlimLinkedOCELHandle };
+  "process_mining::reflow_with_flow_layer": { args: {
+    "result": ReflowResultHandle;
+    "flow": ReflowCellRef[];
+    "output_id"?: output_id;
+    }; ret: ReflowResultHandle };
+  "process_mining::render_scene_svg": { args: {
     "scene": Scene;
     "palette"?: Nullable_Palette;
     }; ret: string };
-  "process_mining::visualization::bindings::reroute_graph": { args: {
+  "process_mining::reroute_graph": { args: {
     "request": LayoutRequest;
     "positions"?: Point[];
     }; ret: Layout };
@@ -8871,23 +10197,26 @@ export interface Bindings {
 
 export type BindingId = keyof Bindings;
 
-/** Typed dispatch. Runtime decodes the binding's Vec<u8> JSON; types are compile-time only.
- *  `opts.outputName` deterministically names a minted result handle (pipeline intermediates). */
-export type CallBinding = <K extends BindingId>(id: K, args: Bindings[K]["args"], opts?: { outputName?: string }) => Promise<Bindings[K]["ret"]>;
+/** Typed dispatch. Runtime decodes the binding's Vec<u8> JSON; types are compile-time only. */
+export type CallBinding = <K extends BindingId>(id: K, args: Bindings[K]["args"], opts?: CallOptions) => Promise<Bindings[K]["ret"]>;
 
 /** Distinct return-type titles, keyed for rename-safe reference from viewer `accepts` predicates. */
 export const RETURN_TYPES = {
   "AcceptingPetriNet": "AcceptingPetriNet",
+  "ActivityStatistics": "ActivityStatistics",
   "AggregatedEventTimestamps": "AggregatedEventTimestamps",
   "AlignmentResult": "AlignmentResult",
+  "AnnotatedOcpn": "AnnotatedOcpn",
+  "AnnotatedOcpnDrawing": "AnnotatedOcpnDrawing",
+  "ArcViolations": "ArcViolations",
   "Array_of_AttributeCatalogEntry": "Array_of_AttributeCatalogEntry",
   "Array_of_AttributeInfo": "Array_of_AttributeInfo",
   "Array_of_EventIndex": "Array_of_EventIndex",
   "Array_of_OCDeclareArc": "Array_of_OCDeclareArc",
   "Array_of_ObjectIndex": "Array_of_ObjectIndex",
+  "Array_of_ObjectLane": "Array_of_ObjectLane",
   "Array_of_OcelAttributeInfo": "Array_of_OcelAttributeInfo",
   "Array_of_ProcessVariant": "Array_of_ProcessVariant",
-  "Array_of_ResolvedPathSchema": "Array_of_ResolvedPathSchema",
   "Array_of_Tuple_of_Array_of_string_and_uint": "Array_of_Tuple_of_Array_of_string_and_uint",
   "Array_of_Tuple_of_DateTime_and_OCELAttributeValue": "Array_of_Tuple_of_DateTime_and_OCELAttributeValue",
   "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
@@ -8896,43 +10225,55 @@ export const RETURN_TYPES = {
   "Array_of_Tuple_of_string_and_int64": "Array_of_Tuple_of_string_and_int64",
   "Array_of_Tuple_of_string_and_int64_and_string": "Array_of_Tuple_of_string_and_int64_and_string",
   "Array_of_Tuple_of_string_and_string_and_int64": "Array_of_Tuple_of_string_and_string_and_int64",
+  "Array_of_Tuple_of_string_and_uint": "Array_of_Tuple_of_string_and_uint",
   "Array_of_ValidationError": "Array_of_ValidationError",
   "Array_of_VariantAlignmentResult": "Array_of_VariantAlignmentResult",
   "Array_of_string": "Array_of_string",
   "AttributeSummary": "AttributeSummary",
   "AttributeValues": "AttributeValues",
+  "BinnedEdgeDurationStats": "BinnedEdgeDurationStats",
   "CaseDurations": "CaseDurations",
   "CompiledOcel": "CompiledOcel",
   "DateTime": "DateTime",
   "DfPerformance": "DfPerformance",
+  "DfgComparison": "DfgComparison",
   "DirectlyFollowsGraph": "DirectlyFollowsGraph",
   "DottedChartData": "DottedChartData",
+  "EscapingEdgesOptions": "EscapingEdgesOptions",
   "EscapingEdgesPrecision": "EscapingEdgesPrecision",
+  "EventIndex": "EventIndex",
   "EventLog": "EventLog",
-  "EventLogActivityProjection": "EventLogActivityProjection",
   "EventLogInput": "EventLogInput",
+  "EventSignatures": "EventSignatures",
   "EventTimeHistogram": "EventTimeHistogram",
+  "ExecutionGraph": "ExecutionGraph",
   "ExtractionCatalog": "ExtractionCatalog",
   "ExtractionReport": "ExtractionReport",
   "FitnessResult": "FitnessResult",
-  "IndexLinkedOCEL": "IndexLinkedOCEL",
   "InductiveMiner": "InductiveMiner",
+  "Journeys": "Journeys",
   "Layout": "Layout",
+  "LifecycleMap": "LifecycleMap",
+  "Lifelines": "Lifelines",
   "LogAlignments": "LogAlignments",
   "LogGlobals": "LogGlobals",
+  "LogHealth": "LogHealth",
+  "LogOverview": "LogOverview",
   "Map_of_Map_of_ObjectInvolvementCounts": "Map_of_Map_of_ObjectInvolvementCounts",
   "Map_of_uint": "Map_of_uint",
   "ModelLayoutRequest": "ModelLayoutRequest",
+  "ModelQuality": "ModelQuality",
+  "NetReplay": "NetReplay",
   "Nullable_Array_of_string": "Nullable_Array_of_string",
   "Nullable_EventIndex": "Nullable_EventIndex",
   "Nullable_OCELAttributeValue": "Nullable_OCELAttributeValue",
   "Nullable_OCELType": "Nullable_OCELType",
   "Nullable_ObjectIndex": "Nullable_ObjectIndex",
   "Nullable_VariantTimeProfile": "Nullable_VariantTimeProfile",
-  "Nullable_string": "Nullable_string",
   "NumberOfTracesAndEvents": "NumberOfTracesAndEvents",
   "OCDirectlyFollowsGraph": "OCDirectlyFollowsGraph",
   "OCEL": "OCEL",
+  "OCELAppendSummary": "OCELAppendSummary",
   "OCELEvent": "OCELEvent",
   "OCELInfo": "OCELInfo",
   "OCELObject": "OCELObject",
@@ -8940,17 +10281,26 @@ export const RETURN_TYPES = {
   "OCELTypeStats": "OCELTypeStats",
   "ObjectAttributeChanges": "ObjectAttributeChanges",
   "ObjectBrowserPage": "ObjectBrowserPage",
+  "ObjectCentricPetriNet": "ObjectCentricPetriNet",
   "ObjectCentricPetriNetJson": "ObjectCentricPetriNetJson",
   "ObjectDetail": "ObjectDetail",
+  "ObjectIndex": "ObjectIndex",
+  "ObjectPopulation": "ObjectPopulation",
   "OcTypeGraph": "OcTypeGraph",
   "OcelAttributeSummary": "OcelAttributeSummary",
   "OcelDfPerformance": "OcelDfPerformance",
+  "OcelHealth": "OcelHealth",
   "OcelInput": "OcelInput",
   "OcelTypeRelations": "OcelTypeRelations",
+  "OcpnReplay": "OcpnReplay",
   "PathSchemaConnections": "PathSchemaConnections",
   "PathSchemaDiscovery": "PathSchemaDiscovery",
-  "PathSchemaTypeGraph": "PathSchemaTypeGraph",
+  "PathSchemaEnumeration": "PathSchemaEnumeration",
+  "PerformanceSpectrum": "PerformanceSpectrum",
+  "PrefixTree": "PrefixTree",
   "ProcessTree": "ProcessTree",
+  "ReflowResult": "ReflowResult",
+  "ReflowSummary": "ReflowSummary",
   "Scene": "Scene",
   "SlimLinkedOCEL": "SlimLinkedOCEL",
   "TablePreview": "TablePreview",
@@ -8958,6 +10308,7 @@ export const RETURN_TYPES = {
   "TraceDetail": "TraceDetail",
   "TraceVariants": "TraceVariants",
   "VariantTimingPage": "VariantTimingPage",
+  "Workload": "Workload",
   "boolean": "boolean",
   "double": "double",
   "null": "null",
@@ -8973,16 +10324,20 @@ export type ReturnTypeTitle = (typeof RETURN_TYPES)[keyof typeof RETURN_TYPES];
  *  transform/component to the actual binding payload shape instead of trusting the title string. */
 export interface ReturnTypeShape {
   "AcceptingPetriNet": AcceptingPetriNet;
+  "ActivityStatistics": ActivityStatistics;
   "AggregatedEventTimestamps": AggregatedEventTimestamps;
   "AlignmentResult": AlignmentResult;
+  "AnnotatedOcpn": AnnotatedOcpnHandle;
+  "AnnotatedOcpnDrawing": AnnotatedOcpnDrawing;
+  "ArcViolations": ArcViolations;
   "Array_of_AttributeCatalogEntry": AttributeCatalogEntry[];
   "Array_of_AttributeInfo": AttributeInfo[];
   "Array_of_EventIndex": number[];
   "Array_of_OCDeclareArc": OCDeclareArc[];
   "Array_of_ObjectIndex": number[];
+  "Array_of_ObjectLane": ObjectLane[];
   "Array_of_OcelAttributeInfo": OcelAttributeInfo[];
   "Array_of_ProcessVariant": ProcessVariant[];
-  "Array_of_ResolvedPathSchema": ResolvedPathSchema[];
   "Array_of_Tuple_of_Array_of_string_and_uint": [string[], number][];
   "Array_of_Tuple_of_DateTime_and_OCELAttributeValue": [string, OCELAttributeValue][];
   "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint": [[string, string], number][];
@@ -8991,43 +10346,55 @@ export interface ReturnTypeShape {
   "Array_of_Tuple_of_string_and_int64": [string, number][];
   "Array_of_Tuple_of_string_and_int64_and_string": [string, number, string][];
   "Array_of_Tuple_of_string_and_string_and_int64": [string, string, number][];
+  "Array_of_Tuple_of_string_and_uint": [string, number][];
   "Array_of_ValidationError": ValidationError[];
   "Array_of_VariantAlignmentResult": VariantAlignmentResult[];
   "Array_of_string": string[];
   "AttributeSummary": AttributeSummary;
   "AttributeValues": AttributeValues;
+  "BinnedEdgeDurationStats": BinnedEdgeDurationStats;
   "CaseDurations": CaseDurations;
   "CompiledOcel": CompiledOcel;
   "DateTime": string;
   "DfPerformance": DfPerformance;
+  "DfgComparison": DfgComparison;
   "DirectlyFollowsGraph": DirectlyFollowsGraph;
   "DottedChartData": DottedChartData;
+  "EscapingEdgesOptions": EscapingEdgesOptions;
   "EscapingEdgesPrecision": EscapingEdgesPrecision;
+  "EventIndex": number;
   "EventLog": EventLogHandle;
-  "EventLogActivityProjection": EventLogActivityProjectionHandle;
   "EventLogInput": EventLogInput;
+  "EventSignatures": EventSignatures;
   "EventTimeHistogram": EventTimeHistogram;
+  "ExecutionGraph": ExecutionGraph;
   "ExtractionCatalog": ExtractionCatalog;
   "ExtractionReport": ExtractionReport;
   "FitnessResult": FitnessResult;
-  "IndexLinkedOCEL": IndexLinkedOCELHandle;
   "InductiveMiner": InductiveMiner;
+  "Journeys": Journeys;
   "Layout": Layout;
+  "LifecycleMap": LifecycleMap;
+  "Lifelines": Lifelines;
   "LogAlignments": LogAlignments;
   "LogGlobals": LogGlobals;
+  "LogHealth": LogHealth;
+  "LogOverview": LogOverview;
   "Map_of_Map_of_ObjectInvolvementCounts": Map_of_Map_of_ObjectInvolvementCounts;
   "Map_of_uint": Map_of_uint;
   "ModelLayoutRequest": ModelLayoutRequest;
+  "ModelQuality": ModelQuality;
+  "NetReplay": NetReplay;
   "Nullable_Array_of_string": Nullable_Array_of_string;
   "Nullable_EventIndex": Nullable_EventIndex;
   "Nullable_OCELAttributeValue": Nullable_OCELAttributeValue;
   "Nullable_OCELType": Nullable_OCELType;
   "Nullable_ObjectIndex": Nullable_ObjectIndex;
   "Nullable_VariantTimeProfile": Nullable_VariantTimeProfile;
-  "Nullable_string": Nullable_string;
   "NumberOfTracesAndEvents": NumberOfTracesAndEvents;
   "OCDirectlyFollowsGraph": OCDirectlyFollowsGraph;
   "OCEL": OCELHandle;
+  "OCELAppendSummary": OCELAppendSummary;
   "OCELEvent": OCELEvent;
   "OCELInfo": OCELInfo;
   "OCELObject": OCELObject;
@@ -9035,17 +10402,26 @@ export interface ReturnTypeShape {
   "OCELTypeStats": OCELTypeStats;
   "ObjectAttributeChanges": ObjectAttributeChanges;
   "ObjectBrowserPage": ObjectBrowserPage;
+  "ObjectCentricPetriNet": ObjectCentricPetriNetHandle;
   "ObjectCentricPetriNetJson": ObjectCentricPetriNetJson;
   "ObjectDetail": ObjectDetail;
+  "ObjectIndex": number;
+  "ObjectPopulation": ObjectPopulation;
   "OcTypeGraph": OcTypeGraph;
   "OcelAttributeSummary": OcelAttributeSummary;
   "OcelDfPerformance": OcelDfPerformance;
+  "OcelHealth": OcelHealth;
   "OcelInput": OcelInput;
   "OcelTypeRelations": OcelTypeRelations;
+  "OcpnReplay": OcpnReplay;
   "PathSchemaConnections": PathSchemaConnections;
   "PathSchemaDiscovery": PathSchemaDiscovery;
-  "PathSchemaTypeGraph": PathSchemaTypeGraph;
+  "PathSchemaEnumeration": PathSchemaEnumeration;
+  "PerformanceSpectrum": PerformanceSpectrum;
+  "PrefixTree": PrefixTree;
   "ProcessTree": ProcessTree;
+  "ReflowResult": ReflowResultHandle;
+  "ReflowSummary": ReflowSummary;
   "Scene": Scene;
   "SlimLinkedOCEL": SlimLinkedOCELHandle;
   "TablePreview": TablePreview;
@@ -9053,6 +10429,7 @@ export interface ReturnTypeShape {
   "TraceDetail": TraceDetail;
   "TraceVariants": TraceVariants;
   "VariantTimingPage": VariantTimingPage;
+  "Workload": Workload;
   "boolean": boolean;
   "double": number;
   "null": null;
@@ -9063,195 +10440,217 @@ export interface ReturnTypeShape {
 
 /** Each binding's return-type title (null when the return type is unnamed, e.g. a tuple/primitive). */
 export const BINDING_RETURN_TYPE: Record<BindingId, ReturnTypeTitle | null> = {
-  "app_bindings::alignments::align_event_log": "LogAlignments",
+  "app_bindings::align_event_log": "LogAlignments",
   "app_bindings::alphappp_auto": "AcceptingPetriNet",
   "app_bindings::app_ping": "string",
+  "app_bindings::apply_event_log_transforms": "EventLog",
+  "app_bindings::apply_ocel_transforms": "SlimLinkedOCEL",
+  "app_bindings::compare_dfg_periods": "DfgComparison",
+  "app_bindings::compare_dfgs": "DfgComparison",
   "app_bindings::discover_petri_net": "AcceptingPetriNet",
-  "app_bindings::event_log::event_log_from_activities": "EventLog",
-  "app_bindings::event_log::event_log_from_json": "EventLog",
-  "app_bindings::event_log::event_log_to_json": "EventLogInput",
-  "app_bindings::event_log::get_activity_counts": "Map_of_uint",
-  "app_bindings::event_log::get_attribute_names": "Array_of_AttributeInfo",
-  "app_bindings::event_log::get_attribute_summary": "AttributeSummary",
-  "app_bindings::event_log::get_attribute_values": "AttributeValues",
-  "app_bindings::event_log::get_case_durations": "CaseDurations",
-  "app_bindings::event_log::get_df_performance": "DfPerformance",
-  "app_bindings::event_log::get_event_log_timestamps": "EventTimeHistogram",
-  "app_bindings::event_log::get_log_globals": "LogGlobals",
-  "app_bindings::event_log::get_log_info": "NumberOfTracesAndEvents",
-  "app_bindings::event_log::get_log_trace_variants": "TraceVariants",
-  "app_bindings::event_log::get_log_traces": "TraceBrowserPage",
-  "app_bindings::event_log::get_removable_attributes_xes": "Array_of_AttributeCatalogEntry",
-  "app_bindings::event_log::get_trace_events": "TraceDetail",
-  "app_bindings::ocel::get_object_detail": "ObjectDetail",
-  "app_bindings::ocel::get_ocel_activity_object_involvements": "Map_of_Map_of_ObjectInvolvementCounts",
-  "app_bindings::ocel::get_ocel_attribute_names": "Array_of_OcelAttributeInfo",
-  "app_bindings::ocel::get_ocel_attribute_summary": "OcelAttributeSummary",
-  "app_bindings::ocel::get_ocel_attribute_values": "AttributeValues",
-  "app_bindings::ocel::get_ocel_df_performance": "OcelDfPerformance",
-  "app_bindings::ocel::get_ocel_event_timestamps": "EventTimeHistogram",
-  "app_bindings::ocel::get_ocel_info": "OCELInfo",
-  "app_bindings::ocel::get_ocel_object_changes_plot": "OCELObjectAttributeChanges",
-  "app_bindings::ocel::get_ocel_object_ids": "Array_of_string",
-  "app_bindings::ocel::get_ocel_objects_page": "ObjectBrowserPage",
-  "app_bindings::ocel::get_ocel_type_relations": "OcelTypeRelations",
-  "app_bindings::ocel::get_removable_attributes_ocel": "Array_of_AttributeCatalogEntry",
-  "app_bindings::ocel::ocel_from_json": "SlimLinkedOCEL",
-  "app_bindings::ocel::ocel_from_oc_sim_trace": "SlimLinkedOCEL",
-  "app_bindings::ocel::ocel_to_json": "OcelInput",
-  "app_bindings::petri_net_io::export_petri_net_pnml": "string",
-  "app_bindings::transforms::apply_event_log_transforms": "EventLog",
-  "app_bindings::transforms::apply_ocel_transforms": "SlimLinkedOCEL",
-  "app_bindings::variant_timing::get_variant_time_profile": "Nullable_VariantTimeProfile",
-  "app_bindings::variant_timing::get_variant_timing_page": "VariantTimingPage",
-  "process_mining::analysis::case_centric::dotted_chart::get_dotted_chart": "DottedChartData",
-  "process_mining::analysis::case_centric::event_timestamp_histogram::get_event_timestamps": "AggregatedEventTimestamps",
-  "process_mining::analysis::object_centric::object_attribute_changes::get_object_attribute_changes": "ObjectAttributeChanges",
-  "process_mining::analysis::object_centric::oc_performance::locel_oc_perf_sojourn_per_event": "Array_of_Tuple_of_string_and_int64",
-  "process_mining::analysis::object_centric::oc_performance::locel_oc_perf_sync_per_event": "Array_of_Tuple_of_string_and_int64_and_string",
-  "process_mining::analysis::object_centric::oc_statistics::locel_conversion_rate": "double",
-  "process_mining::analysis::object_centric::oc_statistics::locel_event_object_type_counts": "Array_of_Tuple_of_string_and_string_and_int64",
-  "process_mining::bindings::extraction_bindings::extraction_column_domain_items": "Array_of_string",
-  "process_mining::bindings::extraction_bindings::extraction_compile": "CompiledOcel",
-  "process_mining::bindings::extraction_bindings::extraction_discover_catalog_items": "ExtractionCatalog",
-  "process_mining::bindings::extraction_bindings::extraction_run_items": "SlimLinkedOCEL",
-  "process_mining::bindings::extraction_bindings::extraction_table_preview_items": "TablePreview",
-  "process_mining::bindings::extraction_bindings::extraction_validate": "Array_of_ValidationError",
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain": "Array_of_string",
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_connection_kinds": "Array_of_string",
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog": "ExtractionCatalog",
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_run": "ExtractionReport",
-  "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview": "TablePreview",
-  "process_mining::bindings::index_link_ocel": "IndexLinkedOCEL",
-  "process_mining::bindings::num_events": "uint",
-  "process_mining::bindings::num_objects": "uint",
-  "process_mining::bindings::ocel_type_stats": "OCELTypeStats",
-  "process_mining::bindings::path_schema_bindings::path_schema_connections": "PathSchemaConnections",
-  "process_mining::bindings::path_schema_bindings::path_schema_discover": "PathSchemaDiscovery",
-  "process_mining::bindings::path_schema_bindings::path_schema_enumerate": "Array_of_ResolvedPathSchema",
-  "process_mining::bindings::path_schema_bindings::path_schema_type_graph": "PathSchemaTypeGraph",
-  "process_mining::bindings::slim_link_ocel": "SlimLinkedOCEL",
-  "process_mining::bindings::slim_ocel_bindings::get_dfg_of_object_type": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
-  "process_mining::bindings::slim_ocel_bindings::get_e2o_ids": "Nullable_Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::get_e2o_rev_ids": "Nullable_Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::get_event_ids_of_type": "Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::get_event_timestamp_of_id": "Nullable_string",
-  "process_mining::bindings::slim_ocel_bindings::get_event_type_of_id": "Nullable_string",
-  "process_mining::bindings::slim_ocel_bindings::get_o2o_ids": "Nullable_Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::get_obj_activity_trace": "Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::get_object_ids_of_type": "Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::get_object_type_of_id": "Nullable_string",
-  "process_mining::bindings::slim_ocel_bindings::get_variants_of_object_type": "Array_of_Tuple_of_Array_of_string_and_uint",
-  "process_mining::bindings::slim_ocel_bindings::locel_add_e2o": "boolean",
-  "process_mining::bindings::slim_ocel_bindings::locel_add_event": "Nullable_EventIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_add_event_type": "null",
-  "process_mining::bindings::slim_ocel_bindings::locel_add_o2o": "boolean",
-  "process_mining::bindings::slim_ocel_bindings::locel_add_object": "Nullable_ObjectIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_add_object_type": "null",
-  "process_mining::bindings::slim_ocel_bindings::locel_construct_ocel": "OCEL",
-  "process_mining::bindings::slim_ocel_bindings::locel_conversion_rate": "double",
-  "process_mining::bindings::slim_ocel_bindings::locel_delete_e2o": "boolean",
-  "process_mining::bindings::slim_ocel_bindings::locel_delete_o2o": "boolean",
-  "process_mining::bindings::slim_ocel_bindings::locel_event_object_type_counts": "Array_of_Tuple_of_string_and_string_and_int64",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_e2o": "Array_of_Tuple_of_string_and_ObjectIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_e2o_rev": "Array_of_Tuple_of_string_and_EventIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_attr_val": "Nullable_OCELAttributeValue",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_by_id": "Nullable_EventIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_id": "string",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_time": "DateTime",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_type": "Nullable_OCELType",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_type_of": "string",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ev_types": "Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_evs_of_type": "Array_of_EventIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_full_ev": "OCELEvent",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_full_ob": "OCELObject",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_o2o": "Array_of_Tuple_of_string_and_ObjectIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_o2o_rev": "Array_of_Tuple_of_string_and_ObjectIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_attr_vals": "Array_of_Tuple_of_DateTime_and_OCELAttributeValue",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_by_id": "Nullable_ObjectIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_id": "string",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_type": "Nullable_OCELType",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_type_of": "string",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_ob_types": "Array_of_string",
-  "process_mining::bindings::slim_ocel_bindings::locel_get_obs_of_type": "Array_of_ObjectIndex",
-  "process_mining::bindings::slim_ocel_bindings::locel_new": "SlimLinkedOCEL",
-  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sojourn_per_event": "Array_of_Tuple_of_string_and_int64",
-  "process_mining::bindings::slim_ocel_bindings::locel_oc_perf_sync_per_event": "Array_of_Tuple_of_string_and_int64_and_string",
-  "process_mining::bindings::test_some_inputs": "string",
-  "process_mining::conformance::case_centric::alignments::align_empty_trace": "AlignmentResult",
-  "process_mining::conformance::case_centric::alignments::align_trace_binding": "AlignmentResult",
-  "process_mining::conformance::case_centric::alignments::align_variants": "Array_of_VariantAlignmentResult",
-  "process_mining::conformance::case_centric::alignments::align_variants_with_retry": "Array_of_VariantAlignmentResult",
-  "process_mining::conformance::case_centric::alignments::compute_fitness": "FitnessResult",
-  "process_mining::conformance::case_centric::precision::escaping_edges_precision": "EscapingEdgesPrecision",
-  "process_mining::conformance::case_centric::precision::escaping_edges_precision_from_alignments": "EscapingEdgesPrecision",
-  "process_mining::conformance::object_centric::oc_declare::oc_declare_conformance": "double",
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_num_cases": "uint64",
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_num_variants": "uint",
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_projection_activities": "Array_of_string",
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_top_n_variants": "Array_of_ProcessVariant",
-  "process_mining::core::event_data::case_centric::utils::activity_projection::get_variants": "Array_of_ProcessVariant",
-  "process_mining::core::event_data::case_centric::utils::activity_projection::log_to_activity_projection": "EventLogActivityProjection",
-  "process_mining::core::event_data::object_centric::utils::flatten::flatten_ocel_on": "EventLog",
-  "process_mining::core::event_data::object_centric::utils::init_exit_events::add_init_exit_events_to_ocel": "OCEL",
-  "process_mining::core::process_models::object_centric::ocdfg::object_centric_dfg_struct::discover_dfg_from_slim_ocel": "OCDirectlyFollowsGraph",
-  "process_mining::discovery::case_centric::alphappp::full::discover_alphappp_net": "AcceptingPetriNet",
-  "process_mining::discovery::case_centric::dfg::discover_dfg": "DirectlyFollowsGraph",
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_net": "AcceptingPetriNet",
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_net_with": "AcceptingPetriNet",
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_tree": "ProcessTree",
-  "process_mining::discovery::case_centric::inductive_miner::discover_inductive_tree_with": "ProcessTree",
-  "process_mining::discovery::case_centric::inductive_miner::inductive_miner_options": "InductiveMiner",
-  "process_mining::discovery::object_centric::dfg::get_dfg_of_object_type": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
-  "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints": "Array_of_OCDeclareArc",
-  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs": "Array_of_OCDeclareArc",
-  "process_mining::discovery::object_centric::oc_declare::reduce_oc_arcs": "Array_of_OCDeclareArc",
-  "process_mining::discovery::object_centric::ocpn::discover_ocpn": "ObjectCentricPetriNetJson",
-  "process_mining::discovery::object_centric::variants::get_variants_of_object_type": "Array_of_Tuple_of_Array_of_string_and_uint",
-  "process_mining::visualization::bindings::dfg_layout": "Layout",
-  "process_mining::visualization::bindings::dfg_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::dfg_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::dfg_svg": "string",
-  "process_mining::visualization::bindings::dfg_svg_from_layout": "string",
-  "process_mining::visualization::bindings::layout_graph": "Layout",
-  "process_mining::visualization::bindings::layout_tree": "Layout",
-  "process_mining::visualization::bindings::oc_declare_involvements": "Map_of_Map_of_ObjectInvolvementCounts",
-  "process_mining::visualization::bindings::oc_declare_layout": "Layout",
-  "process_mining::visualization::bindings::oc_declare_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::oc_declare_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::oc_declare_svg": "string",
-  "process_mining::visualization::bindings::oc_declare_svg_from_layout": "string",
-  "process_mining::visualization::bindings::oc_type_graph_from_ocel": "OcTypeGraph",
-  "process_mining::visualization::bindings::oc_type_graph_layout": "Layout",
-  "process_mining::visualization::bindings::oc_type_graph_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::oc_type_graph_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::oc_type_graph_svg": "string",
-  "process_mining::visualization::bindings::oc_type_graph_svg_from_layout": "string",
-  "process_mining::visualization::bindings::ocdfg_layout": "Layout",
-  "process_mining::visualization::bindings::ocdfg_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::ocdfg_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::ocdfg_svg": "string",
-  "process_mining::visualization::bindings::ocdfg_svg_from_layout": "string",
-  "process_mining::visualization::bindings::ocpn_layout": "Layout",
-  "process_mining::visualization::bindings::ocpn_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::ocpn_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::ocpn_svg": "string",
-  "process_mining::visualization::bindings::ocpn_svg_from_layout": "string",
-  "process_mining::visualization::bindings::partial_order_layout": "Layout",
-  "process_mining::visualization::bindings::partial_order_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::partial_order_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::partial_order_svg": "string",
-  "process_mining::visualization::bindings::partial_order_svg_from_layout": "string",
-  "process_mining::visualization::bindings::petri_net_layout": "Layout",
-  "process_mining::visualization::bindings::petri_net_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::petri_net_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::petri_net_svg": "string",
-  "process_mining::visualization::bindings::petri_net_svg_from_layout": "string",
-  "process_mining::visualization::bindings::process_tree_layout": "Layout",
-  "process_mining::visualization::bindings::process_tree_layout_request": "ModelLayoutRequest",
-  "process_mining::visualization::bindings::process_tree_scene_from_layout": "Scene",
-  "process_mining::visualization::bindings::process_tree_svg": "string",
-  "process_mining::visualization::bindings::process_tree_svg_from_layout": "string",
-  "process_mining::visualization::bindings::render_scene_svg": "string",
-  "process_mining::visualization::bindings::reroute_graph": "Layout",
+  "app_bindings::evaluate_inductive_net": "ModelQuality",
+  "app_bindings::event_log_from_activities": "EventLog",
+  "app_bindings::event_log_from_json": "EventLog",
+  "app_bindings::event_log_to_json": "EventLogInput",
+  "app_bindings::export_petri_net_pnml": "string",
+  "app_bindings::get_activity_counts": "Map_of_uint",
+  "app_bindings::get_attribute_names": "Array_of_AttributeInfo",
+  "app_bindings::get_attribute_summary": "AttributeSummary",
+  "app_bindings::get_attribute_values": "AttributeValues",
+  "app_bindings::get_case_durations": "CaseDurations",
+  "app_bindings::get_case_journeys": "Journeys",
+  "app_bindings::get_df_performance": "DfPerformance",
+  "app_bindings::get_event_log_timestamps": "EventTimeHistogram",
+  "app_bindings::get_event_log_workload": "Workload",
+  "app_bindings::get_event_signatures": "EventSignatures",
+  "app_bindings::get_execution_graph": "ExecutionGraph",
+  "app_bindings::get_lifecycle_map": "LifecycleMap",
+  "app_bindings::get_log_globals": "LogGlobals",
+  "app_bindings::get_log_health": "LogHealth",
+  "app_bindings::get_log_info": "NumberOfTracesAndEvents",
+  "app_bindings::get_log_overview": "LogOverview",
+  "app_bindings::get_log_trace_variants": "TraceVariants",
+  "app_bindings::get_log_traces": "TraceBrowserPage",
+  "app_bindings::get_net_replay": "NetReplay",
+  "app_bindings::get_object_detail": "ObjectDetail",
+  "app_bindings::get_object_journeys": "Journeys",
+  "app_bindings::get_object_lifelines": "Lifelines",
+  "app_bindings::get_object_population": "ObjectPopulation",
+  "app_bindings::get_objects_by_event_count": "Array_of_Tuple_of_string_and_uint",
+  "app_bindings::get_ocel_activity_object_involvements": "Map_of_Map_of_ObjectInvolvementCounts",
+  "app_bindings::get_ocel_attribute_names": "Array_of_OcelAttributeInfo",
+  "app_bindings::get_ocel_attribute_summary": "OcelAttributeSummary",
+  "app_bindings::get_ocel_attribute_values": "AttributeValues",
+  "app_bindings::get_ocel_df_performance": "OcelDfPerformance",
+  "app_bindings::get_ocel_event_timestamps": "EventTimeHistogram",
+  "app_bindings::get_ocel_health": "OcelHealth",
+  "app_bindings::get_ocel_info": "OCELInfo",
+  "app_bindings::get_ocel_object_changes_plot": "OCELObjectAttributeChanges",
+  "app_bindings::get_ocel_object_ids": "Array_of_string",
+  "app_bindings::get_ocel_objects_page": "ObjectBrowserPage",
+  "app_bindings::get_ocel_type_relations": "OcelTypeRelations",
+  "app_bindings::get_ocel_workload": "Workload",
+  "app_bindings::get_ocpn_json": "ObjectCentricPetriNetJson",
+  "app_bindings::get_ocpn_replay": "OcpnReplay",
+  "app_bindings::get_performance_spectrum": "PerformanceSpectrum",
+  "app_bindings::get_prefix_tree": "PrefixTree",
+  "app_bindings::get_removable_attributes_ocel": "Array_of_AttributeCatalogEntry",
+  "app_bindings::get_removable_attributes_xes": "Array_of_AttributeCatalogEntry",
+  "app_bindings::get_trace_events": "TraceDetail",
+  "app_bindings::get_variant_time_profile": "Nullable_VariantTimeProfile",
+  "app_bindings::get_variant_timing_page": "VariantTimingPage",
+  "app_bindings::oc_declare_activity_statistics": "ActivityStatistics",
+  "app_bindings::oc_declare_edge_statistics": "BinnedEdgeDurationStats",
+  "app_bindings::oc_declare_object_lanes": "Array_of_ObjectLane",
+  "app_bindings::oc_declare_violations": "ArcViolations",
+  "app_bindings::ocel_from_json": "SlimLinkedOCEL",
+  "app_bindings::ocel_from_oc_sim_trace": "SlimLinkedOCEL",
+  "app_bindings::ocel_to_json": "OcelInput",
+  "app_bindings::repair_event_log": "EventLog",
+  "app_bindings::repair_ocel": "SlimLinkedOCEL",
+  "process_mining::add_init_exit_events_to_ocel": "OCEL",
+  "process_mining::align_trace": "AlignmentResult",
+  "process_mining::align_variants": "Array_of_VariantAlignmentResult",
+  "process_mining::compute_fitness": "FitnessResult",
+  "process_mining::conversion_rate": "double",
+  "process_mining::dfg_layout": "Layout",
+  "process_mining::dfg_layout_request": "ModelLayoutRequest",
+  "process_mining::dfg_scene_from_layout": "Scene",
+  "process_mining::dfg_svg": "string",
+  "process_mining::dfg_svg_from_layout": "string",
+  "process_mining::discover_alphappp_net": "AcceptingPetriNet",
+  "process_mining::discover_dfg": "DirectlyFollowsGraph",
+  "process_mining::discover_inductive_net": "AcceptingPetriNet",
+  "process_mining::discover_inductive_tree": "ProcessTree",
+  "process_mining::discover_oc_declare": "Array_of_OCDeclareArc",
+  "process_mining::discover_ocdfg": "OCDirectlyFollowsGraph",
+  "process_mining::discover_ocpn": "ObjectCentricPetriNetJson",
+  "process_mining::discover_path_schemas": "PathSchemaDiscovery",
+  "process_mining::escaping_edges_options": "EscapingEdgesOptions",
+  "process_mining::escaping_edges_precision": "EscapingEdgesPrecision",
+  "process_mining::escaping_edges_precision_from_alignments": "EscapingEdgesPrecision",
+  "process_mining::event_object_type_counts": "Array_of_Tuple_of_string_and_string_and_int64",
+  "process_mining::event_timestamp_histogram": "AggregatedEventTimestamps",
+  "process_mining::extraction_column_domain": "Array_of_string",
+  "process_mining::extraction_column_domain_items": "Array_of_string",
+  "process_mining::extraction_compile": "CompiledOcel",
+  "process_mining::extraction_connection_kinds": "Array_of_string",
+  "process_mining::extraction_discover_catalog": "ExtractionCatalog",
+  "process_mining::extraction_discover_catalog_items": "ExtractionCatalog",
+  "process_mining::extraction_run": "ExtractionReport",
+  "process_mining::extraction_run_items": "SlimLinkedOCEL",
+  "process_mining::extraction_table_preview": "TablePreview",
+  "process_mining::extraction_table_preview_items": "TablePreview",
+  "process_mining::extraction_validate": "Array_of_ValidationError",
+  "process_mining::flatten_ocel_on": "EventLog",
+  "process_mining::get_dfg_of_object_type": "Array_of_Tuple_of_Tuple_of_string_and_string_and_uint",
+  "process_mining::get_dotted_chart": "DottedChartData",
+  "process_mining::get_object_attribute_changes": "ObjectAttributeChanges",
+  "process_mining::get_projection_activities": "Array_of_string",
+  "process_mining::get_top_n_variants": "Array_of_ProcessVariant",
+  "process_mining::get_variants": "Array_of_ProcessVariant",
+  "process_mining::get_variants_of_object_type": "Array_of_Tuple_of_Array_of_string_and_uint",
+  "process_mining::inductive_miner_options": "InductiveMiner",
+  "process_mining::layout_graph": "Layout",
+  "process_mining::layout_tree": "Layout",
+  "process_mining::locel_add_e2o": "boolean",
+  "process_mining::locel_add_event": "EventIndex",
+  "process_mining::locel_add_event_type": "null",
+  "process_mining::locel_add_o2o": "boolean",
+  "process_mining::locel_add_object": "ObjectIndex",
+  "process_mining::locel_add_object_attribute_value": "null",
+  "process_mining::locel_add_object_type": "null",
+  "process_mining::locel_append_batch": "OCELAppendSummary",
+  "process_mining::locel_delete_e2o": "boolean",
+  "process_mining::locel_delete_o2o": "boolean",
+  "process_mining::locel_get_e2o": "Array_of_Tuple_of_string_and_ObjectIndex",
+  "process_mining::locel_get_e2o_rev": "Array_of_Tuple_of_string_and_EventIndex",
+  "process_mining::locel_get_e2o_rev_ids": "Nullable_Array_of_string",
+  "process_mining::locel_get_ev_attr_val": "Nullable_OCELAttributeValue",
+  "process_mining::locel_get_ev_by_id": "Nullable_EventIndex",
+  "process_mining::locel_get_ev_id": "string",
+  "process_mining::locel_get_ev_ids_of_type": "Array_of_string",
+  "process_mining::locel_get_ev_time": "DateTime",
+  "process_mining::locel_get_ev_type": "Nullable_OCELType",
+  "process_mining::locel_get_ev_type_of": "string",
+  "process_mining::locel_get_ev_types": "Array_of_string",
+  "process_mining::locel_get_evs_of_type": "Array_of_EventIndex",
+  "process_mining::locel_get_full_ev": "OCELEvent",
+  "process_mining::locel_get_full_ob": "OCELObject",
+  "process_mining::locel_get_o2o": "Array_of_Tuple_of_string_and_ObjectIndex",
+  "process_mining::locel_get_o2o_rev": "Array_of_Tuple_of_string_and_ObjectIndex",
+  "process_mining::locel_get_ob_activity_trace": "Array_of_string",
+  "process_mining::locel_get_ob_attr_vals": "Array_of_Tuple_of_DateTime_and_OCELAttributeValue",
+  "process_mining::locel_get_ob_by_id": "Nullable_ObjectIndex",
+  "process_mining::locel_get_ob_id": "string",
+  "process_mining::locel_get_ob_ids_of_type": "Array_of_string",
+  "process_mining::locel_get_ob_type": "Nullable_OCELType",
+  "process_mining::locel_get_ob_type_of": "string",
+  "process_mining::locel_get_ob_types": "Array_of_string",
+  "process_mining::locel_get_obs_of_type": "Array_of_ObjectIndex",
+  "process_mining::locel_new": "SlimLinkedOCEL",
+  "process_mining::num_cases": "uint64",
+  "process_mining::num_events": "uint",
+  "process_mining::num_objects": "uint",
+  "process_mining::num_variants": "uint",
+  "process_mining::oc_declare_conformance": "double",
+  "process_mining::oc_declare_involvements": "Map_of_Map_of_ObjectInvolvementCounts",
+  "process_mining::oc_declare_layout": "Layout",
+  "process_mining::oc_declare_layout_request": "ModelLayoutRequest",
+  "process_mining::oc_declare_scene_from_layout": "Scene",
+  "process_mining::oc_declare_svg": "string",
+  "process_mining::oc_declare_svg_from_layout": "string",
+  "process_mining::oc_perf_sojourn_per_event": "Array_of_Tuple_of_string_and_int64",
+  "process_mining::oc_perf_sync_per_event": "Array_of_Tuple_of_string_and_int64_and_string",
+  "process_mining::oc_type_graph_from_ocel": "OcTypeGraph",
+  "process_mining::oc_type_graph_layout": "Layout",
+  "process_mining::oc_type_graph_layout_request": "ModelLayoutRequest",
+  "process_mining::oc_type_graph_scene_from_layout": "Scene",
+  "process_mining::oc_type_graph_svg": "string",
+  "process_mining::oc_type_graph_svg_from_layout": "string",
+  "process_mining::ocdfg_layout": "Layout",
+  "process_mining::ocdfg_layout_request": "ModelLayoutRequest",
+  "process_mining::ocdfg_scene_from_layout": "Scene",
+  "process_mining::ocdfg_svg": "string",
+  "process_mining::ocdfg_svg_from_layout": "string",
+  "process_mining::ocel_type_stats": "OCELTypeStats",
+  "process_mining::ocpn_layout": "Layout",
+  "process_mining::ocpn_layout_request": "ModelLayoutRequest",
+  "process_mining::ocpn_scene_from_layout": "Scene",
+  "process_mining::ocpn_svg": "string",
+  "process_mining::ocpn_svg_from_layout": "string",
+  "process_mining::partial_order_layout": "Layout",
+  "process_mining::partial_order_layout_request": "ModelLayoutRequest",
+  "process_mining::partial_order_scene_from_layout": "Scene",
+  "process_mining::partial_order_svg": "string",
+  "process_mining::partial_order_svg_from_layout": "string",
+  "process_mining::path_schema_connections": "PathSchemaConnections",
+  "process_mining::path_schema_enumerate": "PathSchemaEnumeration",
+  "process_mining::petri_net_layout": "Layout",
+  "process_mining::petri_net_layout_request": "ModelLayoutRequest",
+  "process_mining::petri_net_scene_from_layout": "Scene",
+  "process_mining::petri_net_svg": "string",
+  "process_mining::petri_net_svg_from_layout": "string",
+  "process_mining::process_tree_layout": "Layout",
+  "process_mining::process_tree_layout_request": "ModelLayoutRequest",
+  "process_mining::process_tree_scene_from_layout": "Scene",
+  "process_mining::process_tree_svg": "string",
+  "process_mining::process_tree_svg_from_layout": "string",
+  "process_mining::project_oc_arcs": "Array_of_OCDeclareArc",
+  "process_mining::reduce_oc_arcs": "Array_of_OCDeclareArc",
+  "process_mining::reflow": "ReflowResult",
+  "process_mining::reflow_annotated_ocpn": "AnnotatedOcpn",
+  "process_mining::reflow_annotated_ocpn_drawing": "AnnotatedOcpnDrawing",
+  "process_mining::reflow_annotated_ocpn_net": "ObjectCentricPetriNet",
+  "process_mining::reflow_annotated_ocpn_svg": "string",
+  "process_mining::reflow_cells": "ReflowSummary",
+  "process_mining::reflow_flow_log": "SlimLinkedOCEL",
+  "process_mining::reflow_flow_projection": "SlimLinkedOCEL",
+  "process_mining::reflow_from_tagged": "ReflowResult",
+  "process_mining::reflow_full_projection": "SlimLinkedOCEL",
+  "process_mining::reflow_tag": "SlimLinkedOCEL",
+  "process_mining::reflow_untag": "SlimLinkedOCEL",
+  "process_mining::reflow_with_flow_layer": "ReflowResult",
+  "process_mining::render_scene_svg": "string",
+  "process_mining::reroute_graph": "Layout",
 };

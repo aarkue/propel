@@ -125,6 +125,12 @@ export function uniqueName(base: string, taken: Iterable<string>): string {
   }
 }
 
+/** A name unique against every loaded dataset's id and label, usable as both. See {@link uniqueName}. */
+export function uniqueDatasetName(base: string): string {
+  const datasets = useDatasets.getState().datasets;
+  return uniqueName(base, [...datasets.map((d) => d.id), ...datasets.map((d) => d.label)]);
+}
+
 /** A label unique among currently loaded datasets. See {@link uniqueName}. */
 export function uniqueDatasetLabel(base: string): string {
   return uniqueName(

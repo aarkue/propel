@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { wasmViz } from "../viz/wasm";
-import { blueprintLayoutRequest, gridBlueprintPositions, layoutBlueprint } from "./layout";
+import { blueprintLayoutRequest, blueprintSizes, gridBlueprintPositions, layoutBlueprint } from "./layout";
 import { type DerivedEdge, deriveEdges, type EditorMapping, type EditorNode } from "./model";
 import { NODE_SIZE } from "./nodes/types";
 
@@ -120,5 +120,14 @@ describe("gridBlueprintPositions", () => {
       { id: "q", op: { type: "filter", input: "p", condition: { type: "is-null", column: "x" } } },
     ];
     expect(gridBlueprintPositions(cyclic, deriveEdges(cyclic)).size).toBe(2);
+  });
+
+  it("stacks measured nodes by their measured height", () => {
+    const measured = new Map([["a", { width: 210, height: 600 }]]);
+    const sizes = blueprintSizes(NODES, MAPPINGS, measured);
+    const positions = gridBlueprintPositions(NODES, EDGES, MAPPINGS, sizes);
+    const a = positions.get("a");
+    const b = positions.get("b");
+    expect(b && a && b.y - a.y).toBeGreaterThanOrEqual(600);
   });
 });

@@ -1,7 +1,15 @@
 import { Button, DropdownMenu, IconButton, Kbd, Separator } from "@r4pm/components/ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { PiDotsThreeVertical, PiMagnifyingGlass, PiMoon, PiPlus, PiStack, PiSun } from "react-icons/pi";
+import {
+  PiCompass,
+  PiDotsThreeVertical,
+  PiMagnifyingGlass,
+  PiMoon,
+  PiPlus,
+  PiStack,
+  PiSun,
+} from "react-icons/pi";
 import { backend } from "../backends";
 import { openProjectFile, saveProjectFile } from "../persistence/restore";
 import { withBusy } from "./BusyOverlay";
@@ -9,6 +17,7 @@ import { CommandPalette } from "./CommandPalette";
 import { LoadedStrip } from "./LoadedStrip";
 import { LoadedDialog } from "./LoadedDialog";
 import { useArtifacts, useDatasets } from "../stores";
+import { useExplore } from "../stores/explore";
 import { ImportButton } from "./ImportButton";
 import { PanelGallery } from "./PanelGallery";
 import { ProjectSwitcher } from "./ProjectSwitcher";
@@ -84,6 +93,7 @@ export function TopBar({ children }: { children: ReactNode }) {
           <PiPlus />
           <span className="hidden sm:inline">Add panel</span>
         </Button>
+        <ExploreToggle />
         <Separator orientation="vertical" size="1" className="!mx-1 hidden sm:block" />
         <div className="hidden md:flex min-w-0 flex-1">
           <LoadedStrip />
@@ -159,5 +169,24 @@ export function TopBar({ children }: { children: ReactNode }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
+  );
+}
+
+/** Shows the Explore home over the dock, or hides it again. */
+function ExploreToggle() {
+  const open = useExplore((s) => s.open);
+  const setOpen = useExplore((s) => s.setOpen);
+  return (
+    <Button
+      size="2"
+      variant={open ? "solid" : "soft"}
+      color="gray"
+      aria-pressed={open}
+      onClick={() => setOpen(!open)}
+      title="Panels grouped by analysis"
+    >
+      <PiCompass />
+      <span className="hidden sm:inline">Explore</span>
+    </Button>
   );
 }

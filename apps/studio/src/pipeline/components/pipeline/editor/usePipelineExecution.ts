@@ -68,11 +68,16 @@ export function usePipelineExecution(
             // "ran, empty result" from "never run / unconnected".
             const inputEdge = edges.find((e) => e.target === nodeId);
             const srcNode = inputEdge ? nodes.find((n) => n.id === inputEdge.source) : undefined;
-            const returnType = srcNode ? (getNodeType(srcNode)?.title as string | undefined) : undefined;
+            const srcType = srcNode ? getNodeType(srcNode) : undefined;
+            const returnType = srcType?.title as string | undefined;
+            const mediaType = srcType?.contentMediaType;
             setNodes((nds) =>
               nds.map((n) =>
                 n.id === nodeId
-                  ? ({ ...n, data: { ...n.data, value: result, returnType, hasRun: true } } as AppNode)
+                  ? ({
+                      ...n,
+                      data: { ...n.data, value: result, returnType, mediaType, hasRun: true },
+                    } as AppNode)
                   : n,
               ),
             );

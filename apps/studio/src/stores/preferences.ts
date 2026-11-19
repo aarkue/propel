@@ -1,8 +1,9 @@
 import { create } from "zustand";
-import { colorForKey, colorForSeed } from "@r4pm/components";
+import { colorForKey, formatDuration } from "@r4pm/components";
 import type { AlignmentStyle, ColorResolver, ViewerFormat } from "@r4pm/components";
 
-export type DurationStyle = "short" | "long";
+export type { DurationStyle } from "@r4pm/components";
+import type { DurationStyle } from "@r4pm/components";
 export type { AlignmentStyle };
 
 /** Edge routing of the process maps (DFG, OC-DFG, OCEL type graph). `diagonal` (the default) draws
@@ -166,35 +167,8 @@ export const EXPERT_IMPORT_FORMATS: Record<string, readonly string[]> = {
   EventLog: ["json"],
 };
 
-/** @deprecated Use `colorForSeed` from `@r4pm/components`. */
-export const stableColor = colorForSeed;
-
 export function makeColorResolver(overrides: Record<string, string>): ColorResolver {
   return (scope, key) => overrides[`${scope}:${key}`] ?? colorForKey(scope, key);
-}
-
-function formatDuration(ms: number, style: DurationStyle): string {
-  if (!Number.isFinite(ms)) return "-";
-  if (Math.abs(ms) < 1000) {
-    const n = Math.round(ms);
-    return style === "short" ? `${n}ms` : `${n} milliseconds`;
-  }
-  const units: [string, string, number][] = [
-    ["d", " days", 86_400_000],
-    ["h", " hours", 3_600_000],
-    ["m", " minutes", 60_000],
-    ["s", " seconds", 1000],
-  ];
-  let rest = Math.abs(Math.round(ms));
-  const parts: string[] = [];
-  for (const [short, long, size] of units) {
-    if (rest < size && parts.length === 0 && size > 1000) continue;
-    const n = Math.floor(rest / size);
-    rest -= n * size;
-    if (n > 0) parts.push(style === "short" ? `${n}${short}` : `${n}${long}`);
-    if (parts.length === 2) break;
-  }
-  return parts.length ? parts.join(" ") : style === "short" ? "0s" : "0 seconds";
 }
 
 export function makeFormat(opts: { durationStyle: DurationStyle }): ViewerFormat {

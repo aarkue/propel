@@ -2,10 +2,30 @@ import { type GraphRequest, layoutGraph, type Point, type VizTransport } from ".
 import type { DerivedEdge, EditorMapping, EditorNode } from "./model";
 import { NODE_SIZE } from "./nodes/types";
 
-/** Node boxes grow with their content (a Source node's column list, a mapping's summary lines), so
- *  these are estimates. The layout only needs them in the right ballpark to avoid overlap. */
-function sizeOf(n: EditorNode) {
-  return NODE_SIZE[n.op.type] ?? NODE_SIZE.filter;
+type Size = { width: number; height: number };
+
+/** Rendered node sizes by id. Nodes grow with their content (a Source node's column list, a
+ *  mapping's summary lines), so the `NODE_SIZE` estimates only stand in until a node is measured. */
+export type MeasuredSizes = Map<string, Size>;
+
+function sizeOf(n: EditorNode, measured?: MeasuredSizes): Size {
+  return measured?.get(n.id) ?? NODE_SIZE[n.op.type] ?? NODE_SIZE.filter;
+}
+
+function mappingSize(m: EditorMapping, measured?: MeasuredSizes): Size {
+  return measured?.get(m.id) ?? NODE_SIZE.mapping;
+}
+
+/** Every node's size: measured where known, else the estimate. */
+export function blueprintSizes(
+  nodes: EditorNode[],
+  mappings: EditorMapping[],
+  measured?: MeasuredSizes,
+): MeasuredSizes {
+  return new Map([
+    ...nodes.map((n): [string, Size] => [n.id, sizeOf(n, measured)]),
+    ...mappings.map((m): [string, Size] => [m.id, mappingSize(m, measured)]),
+  ]);
 }
 
 /** The blueprint as a graphlay request. `ids[i]` is the row node or mapping behind graph node `i`.
@@ -14,9 +34,10 @@ export function blueprintLayoutRequest(
   nodes: EditorNode[],
   edges: DerivedEdge[],
   mappings: EditorMapping[] = [],
+  measured?: MeasuredSizes,
 ): { request: GraphRequest; ids: string[] } {
   const ids = [...nodes.map((n) => n.id), ...mappings.map((m) => m.id)];
-  const sizes = [...nodes.map(sizeOf), ...mappings.map(() => NODE_SIZE.mapping)];
+  const sizes = [...nodes.map((n) => sizeOf(n, measured)), ...mappings.map((m) => mappingSize(m, measured))];
   const index = new Map(ids.map((id, i) => [id, i]));
   const graphEdges: GraphRequest["graph"]["edges"] = [];
   for (const e of edges) {
@@ -46,8 +67,9 @@ export async function layoutBlueprint(
   nodes: EditorNode[],
   edges: DerivedEdge[],
   mappings: EditorMapping[] = [],
+  measured?: MeasuredSizes,
 ): Promise<Map<string, Point>> {
-  const { request, ids } = blueprintLayoutRequest(nodes, edges, mappings);
+  const { request, ids } = blueprintLayoutRequest(nodes, edges, mappings, measured);
   const layout = await layoutGraph(viz, request);
   return new Map(
     layout.nodes.map(({ center, size }, i) => [
@@ -66,6 +88,7 @@ export function gridBlueprintPositions(
   nodes: EditorNode[],
   edges: DerivedEdge[],
   mappings: EditorMapping[] = [],
+  measured?: MeasuredSizes,
 ): Map<string, Point> {
   const inputs = new Map<string, string[]>();
   for (const e of edges) inputs.set(e.target, [...(inputs.get(e.target) ?? []), e.source]);
@@ -83,8 +106,8 @@ export function gridBlueprintPositions(
     return d;
   };
   const boxes = [
-    ...nodes.map((n) => ({ id: n.id, height: sizeOf(n).height })),
-    ...mappings.map((m) => ({ id: m.id, height: NODE_SIZE.mapping.height })),
+    ...nodes.map((n) => ({ id: n.id, height: sizeOf(n, measured).height })),
+    ...mappings.map((m) => ({ id: m.id, height: mappingSize(m, measured).height })),
   ];
   const columns: (typeof boxes)[] = [];
   for (const box of boxes) {

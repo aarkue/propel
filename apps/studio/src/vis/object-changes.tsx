@@ -1,13 +1,10 @@
-import type { IDockviewPanelProps } from "dockview";
 import { lazy, Suspense, useState } from "react";
 import { ErrorState, LoadingState } from "@r4pm/components";
 import { Button, Card, Text } from "@r4pm/components/ui";
 import { useQuery } from "@tanstack/react-query";
 import type { BackendContext, ObjectAttributeChanges, SlimLinkedOCELHandle } from "@r4pm/client";
 import { PiWaveSine } from "react-icons/pi";
-import { definePanel } from "./define-vis";
-import { withSelector, datasetEmptyBox } from "./_shared";
-import { useDatasetSelection } from "../panels/active-datasets";
+import { type DatasetPanelProps, defineDatasetPanel } from "./define-vis";
 import { useDatasetScopedState } from "../panels/panel-state";
 import { backend } from "../backends";
 
@@ -16,9 +13,8 @@ const ObjectAttributeChangesChart = lazy(() =>
   import("@r4pm/components/charts").then((m) => ({ default: m.ObjectAttributeChangesChart })),
 );
 
-const GET_OCEL_OBJECT_IDS = "app_bindings::ocel::get_ocel_object_ids" as const;
-const GET_OBJECT_ATTRIBUTE_CHANGES =
-  "process_mining::analysis::object_centric::object_attribute_changes::get_object_attribute_changes" as const;
+const GET_OCEL_OBJECT_IDS = "app_bindings::get_ocel_object_ids" as const;
+const GET_OBJECT_ATTRIBUTE_CHANGES = "process_mining::get_object_attribute_changes" as const;
 
 export interface ObjectAttributeChangesPanelProps {
   backend: BackendContext;
@@ -109,26 +105,20 @@ export function ObjectAttributeChangesPanel({
   );
 }
 
-export function ObjectChangesDockPanel(props: IDockviewPanelProps) {
-  const { id: ocel, selector } = useDatasetSelection("SlimLinkedOCEL", props);
-  const [committedId, setCommittedId] = useDatasetScopedState(props, "objectID", ocel ?? "", "");
-  if (!ocel) return withSelector(selector, datasetEmptyBox("OCEL"), "object-changes");
-  return withSelector(
-    selector,
-    <Suspense fallback={<LoadingState label="loading object changes" />}>
-      <ObjectAttributeChangesPanel
-        key={ocel}
-        backend={backend}
-        ocel={ocel as SlimLinkedOCELHandle}
-        committedId={committedId}
-        onCommit={setCommittedId}
-      />
-    </Suspense>,
-    "object-changes",
+function ObjectChangesDockPanel({ id, props }: DatasetPanelProps) {
+  const [committedId, setCommittedId] = useDatasetScopedState(props, "objectID", id, "");
+  return (
+    <ObjectAttributeChangesPanel
+      backend={backend}
+      ocel={id as SlimLinkedOCELHandle}
+      committedId={committedId}
+      onCommit={setCommittedId}
+    />
   );
 }
 
-export const vis = definePanel({
+export const vis = defineDatasetPanel({
+  needs: "SlimLinkedOCEL",
   type: "objectChanges",
   name: "Object Changes",
   description: "An OCEL object's attribute values over time.",

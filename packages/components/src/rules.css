@@ -41,6 +41,19 @@
   }
 }
 
+/* A zoomed prefix tree slides in from its parent's side. */
+@keyframes r4pm-tree-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* The data-sources dialog's shell. Radix's `Dialog.Content` ships `--shadow-6`, four layers with a
    `0 0 0 1px var(--gray-a3)` ring that doubles the panel's own 1px border into a visible seam; this
    is the two-layer lift the panel was drawn with. A class rather than an inline style because it
@@ -111,4 +124,122 @@
   box-shadow:
     0 0 0 3px var(--gray-a4),
     0 2px 8px rgb(0 0 0 / 30%);
+}
+
+/* Shared analysis-view kit (kit/index.tsx). */
+.r4pm-eyebrow {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-10);
+}
+.r4pm-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--gray-a2);
+  border: 1px solid var(--gray-a3);
+}
+.r4pm-option-trigger {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--gray-a2);
+  border: 1px solid var(--gray-a4);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.r4pm-option-trigger:hover {
+  background: var(--gray-a3);
+  border-color: var(--gray-a6);
+}
+.r4pm-option-trigger:focus-visible {
+  outline: 2px solid var(--focus-8);
+  outline-offset: 1px;
+}
+.r4pm-option-trigger[data-disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.r4pm-segmented {
+  box-sizing: border-box;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--gray-a3);
+}
+.r4pm-segment {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--gray-11);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.r4pm-segmented[data-compact] .r4pm-segment {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+.r4pm-segment:hover {
+  color: var(--gray-12);
+  background: var(--gray-a3);
+}
+.r4pm-segment[data-on] {
+  color: var(--accent-11);
+  background: var(--color-panel-solid);
+  box-shadow: var(--shadow-2);
+  font-weight: 600;
+}
+.r4pm-segment:focus-visible {
+  outline: 2px solid var(--focus-8);
+  outline-offset: 1px;
+}
+.r4pm-segment:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.r4pm-expandable-row {
+  cursor: pointer;
+}
+.r4pm-expandable-row:hover {
+  background: var(--gray-a3);
+}
+
+/* A drag on a graph, or on what floats over it, pans or moves nodes. Without this it also starts
+   a text selection that spreads over the whole view. */
+.react-flow,
+.r4pm-no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.react-flow :is(input, textarea, [contenteditable="true"]),
+.r4pm-no-select :is(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
 }

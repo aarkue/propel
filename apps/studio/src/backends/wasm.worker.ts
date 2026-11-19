@@ -41,7 +41,7 @@ self.onmessage = async (e: MessageEvent<{ id: number; method: string; args: any[
       case "callBinding":
         // Parse the JSON-encoded result here so the (potentially large) decode+parse cost
         // also stays off the main thread; the plain object is structured-cloned back.
-        result = JSON.parse(new TextDecoder().decode(execute_binding(args[0], args[1], args[2])));
+        result = JSON.parse(new TextDecoder().decode(execute_binding(args[0], args[1], args[2], args[3])));
         break;
       case "listObjects":
         result = get_all_objects_with_type();

@@ -1,53 +1,79 @@
-import { Badge, Dialog, Switch, Text, TextField } from "@r4pm/components/ui";
-import { useMemo, useState } from "react";
-import { PiMagnifyingGlass, PiSparkle } from "react-icons/pi";
+import { Dialog, SegmentedControl, TextField } from "@r4pm/components/ui";
+import { useMemo, useRef, useState } from "react";
+import type { IconType } from "react-icons";
+import { PiDotsThreeCircle, PiMagnifyingGlass } from "react-icons/pi";
+import { addPanelToDockview, getPanelByType, type PanelDefinition, VISIBLE_PANELS } from "../panels/registry";
 import { useDatasets } from "../stores";
-import {
-  addPanelToDockview,
-  PANEL_CATEGORIES,
-  type PanelCategory,
-  type PanelDefinition,
-  panelHasNoRequirement,
-  panelIsCompatible,
-  panelMatchesCategory,
-  VISIBLE_PANELS,
-} from "../panels/registry";
-import { colorForKind, labelForKind } from "./object-colors";
+import { ANALYSES, type Analysis, type Entry } from "./analyses";
+import { useThemeMode } from "./theme-context";
+import { thumbUrl } from "./thumbs";
 
-type CategoryFilter = "all" | PanelCategory;
+export type Kind = "EventLog" | "SlimLinkedOCEL";
+
+interface Section {
+  id: string;
+  title: string;
+  summary: string;
+  icon: IconType;
+  items: { panel: PanelDefinition; about: string }[];
+}
+
+/** `panel` matches `q` by its own words or by those of the analysis listing it. */
+function matches(panel: PanelDefinition, about: string, q: string, analysis?: Analysis): boolean {
+  if (!q) return true;
+  const words = [panel.name, about, panel.description, ...(panel.keywords ?? [])];
+  if (analysis) words.push(analysis.title, analysis.summary, ...(analysis.keywords ?? []));
+  return words.join(" ").toLowerCase().includes(q);
+}
+
+/** The analyses of `kind` as sections, then the panels none of them lists. */
+export function sectionsFor(kind: Kind, q: string): Section[] {
+  // A panel some analysis lists, of either kind, does not go under "More".
+  const listed = new Set(ANALYSES.flatMap((a) => a.panels.map((e) => e.type)));
+  const entry = (a: Analysis) => (e: Entry) => {
+    const panel = getPanelByType(e.type);
+    return panel && matches(panel, e.about, q, a) ? [{ panel, about: e.about }] : [];
+  };
+  const out: Section[] = ANALYSES.filter((a) => a.needs === kind).map((a) => ({
+    id: a.id,
+    title: a.title,
+    summary: a.summary,
+    icon: a.icon,
+    items: a.panels.flatMap(entry(a)),
+  }));
+  const rest = VISIBLE_PANELS.filter(
+    (p) => !listed.has(p.type) && (!p.supports?.length || p.supports.includes(kind)),
+  );
+  out.push({
+    id: "more",
+    title: "More",
+    summary: "Panels that fit no analysis above",
+    icon: PiDotsThreeCircle,
+    items: rest.filter((p) => matches(p, "", q)).map((panel) => ({ panel, about: panel.description })),
+  });
+  return out.filter((s) => s.items.length > 0);
+}
 
 export function PanelGallery({ open, onClose }: { open: boolean; onClose: () => void }) {
   const datasets = useDatasets((s) => s.datasets);
+  const latest = useMemo(() => {
+    const logs = datasets.filter((d) => d.kind === "EventLog" || d.kind === "SlimLinkedOCEL");
+    return logs[logs.length - 1];
+  }, [datasets]);
+  const [picked, setPicked] = useState<Kind | null>(null);
+  const kind: Kind = picked ?? (latest?.kind as Kind | undefined) ?? "EventLog";
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<CategoryFilter>("all");
-  const [onlyCompatible, setOnlyCompatible] = useState(true);
-
-  const loadedKinds = useMemo(() => new Set(datasets.map((d) => d.kind)), [datasets]);
-  const hasAnyData = loadedKinds.size > 0;
-  const effectiveOnlyCompatible = onlyCompatible && hasAnyData;
-
-  const visibleRegistry = useMemo(
-    () =>
-      effectiveOnlyCompatible
-        ? VISIBLE_PANELS.filter((panel) => panelIsCompatible(panel, loadedKinds))
-        : VISIBLE_PANELS,
-    [effectiveOnlyCompatible, loadedKinds],
+  const q = query.trim().toLowerCase();
+  const sections = useMemo(() => sectionsFor(kind, q), [kind, q]);
+  const other: Kind = kind === "EventLog" ? "SlimLinkedOCEL" : "EventLog";
+  const otherCount = useMemo(
+    () => (q ? sectionsFor(other, q).reduce((n, s) => n + s.items.length, 0) : 0),
+    [other, q],
   );
+  const scroller = useRef<HTMLDivElement>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return visibleRegistry.filter((panel) => {
-      if (category !== "all" && !panelMatchesCategory(panel, category)) return false;
-      if (!q) return true;
-      const haystack = [panel.name, panel.description, panel.category, ...(panel.keywords ?? [])]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [query, category, visibleRegistry]);
-
-  const handleAdd = (panel: PanelDefinition) => {
-    addPanelToDockview(panel.type);
+  const add = (type: string) => {
+    addPanelToDockview(type);
     onClose();
   };
 
@@ -59,36 +85,23 @@ export function PanelGallery({ open, onClose }: { open: boolean; onClose: () => 
       }}
     >
       <Dialog.Content
-        maxWidth="1000px"
+        maxWidth="1120px"
         className="!p-0 !overflow-hidden"
-        style={{ height: "min(720px, 85vh)" }}
+        style={{ height: "min(800px, 88vh)" }}
       >
-        <div className="flex flex-col h-full">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-4 border-b border-[var(--gray-a5)] shrink-0">
+        <div className="flex h-full flex-col">
+          <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-b border-[var(--gray-a5)] px-5 py-4 sm:flex-row">
             <div>
               <Dialog.Title className="!mb-0">Add a panel</Dialog.Title>
               <Dialog.Description size="2" color="gray" className="!mt-0.5">
-                Browse and drop in any analysis view
+                Grouped by the analysis they serve
               </Dialog.Description>
             </div>
             <div className="flex items-center gap-3">
-              {hasAnyData && (
-                <Text
-                  as="label"
-                  size="1"
-                  color="indigo"
-                  weight="medium"
-                  className="flex items-center gap-2 cursor-pointer select-none"
-                >
-                  <Switch
-                    size="1"
-                    color="indigo"
-                    checked={onlyCompatible}
-                    onCheckedChange={setOnlyCompatible}
-                  />
-                  Compatible only
-                </Text>
-              )}
+              <SegmentedControl.Root size="2" value={kind} onValueChange={(v) => setPicked(v as Kind)}>
+                <SegmentedControl.Item value="EventLog">Case-centric</SegmentedControl.Item>
+                <SegmentedControl.Item value="SlimLinkedOCEL">Object-centric</SegmentedControl.Item>
+              </SegmentedControl.Root>
               <div className="sm:w-64">
                 <TextField.Root
                   autoFocus
@@ -103,59 +116,57 @@ export function PanelGallery({ open, onClose }: { open: boolean; onClose: () => 
               </div>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row flex-1 min-h-0">
-            <nav className="w-full max-h-24 sm:max-h-full sm:w-52 shrink-0 border-r border-[var(--gray-a5)] p-2 overflow-y-auto">
-              <CategoryButton
-                label="All panels"
-                icon={PiSparkle}
-                active={category === "all"}
-                onClick={() => setCategory("all")}
-                count={visibleRegistry.length}
-              />
-              <div className="h-2" />
-              {PANEL_CATEGORIES.map((cat) => {
-                const count = visibleRegistry.filter((p) => panelMatchesCategory(p, cat.id)).length;
-                if (count === 0) return null;
+          <div className="flex min-h-0 flex-1">
+            <nav className="hidden w-56 shrink-0 overflow-y-auto border-r border-[var(--gray-a5)] p-2 sm:block">
+              {sections.map((s) => {
+                const Icon = s.icon;
                 return (
-                  <CategoryButton
-                    key={cat.id}
-                    label={cat.label}
-                    icon={cat.icon}
-                    active={category === cat.id}
-                    onClick={() => setCategory(cat.id)}
-                    count={count}
-                  />
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() =>
+                      scroller.current
+                        ?.querySelector(`[data-section="${s.id}"]`)
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }
+                    className="flex w-full cursor-pointer items-center gap-2 rounded px-2.5 py-1.5 text-left text-sm text-[var(--gray-12)] transition-colors hover:bg-[var(--gray-a3)]"
+                  >
+                    <Icon size={14} className="text-[var(--indigo-11)]" />
+                    <span className="flex-1 truncate">{s.title}</span>
+                    <span className="text-xs text-[var(--gray-10)]">{s.items.length}</span>
+                  </button>
                 );
               })}
             </nav>
-            <div className="flex-1 min-w-0 overflow-y-auto">
-              <div className="p-5">
-                {effectiveOnlyCompatible && (
-                  <div className="mb-3 flex items-center gap-2">
-                    <Text size="1" color="gray">
-                      Showing panels compatible with:
-                    </Text>
-                    {Array.from(loadedKinds).map((kind) => (
-                      <Badge key={kind} size="1" variant="soft" color={colorForKind(kind)}>
-                        {labelForKind(kind)}
-                      </Badge>
-                    ))}
+            <div ref={scroller} className="min-w-0 flex-1 overflow-y-auto">
+              <div className="flex flex-col gap-8 p-5">
+                {sections.length === 0 && (
+                  <div className="py-16 text-center text-sm text-[var(--gray-11)]">
+                    No panels match "{query}".{" "}
+                    {otherCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPicked(other)}
+                        className="ml-1 cursor-pointer text-[var(--indigo-11)] underline-offset-2 hover:underline"
+                      >
+                        Show {otherCount} {other === "EventLog" ? "case-centric" : "object-centric"} panel
+                        {otherCount === 1 ? "" : "s"} that match.
+                      </button>
+                    )}
                   </div>
                 )}
-                {filtered.length === 0 ? (
-                  <div className="py-16 text-center text-[var(--gray-11)] text-sm">
-                    {query
-                      ? `No panels match "${query}".`
-                      : effectiveOnlyCompatible
-                        ? "No compatible panels in this category. Turn off 'Compatible only' to see all panels."
-                        : "No panels in this category."}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {filtered.map((panel) => (
-                      <PanelCard key={panel.type} panel={panel} onAdd={() => handleAdd(panel)} />
-                    ))}
-                  </div>
+                {sections.map((s) => (
+                  <SectionView key={s.id} section={s} onAdd={add} />
+                ))}
+                {sections.length > 0 && otherCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPicked(other)}
+                    className="cursor-pointer self-start text-sm text-[var(--indigo-11)] underline-offset-2 hover:underline"
+                  >
+                    {otherCount} more {other === "EventLog" ? "case-centric" : "object-centric"} panel
+                    {otherCount === 1 ? " matches" : "s match"}
+                  </button>
                 )}
               </div>
             </div>
@@ -166,60 +177,74 @@ export function PanelGallery({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
-function CategoryButton({
-  label,
-  icon: Icon,
-  active,
-  onClick,
-  count,
+export function SectionView({
+  section,
+  onAdd,
+  fact,
 }: {
-  label: string;
-  icon: React.ComponentType<{ size?: number }>;
-  active: boolean;
-  onClick: () => void;
-  count: number;
+  section: Section;
+  onAdd: (type: string) => void;
+  /** A fact from the data about this analysis, e.g., the number of variants. */
+  fact?: string;
 }) {
+  const Icon = section.icon;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-left text-sm transition-colors ${
-        active
-          ? "bg-[var(--indigo-a4)] text-[var(--indigo-11)]"
-          : "text-[var(--gray-12)] hover:bg-[var(--gray-a3)]"
-      }`}
-    >
-      <Icon size={14} />
-      <span className="flex-1">{label}</span>
-      <span className="text-xs text-[var(--gray-10)]">{count}</span>
-    </button>
+    <section data-section={section.id} className="flex scroll-mt-2 flex-col gap-3">
+      <div className="flex items-end justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="rounded-md bg-[var(--indigo-a3)] p-1.5 text-[var(--indigo-11)]">
+            <Icon size={16} />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[15px] font-medium leading-tight text-[var(--gray-12)]">
+              {section.title}
+            </span>
+            <span className="text-xs text-[var(--gray-11)]">{section.summary}</span>
+          </div>
+        </div>
+        {fact && <span className="text-right text-xs text-[var(--gray-12)]">{fact}</span>}
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {section.items.map(({ panel, about }) => (
+          <PanelCard key={panel.type} panel={panel} about={about} onAdd={() => onAdd(panel.type)} />
+        ))}
+      </div>
+    </section>
   );
 }
 
-function PanelCard({ panel, onAdd }: { panel: PanelDefinition; onAdd: () => void }) {
+function PanelCard({ panel, about, onAdd }: { panel: PanelDefinition; about: string; onAdd: () => void }) {
   const Icon = panel.icon;
+  const { resolved } = useThemeMode();
+  const thumb = thumbUrl(panel.type, resolved === "dark");
   return (
     <button
       type="button"
       onClick={onAdd}
-      className="group flex flex-col gap-2 items-start text-left p-4 rounded-md border border-[var(--gray-a5)] hover:border-[var(--indigo-8)] hover:bg-[var(--indigo-a2)] transition-colors cursor-pointer"
+      title={panel.description}
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-lg border border-[var(--gray-a5)] bg-[var(--color-panel-solid)] text-left transition-[border-color,box-shadow] hover:border-[var(--indigo-8)] hover:shadow-[0_2px_10px_var(--gray-a4)]"
     >
-      <div className="flex items-center gap-2.5 w-full">
-        <div className="rounded bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-1.5 group-hover:bg-[var(--indigo-a5)] transition-colors">
-          <Icon size={18} />
-        </div>
-        <span className="font-medium text-[var(--gray-12)] text-sm flex-1 truncate">{panel.name}</span>
+      <div className="relative aspect-[7/4] w-full overflow-hidden border-b border-[var(--gray-a4)] bg-[var(--gray-a2)]">
+        {thumb ? (
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover object-left-top transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_50%_40%,var(--indigo-a3),transparent_70%)] text-[var(--indigo-a9)]">
+            <Icon size={44} />
+          </div>
+        )}
       </div>
-      <p className="text-xs text-[var(--gray-11)] leading-snug line-clamp-2">{panel.description}</p>
-      {!panelHasNoRequirement(panel) && (
-        <div className="flex gap-1 mt-auto">
-          {panel.supports?.map((kind) => (
-            <Badge key={kind} size="1" variant="soft" color={colorForKind(kind)}>
-              {labelForKind(kind)}
-            </Badge>
-          ))}
+      <div className="flex flex-col gap-0.5 px-3 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <Icon size={14} className="shrink-0 text-[var(--indigo-11)]" />
+          <span className="truncate text-sm font-medium text-[var(--gray-12)]">{panel.name}</span>
         </div>
-      )}
+        <span className="line-clamp-2 text-xs leading-snug text-[var(--gray-11)]">{about}</span>
+      </div>
     </button>
   );
 }

@@ -1,26 +1,29 @@
 pub use process_mining;
 use process_mining::{
     bindings::{self, RegistryItemKind},
-    core::{
-        event_data::case_centric::xes::{XESOuterLogData, XESParsingTraceStream},
-        io::ExtensionWithMime,
-    },
-    EventLog, OCEL,
+    core::io::ExtensionWithMime,
 };
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use cache::ResultCache;
 use std::sync::RwLock;
 pub mod artifact;
+pub mod cache;
+pub mod jobs;
 pub mod meta;
+pub mod models;
 pub mod oc_declare_file;
+pub mod reflow_mapping_file;
 pub use meta::{ItemMeta, ItemRole, ObjMeta, Provenance};
 pub use state::{Backend, ExtendedAppState};
 pub mod state {
     use std::collections::HashMap;
     use std::ops::Deref;
-    use std::{path::PathBuf, sync::RwLock};
+    use std::sync::RwLock;
 
     use process_mining::bindings::AppState;
 
@@ -33,12 +36,13 @@ pub mod state {
     pub struct ExtendedAppState {
         pub inner: AppState,
         pub meta: ObjMeta,
-        pub files_to_import: RwLock<Vec<PathBuf>>,
         pub artifacts: RwLock<HashMap<String, PropelArtifact>>,
         /// Insertion order of registry-object / artifact ids, kept because the underlying maps
         /// are unordered; reconciled lazily so the frontend gets a stable order. See `reconcile_order`.
         pub object_order: RwLock<Vec<String>>,
         pub artifact_order: RwLock<Vec<String>>,
+        pub results: crate::cache::ResultCache,
+        pub jobs: crate::jobs::Jobs,
     }
     /// Deref to the wrapped `AppState` so existing `.items` / `.add` / `.contains_key` call
     /// sites keep working unchanged; only the lifecycle policy (`.meta`) is new.
@@ -61,81 +65,27 @@ fn emit_objects_changed<B: Backend>(backend: &B) {
     let _ = backend.emit("objects-changed", ());
 }
 
-fn item_count<B: Backend>(backend: &B) -> usize {
-    backend
-        .get_state()
-        .items
-        .read()
-        .map(|m| m.len())
-        .unwrap_or(0)
+/// Drop what was computed from the item `id`: its converted copies and cached results. Called
+/// whenever the item is replaced or removed.
+fn forget_derived(st: &ExtendedAppState, id: &str) {
+    st.results.invalidate(id);
+    let prefix = format!("{id}__as__");
+    let _ = st.meta.remove_with_prefix(&prefix);
+    if let Ok(mut objects) = st.items.write() {
+        objects.retain(|k, _| !k.starts_with(&prefix));
+    }
 }
 
-pub fn load_xes_object<B: Backend>(backend: &B, name: String, xes: EventLog) -> Result<(), String> {
-    backend.get_state().add(name, xes);
-    backend.emit("EventLog-import-finished", ())?;
-    emit_objects_changed(backend);
-    Ok(())
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct EventLogStreamProgress {
-    name: String,
-    num_traces: usize,
-    num_events: usize,
-}
-
-pub fn stream_load_xes_object<B: Backend>(
-    backend: &B,
-    name: String,
-    mut trace_stream: XESParsingTraceStream,
-    log_data: XESOuterLogData,
-) -> Result<(), String> {
-    let mut progress = EventLogStreamProgress {
-        name: name.clone(),
-        num_traces: 0,
-        num_events: 0,
-    };
-    let traces: Vec<_> = trace_stream
-        .inspect(|trace| {
-            progress.num_traces += 1;
-            progress.num_events += trace.events.len();
-            // Do not send status updates for each trace
-            if progress.num_events.is_multiple_of(221) {
-                let _ = backend.emit("EventLog-import-progress", &progress);
-            }
-        })
-        .collect();
-    let _ = backend.emit("EventLog-import-finished", &progress);
-    let xes = EventLog::from_traces_and_log_data(traces, log_data);
-    backend.get_state().add(name, xes);
-    emit_objects_changed(backend);
-    Ok(())
-}
-
-pub fn load_ocel_object<B: Backend>(backend: &B, name: String, ocel: OCEL) -> Result<(), String> {
-    backend.get_state().add(name.clone(), ocel);
-    let _ = backend.emit("OCEL-import-finished", &name);
-    emit_objects_changed(backend);
-    Ok(())
+/// Ask the running job `id` to stop. See [`execute_binding`].
+pub fn cancel_job<B: Backend>(backend: &B, id: &str) {
+    backend.get_state().jobs.cancel(id);
 }
 
 pub fn unload_object<B: Backend>(backend: &B, name: String) -> Result<(), String> {
     let st = backend.get_state();
+    forget_derived(st, &name);
     st.meta.remove(&name);
-    let _ = st.meta.remove_with_prefix(&format!("{name}__as__"));
-    {
-        let mut objects = st.items.write().map_err(|e| e.to_string())?;
-        objects.remove(&name);
-        let prefix = format!("{name}__as__");
-        let derived: Vec<String> = objects
-            .keys()
-            .filter(|k| k.starts_with(&prefix))
-            .cloned()
-            .collect();
-        for d in derived {
-            objects.remove(&d);
-        }
-    }
+    st.items.write().map_err(|e| e.to_string())?.remove(&name);
     emit_objects_changed(backend);
     Ok(())
 }
@@ -227,23 +177,6 @@ pub fn export_artifact<B: Backend>(backend: &B, id: &str, format: &str) -> Resul
         .export_to_bytes(format)
 }
 
-/// Registry kinds an item of `kind` can be converted into, mirroring
-/// `RegistryItem::convert`'s match arms; keep in sync if upstream adds a conversion.
-pub fn convertible_to(kind: RegistryItemKind) -> Vec<RegistryItemKind> {
-    use process_mining::bindings::RegistryItemKind::*;
-    match kind {
-        EventLog => vec![EventLogActivityProjection],
-        OCEL => vec![IndexLinkedOCEL, SlimLinkedOCEL],
-        IndexLinkedOCEL => vec![OCEL],
-        SlimLinkedOCEL => vec![OCEL],
-        EventLogActivityProjection => vec![],
-        // A source is read by an extraction, never converted into a log directly.
-        TabularSource => vec![],
-        // `RegistryItem::convert` has no arm for a downstream handle type.
-        Custom(_) => vec![],
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryItemInfo {
     pub kind: RegistryItemKind,
@@ -252,19 +185,24 @@ pub struct RegistryItemInfo {
     pub convertible_to: Vec<RegistryItemKind>,
 }
 pub fn get_all_item_kinds() -> Result<Vec<RegistryItemInfo>, String> {
-    Ok(bindings::RegistryItemKind::all_kinds()
-        .iter()
-        .map(|k| RegistryItemInfo {
-            kind: *k,
-            import_formats: k.known_import_formats(),
-            export_formats: k.known_export_formats(),
-            convertible_to: convertible_to(*k),
+    Ok(RegistryItemKind::all_registered_kinds()
+        .into_iter()
+        .filter(|k| !models::is_hidden_kind(k))
+        .map(|k| {
+            let mut import_formats = k.known_import_formats();
+            import_formats.extend(models::extra_import_formats(&k));
+            RegistryItemInfo {
+                kind: k,
+                import_formats,
+                export_formats: k.known_export_formats(),
+                convertible_to: k.convertible_to(),
+            }
         })
         .collect())
 }
 
 /// Import/export formats for a Propel artifact kind (the non-registry, engine-stored values like
-/// `PetriNet`). Parallels [`RegistryItemInfo`] so callers can treat both uniformly.
+/// OC-DECLARE models). Parallels [`RegistryItemInfo`] so callers can treat both uniformly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArtifactKindInfo {
     pub kind: String,
@@ -283,21 +221,9 @@ pub fn get_all_artifact_kinds() -> Vec<ArtifactKindInfo> {
         .collect()
 }
 
-#[cfg(test)]
-mod convert_pairs_tests {
-    use super::convertible_to;
-    use process_mining::bindings::RegistryItemKind::*;
-    #[test]
-    fn pairs_match_registryitem_convert_arms() {
-        assert_eq!(convertible_to(EventLog), vec![EventLogActivityProjection]);
-        assert_eq!(convertible_to(OCEL), vec![IndexLinkedOCEL, SlimLinkedOCEL]);
-        assert_eq!(convertible_to(IndexLinkedOCEL), vec![OCEL]);
-        assert_eq!(convertible_to(SlimLinkedOCEL), vec![OCEL]);
-        assert_eq!(convertible_to(EventLogActivityProjection), Vec::new());
-    }
-}
-
-pub fn load_item_bytes<B: Backend>(
+/// Import an item from `data`. An object-centric log reports its progress as job `id` and can be
+/// cancelled with [`cancel_job`].
+pub fn load_item_bytes<B: Backend + Sync>(
     backend: &B,
     id: String,
     item_kind: &RegistryItemKind,
@@ -305,12 +231,20 @@ pub fn load_item_bytes<B: Backend>(
     format: &str,
 ) -> Result<(), String> {
     let _ = backend.emit("import-started", &id);
-    match bindings::RegistryItem::load_from_bytes(item_kind, data, format) {
+    let loaded = jobs::with_job(backend, Some(&id), |ctl| {
+        models::load_from_bytes_with(item_kind, data, format, ctl)
+    });
+    match loaded {
         Ok(item) => {
+            forget_derived(backend.get_state(), &id);
             backend.get_state().add(id.clone(), item);
             let _ = backend.emit("import-finished", &id);
             emit_objects_changed(backend);
             Ok(())
+        }
+        Err(e) if e == jobs::CANCELLED => {
+            let _ = backend.emit("import-cancelled", &id);
+            Err(e)
         }
         Err(e) => {
             let _ = backend.emit("import-failed", serde_json::json!({ "id": id, "error": e }));
@@ -319,54 +253,33 @@ pub fn load_item_bytes<B: Backend>(
     }
 }
 
-pub fn load_item_path<B: Backend>(
+/// [`load_item_bytes`] from a file at `path`.
+pub fn load_item_path<B: Backend + Sync>(
     backend: &B,
     id: String,
     item_kind: &RegistryItemKind,
     path: &str,
 ) -> Result<(), String> {
     let _ = backend.emit("import-started", &id);
-    match bindings::RegistryItem::load_from_path(item_kind, path) {
+    let loaded = jobs::with_job(backend, Some(&id), |ctl| {
+        models::load_from_path_with(item_kind, path, ctl)
+    });
+    match loaded {
         Ok(item) => {
+            forget_derived(backend.get_state(), &id);
             backend.get_state().add(id.clone(), item);
             let _ = backend.emit("import-finished", &id);
             emit_objects_changed(backend);
             Ok(())
         }
+        Err(e) if e == jobs::CANCELLED => {
+            let _ = backend.emit("import-cancelled", &id);
+            Err(e)
+        }
         Err(e) => {
             let _ = backend.emit("import-failed", serde_json::json!({ "id": id, "error": e }));
             Err(e)
         }
-    }
-}
-
-pub fn export_item_bytes<B: Backend>(
-    backend: &B,
-    id: &str,
-    format: &str,
-) -> Result<Vec<u8>, String> {
-    let lock = backend
-        .get_state()
-        .items
-        .read()
-        .map_err(|e| e.to_string())?;
-    if let Some(item) = lock.get(id) {
-        item.export_to_bytes(format).map_err(|e| e.to_string())
-    } else {
-        Err("Item not found.".to_string())
-    }
-}
-
-pub fn export_item_path<B: Backend>(backend: &B, id: &str, path: &str) -> Result<(), String> {
-    let lock = backend
-        .get_state()
-        .items
-        .read()
-        .map_err(|e| e.to_string())?;
-    if let Some(item) = lock.get(id) {
-        item.export_to_path(path).map_err(|e| e.to_string())
-    } else {
-        Err("Item not found.".to_string())
     }
 }
 
@@ -495,6 +408,10 @@ pub fn plan_conversions(
             Some(w) => w,
             None => continue,
         };
+        // A `&mut` binding would change the converted copy, not the passed item.
+        if schema.get("x-registry-mut").and_then(Value::as_bool) == Some(true) {
+            continue;
+        }
         let id = match obj.get(name).and_then(|v| v.as_str()) {
             Some(i) => i,
             None => continue,
@@ -514,7 +431,7 @@ pub fn plan_conversions(
             Ok(k) => k,
             Err(_) => continue,
         };
-        if !convertible_to(have_kind).contains(&want_kind) {
+        if !have_kind.convertible_to().contains(&want_kind) {
             continue;
         }
         out.push(ConvPlan {
@@ -572,25 +489,122 @@ fn is_fresh(meta: &ObjMeta, derived_id: &str, src_gen: u64) -> bool {
 }
 
 /// Decide whether a binding result should be re-keyed to a caller-supplied name: applies only
-/// when a name is given, exactly one new handle appeared, and the result is that handle's JSON id.
-pub fn decide_rename(
-    result: &[u8],
-    delta: i64,
-    output_name: Option<&str>,
-) -> Option<(String, String)> {
-    let name = output_name?;
-    if delta != 1 {
-        return None;
+/// when a name is given and the call minted exactly one handle.
+pub fn decide_rename(minted: &[String], output_name: Option<&str>) -> Option<(String, String)> {
+    match (minted, output_name) {
+        ([id], Some(name)) => Some((id.clone(), name.to_string())),
+        _ => None,
     }
-    let id: String = serde_json::from_slice(result).ok()?;
-    Some((id, name.to_string()))
 }
 
-pub fn execute_binding<B: Backend>(
+/// Store each registry-ref argument passed inline (as JSON, e.g., a pipeline's by-value Petri net)
+/// as a hidden temporary item and point the argument at it. Returns the temporary ids.
+fn store_inline_handles(
+    st: &ExtendedAppState,
+    args: &mut Value,
+    arg_schemas: &[(String, Value)],
+) -> Result<Vec<String>, String> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let mut stored = Vec::new();
+    let Some(obj) = args.as_object_mut() else {
+        return Ok(stored);
+    };
+    for (name, schema) in arg_schemas {
+        let Some(kind) = schema.get("x-registry-ref").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(value) = obj.get(name).filter(|v| v.is_object() || v.is_array()) else {
+            continue;
+        };
+        let item = kind
+            .parse::<RegistryItemKind>()
+            .and_then(|k| bindings::RegistryItem::from_json_value(&k, value))
+            .map_err(|e| format!("Invalid argument '{name}': {e}"));
+        let item = match item {
+            Ok(item) => item,
+            Err(e) => {
+                remove_temporary(st, &stored);
+                return Err(e);
+            }
+        };
+        let id = format!("__inline__{}", NEXT.fetch_add(1, Ordering::Relaxed));
+        st.add(id.clone(), item);
+        st.meta.set(
+            &id,
+            ItemMeta {
+                role: ItemRole::Derived,
+                generation: 0,
+                provenance: None,
+            },
+        );
+        obj.insert(name.clone(), Value::String(id.clone()));
+        stored.push(id);
+    }
+    Ok(stored)
+}
+
+/// The reverse of [`store_inline_handles`]: an argument that takes a model by value (an object
+/// schema titled with a model kind, e.g. `AcceptingPetriNet`) also accepts the id of a stored
+/// model of that kind, so a saved model can be passed wherever its JSON is expected.
+fn inline_stored_models(
+    st: &ExtendedAppState,
+    args: &mut Value,
+    arg_schemas: &[(String, Value)],
+) -> Result<(), String> {
+    let Some(obj) = args.as_object_mut() else {
+        return Ok(());
+    };
+    let items = st.items.read().map_err(|e| e.to_string())?;
+    for (name, schema) in arg_schemas {
+        if schema.get("x-registry-ref").is_some() || schema.get("type") != Some(&json!("object")) {
+            continue;
+        }
+        let Some(title) = schema.get("title").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(item) = obj
+            .get(name)
+            .and_then(Value::as_str)
+            .and_then(|id| items.get(id))
+        else {
+            continue;
+        };
+        if matches!(item.kind(), RegistryItemKind::Custom(k) if k == title) {
+            obj.insert(name.clone(), item.to_value()?);
+        }
+    }
+    Ok(())
+}
+
+/// The registry items an argument object names: every top-level string that is a stored id.
+fn items_read(st: &ExtendedAppState, args: &Value) -> Vec<String> {
+    let Ok(items) = st.items.read() else {
+        return Vec::new();
+    };
+    args.as_object()
+        .into_iter()
+        .flat_map(|o| o.values())
+        .filter_map(Value::as_str)
+        .filter(|id| items.contains_key(*id))
+        .map(String::from)
+        .collect()
+}
+
+fn remove_temporary(st: &ExtendedAppState, ids: &[String]) {
+    for id in ids {
+        st.remove(id);
+        st.meta.remove(id);
+    }
+}
+
+/// Run binding `function_id`. With a `job` id, it reports progress and partial results as
+/// `job-update` events and stops on [`cancel_job`], failing with [`jobs::CANCELLED`].
+pub fn execute_binding<B: Backend + Sync>(
     backend: &B,
     function_id: &str,
     args: &Value,
     output_name: Option<&str>,
+    job: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     let binding =
         bindings::get_fn_binding(function_id).ok_or_else(|| "Unknown function ID".to_string())?;
@@ -599,53 +613,84 @@ pub fn execute_binding<B: Backend>(
     // Provenance sources are the user-supplied ids, captured before the __as__ conversion below may
     // rewrite an arg to point at a hidden derived object.
     let original_args = args.clone();
-    let mut args = args.clone();
-
-    // Transparently convert registry-ref arguments whose passed object is of a different but
-    // convertible kind, caching the result as a hidden `{src}__as__{Kind}` derived item.
-    let plans = {
-        let kind_of = |id: &str| {
-            st.items
-                .read()
-                .ok()
-                .and_then(|m| m.get(id).map(|i| i.kind().to_string()))
-        };
-        plan_conversions(&args, &arg_schemas, kind_of)
-    };
-    for p in &plans {
-        let src_gen = st.meta.generation_of(&p.src_id);
-        if !st.contains_key(&p.derived_id) || !is_fresh(&st.meta, &p.derived_id, src_gen) {
-            let converted = {
-                let items = st.items.read().map_err(|e| e.to_string())?;
-                let item = items.get(&p.src_id).ok_or("source not found")?;
-                item.convert(p.target_kind.parse()?)?
-            };
-            st.add(p.derived_id.clone(), converted);
-            st.meta.set(
-                &p.derived_id,
-                ItemMeta {
-                    role: ItemRole::Derived,
-                    generation: 0,
-                    provenance: Some(Provenance {
-                        sources: vec![p.src_id.clone()],
-                        op: format!("convert:{}", p.target_kind).into(),
-                        source_gen: src_gen,
-                    }),
-                },
-            );
-        }
-        if let Some(obj) = args.as_object_mut() {
-            obj.insert(p.arg_name.clone(), Value::String(p.derived_id.clone()));
-        }
+    // Bindings declared under `process_mining::bindings` read or change the registry itself, and a
+    // named output, an `output_id` or a `&mut` argument changes state, so only the rest are pure
+    // functions of their args.
+    let cache_key = (!binding.module.starts_with("process_mining::bindings")
+        && output_name.is_none()
+        && arg_schemas
+            .iter()
+            .all(|(n, s)| n != "output_id" && s.get("x-registry-mut").is_none()))
+    .then(|| ResultCache::key(function_id, args))
+    .flatten();
+    if let Some(hit) = cache_key.as_deref().and_then(|k| st.results.get(k)) {
+        return Ok(hit);
     }
+    let cache_epoch = st.results.epoch();
+    let read = items_read(st, &original_args);
+    let mut args = args.clone();
+    inline_stored_models(st, &mut args, &arg_schemas)?;
+    let inline_ids = store_inline_handles(st, &mut args, &arg_schemas)?;
 
-    // A binding may store a registry-typed result as a new handle. Detect that by the item-count
-    // delta and emit the generic refresh signal so the UI picks up the derived object.
-    let before = item_count(backend);
-    let result = bindings::call(binding, &args, &st.inner);
-    let after = item_count(backend);
-    if after != before {
-        emit_objects_changed(backend);
+    // The temporary inline items go on every path, also when a conversion below fails.
+    let outcome = (|| -> Result<_, String> {
+        // Transparently convert registry-ref arguments whose passed object is of a different but
+        // convertible kind, caching the result as a hidden `{src}__as__{Kind}` derived item.
+        let plans = {
+            let kind_of = |id: &str| {
+                st.items
+                    .read()
+                    .ok()
+                    .and_then(|m| m.get(id).map(|i| i.kind().to_string()))
+            };
+            plan_conversions(&args, &arg_schemas, kind_of)
+        };
+        for p in &plans {
+            let src_gen = st.meta.generation_of(&p.src_id);
+            if !st.contains_key(&p.derived_id) || !is_fresh(&st.meta, &p.derived_id, src_gen) {
+                let converted = {
+                    let items = st.items.read().map_err(|e| e.to_string())?;
+                    let item = items.get(&p.src_id).ok_or("source not found")?;
+                    item.convert(p.target_kind.parse()?)?
+                };
+                st.add(p.derived_id.clone(), converted);
+                st.meta.set(
+                    &p.derived_id,
+                    ItemMeta {
+                        role: ItemRole::Derived,
+                        generation: 0,
+                        provenance: Some(Provenance {
+                            sources: vec![p.src_id.clone()],
+                            op: format!("convert:{}", p.target_kind).into(),
+                            source_gen: src_gen,
+                        }),
+                    },
+                );
+            }
+            if let Some(obj) = args.as_object_mut() {
+                obj.insert(p.arg_name.clone(), Value::String(p.derived_id.clone()));
+            }
+        }
+
+        let outcome = jobs::with_job(backend, job, |ctl| {
+            bindings::call_with_outcome(binding, &args, &st.inner, ctl)
+        })
+        .map_err(|e| match e {
+            bindings::CallError::Cancelled => jobs::CANCELLED.to_string(),
+            bindings::CallError::Failed(msg) => msg,
+        });
+        Ok(outcome)
+    })();
+    remove_temporary(st, &inline_ids);
+    let outcome = outcome?;
+    if let Ok(o) = &outcome {
+        for id in o.mutated.iter().chain(&o.minted) {
+            st.meta.bump_generation(id);
+            forget_derived(st, id);
+        }
+        if !o.minted.is_empty() || !o.mutated.is_empty() {
+            emit_objects_changed(backend);
+        }
     }
 
     let provenance = build_provenance(function_id, &original_args, &arg_schemas, |id| {
@@ -654,45 +699,59 @@ pub fn execute_binding<B: Backend>(
 
     // If the caller named the output and the call minted exactly one handle, re-key it to that
     // deterministic name, letting the pipeline overwrite a node's prior intermediate on re-run.
-    if let Ok(bytes) = &result {
-        if let Some((old, new)) = decide_rename(bytes, after as i64 - before as i64, output_name) {
-            if let Ok(mut items) = st.items.write() {
-                if let Some(item) = items.remove(&old) {
-                    items.insert(new.clone(), item);
-                }
-            }
-            st.meta.set(
-                &new,
-                ItemMeta {
-                    role: ItemRole::Result,
-                    generation: 0,
-                    provenance,
-                },
-            );
-            return serde_json::to_vec(&new).map_err(|e| e.to_string());
+    let outcome = outcome?;
+    if let Some((old, new)) = decide_rename(&outcome.minted, output_name) {
+        forget_derived(st, &new);
+        // The minted id lives on only as `new`.
+        st.meta.remove(&old);
+        let replaced = match st.items.write() {
+            Ok(mut items) => match items.remove(&old) {
+                Some(item) => items.insert(new.clone(), item).is_some(),
+                None => false,
+            },
+            Err(_) => false,
+        };
+        // A re-run replaces the item under the same name, so the generation must move on, or a
+        // conversion cached from the previous item would still count as fresh.
+        let generation = if replaced {
+            st.meta.generation_of(&new) + 1
+        } else {
+            0
+        };
+        st.meta.set(
+            &new,
+            ItemMeta {
+                role: ItemRole::Result,
+                generation,
+                provenance,
+            },
+        );
+        return serde_json::to_vec(&new).map_err(|e| e.to_string());
+    }
+
+    if let Some(key) = cache_key {
+        if outcome.minted.is_empty() && outcome.mutated.is_empty() {
+            st.results
+                .put(key, read, outcome.result.clone(), cache_epoch);
         }
     }
 
     // Un-renamed produced object: still record lineage on the minted handle.
-    if let (Ok(bytes), Some(prov)) = (&result, provenance) {
-        if after > before {
-            if let Ok(minted_id) = serde_json::from_slice::<String>(bytes) {
-                if st.contains_key(&minted_id) {
-                    let role = st.meta.role_of(&minted_id);
-                    let generation = st.meta.generation_of(&minted_id);
-                    st.meta.set(
-                        &minted_id,
-                        ItemMeta {
-                            role,
-                            generation,
-                            provenance: Some(prov),
-                        },
-                    );
-                }
-            }
+    if let Some(prov) = provenance {
+        for minted_id in outcome.minted.iter().filter(|id| st.contains_key(id)) {
+            let role = st.meta.role_of(minted_id);
+            let generation = st.meta.generation_of(minted_id);
+            st.meta.set(
+                minted_id,
+                ItemMeta {
+                    role,
+                    generation,
+                    provenance: Some(prov.clone()),
+                },
+            );
         }
     }
-    result
+    Ok(outcome.result)
 }
 
 #[cfg(test)]
@@ -791,6 +850,17 @@ mod convert_dispatch_tests {
         let plans = plan_conversions(&args, &schemas, |_| Some("EventLog".into()));
         assert!(plans.is_empty());
     }
+
+    #[test]
+    fn no_plan_for_mut_registry_arg() {
+        let args = json!({ "ocel": "o" });
+        let schemas = vec![(
+            "ocel".into(),
+            json!({ "x-registry-ref": "SlimLinkedOCEL", "x-registry-mut": true }),
+        )];
+        let plans = plan_conversions(&args, &schemas, |_| Some("OCEL".into()));
+        assert!(plans.is_empty());
+    }
 }
 
 #[cfg(test)]
@@ -798,26 +868,19 @@ mod rename_tests {
     use super::decide_rename;
     #[test]
     fn renames_single_new_handle_when_named() {
-        let res = serde_json::to_vec("res_abc").unwrap();
         assert_eq!(
-            decide_rename(&res, 1, Some("pipe__n1")),
+            decide_rename(&["res_abc".into()], Some("pipe__n1")),
             Some(("res_abc".into(), "pipe__n1".into()))
         );
     }
     #[test]
     fn no_rename_when_no_output_name() {
-        let res = serde_json::to_vec("res_abc").unwrap();
-        assert_eq!(decide_rename(&res, 1, None), None);
+        assert_eq!(decide_rename(&["res_abc".into()], None), None);
     }
     #[test]
-    fn no_rename_when_delta_not_one() {
-        let res = serde_json::to_vec("res_abc").unwrap();
-        assert_eq!(decide_rename(&res, 0, Some("x")), None);
-    }
-    #[test]
-    fn no_rename_when_result_not_a_string_id() {
-        let res = serde_json::to_vec(&serde_json::json!({"k":1})).unwrap();
-        assert_eq!(decide_rename(&res, 1, Some("x")), None);
+    fn no_rename_unless_exactly_one_minted() {
+        assert_eq!(decide_rename(&[], Some("x")), None);
+        assert_eq!(decide_rename(&["a".into(), "b".into()], Some("x")), None);
     }
 }
 
@@ -845,22 +908,92 @@ mod artifact_store_tests {
             events: Mutex::new(Vec::new()),
         }
     }
-    const PNML: &str = r#"<?xml version="1.0"?><pnml><net id="n" type="http://www.pnml.org/version-2009/grammar/pnmlcoremodel"><page id="p0"><place id="p1"/><transition id="t1"/></page></net></pnml>"#;
+    const MODEL: &str = r#"{"version":1,"arcs":[],"nodes":[{"name":"a"}]}"#;
+
+    const LOCEL_NEW: &str = "process_mining::locel_new";
+
+    #[test]
+    fn a_cancelled_job_fails_as_cancelled_and_stores_nothing() {
+        let b = backend();
+        cancel_job(&b, "job-1");
+        let out = execute_binding(&b, LOCEL_NEW, &json!({}), None, Some("job-1"));
+        assert_eq!(out, Err(jobs::CANCELLED.to_string()));
+        assert!(get_objects_with_type(&b).unwrap().is_empty());
+        // A finished job is forgotten, so its id can run again.
+        assert!(execute_binding(&b, LOCEL_NEW, &json!({}), None, Some("job-1")).is_ok());
+    }
+
+    #[test]
+    fn an_ocel_import_reports_progress_as_the_job_of_its_id() {
+        let b = backend();
+        let ocel = br#"{"objectTypes":[],"eventTypes":[],"objects":[],"events":[]}"#;
+        let kind = RegistryItemKind::SlimLinkedOCEL;
+        load_item_bytes(&b, "log".into(), &kind, ocel, "json").unwrap();
+        let events = b.events.lock().unwrap().clone();
+        assert!(events.contains(&"job-update".to_string()), "{events:?}");
+        cancel_job(&b, "log2");
+        let out = load_item_bytes(&b, "log2".into(), &kind, ocel, "json");
+        assert_eq!(out, Err(jobs::CANCELLED.to_string()));
+        assert!(b
+            .events
+            .lock()
+            .unwrap()
+            .contains(&"import-cancelled".to_string()));
+    }
+
+    #[test]
+    fn an_xes_import_reports_progress_and_cancels() {
+        let b = backend();
+        let xes =
+            br#"<log><trace><event><string key="concept:name" value="a"/></event></trace></log>"#;
+        let kind = RegistryItemKind::EventLog;
+        load_item_bytes(&b, "log".into(), &kind, xes, "xes").unwrap();
+        assert!(b.events.lock().unwrap().contains(&"job-update".to_string()));
+        cancel_job(&b, "log2");
+        let out = load_item_bytes(&b, "log2".into(), &kind, xes, "xes");
+        assert_eq!(out, Err(jobs::CANCELLED.to_string()));
+        // A cancel after an import finished does not stop the next import of that id.
+        cancel_job(&b, "log");
+        assert!(load_item_bytes(&b, "log".into(), &kind, xes, "xes").is_ok());
+    }
+
+    #[test]
+    fn an_ocel_path_import_reports_progress_too() {
+        let b = backend();
+        let path = std::env::temp_dir().join(format!("propel-job-{}.jsonocel", std::process::id()));
+        std::fs::write(
+            &path,
+            br#"{"objectTypes":[],"eventTypes":[],"objects":[],"events":[]}"#,
+        )
+        .unwrap();
+        let kind = RegistryItemKind::SlimLinkedOCEL;
+        let out = load_item_path(&b, "log".into(), &kind, path.to_str().unwrap());
+        std::fs::remove_file(&path).unwrap();
+        out.unwrap();
+        assert!(b.events.lock().unwrap().contains(&"job-update".to_string()));
+    }
 
     #[test]
     fn load_list_get_unload_artifact() {
         let b = backend();
-        load_artifact_bytes(&b, "net1".into(), "PetriNet", PNML.as_bytes(), "pnml").unwrap();
+        load_artifact_bytes(
+            &b,
+            "net1".into(),
+            "OCDeclare",
+            MODEL.as_bytes(),
+            "ocdeclare",
+        )
+        .unwrap();
         assert_eq!(
             list_artifacts(&b).unwrap(),
             vec![ObjectInfo {
                 id: "net1".to_string(),
-                kind: "PetriNet".to_string(),
+                kind: "OCDeclare".to_string(),
                 label: None,
                 provenance: None,
             }]
         );
-        assert!(get_artifact(&b, "net1").unwrap().get("places").is_some());
+        assert!(get_artifact(&b, "net1").unwrap().get("nodes").is_some());
         assert!(b
             .events
             .lock()
@@ -874,8 +1007,8 @@ mod artifact_store_tests {
     #[test]
     fn export_artifact_round_trips() {
         let b = backend();
-        load_artifact_bytes(&b, "n".into(), "PetriNet", PNML.as_bytes(), "pnml").unwrap();
-        let bytes = export_artifact(&b, "n", "pnml").unwrap();
+        load_artifact_bytes(&b, "n".into(), "OCDeclare", MODEL.as_bytes(), "ocdeclare").unwrap();
+        let bytes = export_artifact(&b, "n", "ocdeclare").unwrap();
         assert!(!bytes.is_empty());
     }
 
@@ -886,8 +1019,9 @@ mod artifact_store_tests {
         let b = backend();
         let unnamed = execute_binding(
             &b,
-            "process_mining::bindings::slim_ocel_bindings::locel_new",
+            "process_mining::locel_new",
             &serde_json::json!({}),
+            None,
             None,
         )
         .expect("locel_new");
@@ -895,9 +1029,10 @@ mod artifact_store_tests {
 
         execute_binding(
             &b,
-            "process_mining::bindings::slim_ocel_bindings::locel_new",
+            "process_mining::locel_new",
             &serde_json::json!({}),
             Some("named-output"),
+            None,
         )
         .expect("locel_new with a name");
 
@@ -921,9 +1056,55 @@ mod artifact_store_tests {
     }
 
     #[test]
+    fn rerun_under_the_same_name_invalidates_cached_conversions() {
+        let b = backend();
+        let run = || {
+            execute_binding(
+                &b,
+                "process_mining::locel_new",
+                &serde_json::json!({}),
+                Some("pipe__n1"),
+                None,
+            )
+            .expect("locel_new")
+        };
+        run();
+        let first = b.get_state().meta.generation_of("pipe__n1");
+        run();
+        assert!(b.get_state().meta.generation_of("pipe__n1") > first);
+    }
+
+    #[test]
+    fn item_kinds_offer_accepting_petri_nets_as_pnml() {
+        let kinds = get_all_item_kinds().unwrap();
+        let names: Vec<&str> = kinds.iter().map(|k| k.kind.name()).collect();
+        assert!(!names.contains(&"PetriNet"), "{names:?}");
+        let apn = kinds
+            .iter()
+            .find(|k| k.kind.name() == "AcceptingPetriNet")
+            .expect("AcceptingPetriNet listed");
+        let exts: Vec<&str> = apn
+            .import_formats
+            .iter()
+            .map(|f| f.extension.as_str())
+            .collect();
+        assert!(
+            exts.contains(&"pnml") && exts.contains(&"apnml"),
+            "{exts:?}"
+        );
+    }
+
+    #[test]
     fn listing_carries_provenance() {
         let b = backend();
-        load_artifact_bytes(&b, "net1".into(), "PetriNet", PNML.as_bytes(), "pnml").unwrap();
+        load_artifact_bytes(
+            &b,
+            "net1".into(),
+            "OCDeclare",
+            MODEL.as_bytes(),
+            "ocdeclare",
+        )
+        .unwrap();
         b.get_state().meta.set(
             "net1",
             ItemMeta {
@@ -957,6 +1138,98 @@ mod provenance_dispatch_tests {
         event_log.clone()
     }
 
+    #[register_binding]
+    fn test_count_places(#[bind(handle)] net: &process_mining::AcceptingPetriNet) -> usize {
+        net.net.places().len()
+    }
+
+    #[register_binding]
+    fn test_count_places_by_value(net: process_mining::AcceptingPetriNet) -> usize {
+        net.net.places().len()
+    }
+
+    #[test]
+    fn by_value_model_args_accept_a_stored_model_id() {
+        let b = B {
+            state: ExtendedAppState::default(),
+            events: Mutex::new(Vec::new()),
+        };
+        let mut net = process_mining::PetriNet::new();
+        net.add_place(None);
+        net.add_place(None);
+        let net =
+            process_mining::AcceptingPetriNet::new(net, Default::default(), Default::default());
+        b.get_state()
+            .add("n1", process_mining::bindings::RegistryItem::custom(net));
+        let fid = list_functions()
+            .into_iter()
+            .map(|f| f.id)
+            .find(|id| id.ends_with("test_count_places_by_value"))
+            .expect("test binding registered");
+        let out = execute_binding(&b, &fid, &json!({ "net": "n1" }), None, None).unwrap();
+        assert_eq!(serde_json::from_slice::<usize>(&out).unwrap(), 2);
+    }
+
+    #[test]
+    fn cached_results_follow_a_reloaded_item() {
+        let b = B {
+            state: ExtendedAppState::default(),
+            events: Mutex::new(Vec::new()),
+        };
+        let fid = list_functions()
+            .into_iter()
+            .map(|f| f.id)
+            .find(|id| id.ends_with("test_count_places"))
+            .expect("test binding registered");
+        let net_json = |places: usize| {
+            let mut net = process_mining::PetriNet::new();
+            for _ in 0..places {
+                net.add_place(None);
+            }
+            let net =
+                process_mining::AcceptingPetriNet::new(net, Default::default(), Default::default());
+            serde_json::to_vec(&net).unwrap()
+        };
+        let kind: RegistryItemKind = "AcceptingPetriNet".parse().unwrap();
+        let count = || {
+            let out = execute_binding(&b, &fid, &json!({ "net": "n" }), None, None).unwrap();
+            serde_json::from_slice::<usize>(&out).unwrap()
+        };
+        load_item_bytes(&b, "n".into(), &kind, &net_json(2), "json").unwrap();
+        assert_eq!(count(), 2);
+        assert_eq!(b.get_state().results.len(), 1, "the pure call was cached");
+        assert_eq!(count(), 2);
+        load_item_bytes(&b, "n".into(), &kind, &net_json(3), "json").unwrap();
+        assert_eq!(count(), 3, "reloading the item drops its cached results");
+    }
+
+    #[test]
+    fn handle_args_accept_inline_json_and_leave_nothing_behind() {
+        let b = B {
+            state: ExtendedAppState::default(),
+            events: Mutex::new(Vec::new()),
+        };
+        let mut net = process_mining::PetriNet::new();
+        net.add_place(None);
+        let net =
+            process_mining::AcceptingPetriNet::new(net, Default::default(), Default::default());
+        let fid = list_functions()
+            .into_iter()
+            .map(|f| f.id)
+            .find(|id| id.ends_with("test_count_places"))
+            .expect("test binding registered");
+        let before = b.get_state().items.read().unwrap().len();
+        let inline = serde_json::to_value(&net).unwrap();
+        let out = execute_binding(&b, &fid, &json!({ "net": inline }), None, None).unwrap();
+        assert_eq!(serde_json::from_slice::<usize>(&out).unwrap(), 1);
+        assert_eq!(b.get_state().items.read().unwrap().len(), before);
+
+        b.get_state()
+            .add("n1", process_mining::bindings::RegistryItem::custom(net));
+        let out = execute_binding(&b, &fid, &json!({ "net": "n1" }), None, None).unwrap();
+        assert_eq!(serde_json::from_slice::<usize>(&out).unwrap(), 1);
+    }
+
     struct B {
         state: ExtendedAppState,
         events: Mutex<Vec<String>>,
@@ -985,7 +1258,7 @@ mod provenance_dispatch_tests {
             .map(|f| f.id)
             .find(|id| id.ends_with("test_clone_log"))
             .expect("test binding registered");
-        let out = execute_binding(&b, &fid, &json!({ "event_log": "log1" }), None).unwrap();
+        let out = execute_binding(&b, &fid, &json!({ "event_log": "log1" }), None, None).unwrap();
         let new_id: String = serde_json::from_slice(&out).unwrap();
         let prov = b
             .get_state()

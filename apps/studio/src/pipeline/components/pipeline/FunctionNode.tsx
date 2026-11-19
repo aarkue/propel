@@ -4,6 +4,8 @@ import { getTypeColor } from "./utils";
 import clsx from "clsx";
 import { TbFunction } from "react-icons/tb";
 import { NodeWrapper } from "./NodeWrapper";
+import { summarizeDefault } from "./editor/arg-input";
+import { ArgInfo } from "./ArgInfo";
 
 export type FunctionNodeData = {
   functionMeta: FunctionMeta;
@@ -46,10 +48,12 @@ export function FunctionNode({ id, data, selected }: NodeProps<FunctionNode>) {
               <span className="font-semibold">Result</span>
               <span className="opacity-75 ml-1 font-mono">
                 (
-                {functionMeta.return_type["x-registry-ref"] ||
-                  functionMeta.return_type.title ||
-                  functionMeta.return_type.type ||
-                  "Any"}
+                {functionMeta.return_type.contentMediaType === "image/svg+xml"
+                  ? "SVG"
+                  : functionMeta.return_type["x-registry-ref"] ||
+                    functionMeta.return_type.title ||
+                    functionMeta.return_type.type ||
+                    "Any"}
                 )
               </span>
             </div>
@@ -63,6 +67,7 @@ export function FunctionNode({ id, data, selected }: NodeProps<FunctionNode>) {
         const color = getTypeColor(argSchema);
         const isConnected = inConnections.some((c) => c.targetHandle === argName);
         const typeName = argSchema["x-registry-ref"] || argSchema.type;
+        const hasDefault = !isRequired && argSchema.default !== undefined;
 
         return (
           <div key={argName} className="relative flex items-center justify-between group/row">
@@ -86,13 +91,23 @@ export function FunctionNode({ id, data, selected }: NodeProps<FunctionNode>) {
               </Handle>
             </div>
 
-            <div className="flex flex-col leading-tight">
-              <span className={clsx("text-xs font-medium", isConnected ? "text-gray-900" : "text-gray-500")}>
-                {argName}
-                {isRequired && <span className="text-red-400 ml-0.5">*</span>}
-              </span>
-              <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{typeName}</span>
-            </div>
+            <ArgInfo name={argName} schema={argSchema} required={isRequired}>
+              <div className="flex flex-col leading-tight">
+                <span
+                  className={clsx("text-xs font-medium", isConnected ? "text-gray-900" : "text-gray-500")}
+                >
+                  {argName}
+                  {isRequired && <span className="text-red-400 ml-0.5">*</span>}
+                </span>
+                {hasDefault && !isConnected ? (
+                  <span className="text-[10px] text-gray-400 font-mono truncate max-w-[160px]">
+                    = {summarizeDefault(argSchema.default)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{typeName}</span>
+                )}
+              </div>
+            </ArgInfo>
           </div>
         );
       })}

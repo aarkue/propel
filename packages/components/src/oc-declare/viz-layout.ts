@@ -344,6 +344,8 @@ export interface ViolationBadge {
   y: number;
   width: number;
   title?: string;
+  /** Which model edge of a collapsed EF/EP pair the badge belongs to. */
+  direction?: "forward" | "backward";
   /** Dimmed with its arc by focus. */
   dim?: boolean;
 }
@@ -384,7 +386,12 @@ export function violationBadges(
   middle: { half: number; at?: Point },
 ): ViolationBadge[] {
   const centre = middle.at ? lengthAt(points, middle.at) : undefined;
-  const badge = (fraction: unknown, side: 1 | -1, title: string): ViolationBadge[] => {
+  const badge = (
+    fraction: unknown,
+    side: 1 | -1,
+    title: string,
+    direction?: ViolationBadge["direction"],
+  ): ViolationBadge[] => {
     if (typeof fraction !== "number") return [];
     const pct = fraction * 100;
     const text = formatViolationPct(pct);
@@ -392,12 +399,12 @@ export function violationBadges(
     const offset = side * (middle.half + BADGE_GAP + width / 2);
     const { x, y } =
       centre === undefined ? placeOnCurve(points, 0.5, offset) : placeOnCurve(points, 0, centre + offset);
-    return [{ text, color: violationColor(pct), x, y, width, title }];
+    return [{ text, color: violationColor(pct), x, y, width, title, direction }];
   };
   if (data.pair) {
     return [
-      ...badge(data.pairViolation?.forward, 1, "Forward (EF/DF) violation fraction"),
-      ...badge(data.pairViolation?.backward, -1, "Backward (EP/DP) violation fraction"),
+      ...badge(data.pairViolation?.forward, 1, "Forward (EF/DF) violation fraction", "forward"),
+      ...badge(data.pairViolation?.backward, -1, "Backward (EP/DP) violation fraction", "backward"),
     ];
   }
   return badge(data.violation, 1, "Violation fraction");

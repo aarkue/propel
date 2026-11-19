@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { useViewSetting } from "../viewer/view-state";
 import type { PlotParams } from "react-plotly.js";
-import { ThemedPlot as Plot } from "./themed-plot";
+import { ThemedPlot as Plot, usePlotColors } from "./themed-plot";
 import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
-import { Select } from "@r4pm/components/ui";
+import { Text } from "@r4pm/components/ui";
+import { EmptyState } from "../feedback/EmptyState";
+import { Metric, MetricRow, type Option, OptionMenu, Toolbar } from "../kit";
 
 // Local view-model mirroring the generated `CaseDurations` binding.
 export interface CaseDurations {
@@ -73,47 +75,30 @@ const DURATION_TICK_ANCHORS_MS: number[] = [
   365 * 24 * 60 * 60_000,
 ];
 
-function gradientColor(t: number): string {
-  // Iris -> violet gradient, tuned to match Radix accent family.
-  const clamp = Math.max(0, Math.min(1, t));
-  const a = { r: 0x63, g: 0x6a, b: 0xfa };
-  const b = { r: 0xc0, g: 0x26, b: 0xd3 };
-  const r = Math.round(a.r + (b.r - a.r) * clamp);
-  const g = Math.round(a.g + (b.g - a.g) * clamp);
-  const bch = Math.round(a.b + (b.b - a.b) * clamp);
-  return `rgb(${r},${g},${bch})`;
-}
+const COLORS = {
+  bar: "--accent-9",
+  barLight: "--accent-6",
+  median: "--gray-12",
+  mean: "--blue-10",
+  p90: "--amber-10",
+  surface: "--color-panel-solid",
+} as const;
 
-// Radix "blue-9" / "iris-9" / "amber-10" -- median / mean / 90% markers.
-const COLOR_MEDIAN = "#0090FF";
-const COLOR_MEAN = "#5B5BD6";
-const COLOR_P90 = "#FFB224";
-
-function Badge({ children, color }: { children: React.ReactNode; color: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "1px 8px",
-        borderRadius: 6,
-        fontSize: 12,
-        fontWeight: 500,
-        color,
-        background: "rgba(0,0,0,0.04)",
-        border: `1px solid ${color}33`,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
+const MODES: Option<Mode>[] = [
+  { value: "histogram", label: "Histogram", description: "How many cases fall into each duration range" },
+  { value: "ecdf", label: "Cumulative", description: "Share of cases finished within a duration" },
+];
+const SCALES: Option<Scale>[] = [
+  { value: "log", label: "Log time", description: "Spreads short and long cases alike" },
+  { value: "linear", label: "Linear time", description: "Durations to scale" },
+];
 
 /** Distribution of case durations (histogram or ECDF) with median/mean/p90 markers, on a log/linear axis. */
 export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
   const { data } = props;
   // Honor the shared duration format (preferences) for the prominent stat labels.
   const fmt = useViewerConfig(props).format?.duration ?? formatDurationMs;
+  const colors = usePlotColors(COLORS);
   const [mode, setMode] = useViewSetting<Mode>("mode", "histogram");
   const [scale, setScale] = useViewSetting<Scale>("scale", "log");
 
@@ -141,11 +126,6 @@ export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
     return widths;
   }, [data, toX]);
 
-  const barColors = useMemo(() => {
-    const maxCount = Math.max(1, ...data.hist_counts);
-    return data.hist_counts.map((c) => gradientColor(c / maxCount));
-  }, [data]);
-
   const hoverText = useMemo(() => {
     const edges = data.hist_bin_edges_ms;
     const total = Math.max(1, data.num_cases);
@@ -172,17 +152,17 @@ export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
       {
         x: toX(data.median_ms),
         label: `median ${fmt(data.median_ms)}`,
-        color: COLOR_MEDIAN,
+        color: colors.median,
       },
       {
         x: toX(data.mean_ms),
         label: `mean ${fmt(data.mean_ms)}`,
-        color: COLOR_MEAN,
+        color: colors.mean,
       },
       {
         x: toX(data.p90_ms),
         label: `90% <= ${fmt(data.p90_ms)}`,
-        color: COLOR_P90,
+        color: colors.p90,
       },
     ];
     return {
@@ -194,7 +174,7 @@ export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
         x1: m.x,
         y0: 0,
         y1: 1,
-        line: { color: m.color, width: 2.5, dash: "dash" as const },
+        line: { color: m.color, width: 1.5, dash: "dot" as const },
       })),
       annotations: marks.map((m, i) => ({
         x: m.x,
@@ -207,14 +187,12 @@ export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
         xanchor: "left" as const,
         yanchor: "top" as const,
         xshift: 6,
-        font: { size: 13, color: m.color },
-        bgcolor: "rgba(255,255,255,0.82)",
-        bordercolor: m.color,
-        borderwidth: 1,
+        font: { size: 12, color: m.color },
+        bgcolor: colors.surface,
         borderpad: 3,
       })),
     };
-  }, [data, toX, fmt]);
+  }, [data, toX, fmt, colors]);
 
   const ecdfX = useMemo(() => data.ecdf_x_ms.map((v) => toX(v)), [data, toX]);
 
@@ -226,9 +204,10 @@ export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
             x: binCenters,
             y: data.hist_counts,
             width: binWidths,
-            marker: { color: barColors, line: { width: 0 } },
+            marker: { color: colors.bar, line: { width: 1, color: colors.surface } },
             hovertemplate: "%{text}<extra></extra>",
             text: hoverText,
+            textposition: "none",
           },
         ]
       : [
@@ -237,7 +216,9 @@ export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
             mode: "lines",
             x: ecdfX,
             y: data.ecdf_y,
-            line: { color: "#636AFA", width: 2, shape: "hv" },
+            line: { color: colors.bar, width: 2, shape: "hv" },
+            fill: "tozeroy",
+            fillcolor: colors.barLight,
             customdata: data.ecdf_x_ms,
             hovertemplate: "%{y:.1%} of cases <= %{customdata}ms<extra></extra>",
           },
@@ -247,54 +228,43 @@ export function CaseDurationChart(props: ViewerProps<CaseDurations>) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", minHeight: 200 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          padding: "4px 8px",
-        }}
-      >
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <Badge color="#6b7280">{data.num_cases.toLocaleString("en")} cases</Badge>
-          {data.num_empty_cases > 0 && (
-            <Badge color="#6b7280">{data.num_empty_cases.toLocaleString("en")} skipped</Badge>
-          )}
-          <Badge color={COLOR_MEDIAN}>median {formatDurationMs(data.median_ms)}</Badge>
-          <Badge color={COLOR_MEAN}>mean {formatDurationMs(data.mean_ms)}</Badge>
-          <Badge color={COLOR_P90}>90% &lt;= {formatDurationMs(data.p90_ms)}</Badge>
-          <Badge color="#E5484D">max {formatDurationMs(data.max_ms)}</Badge>
-        </div>
-        <div style={{ display: "flex", gap: 8 }} data-export-ignore>
-          <Select.Root value={mode} onValueChange={(v) => setMode(v as Mode)} size="1">
-            <Select.Trigger placeholder="Select mode" variant="soft" className="w-fit" />
-            <Select.Content>
-              <Select.Item value="histogram">Histogram</Select.Item>
-              <Select.Item value="ecdf">Cumulative (ECDF)</Select.Item>
-            </Select.Content>
-          </Select.Root>
-          <Select.Root value={scale} onValueChange={(v) => setScale(v as Scale)} size="1">
-            <Select.Trigger placeholder="Select scale" variant="soft" className="w-fit" />
-            <Select.Content>
-              <Select.Item value="linear">Linear</Select.Item>
-              <Select.Item value="log">Log</Select.Item>
-            </Select.Content>
-          </Select.Root>
-        </div>
+      <div data-export-ignore>
+        <Toolbar
+          end={
+            data.num_empty_cases > 0 && (
+              <Text size="1" color="gray">
+                {data.num_empty_cases.toLocaleString("en")} cases with fewer than two timed events left out
+              </Text>
+            )
+          }
+        >
+          <OptionMenu label="Show" value={mode} options={MODES} onChange={setMode} />
+          <OptionMenu label="Axis" value={scale} options={SCALES} onChange={setScale} />
+        </Toolbar>
       </div>
+      {!empty && (
+        <div style={{ padding: "14px 16px 0" }}>
+          <MetricRow>
+            <Metric label="Cases" value={data.num_cases.toLocaleString("en")} />
+            <Metric label="Median" value={fmt(data.median_ms)} hint="half the cases are faster" />
+            <Metric label="Mean" value={fmt(data.mean_ms)} />
+            <Metric label="90% within" value={fmt(data.p90_ms)} />
+            <Metric label="Longest" value={fmt(data.max_ms)} hint={`shortest ${fmt(data.min_ms)}`} />
+          </MetricRow>
+        </div>
+      )}
       <div style={{ flex: 1, minHeight: 0 }}>
         {empty ? (
-          <div style={{ padding: 16, color: "#9a6700" }}>
-            No cases with at least two timestamped events found.
-            {data.num_empty_cases > 0 && <> ({data.num_empty_cases} skipped)</>}
-          </div>
+          <EmptyState
+            title="No case durations"
+            description="No case has two or more events with a timestamp, so no duration can be measured."
+          />
         ) : (
           <Plot
             data={plotData}
             layout={{
               autosize: true,
-              margin: { t: 24, b: 48, l: 56, r: 16 },
+              margin: { t: 28, b: 48, l: 60, r: 20 },
               hovermode: "x unified",
               hoverdistance: -1,
               bargap: 0.02,

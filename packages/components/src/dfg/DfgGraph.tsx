@@ -11,6 +11,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { createPortal } from "react-dom";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useIsDarkMode } from "../viewer/dark-mode";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
@@ -19,6 +20,8 @@ import { colorForKey, type ViewerAction, type ViewerTarget } from "../viewer/vie
 import type { Point, VizTransport } from "../viz";
 import { DFG_EDGE_TYPES, type DfgEdgeType } from "./DfgEdge";
 import DfgSettings from "./DfgSettings";
+import { Floating } from "../kit/floating";
+import { BADGE_ROW_HEIGHT, BadgeRow, type TypeBadge } from "../shared/type-badges";
 import { DEFAULT_ARC_COLOR, flattenColor, mix } from "./util/colors";
 import type { DfgArc, DfgMetric } from "./util/dfg-model";
 import {
@@ -42,6 +45,10 @@ import {
 } from "./viz-layout";
 
 type ActivityNodeData = { activity: string; count: number };
+
+/** An object type drawn on an activity, e.g., one of a Reflow mapping's. */
+export type ActivityBadge = TypeBadge;
+
 /** `group` is the object type of an OC-DFG terminal. */
 type TerminalNodeData = { kind: "start" | "end"; group?: string };
 type DfgActivityNode = Node<ActivityNodeData, "activity">;
@@ -54,6 +61,7 @@ interface DfgNodeContextValue {
   activityColor: (act: string) => string;
   activityForeground: (act: string) => string;
   typeColor?: (objectType: string) => string;
+  badges?: Record<string, ActivityBadge[]>;
   onActivityClick?: (act: string) => void;
   onActivityContextMenu?: (act: string, e: { clientX: number; clientY: number }) => void;
 }
@@ -72,15 +80,17 @@ const hiddenHandles = (
 function ActivityNode({ data, width, height }: NodeProps<DfgActivityNode>) {
   const ctx = useContext(DfgNodeContext);
   const base = ctx.activityColor(data.activity);
+  const row = ctx.badges?.[data.activity];
   return (
     <div
-      className="font-semibold border-2 rounded-lg px-2 shadow-sm flex flex-col items-center justify-center box-border overflow-hidden"
+      className="relative font-semibold border-2 rounded-lg px-2 shadow-sm flex flex-col items-center justify-center box-border overflow-hidden"
       style={{
         backgroundColor: `${base}26`,
-        borderColor: `${base}cc`,
+        borderColor: `color-mix(in srgb, ${base} 80%, transparent)`,
         color: "CanvasText",
         width,
         height,
+        paddingBottom: row ? BADGE_ROW_HEIGHT : undefined,
         cursor: ctx.onActivityClick ? "pointer" : undefined,
       }}
       title={data.activity}
@@ -108,6 +118,7 @@ function ActivityNode({ data, width, height }: NodeProps<DfgActivityNode>) {
         {data.activity}
       </div>
       <span className="text-[10px] opacity-80 tabular-nums">{data.count.toLocaleString("en")}</span>
+      {row && ctx.typeColor && <BadgeRow badges={row} color={ctx.typeColor} width={width} border={2} />}
       {hiddenHandles}
     </div>
   );
@@ -169,6 +180,10 @@ export interface DfgGraphProps {
   formatDuration?: (ms: number) => string;
   /** Extra UI in the top-right settings card, e.g., the OC-DFG object-type chips. */
   topRightExtra?: React.ReactNode;
+  /** Extra UI floating in the top-left corner, e.g., an annotation picker. */
+  topLeftExtra?: React.ReactNode;
+  /** Object types drawn as dots on activities (needs `typeColor`), e.g., a Reflow mapping's. */
+  badges?: Record<string, ActivityBadge[]>;
   onSelect?: (s: ViewerTarget) => void;
   /** Right-click actions shown on activity nodes (declarative; viewer renders the menu). */
   actions?: ViewerAction[];
@@ -176,6 +191,8 @@ export interface DfgGraphProps {
   onElementContextMenu?: (t: ViewerTarget, e: { clientX: number; clientY: number }) => void;
   viz?: VizTransport;
   routing?: DfgRouting;
+  /** Label, width and color of each arc, replacing the metric (whose picker is then hidden). */
+  arcLook?: (arc: DfgArc) => ArcLook;
 }
 
 /** A laid-out model and what it was laid out from. `routes` are the edges' current routes. `fresh`
@@ -236,11 +253,14 @@ function DfgGraphInner({
   typeColor,
   formatDuration,
   topRightExtra,
+  topLeftExtra,
+  badges,
   onSelect,
   actions,
   onElementContextMenu,
   viz,
   routing,
+  arcLook,
 }: DfgGraphProps) {
   const { fitView, getNodes } = useReactFlow<DfgFlowNode, DfgEdgeType>();
   const [direction, setDirection] = useViewSetting<"TB" | "LR">("direction", "TB");
@@ -252,13 +272,16 @@ function DfgGraphInner({
   );
   const sourceCount = useMemo(() => sourceCounter(arcs, activityCounts), [arcs, activityCounts]);
   const looks = useMemo(
-    () => arcLooks(selection.kept, metric, sourceCount, { formatDuration, heatmap }),
-    [selection.kept, metric, sourceCount, formatDuration, heatmap],
+    () =>
+      arcLook
+        ? new Map(selection.kept.map((a) => [a.key, arcLook(a)]))
+        : arcLooks(selection.kept, metric, sourceCount, { formatDuration, heatmap }),
+    [selection.kept, metric, sourceCount, formatDuration, heatmap, arcLook],
   );
   const model = useMemo(() => shownModel(source, selection.kept), [source, selection.kept]);
   const options = useMemo(
-    () => dfgBuildOptions(model, selection.kept, looks, activityCounts, { direction, routing }),
-    [model, selection.kept, looks, activityCounts, direction, routing],
+    () => dfgBuildOptions(model, selection.kept, looks, activityCounts, { direction, routing, badges }),
+    [model, selection.kept, looks, activityCounts, direction, routing, badges],
   );
   const requestKey = useMemo(() => JSON.stringify([model, options]), [model, options]);
 
@@ -349,6 +372,7 @@ function DfgGraphInner({
       activityColor,
       activityForeground,
       typeColor,
+      badges,
       onActivityClick: onSelect ? (act: string) => onSelect({ scope: "activity", key: act }) : undefined,
       onActivityContextMenu:
         activityActions.length || onElementContextMenu
@@ -358,7 +382,7 @@ function DfgGraphInner({
             }
           : undefined,
     }),
-    [activityColor, activityForeground, typeColor, onSelect, activityActions, onElementContextMenu],
+    [activityColor, activityForeground, typeColor, badges, onSelect, activityActions, onElementContextMenu],
   );
 
   // rust4pm's drawing over the shown positions and polylines, with the screen's colors as overrides.
@@ -416,10 +440,11 @@ function DfgGraphInner({
             className="node-dfg"
             proOptions={{ hideAttribution: true }}
           >
+            {topLeftExtra && <Panel position="top-left">{topLeftExtra}</Panel>}
             <Panel position="top-right">
               <Card
                 className=" mt-4 p-1! bg-(--color-panel-translucent) backdrop-blur-sm"
-                style={{ width: topRightExtra ? 180 : 100 }}
+                style={{ width: topRightExtra ? 180 : 104 }}
               >
                 {topRightExtra}
                 <DfgSettings
@@ -436,6 +461,7 @@ function DfgGraphInner({
                   hasPerformanceData={hasPerformanceData}
                   direction={direction}
                   onDirectionChange={setDirection}
+                  hideMetrics={arcLook != null}
                 />
               </Card>
             </Panel>
@@ -443,20 +469,21 @@ function DfgGraphInner({
         </div>
         {menu && (
           <>
-            <div
-              style={{ position: "fixed", inset: 0, zIndex: 999 }}
-              onClick={() => setMenu(null)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setMenu(null);
-              }}
-            />
-            <div
+            {createPortal(
+              <div
+                style={{ position: "fixed", inset: 0, zIndex: 999 }}
+                onClick={() => setMenu(null)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setMenu(null);
+                }}
+              />,
+              document.body,
+            )}
+            <Floating
+              x={menu.x}
+              y={menu.y}
               style={{
-                position: "fixed",
-                top: menu.y,
-                left: menu.x,
-                zIndex: 1000,
                 minWidth: 160,
                 padding: 4,
                 borderRadius: 8,
@@ -490,7 +517,7 @@ function DfgGraphInner({
                   {a.label}
                 </button>
               ))}
-            </div>
+            </Floating>
           </>
         )}
       </div>

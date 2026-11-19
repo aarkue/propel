@@ -121,7 +121,7 @@ function involvementDescription(label: ConstraintLabel, objectTypeColor: ColorRe
   // Join with commas: ", for each X, involving all Y"
   const joined: ReactNode[] = [];
   for (let i = 0; i < segments.length; i++) {
-    joined.push(i === 0 ? <span key={`sep-${i}`}> — </span> : <span key={`sep-${i}`}>, </span>);
+    joined.push(<span key={`sep-${i}`}>, </span>);
     joined.push(segments[i]);
   }
   return <>{joined}</>;

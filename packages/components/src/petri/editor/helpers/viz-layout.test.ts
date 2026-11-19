@@ -201,6 +201,29 @@ describe("petriElementsSvg", () => {
     expect(svg?.match(/<circle/g)).toHaveLength(3);
   });
 
+  it("draws the transitions' export decorations over them, at their bounds", async () => {
+    const laid = await layoutPetriElements(wasmViz, NET, baseElements(NET));
+    const elements = applyOverlay(laid, NET, {
+      transition: (t) =>
+        t.id === "t"
+          ? {
+              exportDecoration: (b) =>
+                `<rect id="deco" x="${b.x}" y="${b.y}" width="${b.width}" height="${b.height}"/>`,
+            }
+          : undefined,
+    });
+    const t = node(elements, "t");
+    const svg = (await petriElementsSvg(wasmViz, NET, elements)) ?? "";
+    const deco = svg.match(
+      /<rect id="deco" x="([\d.-]+)" y="([\d.-]+)" width="([\d.]+)" height="([\d.]+)"\/>/,
+    );
+    expect(deco).not.toBeNull();
+    const [x, y, w, h] = deco!.slice(1).map(Number);
+    expect(x + w / 2).toBeCloseTo(t.position.x);
+    expect(y + h / 2).toBeCloseTo(t.position.y);
+    expect(svg.indexOf("deco")).toBeLessThan(svg.lastIndexOf("</svg>"));
+  });
+
   it("draws nothing for an empty net", async () => {
     const empty: PetriElements = { nodes: [], edges: [] };
     expect(await petriElementsSvg(wasmViz, { places: [], transitions: [], arcs: [] }, empty)).toBeNull();

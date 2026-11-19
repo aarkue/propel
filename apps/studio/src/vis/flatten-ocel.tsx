@@ -1,19 +1,15 @@
-import type { IDockviewPanelProps } from "dockview";
 import type { BackendContext, EventLogHandle, SlimLinkedOCELHandle } from "@r4pm/client";
 import { Button, Callout, Flex, Heading, Select, Text } from "@r4pm/components/ui";
 import { ErrorState, LoadingState } from "@r4pm/components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PiShuffle } from "react-icons/pi";
-import { withSelector, datasetEmptyBox } from "./_shared";
-import { useDatasetSelection } from "../panels/active-datasets";
 import { useDatasetScopedState } from "../panels/panel-state";
 import { backend } from "../backends";
-import { definePanel } from "./define-vis";
+import { type DatasetPanelProps, defineDatasetPanel } from "./define-vis";
 import { useDatasets, uniqueDatasetLabel } from "../stores";
 
-const GET_OCEL_INFO = "app_bindings::ocel::get_ocel_info" as const;
-const FLATTEN_OCEL_ON =
-  "process_mining::core::event_data::object_centric::utils::flatten::flatten_ocel_on" as const;
+const GET_OCEL_INFO = "app_bindings::get_ocel_info" as const;
+const FLATTEN_OCEL_ON = "process_mining::flatten_ocel_on" as const;
 
 export interface FlattenOCELPanelProps {
   backend: BackendContext;
@@ -107,29 +103,25 @@ export function FlattenOCELPanel({
   );
 }
 
-export function FlattenOcelDockPanel(props: IDockviewPanelProps) {
-  const { id: ocel, selector } = useDatasetSelection("SlimLinkedOCEL", props);
+function FlattenOcelDockPanel({ id, props }: DatasetPanelProps) {
   const [objectType, setObjectType] = useDatasetScopedState<string | undefined>(
     props,
     "objectType",
-    ocel ?? "",
+    id,
     undefined,
   );
-  if (!ocel) return withSelector(selector, datasetEmptyBox("OCEL"), "flatten-ocel");
-  return withSelector(
-    selector,
+  return (
     <FlattenOCELPanel
-      key={ocel}
       backend={backend}
-      ocel={ocel as SlimLinkedOCELHandle}
+      ocel={id as SlimLinkedOCELHandle}
       objectType={objectType}
       onObjectTypeChange={setObjectType}
-    />,
-    "flatten-ocel",
+    />
   );
 }
 
-export const vis = definePanel({
+export const vis = defineDatasetPanel({
+  needs: "SlimLinkedOCEL",
   type: "flattenOcel",
   name: "Flatten OCEL",
   description: "Flatten an OCEL onto an object type -> a new event log.",

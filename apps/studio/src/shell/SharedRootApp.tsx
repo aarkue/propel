@@ -1,10 +1,10 @@
 import { Theme } from "@r4pm/components/ui";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./query-client";
 import { type ReactNode, useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { backend } from "../backends";
 import { AppViewerConfig } from "./AppViewerConfig";
-import { BackendReactContext } from "./backend-context";
 import { bootToDefault, getLastProject } from "../persistence/session";
 import { migrateLegacyPipelines } from "../stores/pipelines";
 import { BusyOverlay } from "./BusyOverlay";
@@ -15,14 +15,6 @@ import { EngineEvents } from "./EngineEvents";
 import { ImportProvider } from "./ImportProvider";
 import { ThemeProvider, useThemeMode } from "./theme-context";
 import { TopBar } from "./TopBar";
-
-// Binding results are immutable per handle and refreshes come from explicit invalidateQueries
-// (see EngineEvents / flatten-ocel), so don't re-run expensive bindings on staleness or window focus.
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: Infinity, refetchOnWindowFocus: false },
-  },
-});
 
 /** The full studio: backend + theme + query providers wrapping the top bar and dashboard. */
 export function SharedRootApp() {
@@ -35,25 +27,23 @@ export function SharedRootApp() {
     return () => window.removeEventListener("propel:export-error", onExportError);
   }, []);
   return (
-    <BackendReactContext.Provider value={backend}>
-      <ThemeProvider>
-        <ThemedBody>
-          <QueryClientProvider client={queryClient}>
-            <BackendReadyGate>
-              <EngineEvents />
-              <RelinkDialog />
-              <ImportProvider>
-                <AppViewerConfig>
-                  <TopBar>
-                    <Dashboard />
-                  </TopBar>
-                </AppViewerConfig>
-              </ImportProvider>
-            </BackendReadyGate>
-          </QueryClientProvider>
-        </ThemedBody>
-      </ThemeProvider>
-    </BackendReactContext.Provider>
+    <ThemeProvider>
+      <ThemedBody>
+        <QueryClientProvider client={queryClient}>
+          <BackendReadyGate>
+            <EngineEvents />
+            <RelinkDialog />
+            <ImportProvider>
+              <AppViewerConfig>
+                <TopBar>
+                  <Dashboard />
+                </TopBar>
+              </AppViewerConfig>
+            </ImportProvider>
+          </BackendReadyGate>
+        </QueryClientProvider>
+      </ThemedBody>
+    </ThemeProvider>
   );
 }
 

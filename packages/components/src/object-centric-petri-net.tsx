@@ -16,6 +16,8 @@ import {
 } from "@r4pm/components/petri";
 import { layoutOcpn, NEUTRAL, ocpnOverlays, useOtColor, type OtColor } from "./petri/ocpn-view";
 import { Card, Combobox, Flex, Text, Tooltip } from "@r4pm/components/ui";
+import { BADGE_ROW_HEIGHT, BadgeRow, type TypeBadge } from "./shared/type-badges";
+import { TransitionLabel } from "./petri/editor/helpers/transition-label";
 import type { Ocpn, VizTransport } from "./viz";
 
 export type { Ocpn, OcpnArcRef, OcpnNodeRef } from "./viz";
@@ -66,12 +68,42 @@ function distinctTypes(types: (string | undefined)[]): string[] {
   return [...new Set(types.filter((t): t is string => !!t))];
 }
 
+/** An object type drawn in a transition (rust4pm's `OcpnBadge`). */
+export type OcpnBadge = TypeBadge;
+
+/** `nodes` with a row of badges at the bottom of each transition that has some, as rust4pm lays it out. */
+function withBadges(
+  nodes: PetriNetNode[],
+  badges: Record<string, OcpnBadge[]> | undefined,
+  otColor: OtColor,
+): PetriNetNode[] {
+  const color = (t: string) => otColor(t);
+  if (!badges) return nodes;
+  return nodes.map((n) => {
+    const label = n.type === "transition" ? n.data.label : undefined;
+    const row = label ? badges[label] : undefined;
+    if (!label || !row?.length) return n;
+    return {
+      ...n,
+      data: {
+        ...n.data,
+        renderContent: () => (
+          <>
+            <TransitionLabel label={label} marginBottom={BADGE_ROW_HEIGHT} fontWeight={500} />
+            <BadgeRow badges={row} color={color} width={n.data.size?.width} border={1.75} />
+          </>
+        ),
+      },
+    } as PetriNetNode;
+  });
+}
+
 function LegendBox({ types, otColor }: { types: string[]; otColor: OtColor }) {
   if (types.length === 0) return null;
   return (
     <Card
       size="1"
-      className="bg-(--color-panel-translucent) backdrop-blur-sm"
+      className="r4pm-no-select bg-(--color-panel-translucent) backdrop-blur-sm"
       style={{ position: "absolute", top: "3rem", left: 8, zIndex: 5, maxHeight: "60%", overflow: "auto" }}
     >
       <Flex direction="column" gap="1">
@@ -98,29 +130,32 @@ function OcpnView({
   otColor,
   typeColor,
   exportKey,
+  badges,
 }: {
   data: Ocpn;
   viz?: VizTransport;
   otColor: OtColor;
   typeColor: (objectType: string) => string | undefined;
   exportKey?: string;
+  badges?: Record<string, OcpnBadge[]>;
 }) {
   const [base, setBase] = useState<PetriElements>(NO_ELEMENTS);
   const [seedKey, setSeedKey] = useState(0);
+  const options = useMemo(() => (badges ? { badges } : undefined), [badges]);
 
   useEffect(() => {
     let cancelled = false;
-    layoutOcpn(viz, data)
+    layoutOcpn(viz, data, options)
       .then(({ nodes, edges }) => {
         if (cancelled) return;
-        setBase({ nodes, edges });
+        setBase({ nodes: withBadges(nodes, badges, otColor), edges });
         setSeedKey((k) => k + 1);
       })
       .catch((e) => console.error("[ocpn] layout failed:", e));
     return () => {
       cancelled = true;
     };
-  }, [data, viz]);
+  }, [data, viz, options, badges, otColor]);
 
   // A drag or "Layout" the editor applied survives the next render.
   const keepLayout = useCallback(
@@ -157,19 +192,35 @@ function OcpnView({
   baseRef.current = base;
   const typeColorRef = useRef(typeColor);
   typeColorRef.current = typeColor;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
   const exportSource = useMemo<VectorExportSource | null>(
     () =>
       viz
         ? {
             label: "Object-centric Petri net",
-            toSvg: () => ocpnElementsSvg(viz, dataRef.current, baseRef.current, typeColorRef.current),
+            toSvg: () =>
+              ocpnElementsSvg(
+                viz,
+                dataRef.current,
+                baseRef.current,
+                typeColorRef.current,
+                optionsRef.current,
+              ),
           }
         : null,
     [viz],
   );
   useRegisterExport(exportKey ?? "ocpn", exportSource);
 
-  const types = useMemo(() => distinctTypes(data.places.map((p) => p.object_type)), [data]);
+  const types = useMemo(
+    () =>
+      distinctTypes([
+        ...data.places.map((p) => p.object_type),
+        ...Object.values(badges ?? {}).flatMap((bs) => bs.map((b) => b.object_type)),
+      ]),
+    [data, badges],
+  );
 
   // The absolute inner layer gives the Editor a definite height, so a host that
   // sizes us only via min-height doesn't collapse the height:100% chain to 0.
@@ -541,10 +592,13 @@ export interface ObjectCentricPetriNetViewerProps extends ViewerProps<Ocpn> {
   onChange?: (ocpn: Ocpn) => void;
   /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
   exportKey?: string;
+  /** Object types drawn in the transition of an activity, e.g., a Reflow mapping's non-flow types
+   *  (read-only view only). */
+  badges?: Record<string, OcpnBadge[]>;
 }
 
 export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerProps) {
-  const { data, editable, onChange, exportKey } = props;
+  const { data, editable, onChange, exportKey, badges } = props;
   const { colorOf, viz } = useViewerConfig(props);
   const otColor = useOtColor(colorOf);
   const typeColor = useCallback((objectType: string) => colorOf?.("objectType", objectType), [colorOf]);
@@ -560,5 +614,14 @@ export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerPr
         exportKey={exportKey}
       />
     );
-  return <OcpnView data={data} viz={viz} otColor={otColor} typeColor={typeColor} exportKey={exportKey} />;
+  return (
+    <OcpnView
+      data={data}
+      viz={viz}
+      otColor={otColor}
+      typeColor={typeColor}
+      exportKey={exportKey}
+      badges={badges}
+    />
+  );
 }

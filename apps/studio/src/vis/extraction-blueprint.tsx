@@ -64,10 +64,7 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
   const connectorKinds = useQuery({
     queryKey: ["extraction", "connection-kinds"],
     queryFn: async () =>
-      (await backend.callBinding(
-        "process_mining::bindings::extraction_dbcon_bindings::extraction_connection_kinds",
-        {},
-      )) as string[],
+      (await backend.callBinding("process_mining::extraction_connection_kinds", {})) as string[],
     enabled: backend.kind !== "wasm",
     staleTime: Number.POSITIVE_INFINITY,
   }).data;
@@ -82,10 +79,9 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
 
   const callbacks: BlueprintEditCallbacks = useMemo(() => {
     const discoverItems = async (sources: Record<string, string>) => {
-      const catalog = await backend.callBinding(
-        "process_mining::bindings::extraction_bindings::extraction_discover_catalog_items",
-        { sources },
-      );
+      const catalog = await backend.callBinding("process_mining::extraction_discover_catalog_items", {
+        sources,
+      });
       return catalog as unknown as ComponentExtractionCatalog;
     };
 
@@ -95,14 +91,11 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       sources: Record<string, string>,
       catalog: ComponentExtractionCatalog,
     ) => {
-      const ocelHandle = await backend.callBinding(
-        "process_mining::bindings::extraction_bindings::extraction_run_items",
-        {
-          blueprint: asClientBlueprint(blueprint),
-          sources,
-          catalog: catalog as unknown as ClientExtractionCatalog,
-        },
-      );
+      const ocelHandle = await backend.callBinding("process_mining::extraction_run_items", {
+        blueprint: asClientBlueprint(blueprint),
+        sources,
+        catalog: catalog as unknown as ClientExtractionCatalog,
+      });
       // No report: that binding returns the log itself, and a binding returns either a big type or
       // plain data, never both. Reported as absent rather than as an empty report -- an
       // `ExtractionReport` of zeroes would read as "ran fine, produced nothing".
@@ -122,7 +115,7 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       table: string,
       column: string,
     ) =>
-      backend.callBinding("process_mining::bindings::extraction_bindings::extraction_column_domain_items", {
+      backend.callBinding("process_mining::extraction_column_domain_items", {
         sources,
         source_id: sourceId,
         table,
@@ -135,10 +128,12 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       table: string,
       limit?: number,
     ) => {
-      const preview = await backend.callBinding(
-        "process_mining::bindings::extraction_bindings::extraction_table_preview_items",
-        { sources, source_id: sourceId, table, limit },
-      );
+      const preview = await backend.callBinding("process_mining::extraction_table_preview_items", {
+        sources,
+        source_id: sourceId,
+        table,
+        limit,
+      });
       return preview as unknown as ComponentTablePreview;
     };
 
@@ -196,27 +191,21 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
         return runItems(blueprint, route.sources, catalog);
       },
       onValidate: async (blueprint, catalog) => {
-        const errors = await backend.callBinding(
-          "process_mining::bindings::extraction_bindings::extraction_validate",
-          {
-            blueprint: asClientBlueprint(blueprint),
-            catalog: catalog as unknown as ComponentExtractionCatalog,
-          },
-        );
+        const errors = await backend.callBinding("process_mining::extraction_validate", {
+          blueprint: asClientBlueprint(blueprint),
+          catalog: catalog as unknown as ComponentExtractionCatalog,
+        });
         return errors as unknown as ComponentValidationError[];
       },
       onCompile: async (blueprint, catalog, shape, dialect) => {
-        const compiled = await backend.callBinding(
-          "process_mining::bindings::extraction_bindings::extraction_compile",
-          {
-            blueprint: asClientBlueprint(blueprint),
-            catalog: catalog as unknown as ComponentExtractionCatalog,
-            shape: shape as unknown as ComponentEmissionShape,
-            // Omitted rather than defaulted here: the binding's own `#[bind(default)]` decides what
-            // "no dialect" means, so that default lives in one place.
-            ...(dialect ? { dialect } : {}),
-          } as never,
-        );
+        const compiled = await backend.callBinding("process_mining::extraction_compile", {
+          blueprint: asClientBlueprint(blueprint),
+          catalog: catalog as unknown as ComponentExtractionCatalog,
+          shape: shape as unknown as ComponentEmissionShape,
+          // Omitted rather than defaulted here: the binding's own `#[bind(default)]` decides what
+          // "no dialect" means, so that default lives in one place.
+          ...(dialect ? { dialect } : {}),
+        } as never);
         return compiled as unknown as ComponentCompiledOcel;
       },
     };
@@ -233,10 +222,9 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
         const route = routeConnections(conns);
         if (route.kind === "none") return NO_CATALOG;
         if (route.kind === "items") return discoverItems(route.sources);
-        const catalog = await backend.callBinding(
-          "process_mining::bindings::extraction_dbcon_bindings::extraction_discover_catalog",
-          { connections: route.connections },
-        );
+        const catalog = await backend.callBinding("process_mining::extraction_discover_catalog", {
+          connections: route.connections,
+        });
         return catalog as unknown as ComponentExtractionCatalog;
       },
       // Which binding reads a source depends on the source, not on the build: a registry-held
@@ -244,10 +232,12 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       onColumnDomain: async (conns, sourceId, table, column) => {
         const route = routeConnections(conns);
         if (route.kind === "items") return columnDomainItems(route.sources, sourceId, table, column);
-        return backend.callBinding(
-          "process_mining::bindings::extraction_dbcon_bindings::extraction_column_domain",
-          { connections: conns, source_id: sourceId, table, column },
-        );
+        return backend.callBinding("process_mining::extraction_column_domain", {
+          connections: conns,
+          source_id: sourceId,
+          table,
+          column,
+        });
       },
       // A native path is opened where it lies; a browser `File` has only a name, and its
       // bytes route is the picker's "as a data source" option instead.
@@ -264,10 +254,12 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
       onTablePreview: async (conns, sourceId, table, limit) => {
         const route = routeConnections(conns);
         if (route.kind === "items") return tablePreviewItems(route.sources, sourceId, table, limit);
-        const preview = await backend.callBinding(
-          "process_mining::bindings::extraction_dbcon_bindings::extraction_table_preview",
-          { connections: conns, source_id: sourceId, table, limit },
-        );
+        const preview = await backend.callBinding("process_mining::extraction_table_preview", {
+          connections: conns,
+          source_id: sourceId,
+          table,
+          limit,
+        });
         return preview as unknown as ComponentTablePreview;
       },
       onRun: async (blueprint, connections, catalog) => {
@@ -276,27 +268,19 @@ function ExtractionBlueprintPanel(props: IDockviewPanelProps) {
         const route = routeConnections(connections);
         if (route.kind === "none") throw new Error("Connect a source before running.");
         if (route.kind === "items") return runItems(blueprint, route.sources, catalog);
-        // `extraction_run` mutates an existing SlimLinkedOCEL handle rather than minting one, so
-        // the empty log is created first. No `outputName`: that would re-key the output and tag it
-        // `ItemRole::Result`, which `get_objects_with_type` hides from `/objects`.
-        const ocelHandle = await backend.callBinding(
-          "process_mining::bindings::slim_ocel_bindings::locel_new",
-          {},
-        );
-        const report = await backend.callBinding(
-          "process_mining::bindings::extraction_dbcon_bindings::extraction_run",
-          {
-            ocel: ocelHandle,
-            blueprint: asClientBlueprint(blueprint),
-            connections: route.connections,
-            // The editor discovered this to validate against; without it the runner would connect to
-            // every source and read every schema again before reading a single row.
-            catalog: catalog as unknown as ClientExtractionCatalog,
-          },
-        );
+        // `extraction_run` stores the log under `output_id` and returns the report. No `outputName`:
+        // that would tag it `ItemRole::Result`, which `get_objects_with_type` hides from `/objects`.
+        const id = `extracted-ocel-${crypto.randomUUID()}`;
+        const report = await backend.callBinding("process_mining::extraction_run", {
+          output_id: id,
+          blueprint: asClientBlueprint(blueprint),
+          connections: route.connections,
+          // The editor discovered this to validate against; without it the runner would connect to
+          // every source and read every schema again before reading a single row.
+          catalog: catalog as unknown as ClientExtractionCatalog,
+        });
         // Naming it here shows it labelled immediately rather than as a raw handle;
         // `renameDataset` persists the label engine-side so it survives a reload.
-        const id = ocelHandle as string;
         // Connection strings can hold credentials, so the label uses the source ids.
         const datasetLabel = extractedLabel(Object.keys(route.connections));
         useDatasets.getState().addDataset({ id, kind: "SlimLinkedOCEL", label: datasetLabel });

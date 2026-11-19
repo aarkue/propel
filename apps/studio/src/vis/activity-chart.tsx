@@ -10,7 +10,7 @@ const ActivityChart = lazy(() =>
   import("@r4pm/components/charts").then((m) => ({ default: m.ActivityChart })),
 );
 
-const GET_LOG_INFO = "app_bindings::event_log::get_log_info" as const;
+const GET_LOG_INFO = "app_bindings::get_log_info" as const;
 
 // ActivityChart takes `counts` + `numEvents` (not a single `data`); map the binding result (counts)
 // to `counts` and pull `numEvents` from the panel-side `extraProps`.
@@ -29,7 +29,7 @@ export const vis = defineVis({
   order: 5,
   viewer: false,
   source: {
-    binding: "app_bindings::event_log::get_activity_counts",
+    binding: "app_bindings::get_activity_counts",
     needs: "EventLog",
     args: (ctx) => ({ event_log: ctx.datasetId as EventLogHandle }),
   },

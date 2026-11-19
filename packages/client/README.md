@@ -8,7 +8,7 @@ plus the transport-agnostic `BackendContext` interface and branded `Handle<K>` t
 import type { BackendContext, Bindings, EventLogHandle } from "@r4pm/client";
 
 const dfg = await backend.callBinding(
-  "process_mining::discovery::case_centric::dfg::discover_dfg",
+  "process_mining::discover_dfg",
   { event_log: "log-1" as EventLogHandle },
 ); // typed as DirectlyFollowsGraph
 ```

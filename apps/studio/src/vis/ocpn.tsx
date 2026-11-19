@@ -27,7 +27,7 @@ export const vis = defineResolvedVis({
   controls: { initial: OCPN_DISCOVERY_DEFAULTS },
   source: {
     needs: "SlimLinkedOCEL",
-    resolve: (ctx, c) => discoverOcpn(ctx.backend, ctx.datasetId, ocpnDiscovery(c)),
+    resolve: (ctx, c) => discoverOcpn(ctx.backend, ctx.datasetId, ocpnDiscovery(c), ctx.job),
   },
   // The OCPN viewer (`viewers/object-centric-petri-net.ts`) shows this return type everywhere else.
   viewer: false,

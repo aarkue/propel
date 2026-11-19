@@ -8,6 +8,7 @@ export {
   type CardSelectorOption,
   type CardSelectorProps,
 } from "./CardSelector";
+export { CardPickerButton, type CardPickerButtonProps } from "./CardPickerButton";
 export { Combobox, type ComboboxProps } from "./Combobox";
 export {
   matchesQuery,

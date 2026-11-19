@@ -1,10 +1,14 @@
-import type {
-  ArtifactInfo,
-  BackendContext,
-  CallBinding,
-  FunctionMeta,
-  ItemKindInfo,
-  LoadedObject,
+import {
+  type ArtifactInfo,
+  type BackendContext,
+  type CallBinding,
+  type CallOptions,
+  CancelledError,
+  createJobRunner,
+  type FunctionMeta,
+  type ItemKindInfo,
+  type JobUpdate,
+  type LoadedObject,
 } from "@r4pm/client";
 
 /**
@@ -61,19 +65,40 @@ export function createHttpBackend(base = "/api"): BackendContext {
     throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
   }
 
-  const callBinding = (async (
-    id: string,
-    args: unknown,
-    opts?: { outputName?: string },
-  ): Promise<unknown> => {
-    const res = await fetch(`${root}/call`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id, args, output_name: opts?.outputName }),
-    });
-    if (!res.ok) return fail(res);
-    return res.json();
-  }) as CallBinding;
+  async function registerListener<T>(event: string, listener: (data: T) => void) {
+    const handler = ((e: MessageEvent) => listener(JSON.parse(e.data) as T)) as EventListener;
+    const sub = { event, handler };
+    subs.add(sub);
+    // openStream attaches every sub, including this one.
+    if (es !== undefined) es.addEventListener(event, handler);
+    else ensureStream();
+    return () => {
+      subs.delete(sub);
+      es?.removeEventListener(event, handler);
+    };
+  }
+
+  async function cancelJob(job: string) {
+    await fetch(`${root}/cancel?${new URLSearchParams({ job })}`, { method: "POST" });
+  }
+
+  const runJob = createJobRunner({
+    listen: (handler) => registerListener<JobUpdate>("job-update", handler),
+    cancel: cancelJob,
+  });
+
+  const callBinding = ((id: string, args: unknown, opts?: CallOptions): Promise<unknown> =>
+    runJob(opts, async (job) => {
+      const res = await fetch(`${root}/call`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, args, output_name: opts?.outputName, job }),
+      });
+      // 499: the engine stopped the job on our cancel.
+      if (res.status === 499) throw new CancelledError();
+      if (!res.ok) return fail(res);
+      return res.json();
+    })) as CallBinding;
 
   async function getJson<T>(path: string): Promise<T> {
     const res = await fetch(`${root}${path}`);
@@ -142,17 +167,7 @@ export function createHttpBackend(base = "/api"): BackendContext {
       a.click();
       URL.revokeObjectURL(url);
     },
-    async registerListener<T>(event: string, listener: (data: T) => void) {
-      const handler = ((e: MessageEvent) => listener(JSON.parse(e.data) as T)) as EventListener;
-      const sub = { event, handler };
-      subs.add(sub);
-      // openStream attaches every sub, including this one.
-      if (es !== undefined) es.addEventListener(event, handler);
-      else ensureStream();
-      return () => {
-        subs.delete(sub);
-        es?.removeEventListener(event, handler);
-      };
-    },
+    registerListener,
+    cancelJob,
   };
 }

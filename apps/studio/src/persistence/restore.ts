@@ -21,7 +21,7 @@ import {
   putProject,
 } from "./idb";
 import type { DerivedEntry, Manifest, RootEntry, StoreKind } from "./manifest";
-import { topoOrderDerived } from "./manifest";
+import { migrateManifest, topoOrderDerived } from "./manifest";
 import { fromB64, parseProject, serializeProject } from "./project-file";
 import {
   armSessionSaves,
@@ -265,6 +265,7 @@ async function restoreFromManifest(
   manifest: Manifest,
   recache: boolean,
 ): Promise<{ restored: number; idMap: Map<string, string> }> {
+  manifest = migrateManifest(manifest);
   let restored = 0;
   const missing: RootEntry[] = [];
   for (const r of manifest.roots) {

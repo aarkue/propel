@@ -8,6 +8,8 @@ export interface EditCallbacks {
   onActivityStatistics?: (activity: string) => Promise<ActivityStatistics>;
   onEdgeStatistics?: (arc: OCDeclareArc) => Promise<BinnedEdgeDurationStats>;
   onTemplateString?: (arcs: OCDeclareArc[]) => Promise<string>;
+  /** Open the violations of a constraint, e.g., in a host panel. */
+  onExploreViolations?: (arc: OCDeclareArc) => void;
 }
 
 /** Options passed to `onDiscover` (mirrors OCPQ `OCDeclareDiscoveryOptions`; host-owned shape). */

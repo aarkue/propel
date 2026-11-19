@@ -27,7 +27,7 @@ export interface CardSelectorProps<T extends string> {
   children?: ReactNode;
   className?: string;
   /** Cards per row at the widest breakpoint. Defaults to the option count, capped at 3. */
-  columns?: 2 | 3 | 4;
+  columns?: 1 | 2 | 3 | 4;
   /** Heading per group key. A group with no entry here renders without a heading. */
   groupLabels?: Record<string, string>;
   /** "1" is the compact card for popovers and toolbars: smaller type, no radio circle, and the

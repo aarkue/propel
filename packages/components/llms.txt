@@ -1,8 +1,10 @@
 # @r4pm/components
 
 > React components for process mining: Petri nets, object-centric Petri nets, directly-follows
-> graphs, dotted charts, alignments, OCEL summaries, process trees, log editors, and the pieces the
-> viewers are built from. Peer deps: react >= 18, react-dom >= 18. License: MIT OR Apache-2.0.
+> graphs, dotted charts, alignments, process trees, log editors, analysis views for event logs and
+> OCELs (overviews, data-quality checks with fixes, workload calendars, performance spectra, path
+> schemas, execution graphs, token animations, ...), and the kit the views are built from.
+> Peer deps: react >= 18, react-dom >= 18. License: MIT OR Apache-2.0.
 
 This is the condensed reference for coding agents. `scripts/gen-catalog.mjs` builds the tables
 between the generated markers out of the source; the prose around them is hand-written. The
@@ -39,7 +41,8 @@ export function App({ dfg }) {
 2. **Graph viewers need `viz`.** They lay out and export SVG with rust4pm's visualization, which the
    core does not include. Without it their nodes sit in a plain row, column or grid and there is no
    SVG export. Set it once on `ViewerConfigProvider`, usually to `wasmViz`. Applies to DFG, OC-DFG,
-   OC-DECLARE, Petri nets, process tree, OCEL type graph and extraction blueprint.
+   OC-DECLARE, Petri nets, process tree, OCEL type graph, extraction blueprint, `DfgDiffViewer` and
+   the three animations.
 3. **Image export exists only inside `<ViewerExportFrame>`.** No viewer renders an export control on
    its own. See "Image export" below.
 4. **Import UI primitives from `@r4pm/components/ui`**, never from `@radix-ui/themes` directly. The
@@ -54,9 +57,9 @@ export function App({ dfg }) {
 
 | Import | Contents |
 | --- | --- |
-| `@r4pm/components` | viewers, primitives, feedback states, `ViewerExportFrame`, the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`), and the layout helpers over a `VizTransport` (`layoutModel`, `modelLayoutRequest`, `rerouteModel`, `modelSvg`, `layoutGraph`, `rerouteGraph`, `layoutTree`) |
-| `@r4pm/components/ui` | the Radix Themes seam: `Theme`, `Button`, `Card`, `Combobox`, `CardSelector`, `ConfirmButton`, ... |
-| `@r4pm/components/charts` | Plotly-backed viewers: `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot` |
+| `@r4pm/components` | viewers, analysis views, the view kit, primitives, feedback states, `ViewerExportFrame`, the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`), and the layout helpers over a `VizTransport` (`layoutModel`, `modelLayoutRequest`, `rerouteModel`, `modelSvg`, `layoutGraph`, `rerouteGraph`, `layoutTree`) |
+| `@r4pm/components/ui` | the Radix Themes seam: `Theme`, `Button`, `Card`, `Combobox`, `CardSelector`, `CardPickerButton`, `ConfirmButton`, ... |
+| `@r4pm/components/charts` | chart viewers: Plotly-backed `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot`, and `PerformanceSpectrumView`, `PrefixTreeView`, `ModelSweepChart` |
 | `@r4pm/components/petri` | the React Flow Petri-net editor |
 | `@r4pm/components/process-tree` | the process-tree editor |
 | `@r4pm/components/extraction-blueprint` | the extraction blueprint editor |
@@ -79,26 +82,45 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `AlignmentNetViewer` | `@r4pm/components` | Viewers | fills parent | Alignment Net |
 | `AttributeValueStats` | `@r4pm/components` | Viewers | content-sized | Attribute Value Stats |
 | `CaseDurationChart` | `@r4pm/components/charts` | Viewers | fills parent | Case Duration |
+| `DfgDiffViewer` | `@r4pm/components` | Viewers | fills parent | DFG Comparison |
 | `DFGViewer` | `@r4pm/components` | Viewers | fills parent | Directly-Follows Graph |
 | `DottedChart` | `@r4pm/components/charts` | Viewers | fills parent | Dotted Chart |
+| `EventSignaturesView` | `@r4pm/components` | Viewers | fills parent | Event Signatures |
 | `EventsPerTimeChart` | `@r4pm/components/charts` | Viewers | fills parent | Events per Time |
+| `ExecutionGraphView` | `@r4pm/components` | Viewers | fills parent | Execution Graph |
 | `FitnessView` | `@r4pm/components` | Viewers | content-sized | Fitness |
+| `LifecycleMapView` | `@r4pm/components` | Viewers | fills parent | Lifecycle Map |
+| `LogOverviewBoard` | `@r4pm/components` | Viewers | fills parent | Log Overview |
 | `LogSummary` | `@r4pm/components` | Viewers | content-sized | Log Summary |
 | `LogVariants` | `@r4pm/components` | Viewers | fills parent | Log Variants |
+| `ModelSweepChart` | `@r4pm/components/charts` | Viewers | content-sized | Model Sweep |
 | `ObjectAttributeChangesChart` | `@r4pm/components/charts` | Viewers | fills parent | Object Attribute Changes |
+| `ObjectLifelinesView` | `@r4pm/components` | Viewers | fills parent | Object Lifelines |
+| `ObjectPopulationView` | `@r4pm/components` | Viewers | fills parent | Object Population |
 | `OCDFGViewer` | `@r4pm/components` | Viewers | fills parent | Object-Centric DFG |
 | `ObjectCentricPetriNetViewer` | `@r4pm/components` | Viewers | fills parent | Object-Centric Petri Net |
+| `OcpnAnimation` | `@r4pm/components` | Viewers | fills parent | Object-Centric Petri Net Animation |
 | `ObjectCentricPetriNetSimulator` | `@r4pm/components` | Viewers | fills parent | Object-Centric Petri Net Simulator |
 | `OCDeclareViewer` | `@r4pm/components` | Viewers | fills parent | OC-DECLARE |
 | `DiscoveryForm` | `@r4pm/components` | Viewers | content-sized | OC-DECLARE/Discovery Form |
+| `ViolationExplorer` | `@r4pm/components` | Viewers | fills parent | OC-DECLARE/Violation Explorer |
 | `OCELCountInfo` | `@r4pm/components` | Viewers | content-sized | OCEL Counts |
+| `OcelHealthView` | `@r4pm/components` | Viewers | fills parent | OCEL Health |
+| `OcelOverviewBoard` | `@r4pm/components` | Viewers | fills parent | OCEL Overview |
 | `OcelSchemaPath` | `@r4pm/components` | Viewers | fills parent | OCEL Schema Path |
 | `OcelTypeGraph` | `@r4pm/components` | Viewers | fills parent | OCEL Type Graph |
+| `PathSchemasView` | `@r4pm/components` | Viewers | fills parent | Path Schemas |
+| `PerformanceSpectrumView` | `@r4pm/components/charts` | Viewers | fills parent | Performance Spectrum |
 | `PetriNetViewer` | `@r4pm/components` | Viewers | fills parent | Petri Net |
+| `PetriNetAnimation` | `@r4pm/components` | Viewers | fills parent | Petri Net Animation |
 | `PetriNetSimulator` | `@r4pm/components` | Viewers | fills parent | Petri Net Simulator |
+| `PrefixTreeView` | `@r4pm/components/charts` | Viewers | fills parent | Prefix Tree |
+| `ProcessMapAnimation` | `@r4pm/components` | Viewers | fills parent | Process Map Animation |
 | `ProcessTreeViewer` | `@r4pm/components` | Viewers | fills parent | Process Tree |
+| `ReflowView` | `@r4pm/components` | Viewers | fills parent | Reflow |
 | `ThemedPlot` | `@r4pm/components/charts` | Viewers | fills parent | Themed Plot |
 | `VariantTimeProfileChart` | `@r4pm/components/charts` | Viewers | fills parent | Variant Time Profile |
+| `WorkloadCalendar` | `@r4pm/components` | Viewers | fills parent | Workload Calendar |
 | `EditableGrid` | `@r4pm/components` | Editors | content-sized | Editable Grid |
 | `EventLogEditor` | `@r4pm/components` | Editors | fills parent | Event Log Creator |
 | `BlueprintGraph` | `@r4pm/components/extraction-blueprint` | Editors | fills parent | Extraction Blueprint |
@@ -111,6 +133,7 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `ActivitySequence` | `@r4pm/components` | Inputs & Primitives | content-sized | Activity Sequence |
 | `AlignmentStrip` | `@r4pm/components` | Inputs & Primitives | content-sized | Alignment Strip |
 | `LoadingState` | `@r4pm/components` | Inputs & Primitives | content-sized | Async State |
+| `CardPickerButton` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Card Picker Button |
 | `CardSelector` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Card Selector |
 | `ActivityChooser` | `@r4pm/components` | Inputs & Primitives | content-sized | Choosers |
 | `Combobox` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Combobox |
@@ -118,6 +141,7 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `CoverageBar` | `@r4pm/components` | Inputs & Primitives | content-sized | Coverage Bar |
 | `DeviationAlignmentStrip` | `@r4pm/components` | Inputs & Primitives | content-sized | Deviation Alignment Strip |
 | `FrequencyPicker` | `@r4pm/components` | Inputs & Primitives | content-sized | Frequency Picker |
+| `JobProgressCard` | `@r4pm/components` | Inputs & Primitives | content-sized | Job Progress |
 | `JSONViewer` | `@r4pm/components` | Inputs & Primitives | content-sized | JSON Viewer |
 | `LogMetadataCard` | `@r4pm/components` | Inputs & Primitives | content-sized | Log Metadata Card |
 | `NumberField` | `@r4pm/components/ui` | Inputs & Primitives | content-sized | Number Field |
@@ -126,7 +150,12 @@ Heavy viewers sit behind subpaths. Importing `@r4pm/components` never pulls in P
 | `SearchSelect` | `@r4pm/components/ui` | Inputs & Primitives | fills parent | Search Select |
 | `SelectionActions` | `@r4pm/components` | Inputs & Primitives | content-sized | Selection Actions |
 | `StatCards` | `@r4pm/components` | Inputs & Primitives | content-sized | Stat Cards |
+| `TablePager` | `@r4pm/components` | Inputs & Primitives | content-sized | Table Kit |
+| `TimeZonePicker` | `@r4pm/components` | Inputs & Primitives | content-sized | Time Zone Picker |
 | `TraceAlignmentStrip` | `@r4pm/components` | Inputs & Primitives | content-sized | Trace Alignment Strip |
+| `TypeBadges` | `@r4pm/components` | Inputs & Primitives | content-sized | Type Badges |
+| `VariantSelect` | `@r4pm/components` | Inputs & Primitives | content-sized | Variant Select |
+| `Toolbar` | `@r4pm/components` | Inputs & Primitives | content-sized | View Kit |
 
 <!-- @end -->
 
@@ -155,6 +184,39 @@ interface ViewerTarget { scope: string; key: string; data?: unknown }
 `"time-range"` with key `"<startMs>/<endMs>"` (dotted chart selection). Treat it as an open string.
 
 Between provider and prop, `format` merges field by field. The other fields replace wholesale.
+
+## Analysis views and the view kit
+
+The analysis views (overview boards, `OcelHealthView`, `WorkloadCalendar`, `PathSchemasView`,
+`ExecutionGraphView`, `ReflowView`, `ViolationExplorer`, the animations, the `/charts` spectrum,
+prefix tree and model sweep) share one shape:
+
+```tsx
+<WorkloadCalendar
+  data={workload}                            // the engine result
+  controls={controls}                        // settings the host persists
+  onControlsChange={setControls}             // omit for read-only settings
+  {...viewerConfig}                          // ViewerProps: colorOf, format, onSelect, ...
+/>
+```
+
+Each exports `XxxProps`, and views with settings export `XxxControls` and `DEFAULT_XXX_CONTROLS`.
+
+- **Toolbars.** A view's toolbar renders into the element of `ToolbarHostContext` when a host
+  provides one (e.g., a panel header), and inline above the view otherwise.
+- **Data-quality fixes.** `OcelHealthView` takes `onRepair(repairs)`. Each finding then offers
+  fixes, the recommended ones preselected, and the picked repairs go to `onRepair`, e.g., for
+  propel's `repair_event_log` or `repair_ocel` binding. For an event log, map `LogHealth` to
+  `{ num_events, num_objects: num_cases, findings }` and pass `subject="event log"`, `unit="cases"`.
+- **Time zones.** `WorkloadCalendar` reads times in `controls.timeZone`. `timeZoneArg(zone)` turns
+  an IANA zone into the offset changes the workload bindings take (`time_zone`); `RECORDED_TIME`
+  keeps each event's own offset.
+- **Long engine calls.** `JobProgressCard` and `JobProgressStrip` show progress reports; an optional
+  `units` table (stage name to `ProgressUnit`) names what each stage counts.
+- **Kit.** `Toolbar`, `OptionMenu`, `Segmented`, `Metric`/`MetricRow`, `Section`, `Bar`,
+  `LegendItem`, `RampLegend`, `TypeChip`, `TypeBadges`, `useChartTooltip`, `fmtInt`, `fmtPct`,
+  `formatDuration`; tables with `SearchField`, `SortableHeader`, `ExpandableRow`, `TablePager`;
+  `VariantSelect`; `TimeZonePicker`. Use them to build host views that match the built-in ones.
 
 ## Coloring
 
@@ -258,7 +320,7 @@ first layout. A host whose backend runs rust4pm passes a transport to it and shi
 import type { VizTransport } from "@r4pm/components";
 
 const viz: VizTransport = {
-  call: (fn, args) => callBackend(`process_mining::visualization::bindings::${fn}`, args),
+  call: (fn, args) => callBackend(`process_mining::${fn}`, args),
 };
 ```
 
@@ -300,7 +362,8 @@ underlying `useViewSetting(key, initial)` behaves as plain `useState`.
 ## Async, loading, error and empty states
 
 `@r4pm/components` exports `AsyncBoundary`, `LoadingState`, `ErrorState`, `EmptyState`,
-`IndeterminateBar` and skeletons for the panels around viewers.
+`IndeterminateBar` and skeletons for the panels around viewers, and `JobProgressCard`,
+`JobProgressStrip` and `PartialResultStrip` for engine calls that report progress.
 
 ## Diagnosing a broken render
 
@@ -316,6 +379,11 @@ underlying `useViewSetting(key, initial)` behaves as plain `useState`.
 | Export image includes the toolbar | no `data-export-root` | mark the content subtree |
 | Colors change every render | `colorOf` rebuilt inline | memoize it |
 | Relayout on every render | `data`, `categoryOf` or `viz` identity changes | memoize them |
+
+## Changes between releases
+
+`CHANGELOG.md` (published next to this file) lists the breaking changes and new features of each
+release.
 
 ## Repo commands
 

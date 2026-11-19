@@ -1,7 +1,7 @@
 import { IconButton, ScrollArea, Select } from "@r4pm/components/ui";
 import { Handle, type Node, type NodeProps, NodeResizer, Position, useNodeConnections } from "@xyflow/react";
-import { useContext, useMemo, useState } from "react";
-import { RxMagnifyingGlass, RxOpenInNewWindow } from "react-icons/rx";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { RxDownload, RxMagnifyingGlass, RxOpenInNewWindow } from "react-icons/rx";
 import { resolveAllViewersForReturnType } from "../../../viewers";
 import { PetriNetActions } from "../../../vis/components/PetriNetActions";
 import { ViewerExportFrame } from "@r4pm/components";
@@ -13,6 +13,8 @@ export type ViewerOutputNodeData = {
   value?: any;
   /** Return-type title of the producing source node, used to resolve a viewer. */
   returnType?: string;
+  /** Media type the producing binding declares for its result, e.g., `image/svg+xml`. */
+  mediaType?: string;
   /** True once the pipeline has executed this node (distinguishes "ran, empty" from "never run"). */
   hasRun?: boolean;
   executionStatus?: {
@@ -24,8 +26,34 @@ export type ViewerOutputNodeData = {
 
 export type ViewerOutputNode = Node<ViewerOutputNodeData, "jsonView">;
 
+const SVG = "image/svg+xml";
+
+/** An SVG result as an image, so scripts in it do not run. */
+function SvgImage({ svg }: { svg: string }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    const u = URL.createObjectURL(new Blob([svg], { type: SVG }));
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [svg]);
+  return (
+    // Absolutely placed, so the image's natural size does not grow the node.
+    <div className="nodrag nowheel" style={{ flex: 1, minHeight: 0, position: "relative" }}>
+      {url && (
+        <img
+          src={url}
+          alt="SVG result"
+          draggable={false}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function ViewerOutputNode({ data, id, selected }: NodeProps<ViewerOutputNode>) {
-  const { value, returnType, hasRun } = data;
+  const { value, returnType, hasRun, mediaType } = data;
+  const isSvg = mediaType === SVG && typeof value === "string";
   const color = getTypeColor({ type: "any" });
   const inConnections = useNodeConnections({ id, handleType: "target" });
   const registry = useContext(ViewerRegistryContext);
@@ -45,6 +73,7 @@ export function ViewerOutputNode({ data, id, selected }: NodeProps<ViewerOutputN
     if (!hasRun) return <span className="text-gray-400 italic text-[10px]">Connect an input and run</span>;
     if (value === undefined)
       return <span className="text-gray-400 italic text-[10px]">No data (empty result)</span>;
+    if (isSvg) return <SvgImage svg={value} />;
     if (Viewer) {
       // nodrag + nowheel so the inner viewer (often its own ReactFlow) captures
       // BOTH pan (drag) and zoom (wheel) instead of the pipeline grabbing the drag.
@@ -75,20 +104,22 @@ export function ViewerOutputNode({ data, id, selected }: NodeProps<ViewerOutputN
         </pre>
       </ScrollArea>
     );
-  }, [value, hasRun, Viewer, viewer?.title, returnType, backend]);
+  }, [value, hasRun, isSvg, Viewer, viewer?.title, returnType, backend]);
 
   return (
     <NodeWrapper
       selected={selected}
       executionStatus={data.executionStatus}
-      title={viewer ? viewer.title : "Output"}
+      title={isSvg ? "SVG" : viewer ? viewer.title : "Output"}
       icon={RxMagnifyingGlass}
       minWidth=""
-      fill={!!Viewer}
-      style={Viewer ? { minWidth: 420, minHeight: 280 } : undefined}
-      resizer={Viewer ? <NodeResizer minWidth={420} minHeight={280} isVisible={!!selected} /> : undefined}
+      fill={!!Viewer || isSvg}
+      style={Viewer || isSvg ? { minWidth: 420, minHeight: 280 } : undefined}
+      resizer={
+        Viewer || isSvg ? <NodeResizer minWidth={420} minHeight={280} isVisible={!!selected} /> : undefined
+      }
       headerRight={
-        viewers.length > 1 ? (
+        !isSvg && viewers.length > 1 ? (
           <Select.Root size="1" value={viewer?.id} onValueChange={setPickedId}>
             <Select.Trigger variant="soft" className="nodrag" title="Choose visualization" />
             <Select.Content>
@@ -122,7 +153,20 @@ export function ViewerOutputNode({ data, id, selected }: NodeProps<ViewerOutputN
       {value !== undefined && (
         <div className="absolute bottom-4 right-4 flex gap-1">
           {returnType === "AcceptingPetriNet" && <PetriNetActions net={value} />}
-          {openAsPanel && (
+          {isSvg && (
+            <IconButton
+              size="1"
+              variant="soft"
+              color="gray"
+              onClick={() =>
+                backend.downloadBinary(new TextEncoder().encode(value).buffer as ArrayBuffer, "result.svg")
+              }
+              title="Download SVG"
+            >
+              <RxDownload className="size-3" />
+            </IconButton>
+          )}
+          {openAsPanel && !isSvg && (
             <IconButton
               size="1"
               variant="soft"

@@ -1,4 +1,4 @@
-import { Button, Popover, Text } from "@r4pm/components/ui";
+import { Popover, Text } from "@r4pm/components/ui";
 import { useMemo } from "react";
 import { FrequencyPicker } from "../inputs/FrequencyPicker";
 import type { ColorResolver } from "../viewer/viewer-config";
@@ -21,7 +21,6 @@ export interface TypeScopeSelectorProps {
   isAuto?: boolean;
   /** Shared color resolver so the frequency bars match the graph node colors. */
   colorOf?: ColorResolver;
-  triggerVariant?: "soft" | "surface" | "outline";
 }
 
 /** Reusable scope picker for the OCEL type graph: an Events + an Objects frequency picker. Pairs with `visibleNodeIds`. */
@@ -32,7 +31,6 @@ export function TypeScopeSelector({
   onResetAuto,
   isAuto,
   colorOf,
-  triggerVariant = "soft",
 }: TypeScopeSelectorProps) {
   const events = useMemo(() => items.filter((i) => i.kind === "event"), [items]);
   const objects = useMemo(() => items.filter((i) => i.kind === "object"), [items]);
@@ -68,10 +66,13 @@ export function TypeScopeSelector({
   return (
     <Popover.Root>
       <Popover.Trigger>
-        <Button size="1" variant={triggerVariant}>
-          Scope {value.size}/{items.length}
-          {isAuto ? " · auto" : ""}
-        </Button>
+        <button type="button" className="r4pm-option-trigger">
+          <span style={{ color: "var(--gray-10)" }}>Types</span>
+          <span style={{ color: "var(--gray-12)", fontWeight: 500 }}>
+            {value.size === items.length ? "All" : `${value.size} of ${items.length}`}
+            {isAuto && value.size !== items.length ? " (auto)" : ""}
+          </span>
+        </button>
       </Popover.Trigger>
       <Popover.Content
         size="1"

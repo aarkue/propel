@@ -1,6 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { colorToHex } from "../dfg/util/colors";
-import type { ThemeColor } from "../dfg/util/colors";
+import { moveColor } from "./move-terms";
 import type { AlignmentMove } from "./alignment-types";
 import type { PetriNet } from "../petri-net";
 import {
@@ -25,12 +24,6 @@ export interface ResolvedMove {
   /** Transition has no label (invisible/tau). */
   hidden: boolean;
 }
-
-export const MOVE_COLOR: Record<MoveKind, ThemeColor> = {
-  sync: "green",
-  log: "amber",
-  model: "orange",
-};
 
 /** Raw icon geometry per move kind: the exact glyph shown on screen (Font Awesome check / plus,
  *  Bootstrap lightning-fill). One source for the DOM icon (`MoveGlyphIcon`) and the SVG export
@@ -102,7 +95,7 @@ function cellColor(
   colorOf?: (activity: string) => string,
 ): string {
   if (kind === "model" && hidden) return SKIP_COLOR;
-  return colorOf?.(label) ?? colorToHex(MOVE_COLOR[kind]);
+  return colorOf?.(label) ?? moveColor(kind);
 }
 
 // Standalone, theme-aware SVG (no foreignObject, no external CSS) of the two-row strip, drawn here
@@ -199,7 +192,7 @@ const SVG_GLYPH_SIZE = 10;
 /** Draw a move's kind icon (the exact on-screen glyph) as a filled path on a solid disc, centered at
  *  `(cx, cy)`. Shared by both strips. */
 export function svgMoveIcon(parent: SVGElement, cx: number, cy: number, kind: MoveKind, bg: string): void {
-  const color = colorToHex(MOVE_COLOR[kind]);
+  const color = moveColor(kind);
   parent.appendChild(svgEl("circle", { cx, cy, r: SVG_ICON_R, fill: bg }));
   const g = MOVE_GLYPH[kind];
   const scale = SVG_GLYPH_SIZE / Math.max(g.w, g.h);
@@ -262,7 +255,7 @@ export function buildTraceAlignmentSvg(
   cells.forEach((c, i) => {
     const cx = centers[i];
     const w = widths[i];
-    const borderColor = colorToHex(MOVE_COLOR[c.kind]);
+    const borderColor = moveColor(c.kind);
     svg.appendChild(
       svgEl("line", {
         x1: cx - w / 2,
@@ -311,7 +304,7 @@ export function TraceAlignmentStrip({
   return (
     <div className={`flex items-start gap-1 ${singleLine ? "flex-nowrap w-max" : "flex-wrap"}`}>
       {moves.map((move, i) => {
-        const borderColor = colorToHex(MOVE_COLOR[move.kind]);
+        const borderColor = moveColor(move.kind);
         const color = cellColor(move.kind, move.label, move.hidden, resolve);
         const modelActivity = move.kind !== "log";
         const logActivity = move.kind !== "model";

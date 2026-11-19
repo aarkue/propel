@@ -51,8 +51,8 @@ const choice = (c: Partial<MinerChoice>): MinerChoice => ({ ...DEFAULT_MINER, ..
 
 describe("Inductive Miner bindings", () => {
   it("are listed with ProcessTree and AcceptingPetriNet results", () => {
-    expect(meta(IM_PROCESS_TREE).name).toBe("discover_inductive_tree_with");
-    expect(meta(IM_PETRI_NET).name).toBe("discover_inductive_net_with");
+    expect(meta(IM_PROCESS_TREE).name).toBe("discover_inductive_tree");
+    expect(meta(IM_PETRI_NET).name).toBe("discover_inductive_net");
     expect(BINDING_RETURN_TYPE[IM_PROCESS_TREE]).toBe("ProcessTree");
     for (const id of [IM_PETRI_NET, ALPHA_PETRI_NET]) {
       expect(BINDING_RETURN_TYPE[id]).toBe("AcceptingPetriNet");

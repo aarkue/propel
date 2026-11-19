@@ -13,7 +13,7 @@ export const vis = defineVis({
   keywords: ["summary", "counts", "objects", "types"],
   order: 13,
   source: {
-    binding: "process_mining::bindings::ocel_type_stats",
+    binding: "process_mining::ocel_type_stats",
     needs: "SlimLinkedOCEL",
     args: (ctx) => ({ ocel: ctx.datasetId as SlimLinkedOCELHandle }),
   },

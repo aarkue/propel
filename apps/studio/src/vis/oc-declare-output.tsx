@@ -17,7 +17,7 @@ export const vis = defineVis({
   source: {
     binding: OC_DECLARE_DISCOVER,
     needs: "SlimLinkedOCEL",
-    args: (ctx) => ({ locel: ctx.datasetId as SlimLinkedOCELHandle, options: OC_DECLARE_DEFAULTS }),
+    args: (ctx) => ({ ocel: ctx.datasetId as SlimLinkedOCELHandle, options: OC_DECLARE_DEFAULTS }),
   },
   component: OCDeclarePanel,
 });

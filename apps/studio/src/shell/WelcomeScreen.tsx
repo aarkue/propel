@@ -106,7 +106,7 @@ export function WelcomeScreen({
               </Text>
               <Text size="1" color="gray" as="div" className="truncate">
                 {resume.name}
-                {resume.datasets > 0 && ` — ${resume.datasets} dataset${resume.datasets === 1 ? "" : "s"}`}
+                {resume.datasets > 0 && `, ${resume.datasets} dataset${resume.datasets === 1 ? "" : "s"}`}
               </Text>
             </div>
             <Flex gap="2" align="center" className="shrink-0">

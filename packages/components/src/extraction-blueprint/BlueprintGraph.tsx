@@ -22,11 +22,14 @@ import {
   useNodesInitialized,
   useNodesState,
   useReactFlow,
+  useStore,
+  useStoreApi,
+  useUpdateNodeInternals,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ContextMenu, Text } from "@r4pm/components/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { gridBlueprintPositions, layoutBlueprint } from "./layout";
+import { blueprintSizes, gridBlueprintPositions, layoutBlueprint, type MeasuredSizes } from "./layout";
 import {
   deriveEdges,
   entryMappings,
@@ -347,6 +350,20 @@ function BlueprintGraphInner({
     [onChange],
   );
 
+  // A node that keeps its `measured` size across a store reset (a remount) gets no handle bounds
+  // back, and its edges vanish until something re-measures it.
+  const store = useStoreApi();
+  const updateNodeInternals = useUpdateNodeInternals();
+  const handlesLost = useStore((s) => {
+    for (const n of s.nodeLookup.values()) {
+      if (!n.hidden && n.measured.width && n.measured.height && !n.internals.handleBounds) return true;
+    }
+    return false;
+  });
+  useEffect(() => {
+    if (handlesLost) updateNodeInternals([...store.getState().nodeLookup.keys()]);
+  }, [handlesLost, updateNodeInternals, store]);
+
   // A fit is requested by bumping this counter and performed once every node has been measured.
   const [fitRequest, setFitRequest] = useState(0);
   const nodesInitialized = useNodesInitialized();
@@ -354,6 +371,20 @@ function BlueprintGraphInner({
     if (fitRequest === 0 || !nodesInitialized) return;
     fitView({ padding: 0.15, duration: 300 });
   }, [fitRequest, nodesInitialized, fitView]);
+
+  // Node heights depend on content that arrives late (a Source node's columns come with the
+  // catalog), so an auto layout is redone whenever a node it placed renders at another size. That
+  // stops once the user moves a node; the viewport follows until they pan or zoom.
+  const laidOutWith = useRef<MeasuredSizes | null>(null);
+  const fitFollows = useRef(false);
+  const measuredSizes = useCallback(() => {
+    const sizes: MeasuredSizes = new Map();
+    for (const [id, n] of store.getState().nodeLookup) {
+      const { width, height } = n.measured;
+      if (width && height) sizes.set(id, { width, height });
+    }
+    return sizes;
+  }, [store]);
 
   const applyLayoutResult = useCallback(
     (
@@ -386,20 +417,52 @@ function BlueprintGraphInner({
       const v = valueRef.current;
       if (v.nodes.length === 0 && v.mappings.length === 0) return;
       const derived = deriveEdges(v.nodes, v.mappings);
+      const sizes = blueprintSizes(v.nodes, v.mappings, measuredSizes());
       const positions = viz
-        ? layoutBlueprint(viz, v.nodes, derived, v.mappings)
-        : Promise.resolve(gridBlueprintPositions(v.nodes, derived, v.mappings));
+        ? layoutBlueprint(viz, v.nodes, derived, v.mappings, sizes)
+        : Promise.resolve(gridBlueprintPositions(v.nodes, derived, v.mappings, sizes));
       positions
         .then((posById) => {
           applyLayoutResult(v, derived, posById);
-          // Ask for the fit; the effect below runs it once React Flow reports the new nodes
+          laidOutWith.current = sizes;
+          if (fit) fitFollows.current = true;
+          // Ask for the fit; the effect above runs it once React Flow reports the new nodes
           // measured. Firing it here -- even after a frame or two -- races that measurement, and a
           // fit computed from stale or missing dimensions parks the viewport away from the graph.
-          if (fit) setFitRequest((n) => n + 1);
+          if (fitFollows.current) setFitRequest((n) => n + 1);
         })
         .catch((e) => console.error("[blueprint] layout failed", e));
     },
-    [viz, applyLayoutResult],
+    [viz, applyLayoutResult, measuredSizes],
+  );
+
+  const runFullLayoutRef = useRef(runFullLayout);
+  runFullLayoutRef.current = runFullLayout;
+  const relayoutTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(relayoutTimer.current), []);
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<FlowNode>[]) => {
+      onNodesChange(changes);
+      if (changes.some((c) => c.type === "position")) {
+        laidOutWith.current = null;
+        fitFollows.current = false;
+      }
+      const used = laidOutWith.current;
+      if (!used) return;
+      const resized = changes.some((c) => {
+        if (c.type !== "dimensions" || !c.dimensions) return false;
+        const before = used.get(c.id);
+        return (
+          !!before &&
+          (Math.abs(before.width - c.dimensions.width) > 1 ||
+            Math.abs(before.height - c.dimensions.height) > 1)
+        );
+      });
+      if (!resized) return;
+      clearTimeout(relayoutTimer.current);
+      relayoutTimer.current = setTimeout(() => runFullLayoutRef.current(false), 50);
+    },
+    [onNodesChange],
   );
 
   // Layout once on first mount if positions are missing; otherwise reconcile in place.
@@ -756,7 +819,10 @@ function BlueprintGraphInner({
       edges={edges}
       nodeTypes={blueprintNodeTypes}
       edgeTypes={edgeTypes}
-      onNodesChange={onNodesChange as (c: NodeChange<FlowNode>[]) => void}
+      onNodesChange={handleNodesChange}
+      onMoveStart={(e) => {
+        if (e) fitFollows.current = false;
+      }}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
       onNodesDelete={onNodesDelete}
@@ -824,23 +890,25 @@ function BlueprintGraphInner({
   return (
     <EditContext.Provider value={editContextValue}>
       <div style={{ width: "100%", height: "100%", position: "relative" }}>
-        {isEdit ? (
-          <ContextMenu.Root>
-            <ContextMenu.Trigger>
-              <div
-                // Lets a host-level (window-wide) drop handler recognize that this canvas already
-                // owns file drops and stand down, rather than racing it to also treat the same drop
-                // as "open a new blueprint". Only present when a drop here actually does something.
-                data-blueprint-drop-target={callbacks.onConnectionForDrop ? "" : undefined}
-                style={{ width: "100%", height: "100%" }}
-                onDragOver={(e) => {
-                  if (callbacks.onConnectionForDrop) e.preventDefault();
-                }}
-                onDrop={onCanvasDrop}
-              >
-                {flow}
-              </div>
-            </ContextMenu.Trigger>
+        {/* One tree whether or not editing: re-parenting the canvas would remount React Flow and
+            reset its store. */}
+        <ContextMenu.Root>
+          <ContextMenu.Trigger disabled={!isEdit}>
+            <div
+              // Lets a host-level (window-wide) drop handler recognize that this canvas already
+              // owns file drops and stand down, rather than racing it to also treat the same drop
+              // as "open a new blueprint". Only present when a drop here actually does something.
+              data-blueprint-drop-target={isEdit && callbacks.onConnectionForDrop ? "" : undefined}
+              style={{ width: "100%", height: "100%" }}
+              onDragOver={(e) => {
+                if (isEdit && callbacks.onConnectionForDrop) e.preventDefault();
+              }}
+              onDrop={isEdit ? onCanvasDrop : undefined}
+            >
+              {flow}
+            </div>
+          </ContextMenu.Trigger>
+          {isEdit && (
             <ContextMenu.Content size="1">
               <div style={{ padding: 4 }}>
                 <TableList
@@ -849,10 +917,8 @@ function BlueprintGraphInner({
                 />
               </div>
             </ContextMenu.Content>
-          </ContextMenu.Root>
-        ) : (
-          flow
-        )}
+          )}
+        </ContextMenu.Root>
         {isEdit && <ConnectionsDialog open={showConnections} onOpenChange={setShowConnections} />}
         {isEdit && dialog && dialogState && (
           <NodeDialog

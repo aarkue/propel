@@ -39,6 +39,10 @@ export const DROP_REASON_INFO: Record<DropReason, { label: string; why: string }
     label: "Id already used by another type",
     why: "Id collided with another type. Try type-prefixed rendering.",
   },
+  DuplicateObjectRejected: {
+    label: "Object already extracted",
+    why: "Object id was already extracted and duplicates are set to fail.",
+  },
 };
 
 /** Human label for a drop reason, falling back to the raw variant for one this build predates. */

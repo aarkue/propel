@@ -104,6 +104,7 @@ export interface OCDeclareVizProps {
   onActivityStatistics?: EditCallbacks["onActivityStatistics"];
   onEdgeStatistics?: EditCallbacks["onEdgeStatistics"];
   onTemplateString?: EditCallbacks["onTemplateString"];
+  onExploreViolations?: EditCallbacks["onExploreViolations"];
   /**
    * Whether the graph may re-arrange itself: after a node is dropped, and when a change such as
    * switching the involvement notation alters how much room the arcs need. The Layout button and
@@ -305,6 +306,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     onActivityStatistics,
     onEdgeStatistics,
     onTemplateString,
+    onExploreViolations,
     relayoutOnChange = true,
     showTextLabels,
     onShowTextLabelsChange,
@@ -820,7 +822,14 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       palette: { eventTypes, objectTypes, eventTypeCounts, objectTypeCounts },
       relatedTypes,
       getSupport,
-      callbacks: { onDiscover, onEvaluate, onActivityStatistics, onEdgeStatistics, onTemplateString },
+      callbacks: {
+        onDiscover,
+        onEvaluate,
+        onActivityStatistics,
+        onEdgeStatistics,
+        onTemplateString,
+        onExploreViolations,
+      },
       openStats: setStatsRequest,
       runLayout: () => setRelayoutTick((t) => t + 1),
       newNodePosition: () => {
@@ -845,6 +854,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     onActivityStatistics,
     onEdgeStatistics,
     onTemplateString,
+    onExploreViolations,
     screenToFlowPosition,
   ]);
 
@@ -1026,6 +1036,24 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
     if (badges?.length) drawnBadges.current.set(edgeId, badges);
     else drawnBadges.current.delete(edgeId);
   }, []);
+  const onActivityStats = useMemo(
+    () =>
+      onActivityStatistics
+        ? (activity: string) => setStatsRequest({ kind: "activity", activity })
+        : undefined,
+    [onActivityStatistics],
+  );
+  const onExploreArc = useMemo(
+    () =>
+      onExploreViolations
+        ? (edgeId: string) => {
+            const m = effectiveValueRef.current;
+            const arc = m && toArcs({ nodes: m.nodes, edges: m.edges.filter((e) => e.id === edgeId) })[0];
+            if (arc) onExploreViolations(arc);
+          }
+        : undefined,
+    [onExploreViolations],
+  );
   const ctxValue = useMemo(
     () => ({
       activityColor,
@@ -1038,6 +1066,8 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       showTextLabels: textLabels,
       onHideActivity,
       onFocusActivity,
+      onActivityStats,
+      onExploreArc,
       reportBadges,
     }),
     [
@@ -1051,6 +1081,8 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
       textLabels,
       onHideActivity,
       onFocusActivity,
+      onActivityStats,
+      onExploreArc,
       reportBadges,
     ],
   );
@@ -1253,9 +1285,11 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
               </div>
             </Panel>
           </ReactFlow>
-          {canEdit && statsRequest && (
+          {statsRequest && (
             <StatsSheet
               request={statsRequest}
+              fetchActivity={onActivityStatistics}
+              fetchEdge={onEdgeStatistics}
               objectTypeColor={(name) => objectTypeColor(name, "normal")}
               onClose={() => setStatsRequest(null)}
             />

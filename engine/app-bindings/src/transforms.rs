@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::slim_project::Overlay;
 use crate::types::AttributeScope;
+use crate::xes_event::{event_activity, event_time_ms};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum KeepOrRemove {
@@ -305,13 +306,16 @@ fn timeframe_matches(times_ms: &[i64], s_ms: i64, e_ms: i64, mode: &TimeframeMod
 /// current scope is `None`, and a predicate needing it fails closed (`false`).
 #[derive(Default)]
 pub struct EvalCtx<'a> {
-    attr: Option<&'a dyn Fn(&str) -> Option<String>>,
-    attr_f64: Option<&'a dyn Fn(&str) -> Option<f64>>,
+    attr: AttrLookup<'a, String>,
+    attr_f64: AttrLookup<'a, f64>,
     times_ms: Option<&'a dyn Fn() -> Vec<i64>>,
     entity_type: Option<&'a dyn Fn() -> Option<String>>,
-    related_events: Option<&'a dyn Fn() -> Vec<EntityFacts>>,
-    related_objects: Option<&'a dyn Fn() -> Vec<EntityFacts>>,
+    related_events: RelatedFacts<'a>,
+    related_objects: RelatedFacts<'a>,
 }
+
+type AttrLookup<'a, T> = Option<&'a dyn Fn(&str) -> Option<T>>;
+type RelatedFacts<'a> = Option<&'a dyn Fn() -> Vec<EntityFacts>>;
 
 impl<'a> EvalCtx<'a> {
     /// Attribute + timestamp accessors, present in every filter scope.
@@ -416,7 +420,7 @@ pub fn evaluate_condition(condition: &Condition, ctx: &EvalCtx) -> bool {
                 return false; // no events -> no span to measure
             };
             let dur = hi - lo;
-            min_ms.map_or(true, |m| dur >= m) && max_ms.map_or(true, |m| dur <= m)
+            min_ms.is_none_or(|m| dur >= m) && max_ms.is_none_or(|m| dur <= m)
         }
         Condition::EventMatch {
             quantifier,
@@ -479,31 +483,6 @@ pub fn apply_relabel_rules(
     original.to_string()
 }
 
-fn get_event_activity(event: &Event) -> Option<&str> {
-    event
-        .attributes
-        .get_by_key("concept:name")
-        .and_then(|a| a.value.try_as_string())
-        .map(|s| s.as_str())
-}
-
-fn xes_event_time_ms(event: &Event) -> Option<i64> {
-    use process_mining::core::chrono::{DateTime, FixedOffset};
-    use process_mining::core::event_data::case_centric::AttributeValue;
-    match event
-        .attributes
-        .get_by_key("time:timestamp")
-        .map(|a| &a.value)
-    {
-        Some(AttributeValue::Date(dt)) => Some(dt.timestamp_millis()),
-        Some(AttributeValue::String(s)) => s
-            .parse::<DateTime<FixedOffset>>()
-            .ok()
-            .map(|d| d.timestamp_millis()),
-        _ => None,
-    }
-}
-
 fn xes_get_attr(event: &Event) -> impl Fn(&str) -> Option<String> + '_ {
     |key: &str| -> Option<String> {
         event
@@ -535,7 +514,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
         Transform::FilterActivities { activities, mode } => {
             log.traces.iter_mut().for_each(|t| {
                 t.events.retain(|e| {
-                    let act = get_event_activity(e).unwrap_or("UNKNOWN");
+                    let act = event_activity(e).unwrap_or("UNKNOWN");
                     let in_set = activities.contains(act);
                     match mode {
                         KeepOrRemove::Keep => in_set,
@@ -547,12 +526,12 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
         Transform::RelabelActivities { rules } => {
             log.traces.iter_mut().for_each(|t| {
                 t.events.iter_mut().for_each(|e| {
-                    let act = get_event_activity(e).unwrap_or("UNKNOWN").to_string();
+                    let act = event_activity(e).unwrap_or("UNKNOWN").to_string();
                     let new_label = {
                         let get_attr = xes_get_attr(e);
                         let get_attr_f64 = xes_get_attr_f64(e);
-                        let get_times = || xes_event_time_ms(e).into_iter().collect::<Vec<_>>();
-                        let get_type = || get_event_activity(e).map(|s| s.to_string());
+                        let get_times = || event_time_ms(e).into_iter().collect::<Vec<_>>();
+                        let get_type = || event_activity(e).map(|s| s.to_string());
                         apply_relabel_rules(
                             &act,
                             rules,
@@ -577,7 +556,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                     Some(starts) => t
                         .events
                         .first()
-                        .and_then(get_event_activity)
+                        .and_then(event_activity)
                         .is_some_and(|a| starts.contains(a)),
                     None => true,
                 };
@@ -585,7 +564,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                     Some(ends) => t
                         .events
                         .last()
-                        .and_then(get_event_activity)
+                        .and_then(event_activity)
                         .is_some_and(|a| ends.contains(a)),
                     None => true,
                 };
@@ -597,7 +576,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                 let contains = t
                     .events
                     .iter()
-                    .any(|e| get_event_activity(e).is_some_and(|a| activities.contains(a)));
+                    .any(|e| event_activity(e).is_some_and(|a| activities.contains(a)));
                 match mode {
                     RequiredOrForbidden::Required => contains,
                     RequiredOrForbidden::Forbidden => !contains,
@@ -639,7 +618,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                 let seq: Vec<String> = t
                     .events
                     .iter()
-                    .map(|e| get_event_activity(e).unwrap_or("UNKNOWN").to_string())
+                    .map(|e| event_activity(e).unwrap_or("UNKNOWN").to_string())
                     .collect();
                 let matches = variant_set.contains(&seq);
                 match mode {
@@ -806,15 +785,15 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                 for trace in &mut log.traces {
                     trace.events.retain(|e| {
                         if let Some(required) = activity.as_ref() {
-                            let act = get_event_activity(e).unwrap_or("UNKNOWN");
+                            let act = event_activity(e).unwrap_or("UNKNOWN");
                             if act != required.as_str() {
                                 return true; // not in scope, keep
                             }
                         }
                         let get_attr = xes_get_attr(e);
                         let get_attr_f64 = xes_get_attr_f64(e);
-                        let get_times = || xes_event_time_ms(e).into_iter().collect::<Vec<_>>();
-                        let get_type = || get_event_activity(e).map(|s| s.to_string());
+                        let get_times = || event_time_ms(e).into_iter().collect::<Vec<_>>();
+                        let get_type = || event_activity(e).map(|s| s.to_string());
                         let matches = evaluate_condition(
                             condition,
                             &EvalCtx::new(&get_attr, &get_attr_f64, &get_times)
@@ -850,7 +829,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                     let get_times = || {
                         t.events
                             .iter()
-                            .filter_map(xes_event_time_ms)
+                            .filter_map(event_time_ms)
                             .collect::<Vec<_>>()
                     };
                     let get_events = || t.events.iter().map(xes_event_facts).collect::<Vec<_>>();
@@ -889,7 +868,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                     for trace in log.traces.iter_mut() {
                         for ev in trace.events.iter_mut() {
                             if let Some(required) = activity.as_ref() {
-                                let act = get_event_activity(ev).unwrap_or("UNKNOWN");
+                                let act = event_activity(ev).unwrap_or("UNKNOWN");
                                 if act != required.as_str() {
                                     continue;
                                 }
@@ -1558,8 +1537,8 @@ fn xes_event_facts(e: &Event) -> EntityFacts {
         }
     }
     EntityFacts {
-        type_name: get_event_activity(e).unwrap_or("UNKNOWN").to_string(),
-        times_ms: xes_event_time_ms(e).into_iter().collect(),
+        type_name: event_activity(e).unwrap_or("UNKNOWN").to_string(),
+        times_ms: event_time_ms(e).into_iter().collect(),
         string_attrs,
         f64_attrs,
     }
@@ -2121,10 +2100,13 @@ mod parity_tests {
 
     /// Structural fingerprint of a `SlimLinkedOCEL`; comparing two of these is an exact
     /// structural equivalence check (typed values, so `int 1` != `float 1.0` != `str "1"`).
+    type Attrs = Vec<(String, String)>;
+    type AttrHistory = Vec<(String, Attrs)>;
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct Canonical {
-        events: Vec<(String, String, String, Vec<(String, String)>)>,
-        objects: Vec<(String, String, Vec<(String, Vec<(String, String)>)>)>,
+        events: Vec<(String, String, String, Attrs)>,
+        objects: Vec<(String, String, AttrHistory)>,
         e2o: Vec<(String, String, String)>,
         o2o: Vec<(String, String, String)>,
         ev_type_schemas: Vec<(String, Vec<(String, String)>)>,
@@ -4511,7 +4493,7 @@ mod parity_tests {
             let ty = object_type_names[i % object_type_names.len()];
             let mut relationships = Vec::new();
             if ty == "order" && i >= 1 {
-                relationships.push(OCELRelationship::new(&format!("o{}", i - 1), "placed_by"));
+                relationships.push(OCELRelationship::new(format!("o{}", i - 1), "placed_by"));
             }
             objects.push(OCELObject {
                 id: format!("o{i}"),
@@ -4526,18 +4508,18 @@ mod parity_tests {
             let ty = event_type_names[i % event_type_names.len()];
             let time = base + Duration::seconds(i as i64);
             let o0 = i % n_objects;
-            let mut relationships = vec![OCELRelationship::new(&format!("o{o0}"), "primary")];
+            let mut relationships = vec![OCELRelationship::new(format!("o{o0}"), "primary")];
             if i % 3 != 0 {
                 let o1 = (i + 1) % n_objects;
-                relationships.push(OCELRelationship::new(&format!("o{o1}"), "secondary"));
+                relationships.push(OCELRelationship::new(format!("o{o1}"), "secondary"));
             }
             if i % 3 == 2 {
                 let o2 = (i + 2) % n_objects;
-                relationships.push(OCELRelationship::new(&format!("o{o2}"), "tertiary"));
+                relationships.push(OCELRelationship::new(format!("o{o2}"), "tertiary"));
             }
             if i % 5 == 0 {
                 // A second qualifier onto the SAME object as "primary": the multi-qualifier edge.
-                relationships.push(OCELRelationship::new(&format!("o{o0}"), "also_primary"));
+                relationships.push(OCELRelationship::new(format!("o{o0}"), "also_primary"));
             }
             events.push(OCELEvent {
                 id: format!("e{i}"),

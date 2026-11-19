@@ -93,9 +93,16 @@ pub fn execute_binding(
     function_id: String,
     args: JsValue,
     output_name: Option<String>,
+    job: Option<String>,
 ) -> Result<Vec<u8>, String> {
     let args: Value = args.into_serde().map_err(|e| e.to_string())?;
-    backend_shared::execute_binding(&BACKEND, &function_id, &args, output_name.as_deref())
+    backend_shared::execute_binding(
+        &BACKEND,
+        &function_id,
+        &args,
+        output_name.as_deref(),
+        job.as_deref(),
+    )
 }
 
 #[wasm_bindgen]
@@ -133,4 +140,5 @@ extern "C" {
 #[wasm_bindgen(start)]
 pub fn main() {
     unsafe { __wasm_call_ctors() };
+    utils::set_panic_hook();
 }

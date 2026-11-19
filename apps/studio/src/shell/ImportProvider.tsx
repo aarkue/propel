@@ -21,6 +21,7 @@ import {
 } from "../data-import";
 import { connectionStringForPath, isExtractionSource, isExtractionSourceFile } from "../extraction-sources";
 import { IO_KINDS, ioKindByName } from "../io-kinds";
+import { isModelKind, openModel } from "../models";
 import { openArtifact } from "../panels/open-artifact";
 import { loadArtifactCached } from "../persistence/session";
 import { useRelink } from "../stores/relink";
@@ -122,13 +123,19 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
+      let d: Awaited<ReturnType<typeof importFileAs>>;
       try {
-        const d = await importFileAs(backend, file, kind, ext);
-        useDatasets.getState().addDataset(d);
+        d = await importFileAs(backend, file, kind, ext);
       } catch {
         // Engine parse errors surface via the `import-failed` event; pre-engine (file-read) errors
         // are rare and only logged by the backend call.
+        return;
       }
+      useDatasets.getState().addDataset(d);
+      if (isModelKind(d.kind))
+        await openModel(d.id, d.kind).catch((e) =>
+          toast.error(`Could not open ${d.label ?? d.id}: ${String(e)}`),
+        );
     })();
   }, []);
 
@@ -209,6 +216,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         const id = await uniqueDatasetId(filename);
         await backend.loadItemPath?.(id, kind, path);
         useDatasets.getState().addDataset({ id, kind, label: filename, path });
+        if (isModelKind(kind)) await openModel(id, kind);
       }
     } catch (e) {
       toast.error(`Failed to import "${filename}": ${String(e)}`);
@@ -343,7 +351,6 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       // can present a placeholder-named File, so the path is the trustworthy source.
       if (onDesktop) {
         const paths = extractPathsFromDataTransfer(dt);
-        console.log("[dnd] extracted paths=", paths);
         if (paths.length > 0) {
           for (const p of paths) handleDroppedPath(p);
           return;

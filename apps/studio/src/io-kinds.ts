@@ -19,21 +19,19 @@ export interface IoKind {
 
 export const IO_KINDS: IoKind[] = [
   {
-    kind: "PetriNet",
-    import_formats: [
-      { extension: "pnml", mime: "text/plain" },
-      { extension: "apnml", mime: "text/plain" },
-    ],
-    export_formats: [{ extension: "pnml", mime: "text/plain" }],
-    returnType: "AcceptingPetriNet",
-  },
-  {
     kind: "OCDeclare",
     import_formats: [{ extension: "ocdeclare", mime: "application/json" }],
     export_formats: [{ extension: "ocdeclare", mime: "application/json" }],
     returnType: "Array_of_OCDeclareArc",
     toViewerData: (value) => (value as { arcs: unknown }).arcs,
     editorPanel: "ocDeclare",
+  },
+  {
+    kind: "ReflowMapping",
+    import_formats: [{ extension: "reflow", mime: "application/json" }],
+    export_formats: [{ extension: "reflow", mime: "application/json" }],
+    returnType: "ReflowSummary",
+    toViewerData: (value) => (value as { summary: unknown }).summary,
   },
 ];
 

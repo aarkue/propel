@@ -15,7 +15,8 @@ const FALLBACK_PALETTE = [
 ];
 
 function withAlpha(color: string, alphaHex: string): string {
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? `${color}${alphaHex}` : color;
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) return `${color}${alphaHex}`;
+  return `color-mix(in srgb, ${color} ${Math.round((parseInt(alphaHex, 16) / 255) * 100)}%, transparent)`;
 }
 
 export interface RankedBarListProps {
@@ -50,7 +51,7 @@ export function RankedBarList({
 
   const sorted = sortByCountDesc(normalizeItems(items));
   const shown = max ? sorted.slice(0, max) : sorted;
-  const maxCount = Math.max(1, ...sorted.map((i) => i.count));
+  const maxCount = sorted.reduce((m, i) => Math.max(m, i.count), 1);
 
   if (shown.length === 0) {
     return (

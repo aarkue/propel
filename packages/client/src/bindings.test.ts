@@ -13,7 +13,7 @@ describe("generated bindings", () => {
   });
 
   it("includes a known app binding", () => {
-    expect(generated).toContain("app_bindings::event_log::get_activity_counts");
+    expect(generated).toContain("app_bindings::get_activity_counts");
   });
 
   it("emits branded handle types", () => {
@@ -41,6 +41,6 @@ describe("generated bindings", () => {
     expect(generated).toContain("export const BINDING_RETURN_TYPE");
     expect(generated).toContain("export interface ReturnTypeShape");
     // A known binding maps to its known return-type title.
-    expect(generated).toMatch(/"app_bindings::event_log::get_activity_counts":\s*"[A-Za-z0-9_]+"/);
+    expect(generated).toMatch(/"app_bindings::get_activity_counts":\s*"[A-Za-z0-9_]+"/);
   });
 });

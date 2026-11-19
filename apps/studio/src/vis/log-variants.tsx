@@ -1,18 +1,15 @@
-import type { IDockviewPanelProps } from "dockview";
 import type { BackendContext, EventLogHandle, NumberOfTracesAndEvents, TraceVariants } from "@r4pm/client";
 import { ErrorState, LoadingState, LogVariants } from "@r4pm/components";
 import { useQuery } from "@tanstack/react-query";
 import { PiListBullets } from "react-icons/pi";
-import { withSelector, datasetEmptyBox } from "./_shared";
-import { useDatasetSelection } from "../panels/active-datasets";
 import { backend } from "../backends";
 import { derivedDatasetLabel, useDatasets } from "../stores";
-import { definePanel } from "./define-vis";
+import { type DatasetPanelProps, defineDatasetPanel } from "./define-vis";
 
-const GET_LOG_TRACE_VARIANTS = "app_bindings::event_log::get_log_trace_variants" as const;
-const GET_LOG_INFO = "app_bindings::event_log::get_log_info" as const;
+const GET_LOG_TRACE_VARIANTS = "app_bindings::get_log_trace_variants" as const;
+const GET_LOG_INFO = "app_bindings::get_log_info" as const;
 
-const APPLY_EVENT_LOG_TRANSFORMS = "app_bindings::transforms::apply_event_log_transforms" as const;
+const APPLY_EVENT_LOG_TRANSFORMS = "app_bindings::apply_event_log_transforms" as const;
 
 export interface LogVariantsPanelProps {
   backend: BackendContext;
@@ -81,26 +78,21 @@ export function LogVariantsPanel({
   );
 }
 
-/** Interactive trace-variant explorer for the active event log. */
-export function LogVariantsDockPanel(props: IDockviewPanelProps) {
-  const { id: log, selector } = useDatasetSelection("EventLog", props);
+function LogVariantsDockPanel({ id }: DatasetPanelProps) {
   const addDataset = useDatasets((s) => s.addDataset);
-  if (!log) return withSelector(selector, datasetEmptyBox("EventLog"), "log-variants");
-  return withSelector(
-    selector,
+  return (
     <LogVariantsPanel
-      key={log}
       backend={backend}
-      eventLog={log as EventLogHandle}
+      eventLog={id as EventLogHandle}
       onFilterApplied={(handle, op) =>
-        addDataset({ id: handle, kind: "EventLog", label: derivedDatasetLabel(log, op) })
+        addDataset({ id: handle, kind: "EventLog", label: derivedDatasetLabel(id, op) })
       }
-    />,
-    "log-variants",
+    />
   );
 }
 
-export const vis = definePanel({
+export const vis = defineDatasetPanel({
+  needs: "EventLog",
   type: "logVariants",
   name: "Trace Variants",
   description: "Distinct activity sequences ranked by frequency.",

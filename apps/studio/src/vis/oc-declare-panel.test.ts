@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BackendContext, FunctionMeta } from "@r4pm/client";
+import { CancelledError } from "@r4pm/client";
 import { describe, expect, it } from "vitest";
 import type { OCDeclareArc } from "../../../../packages/components/src/oc-declare/index";
 import { artifactOpening, artifactViewerData, ioKindByName } from "../io-kinds";
@@ -52,6 +53,24 @@ describe("evaluation", () => {
     // The binding answers conformance (1 = every source event satisfies the arc).
     expect(fractions.map((f) => Math.round(f * 10) / 10)).toEqual([0.9, 0.8]);
   });
+
+  it("reports each checked arc and stops checking once cancelled", async () => {
+    const ctrl = new AbortController();
+    const seen: number[] = [];
+    const { backend, calls } = recordingBackend(() => 1);
+    const arcs = Array.from({ length: 12 }, (_, i) => arc(`a${i}`, `b${i}`));
+    const run = violationFractions(backend, "ocel-1", arcs, {
+      signal: ctrl.signal,
+      onProgress: (p) => {
+        seen.push(p.done);
+        if (p.done === 2) ctrl.abort();
+      },
+    });
+    await expect(run).rejects.toThrow(CancelledError);
+    expect(seen.slice(0, 3)).toEqual([0, 1, 2]);
+    // The calls already running finish; no new ones start.
+    expect(calls.length).toBeLessThan(arcs.length);
+  });
 });
 
 describe("OC-DECLARE artifacts", () => {
@@ -68,9 +87,8 @@ describe("opening artifacts", () => {
   it("hands viewers the data they render, whatever path opens the artifact", () => {
     const file = { version: 1, arcs: [arc("a", "b")], nodes: [] };
     expect(artifactViewerData("OCDeclare", file)).toEqual(file.arcs);
-    const net = { places: [], transitions: [] };
-    expect(artifactViewerData("PetriNet", net)).toBe(net);
-    expect(artifactViewerData("Unknown", net)).toBe(net);
+    const value = { places: [], transitions: [] };
+    expect(artifactViewerData("Unknown", value)).toBe(value);
   });
 });
 
@@ -85,10 +103,8 @@ describe("the OC-DECLARE panel", () => {
 });
 
 describe("opening saved models", () => {
-  it("opens OC-DECLARE models in the OC-DECLARE panel and others in the viewer", () => {
+  it("opens OC-DECLARE models in the OC-DECLARE panel", () => {
     const file = { version: 1, arcs: [arc("a", "b")], nodes: [] };
     expect(artifactOpening("OCDeclare", file)).toEqual({ panel: "ocDeclare", params: { doc: file } });
-    const net = { places: [], transitions: [] };
-    expect(artifactOpening("PetriNet", net)).toEqual({ returnType: "AcceptingPetriNet", data: net });
   });
 });

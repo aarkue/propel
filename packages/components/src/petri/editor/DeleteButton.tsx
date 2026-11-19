@@ -31,8 +31,8 @@ export default function DeleteButton(props: DeleteButtonProps) {
       <svg
         aria-hidden="true"
         style={{
-          width: "80%",
-          height: "80%",
+          width: "70%",
+          height: "70%",
           position: "absolute",
           top: "50%",
           left: "50%",

@@ -9,7 +9,12 @@ export type AlignmentMove =
   | { ModelMove: { transition: string } }
   | { LogMove: { trace_event_index: number } };
 
-export type SearchError = "LimitReached" | "MemoryLimitReached" | "Unreachable" | "MaxEdgeCostTooLarge";
+export type SearchError =
+  | "LimitReached"
+  | "MemoryLimitReached"
+  | "Unreachable"
+  | "MaxEdgeCostTooLarge"
+  | "Cancelled";
 
 export type PlaceID = number;
 
@@ -46,9 +51,34 @@ export interface AlignmentAggregate {
   total_traces: number;
 }
 
+export interface EscapingActivity {
+  /** `null`: stopping where traces never stop. */
+  activity?: string | null;
+  weight: number;
+}
+
+export interface EscapingEdgeSummary {
+  prefix_tail: (string | null)[];
+  prefix_len: number;
+  escaping?: string | null;
+  weight: number;
+}
+
+/** Escaping-edges precision: where the model allows behavior the log never shows. */
+export interface PrecisionSummary {
+  precision: number;
+  weighted_available: number;
+  weighted_escaping: number;
+  num_states: number;
+  search_limit_reached: boolean;
+  by_activity: EscapingActivity[];
+  top_edges: EscapingEdgeSummary[];
+}
+
 export interface LogAlignments {
   net: PetriNet;
   variant_alignments: VariantAlignmentResult[];
   fitness?: FitnessResult | null;
   aggregated: AlignmentAggregate;
+  precision?: PrecisionSummary | null;
 }

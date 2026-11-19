@@ -90,14 +90,7 @@ export function OcpnDiscoveryBar({
     queryFn: () => backend.callBinding(OCEL_TYPE_STATS, { ocel: ocel as SlimLinkedOCELHandle }),
   });
   return (
-    <Flex
-      align="center"
-      gap="3"
-      px="2"
-      py="1"
-      wrap="wrap"
-      style={{ borderBottom: "1px solid var(--gray-5)" }}
-    >
+    <Flex align="center" gap="3" wrap="wrap">
       <NamesPicker
         label="Object types"
         chooser={ObjectTypeChooser}

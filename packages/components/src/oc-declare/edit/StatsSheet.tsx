@@ -2,7 +2,12 @@ import { IconButton, Spinner, Text } from "@r4pm/components/ui";
 import { useEffect, useMemo, useState } from "react";
 import { PiX } from "react-icons/pi";
 import { ThemedPlot } from "../../charts/themed-plot";
-import type { ActivityStatistics, BinnedEdgeDurationStats, StatsRequest } from "./edit-context";
+import type {
+  ActivityStatistics,
+  BinnedEdgeDurationStats,
+  EditCallbacks,
+  StatsRequest,
+} from "./edit-context";
 import { useEditContext } from "./edit-context";
 
 const PLOT_CONFIG: Partial<Plotly.Config> = { responsive: true, displaylogo: false, displayModeBar: false };
@@ -13,10 +18,15 @@ export function StatsSheet({
   request,
   objectTypeColor,
   onClose,
+  fetchActivity,
+  fetchEdge,
 }: {
   request: StatsRequest;
   objectTypeColor: (name: string) => string;
   onClose: () => void;
+  /** The statistics sources; without them, the edit context's callbacks. */
+  fetchActivity?: EditCallbacks["onActivityStatistics"];
+  fetchEdge?: EditCallbacks["onEdgeStatistics"];
 }) {
   return (
     <div
@@ -35,24 +45,38 @@ export function StatsSheet({
       </IconButton>
       <div className="flex-1 min-h-0 p-2">
         {request.kind === "activity" ? (
-          <ActivityStatsSheet activity={request.activity} objectTypeColor={objectTypeColor} />
+          <ActivityStatsSheet
+            activity={request.activity}
+            objectTypeColor={objectTypeColor}
+            fetch={fetchActivity}
+          />
         ) : (
-          <EdgeStatsSheet arc={request.arc} />
+          <EdgeStatsSheet arc={request.arc} fetch={fetchEdge} />
         )}
       </div>
     </div>
   );
 }
 
+/** The largest count over all lists; a loop, as spreading one count per event into `Math.max`
+ *  overflows the argument limit on large logs (65,536 in WebKit). */
+function largest(lists: Record<string, number[]> | undefined): number {
+  let max = 0;
+  for (const list of Object.values(lists ?? {})) for (const n of list) if (n > max) max = n;
+  return max;
+}
+
 function ActivityStatsSheet({
   activity,
   objectTypeColor,
+  fetch,
 }: {
   activity: string;
   objectTypeColor: (name: string) => string;
+  fetch?: EditCallbacks["onActivityStatistics"];
 }) {
   const edit = useEditContext();
-  const fetchStats = edit?.callbacks.onActivityStatistics;
+  const fetchStats = fetch ?? edit?.callbacks.onActivityStatistics;
   const [data, setData] = useState<ActivityStatistics | null>(null);
   const [pending, setPending] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -72,14 +96,8 @@ function ActivityStatsSheet({
   }, [activity, fetchStats]);
 
   const sortedObjectTypes = useMemo(() => Object.keys(data?.num_evs_per_ot_type ?? {}).sort(), [data]);
-  const maxObCount = useMemo(
-    () => Math.max(0, ...Object.values(data?.num_obs_of_ot_per_ev ?? {}).flat()),
-    [data],
-  );
-  const maxEvCount = useMemo(
-    () => Math.max(0, ...Object.values(data?.num_evs_per_ot_type ?? {}).flat()),
-    [data],
-  );
+  const maxObCount = useMemo(() => largest(data?.num_obs_of_ot_per_ev), [data]);
+  const maxEvCount = useMemo(() => largest(data?.num_evs_per_ot_type), [data]);
 
   const commonLayout: Partial<Plotly.Layout> = {
     yaxis: { ticksuffix: "%", rangemode: "tozero", range: [0, 100] },
@@ -161,9 +179,15 @@ function pickTimeUnit(maxDurationMs: number): { unit: string; divisor: number } 
   return { unit: "Years", divisor: YEAR_MS };
 }
 
-function EdgeStatsSheet({ arc }: { arc: { from: string; to: string } }) {
+function EdgeStatsSheet({
+  arc,
+  fetch,
+}: {
+  arc: { from: string; to: string };
+  fetch?: EditCallbacks["onEdgeStatistics"];
+}) {
   const edit = useEditContext();
-  const fetchStats = edit?.callbacks.onEdgeStatistics;
+  const fetchStats = fetch ?? edit?.callbacks.onEdgeStatistics;
   const [data, setData] = useState<BinnedEdgeDurationStats | null>(null);
   const [pending, setPending] = useState(true);
   const [failed, setFailed] = useState(false);

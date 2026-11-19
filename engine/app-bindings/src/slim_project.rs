@@ -39,6 +39,8 @@ where
     /// Effective (post-remap) type sets over currently kept items, recomputed eagerly by the relabel mutators; a plain filter/retain leaves it a harmless superset since `build_slim` re-derives the declared types from the keep mask anyway.
     eff_ev_types: Vec<String>,
     eff_ob_types: Vec<String>,
+    /// Leave out O2O relations from an object to itself.
+    drop_self_o2o: bool,
 }
 
 impl<'a, A> Overlay<'a, A>
@@ -63,9 +65,14 @@ where
             ob_attr_strip: HashMap::new(),
             eff_ev_types: Vec::new(),
             eff_ob_types: Vec::new(),
+            drop_self_o2o: false,
         };
         ov.recompute_eff_types();
         ov
+    }
+
+    pub fn drop_self_relations(&mut self) {
+        self.drop_self_o2o = true;
     }
 
     /// The borrowed source reader.
@@ -467,7 +474,12 @@ where
                 });
             }
         }
-        let relationships = rels_to_kept(src.get_o2o(o), src, &kept_ob_set);
+        let relationships = rels_to_kept(
+            src.get_o2o(o)
+                .filter(|(_, t)| !(ov.drop_self_o2o && **t == o)),
+            src,
+            &kept_ob_set,
+        );
         if let Err(e) = out.append_object(id, &otype, attributes, relationships) {
             eprintln!("[slim_project] warning: skipping object: {e}");
         }
@@ -637,10 +649,13 @@ mod tests {
 
     /// Structural fingerprint of a `SlimLinkedOCEL`, order-independent where order is not
     /// semantic; comparing two of these is an exact equivalence check.
+    type Attrs = Vec<(String, String)>;
+    type AttrHistory = Vec<(String, Attrs)>;
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct Canonical {
-        events: Vec<(String, String, String, Vec<(String, String)>)>,
-        objects: Vec<(String, String, Vec<(String, Vec<(String, String)>)>)>,
+        events: Vec<(String, String, String, Attrs)>,
+        objects: Vec<(String, String, AttrHistory)>,
         e2o: Vec<(String, String, String)>,
         o2o: Vec<(String, String, String)>,
         ev_type_schemas: Vec<(String, Vec<(String, String)>)>,

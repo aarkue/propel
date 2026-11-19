@@ -1,5 +1,6 @@
 export * from "./bindings.generated";
 export * from "./formats";
+export * from "./jobs";
 import type { CallBinding } from "./bindings.generated";
 import type { JSONSchema7 } from "json-schema";
 
@@ -134,4 +135,9 @@ export interface BackendContext {
    * Optional: a transport may not emit (the http transport currently does not).
    */
   registerListener?<T>(event: string, listener: (data: T) => void): Promise<() => void>;
+  /**
+   * Ask the engine to stop job `job`: a call made with a `signal`, or an import, by its item id.
+   * Absent when the engine cannot stop a running call (the in-browser engine runs one at a time).
+   */
+  cancelJob?(job: string): Promise<void>;
 }

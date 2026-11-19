@@ -191,6 +191,7 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
     hoveredNodeId,
     showTextLabels,
     reportBadges,
+    onExploreArc,
   } = useVizContext();
 
   const edit = useEditContext();
@@ -564,22 +565,39 @@ export function ConstraintEdge(edge: EdgeProps<ConstraintEdgeType>) {
             </span>
           </div>
         )}
-        {badges.map((b) => (
-          <div
-            key={b.title}
-            style={{
-              position: "absolute",
-              transform: `translate(-50%, -50%) translate(${b.x}px, ${b.y}px)`,
-              pointerEvents: "none",
-              opacity,
-              zIndex: 11,
-            }}
-          >
-            <span style={violationBadgeStyle(b)} title={b.title}>
-              {b.text}
-            </span>
-          </div>
-        ))}
+        {badges.map((b) => {
+          // A merged EF/EP arc carries one badge per direction, each for its own model edge.
+          const edgeId = data.pair
+            ? b.direction === "backward"
+              ? data.pair.backward
+              : data.pair.forward
+            : rawId;
+          return (
+            <div
+              key={b.title}
+              className="nodrag nopan"
+              style={{
+                position: "absolute",
+                transform: `translate(-50%, -50%) translate(${b.x}px, ${b.y}px)`,
+                pointerEvents: onExploreArc ? "all" : "none",
+                cursor: onExploreArc ? "pointer" : undefined,
+                opacity,
+                zIndex: 11,
+              }}
+              onClick={onExploreArc ? () => onExploreArc(edgeId) : undefined}
+              onKeyDown={onExploreArc ? (e) => e.key === "Enter" && onExploreArc(edgeId) : undefined}
+              role={onExploreArc ? "button" : undefined}
+              tabIndex={onExploreArc ? 0 : undefined}
+            >
+              <span
+                style={violationBadgeStyle(b)}
+                title={onExploreArc ? `${b.title}. Click to see the violations.` : b.title}
+              >
+                {b.text}
+              </span>
+            </div>
+          );
+        })}
         {!showTextLabels &&
           dots.map((dot, i) => {
             const { x, y, angle } = displacements[i];

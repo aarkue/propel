@@ -1,362 +1,28 @@
+import {
+  defaultTransformForType,
+  generateId,
+  getTransformLabel,
+  getTransformMeta,
+  type PaletteType,
+  stepPaletteType,
+  suggestOutName,
+  summarizeTransform,
+  TRANSFORM_GROUPS,
+  TRANSFORM_META,
+  type TransformBuilderValue,
+  transformGroup,
+  type TransformWithID,
+} from "./catalog";
 import { Button, Checkbox, Flex, IconButton, Popover, Text, TextField } from "@r4pm/components/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { FaArrowDown, FaArrowUp, FaPlus } from "react-icons/fa";
 import { TiDelete } from "react-icons/ti";
-import {
-  LuFilter,
-  LuTag,
-  LuArrowRightLeft,
-  LuSearch,
-  LuBoxes,
-  LuTags,
-  LuHash,
-  LuDice5,
-  LuClock,
-  LuDownload,
-  LuUpload,
-  LuTrash2,
-  LuSlidersHorizontal,
-} from "react-icons/lu";
+import { LuDatabase, LuDownload, LuPlay, LuSearch, LuSlidersHorizontal, LuUpload } from "react-icons/lu";
+import { Toolbar } from "@r4pm/components";
 import toast from "react-hot-toast";
 import type { BackendContext, EventLogHandle, SlimLinkedOCELHandle, Transform } from "@r4pm/client";
-import { defaultTimeframeCondition } from "./condition";
 import { TransformEditor } from "./TransformEditors";
-
-export type TransformWithID = {
-  id: string;
-  value: Transform;
-  enabled: boolean;
-};
-
-export interface TransformBuilderValue {
-  transforms: TransformWithID[];
-  outName: string;
-}
-
-// Synthetic palette key: a "Timeframe Filter" step is stored as a `FilterAttributes`
-// whose condition is a lone `Timeframe`, so it composes with attribute predicates.
-type PaletteType = Transform["type"] | "FilterTimeframe";
-
-const TRANSFORM_META: {
-  type: PaletteType;
-  label: string;
-  description: string;
-  icon: React.ComponentType<{ size?: number }>;
-  ocelOnly: boolean;
-  xesOnly?: boolean;
-}[] = [
-  {
-    type: "FilterActivities",
-    label: "Filter Activities",
-    description: "Keep or remove events by activity",
-    icon: LuFilter,
-    ocelOnly: false,
-  },
-  {
-    type: "RelabelActivities",
-    label: "Relabel Activities",
-    description: "Rename activities / event types",
-    icon: LuTag,
-    ocelOnly: false,
-  },
-  {
-    type: "FilterStartEnd",
-    label: "Start / End Filter",
-    description: "Filter by first or last activity",
-    icon: LuArrowRightLeft,
-    ocelOnly: false,
-  },
-  {
-    type: "FilterTraceContains",
-    label: "Contains Filter",
-    description: "Require or forbid activities in traces / objects",
-    icon: LuSearch,
-    ocelOnly: false,
-  },
-  {
-    type: "FilterVariants",
-    label: "Filter Variants",
-    description: "Keep or remove traces by exact activity sequence",
-    icon: LuFilter,
-    ocelOnly: false,
-    xesOnly: true,
-  },
-  {
-    type: "Sample",
-    label: "Sample",
-    description: "Random sample of traces or objects",
-    icon: LuDice5,
-    ocelOnly: false,
-  },
-  {
-    type: "FilterObjectTypes",
-    label: "Filter Object Types",
-    description: "Keep or remove object types",
-    icon: LuBoxes,
-    ocelOnly: true,
-  },
-  {
-    type: "RelabelObjectTypes",
-    label: "Relabel Object Types",
-    description: "Rename object types",
-    icon: LuTags,
-    ocelOnly: true,
-  },
-  {
-    type: "FilterTimeRange",
-    label: "Time Range Filter",
-    description: "Keep or remove events by timestamp",
-    icon: LuClock,
-    ocelOnly: false,
-  },
-  {
-    type: "FilterTimeframe",
-    label: "Timeframe Filter",
-    description:
-      "Keep or remove events, cases, or objects by when they happened (within / starts / ends / ...)",
-    icon: LuClock,
-    ocelOnly: false,
-  },
-  {
-    type: "RescaleTimeframe",
-    label: "Rescale Time",
-    description: "Rescale all timestamps to a new timeframe",
-    icon: LuClock,
-    ocelOnly: false,
-  },
-  {
-    type: "FilterMinRelatedEvents",
-    label: "Related Events",
-    description: "Filter objects by number of related events",
-    icon: LuHash,
-    ocelOnly: true,
-  },
-  {
-    type: "FilterMinRelatedObjects",
-    label: "Related Objects",
-    description: "Filter events by number of related objects",
-    icon: LuHash,
-    ocelOnly: true,
-  },
-  {
-    type: "FilterAttributes",
-    label: "Condition Filter",
-    description: "Combine any predicates (event type, time, attributes, duration) with AND / OR / NOT",
-    icon: LuSlidersHorizontal,
-    ocelOnly: false,
-  },
-  {
-    type: "RemoveAttributes",
-    label: "Remove Attributes",
-    description: "Remove attributes from events, cases/objects, or log metadata",
-    icon: LuTrash2,
-    ocelOnly: false,
-  },
-];
-
-const TRANSFORM_GROUPS = ["Filter", "Relabel", "Attributes", "Time", "Sample"] as const;
-function transformGroup(type: PaletteType): (typeof TRANSFORM_GROUPS)[number] {
-  if (type === "RelabelActivities" || type === "RelabelObjectTypes") return "Relabel";
-  if (type === "RemoveAttributes") return "Attributes";
-  if (type === "FilterTimeRange" || type === "RescaleTimeframe" || type === "FilterTimeframe") return "Time";
-  if (type === "Sample") return "Sample";
-  return "Filter";
-}
-
-function defaultYearRangeRfc(): { start: string; end: string } {
-  const year = new Date().getFullYear();
-  return {
-    start: `${year}-01-01T00:00:00+00:00`,
-    end: `${year}-12-31T23:59:59+00:00`,
-  };
-}
-
-function defaultTransformForType(type: PaletteType): Transform {
-  switch (type) {
-    case "FilterTimeframe":
-      return {
-        type: "FilterAttributes",
-        scope: { type: "Event", activity: null },
-        condition: defaultTimeframeCondition(),
-        mode: "Keep",
-      };
-    case "FilterActivities":
-      return { type: "FilterActivities", activities: [], mode: "Keep" };
-    case "RelabelActivities":
-      return { type: "RelabelActivities", rules: {} };
-    case "FilterStartEnd":
-      return { type: "FilterStartEnd", start_activities: null, end_activities: null };
-    case "FilterTraceContains":
-      return { type: "FilterTraceContains", activities: [], mode: "Required" };
-    case "FilterVariants":
-      return { type: "FilterVariants", variants: [], mode: "Keep" };
-    case "FilterTimeRange": {
-      const { start, end } = defaultYearRangeRfc();
-      return { type: "FilterTimeRange", start, end, mode: "Keep" };
-    }
-    case "FilterObjectTypes":
-      return { type: "FilterObjectTypes", object_types: [], mode: "Keep" };
-    case "RelabelObjectTypes":
-      return { type: "RelabelObjectTypes", rules: {} };
-    case "FilterMinRelatedEvents":
-      return { type: "FilterMinRelatedEvents", min_events: 1, max_events: null, of_type: null };
-    case "FilterMinRelatedObjects":
-      return { type: "FilterMinRelatedObjects", min_objects: 1, max_objects: null, of_type: null };
-    case "RescaleTimeframe": {
-      const { start, end } = defaultYearRangeRfc();
-      return {
-        type: "RescaleTimeframe",
-        target_start: start,
-        target_end: end,
-        min_gap_ms: null,
-        max_gap_ms: null,
-        gap_object_type: null,
-      };
-    }
-    case "Sample":
-      return {
-        type: "Sample",
-        amount: { type: "Percent", value: 10 },
-        seed: null,
-        target: "TracesOrObjects",
-      };
-    case "FilterAttributes":
-      return {
-        type: "FilterAttributes",
-        scope: { type: "Event", activity: null },
-        condition: { type: "And", conditions: [] },
-        mode: "Keep",
-      };
-    case "RemoveAttributes":
-      return { type: "RemoveAttributes", scope: { type: "Event", activity: null }, keys: [] };
-  }
-}
-
-let _idCounter = 0;
-function generateId(): string {
-  return `t-${++_idCounter}-${Date.now()}`;
-}
-
-function getTransformMeta(type: PaletteType) {
-  return TRANSFORM_META.find((m) => m.type === type);
-}
-
-function getTransformLabel(type: PaletteType): string {
-  return getTransformMeta(type)?.label ?? type;
-}
-
-/** Map a stored transform to its palette identity, recognizing the synthetic
- * "Timeframe Filter" (a `FilterAttributes` carrying a lone `Timeframe` condition). */
-function stepPaletteType(t: Transform): PaletteType {
-  if (t.type === "FilterAttributes" && t.condition.type === "Timeframe") return "FilterTimeframe";
-  return t.type;
-}
-
-function formatDurationMs(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const s = ms / 1000;
-  if (s < 60) return `${s}s`;
-  const m = s / 60;
-  if (m < 60) return `${Math.round(m * 10) / 10}m`;
-  const h = m / 60;
-  if (h < 24) return `${Math.round(h * 10) / 10}h`;
-  const d = h / 24;
-  return `${Math.round(d * 10) / 10}d`;
-}
-
-/** `<source> / <first step>: <its summary> (+N more)` for the output of `steps`. */
-export function suggestOutName(steps: Transform[], sourceLabel?: string): string {
-  const first = steps[0];
-  const op = first
-    ? `${getTransformLabel(stepPaletteType(first))}: ${summarizeTransform(first)}${steps.length > 1 ? ` (+${steps.length - 1} more)` : ""}`
-    : "transformed";
-  return sourceLabel ? `${sourceLabel} / ${op}` : op;
-}
-
-function summarizeTransform(t: Transform): string {
-  switch (t.type) {
-    case "FilterActivities":
-      return `${t.mode} ${t.activities.length} activit${t.activities.length === 1 ? "y" : "ies"}`;
-    case "RelabelActivities":
-      return `${Object.keys(t.rules).length} activit${Object.keys(t.rules).length === 1 ? "y" : "ies"} renamed`;
-    case "FilterStartEnd": {
-      const parts: string[] = [];
-      if (t.start_activities) parts.push(`start: ${t.start_activities.length}`);
-      if (t.end_activities) parts.push(`end: ${t.end_activities.length}`);
-      return parts.length > 0 ? parts.join(", ") : "No constraints";
-    }
-    case "FilterTraceContains":
-      return `${t.mode} ${t.activities.length} activit${t.activities.length === 1 ? "y" : "ies"}`;
-    case "FilterVariants":
-      return `${t.mode} ${t.variants.length} variant${t.variants.length === 1 ? "" : "s"}`;
-    case "FilterTimeRange": {
-      const s = t.start.split("T")[0];
-      const e = t.end.split("T")[0];
-      return `${t.mode} ${s} → ${e}`;
-    }
-    case "FilterObjectTypes":
-      return `${t.mode} ${t.object_types.length} type${t.object_types.length === 1 ? "" : "s"}`;
-    case "RelabelObjectTypes":
-      return `${Object.keys(t.rules).length} type${Object.keys(t.rules).length === 1 ? "" : "s"} renamed`;
-    case "FilterMinRelatedEvents": {
-      const parts: string[] = [];
-      if (t.min_events != null) parts.push(`≥ ${t.min_events}`);
-      if (t.max_events != null) parts.push(`≤ ${t.max_events}`);
-      return `${parts.join(", ") || "no constraint"} event${(t.min_events ?? 0) === 1 && t.max_events == null ? "" : "s"}${t.of_type ? ` (${t.of_type})` : ""}`;
-    }
-    case "FilterMinRelatedObjects": {
-      const parts: string[] = [];
-      if (t.min_objects != null) parts.push(`≥ ${t.min_objects}`);
-      if (t.max_objects != null) parts.push(`≤ ${t.max_objects}`);
-      return `${parts.join(", ") || "no constraint"} object${(t.min_objects ?? 0) === 1 && t.max_objects == null ? "" : "s"}${t.of_type ? ` (${t.of_type})` : ""}`;
-    }
-    case "RescaleTimeframe": {
-      const start = t.target_start.split("T")[0];
-      const end = t.target_end.split("T")[0];
-      const parts = [`${start} → ${end}`];
-      if (t.min_gap_ms != null || t.max_gap_ms != null) {
-        const gap: string[] = [];
-        if (t.min_gap_ms != null) gap.push(`≥ ${formatDurationMs(t.min_gap_ms)}`);
-        if (t.max_gap_ms != null) gap.push(`≤ ${formatDurationMs(t.max_gap_ms)}`);
-        parts.push(`gap: ${gap.join(", ")}`);
-      }
-      return parts.join("; ");
-    }
-    case "Sample": {
-      const amt = t.amount.type === "Count" ? `${t.amount.value}` : `${t.amount.value}%`;
-      const what = t.target === "Events" ? "events" : "traces/objects";
-      return `${amt} ${what}${t.seed != null ? ` (seed: ${t.seed})` : ""}`;
-    }
-    case "FilterAttributes": {
-      const scope =
-        t.scope.type === "LogGlobal"
-          ? "log"
-          : t.scope.type === "Event"
-            ? t.scope.activity
-              ? `events: ${t.scope.activity}`
-              : "events"
-            : t.scope.object_type
-              ? `objects: ${t.scope.object_type}`
-              : "cases/objects";
-      return `${t.mode} ${scope}`;
-    }
-    case "RemoveAttributes": {
-      const n = t.keys.length;
-      const scope =
-        t.scope.type === "LogGlobal"
-          ? "log"
-          : t.scope.type === "Event"
-            ? t.scope.activity
-              ? `events: ${t.scope.activity}`
-              : "events"
-            : t.scope.object_type
-              ? `objects: ${t.scope.object_type}`
-              : "cases/objects";
-      return `${n} attr${n === 1 ? "" : "s"} from ${scope}`;
-    }
-  }
-}
 
 export function TransformBuilder({
   backend,
@@ -407,10 +73,10 @@ export function TransformBuilder({
     queryFn: () =>
       objectType === "EventLog"
         ? backend
-            .callBinding("app_bindings::event_log::get_activity_counts", { event_log: logHandle })
+            .callBinding("app_bindings::get_activity_counts", { event_log: logHandle })
             .then((c) => Object.keys(c).sort())
         : backend
-            .callBinding("app_bindings::ocel::get_ocel_info", { ocel: ocelHandle })
+            .callBinding("app_bindings::get_ocel_info", { ocel: ocelHandle })
             .then((i) => i.event_types.sort()),
     enabled: !!datasetName,
   });
@@ -419,7 +85,7 @@ export function TransformBuilder({
     queryKey: [datasetName, "transform-object-types"],
     queryFn: () =>
       backend
-        .callBinding("app_bindings::ocel::get_ocel_info", { ocel: ocelHandle })
+        .callBinding("app_bindings::get_ocel_info", { ocel: ocelHandle })
         .then((i) => i.object_types.sort()),
     enabled: !!datasetName && objectType === "OCEL",
   });
@@ -431,9 +97,9 @@ export function TransformBuilder({
     queryKey: [datasetName, "transform-activity-counts", objectType],
     queryFn: () =>
       objectType === "EventLog"
-        ? backend.callBinding("app_bindings::event_log::get_activity_counts", { event_log: logHandle })
+        ? backend.callBinding("app_bindings::get_activity_counts", { event_log: logHandle })
         : backend
-            .callBinding("process_mining::bindings::ocel_type_stats", { ocel: ocelHandle })
+            .callBinding("process_mining::ocel_type_stats", { ocel: ocelHandle })
             .then((s) => s.event_type_counts),
     enabled: !!datasetName,
   });
@@ -441,7 +107,7 @@ export function TransformBuilder({
     queryKey: [datasetName, "transform-objtype-counts"],
     queryFn: () =>
       backend
-        .callBinding("process_mining::bindings::ocel_type_stats", { ocel: ocelHandle })
+        .callBinding("process_mining::ocel_type_stats", { ocel: ocelHandle })
         .then((s) => s.object_type_counts),
     enabled: !!datasetName && objectType === "OCEL",
   });
@@ -453,10 +119,10 @@ export function TransformBuilder({
     queryFn: () =>
       objectType === "EventLog"
         ? backend
-            .callBinding("app_bindings::event_log::get_log_info", { event_log: logHandle })
+            .callBinding("app_bindings::get_log_info", { event_log: logHandle })
             .then((i) => ({ traces: i.num_traces, events: i.num_events }))
         : backend
-            .callBinding("app_bindings::ocel::get_ocel_info", { ocel: ocelHandle })
+            .callBinding("app_bindings::get_ocel_info", { ocel: ocelHandle })
             .then((i) => ({ traces: i.num_objects, events: i.num_events })),
     enabled: !!datasetName,
   });
@@ -631,18 +297,108 @@ export function TransformBuilder({
     }
   };
 
-  return (
-    <div className="flex flex-col gap-3 p-2 h-full overflow-auto">
-      <Flex align="center" gap="2">
-        <Text size="3" weight="bold">
-          {objectType === "EventLog" ? "Log" : "OCEL"} Transforms
-        </Text>
-        <Text size="2" color="gray" className="truncate">
-          {datasetName}
-        </Text>
-      </Flex>
+  const unit = objectType === "EventLog" ? "cases" : "objects";
+  const apply = async () => {
+    const enabled = transforms.filter((t) => t.enabled).map((t) => t.value);
+    const call: Promise<string> =
+      objectType === "EventLog"
+        ? backend
+            .callBinding("app_bindings::apply_event_log_transforms", {
+              event_log: logHandle,
+              transforms: enabled,
+            })
+            .then((h) => h as string)
+        : backend
+            .callBinding("app_bindings::apply_ocel_transforms", {
+              ocel: ocelHandle,
+              transforms: enabled,
+            })
+            .then((h) => h as string);
+    const handle = await toast.promise(call, {
+      loading: "Applying transforms...",
+      success: "Transforms applied",
+      error: (e) => `Failed: ${e}`,
+    });
+    onResult?.(handle as string, outName.trim() || suggestedName);
+  };
 
-      <div className="flex flex-col gap-2 w-full">
+  return (
+    <div style={{ height: "100%", overflow: "auto" }}>
+      <Toolbar
+        end={
+          <>
+            <Flex align="center" gap="2">
+              <Text size="1" color="gray">
+                Save as
+              </Text>
+              <TextField.Root
+                size="1"
+                value={outName}
+                placeholder={suggestedName}
+                title={outName.trim() ? undefined : `Leave empty to use "${suggestedName}"`}
+                onChange={(e) => setOutName(e.currentTarget.value)}
+                style={{ width: 220 }}
+              />
+            </Flex>
+            <Button size="2" disabled={!datasetName || enabledCount === 0} onClick={() => void apply()}>
+              <LuPlay size={13} /> Apply {enabledCount} step{enabledCount !== 1 ? "s" : ""}
+            </Button>
+          </>
+        }
+      >
+        <Button
+          size="1"
+          variant="ghost"
+          color="gray"
+          title="Load steps from a JSON file"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <LuUpload size={13} /> Import steps
+        </Button>
+        <Button
+          size="1"
+          variant="ghost"
+          color="gray"
+          title="Save the steps as a JSON file"
+          disabled={transforms.length === 0}
+          onClick={handleExport}
+        >
+          <LuDownload size={13} /> Export steps
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleImportFile(file);
+            e.target.value = "";
+          }}
+        />
+      </Toolbar>
+      <div className="flex flex-col gap-2.5 w-full" style={{ maxWidth: 880, margin: "0 auto", padding: 20 }}>
+        <Flex
+          align="center"
+          gap="3"
+          px="3"
+          py="2"
+          style={{ borderRadius: 12, background: "var(--gray-a2)", border: "1px solid var(--gray-a4)" }}
+        >
+          <LuDatabase size={16} style={{ color: "var(--gray-10)" }} />
+          <Flex direction="column" style={{ minWidth: 0 }}>
+            <span className="r4pm-eyebrow">Source</span>
+            <Text size="2" weight="medium" truncate>
+              {sourceLabel ?? datasetName}
+            </Text>
+          </Flex>
+          {totalTraces != null && (
+            <Text size="1" color="gray" ml="auto" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {totalTraces.toLocaleString("en")} {unit}
+              {totalEvents != null && ` · ${totalEvents.toLocaleString("en")} events`}
+            </Text>
+          )}
+        </Flex>
         {transforms.length === 0 && (
           <div
             className="flex flex-col items-center gap-3 py-9 px-4 text-center rounded-xl"
@@ -679,8 +435,9 @@ export function TransformBuilder({
               key={t.id}
               className="rounded-xl overflow-hidden transition-all"
               style={{
-                border: isExpanded ? "2px solid var(--violet-6)" : "1px solid var(--gray-6)",
-                boxShadow: isExpanded ? "0 0 0 3px var(--violet-a3)" : "none",
+                border: isExpanded ? "1px solid var(--accent-7)" : "1px solid var(--gray-a5)",
+                boxShadow: isExpanded ? "var(--shadow-3)" : "var(--shadow-1)",
+                background: "var(--color-panel-solid)",
                 opacity: t.enabled ? 1 : 0.5,
               }}
             >
@@ -689,7 +446,7 @@ export function TransformBuilder({
                 className="flex items-center gap-2.5 w-full text-left cursor-pointer hover:bg-[var(--gray-a3)] transition-colors"
                 style={{
                   padding: "10px 14px",
-                  borderBottom: isExpanded ? "1px solid var(--violet-4)" : "none",
+                  borderBottom: isExpanded ? "1px solid var(--gray-a4)" : "none",
                 }}
                 onClick={() => setExpandedId(isExpanded ? null : t.id)}
               >
@@ -800,16 +557,17 @@ export function TransformBuilder({
           <Popover.Trigger>
             <button
               type="button"
-              className="w-full py-2 rounded-lg text-sm cursor-pointer transition-colors"
+              className="w-full py-2.5 rounded-xl text-sm cursor-pointer transition-colors hover:bg-[var(--accent-a3)]"
               style={{
-                background: "var(--gray-3)",
-                border: "1px dashed var(--gray-7)",
-                color: "var(--gray-10)",
+                background: "var(--accent-a2)",
+                border: "1px dashed var(--accent-a7)",
+                color: "var(--accent-11)",
+                fontWeight: 500,
               }}
               disabled={!datasetName}
             >
               <FaPlus size={10} className="inline mr-1.5" style={{ verticalAlign: -1 }} />
-              Add Transform
+              Add a step
             </button>
           </Popover.Trigger>
           <Popover.Content
@@ -875,83 +633,8 @@ export function TransformBuilder({
           </Popover.Content>
         </Popover.Root>
       </div>
-
-      <div className="flex items-center gap-2 pt-3 border-t flex-wrap w-full">
-        <Text size="2" color="gray" className="shrink-0">
-          Output:
-        </Text>
-        <TextField.Root
-          size="2"
-          value={outName}
-          placeholder={suggestedName}
-          title={outName.trim() ? undefined : `Leave empty to use "${suggestedName}"`}
-          onChange={(e) => setOutName(e.currentTarget.value)}
-          className="!w-44"
-        />
-        <Button
-          size="2"
-          variant="soft"
-          color="gray"
-          title="Export pipeline to JSON"
-          disabled={transforms.length === 0}
-          onClick={handleExport}
-        >
-          <LuDownload size={14} />
-          Export
-        </Button>
-        <Button
-          size="2"
-          variant="soft"
-          color="gray"
-          title="Import pipeline from JSON"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <LuUpload size={14} />
-          Import
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleImportFile(file);
-            e.target.value = "";
-          }}
-        />
-        <div className="flex-1" />
-        <Button
-          size="3"
-          disabled={!datasetName || enabledCount === 0}
-          onClick={async () => {
-            const enabled = transforms.filter((t) => t.enabled).map((t) => t.value);
-            const call: Promise<string> =
-              objectType === "EventLog"
-                ? backend
-                    .callBinding("app_bindings::transforms::apply_event_log_transforms", {
-                      event_log: logHandle,
-                      transforms: enabled,
-                    })
-                    .then((h) => h as string)
-                : backend
-                    .callBinding("app_bindings::transforms::apply_ocel_transforms", {
-                      ocel: ocelHandle,
-                      transforms: enabled,
-                    })
-                    .then((h) => h as string);
-            // Binding returns a new registry handle for the transformed log.
-            const handle = await toast.promise(call, {
-              loading: "Applying transforms...",
-              success: "Transforms applied!",
-              error: (e) => `Failed: ${e}`,
-            });
-            onResult?.(handle as string, outName.trim() || suggestedName);
-          }}
-        >
-          Apply {enabledCount} Transform{enabledCount !== 1 ? "s" : ""}
-        </Button>
-      </div>
     </div>
   );
 }
+
+export { suggestOutName, type TransformBuilderValue, type TransformWithID } from "./catalog";

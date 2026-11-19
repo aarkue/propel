@@ -10,7 +10,8 @@ export type RoutedEdgeProps = EdgeProps & {
   labelText?: string;
   /** Shown only while the edge or an endpoint is hovered or selected. */
   badge?: React.ReactNode;
-  /** Always-rendered midpoint slot (e.g. a delete affordance); visibility is the consumer's CSS. */
+  /** Always-rendered midpoint slot (e.g. a delete affordance). Its visibility is the consumer's
+   *  CSS, keyed on the `edge`, `selected` and `hovered` classes of its container. */
   midSlot?: React.ReactNode;
   onEdgeClick?: (e: React.MouseEvent) => void;
   onEdgeContextMenu?: (e: React.MouseEvent) => void;
@@ -66,19 +67,19 @@ export default function RoutedEdge(props: RoutedEdgeProps) {
           <path d={ARROW.path} fill={color} stroke={color} strokeLinejoin="round" />
         </marker>
       </defs>
-      {(props.onEdgeClick || props.onEdgeContextMenu || props.badge) && (
-        <path
-          d={edgePath}
-          fill="none"
-          stroke="transparent"
-          strokeWidth={Math.max(14, strokeWidth + 12)}
-          style={{ cursor: props.onEdgeClick ? "pointer" : undefined, pointerEvents: "stroke" }}
-          onClick={props.onEdgeClick}
-          onContextMenu={props.onEdgeContextMenu}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        />
-      )}
+      {/* A wide invisible stroke, so the edge can be hovered and selected without hitting the
+          thin visible line exactly. */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={Math.max(14, strokeWidth + 12)}
+        style={{ cursor: props.onEdgeClick ? "pointer" : undefined, pointerEvents: "stroke" }}
+        onClick={props.onEdgeClick}
+        onContextMenu={props.onEdgeContextMenu}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      />
       <path
         id={props.id}
         className={`react-flow__edge-path ${props.pathClassName ?? ""}`}
@@ -98,7 +99,7 @@ export default function RoutedEdge(props: RoutedEdgeProps) {
               alignItems: "center",
               gap: 2,
             }}
-            className={`edge ${props.selected ? "selected" : ""}`}
+            className={`edge${props.selected ? " selected" : ""}${hovered ? " hovered" : ""}`}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
           >

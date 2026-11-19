@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { SegmentedControl } from "@r4pm/components/ui";
-import { ObjectCentricPetriNetViewer } from "./object-centric-petri-net";
+import { ObjectCentricPetriNetViewer, type OcpnBadge } from "./object-centric-petri-net";
 import { ObjectCentricPetriNetSimulator } from "./object-centric-petri-net-simulator";
 import { useWorkbench, type WorkbenchMode } from "./shared/use-workbench";
 import type { OcSequenceStep } from "./shared/ObjectCentricSequence";
@@ -19,6 +19,8 @@ export interface ObjectCentricPetriNetWorkbenchProps extends ViewerProps<Ocpn> {
   /** Host handler to turn a simulation trace into an OCEL. When set, the simulator shows a
    *  "Save as OCEL" button. */
   onSaveTraceAsLog?: (trace: OcSequenceStep[]) => void;
+  /** Object types drawn in the transitions of the view, by activity. */
+  badges?: Record<string, OcpnBadge[]>;
 }
 
 /** View / Replay / Edit toggle over one object-centric Petri net. Pure. */
@@ -28,6 +30,7 @@ export function ObjectCentricPetriNetWorkbench({
   onNetChange,
   toolbar,
   onSaveTraceAsLog,
+  badges,
 }: ObjectCentricPetriNetWorkbenchProps) {
   const { mode, setMode, currentNet, editSeed, handleEdit, enterEdit } = useWorkbench(
     data,
@@ -72,7 +75,7 @@ export function ObjectCentricPetriNetWorkbench({
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>{toolbar?.(currentNet)}</div>
       </div>
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        {mode === "view" && <ObjectCentricPetriNetViewer data={currentNet} />}
+        {mode === "view" && <ObjectCentricPetriNetViewer data={currentNet} badges={badges} />}
         {mode === "simulate" && (
           <ObjectCentricPetriNetSimulator data={currentNet} onSaveAsLog={onSaveTraceAsLog} />
         )}

@@ -271,10 +271,14 @@ for (let idx = 0; idx < namedRoots.length; idx++) {
 const applyRename = (s) =>
   rootRename.size === 0 ? s : s.replace(/\bRootT\d+\b/g, (m) => rootRename.get(m) ?? m);
 
-const handleDecls = [...handleRefs]
-  .sort()
-  .map((r) => `export type ${sanitize(r)}Handle = Handle<${JSON.stringify(r)}>;`)
-  .join("\n");
+const kindNames = [...handleRefs].sort();
+const handleDecls = [
+  ...kindNames.map((r) => `export type ${sanitize(r)}Handle = Handle<${JSON.stringify(r)}>;`),
+  "",
+  "/** Every registry kind a binding takes or returns by handle. */",
+  `export const REGISTRY_KINDS = ${JSON.stringify(kindNames)} as const;`,
+  "export type RegistryKind = (typeof REGISTRY_KINDS)[number];",
+].join("\n");
 
 const retTitles = [...titleSet].sort();
 const retTypesEntries = retTitles
@@ -289,6 +293,8 @@ const bindingRetEntries = metas
 
 const output = `// AUTO-GENERATED from engine binding metadata. Do not edit.
 
+import type { CallOptions } from "./jobs";
+
 /** A registry-stored object referenced by id; never the value itself. */
 export type Handle<T extends string> = string & { readonly __ref: T };
 
@@ -302,9 +308,8 @@ ${applyRename(bindingEntries.join("\n"))}
 
 export type BindingId = keyof Bindings;
 
-/** Typed dispatch. Runtime decodes the binding's Vec<u8> JSON; types are compile-time only.
- *  \`opts.outputName\` deterministically names a minted result handle (pipeline intermediates). */
-export type CallBinding = <K extends BindingId>(id: K, args: Bindings[K]["args"], opts?: { outputName?: string }) => Promise<Bindings[K]["ret"]>;
+/** Typed dispatch. Runtime decodes the binding's Vec<u8> JSON; types are compile-time only. */
+export type CallBinding = <K extends BindingId>(id: K, args: Bindings[K]["args"], opts?: CallOptions) => Promise<Bindings[K]["ret"]>;
 
 /** Distinct return-type titles, keyed for rename-safe reference from viewer \`accepts\` predicates. */
 export const RETURN_TYPES = {

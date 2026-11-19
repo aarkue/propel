@@ -102,7 +102,7 @@ export function FrequencyPicker({
     return sort === "name" ? sortByName(norm) : sortByCountDesc(norm);
   }, [items, sort]);
   const shown = useMemo(() => filterByQuery(sorted, query), [sorted, query]);
-  const maxCount = useMemo(() => Math.max(1, ...sorted.map((i) => i.count)), [sorted]);
+  const maxCount = useMemo(() => sorted.reduce((m, i) => Math.max(m, i.count), 1), [sorted]);
   const total = useMemo(() => sorted.reduce((s, i) => s + i.count, 0), [sorted]);
 
   const cutoff = selectedPrefix(sorted, value);

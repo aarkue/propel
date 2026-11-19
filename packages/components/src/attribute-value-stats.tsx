@@ -82,11 +82,33 @@ function niceStep(span: number): number {
 
 function StatStrip({ items }: { items: { label: string; value: ReactNode }[] }) {
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 14px", fontSize: 12 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
       {items.map((it) => (
-        <span key={it.label}>
-          <span style={{ color: "var(--gray-10)" }}>{it.label} </span>
-          <span style={{ color: "var(--gray-12)", fontWeight: 600 }}>{it.value}</span>
+        <span
+          key={it.label}
+          style={{
+            display: "inline-flex",
+            flexDirection: "column",
+            padding: "4px 10px",
+            borderRadius: 8,
+            background: "var(--gray-a2)",
+            border: "1px solid var(--gray-a3)",
+            minWidth: 64,
+          }}
+        >
+          <span className="r4pm-eyebrow" style={{ fontSize: 10 }}>
+            {it.label}
+          </span>
+          <span
+            style={{
+              color: "var(--gray-12)",
+              fontWeight: 600,
+              fontSize: 13,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {it.value}
+          </span>
         </span>
       ))}
     </div>
@@ -102,9 +124,9 @@ function numInput(v: number | null, onSet: (n: number | null) => void, placehold
       onChange={(e) => onSet(e.currentTarget.value === "" ? null : Number(e.currentTarget.value))}
       style={{
         width: 96,
-        padding: "2px 6px",
-        borderRadius: 6,
-        border: "1px solid var(--gray-a6)",
+        padding: "3px 8px",
+        borderRadius: 7,
+        border: "1px solid var(--gray-a5)",
         background: "var(--color-surface)",
         color: "var(--gray-12)",
         fontSize: 12,

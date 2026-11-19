@@ -1,10 +1,12 @@
-import type {
-  ArtifactInfo,
-  BackendContext,
-  CallBinding,
-  FunctionMeta,
-  ItemKindInfo,
-  LoadedObject,
+import {
+  type ArtifactInfo,
+  type BackendContext,
+  type CallBinding,
+  type CallOptions,
+  createJobRunner,
+  type FunctionMeta,
+  type ItemKindInfo,
+  type LoadedObject,
 } from "@r4pm/client";
 
 /**
@@ -41,11 +43,24 @@ export function createWasmBackend(): BackendContext {
 
   const ready = call("ready", []).then(() => undefined);
 
+  // The worker runs one call at a time, so a cancel could only reach it after the call ended.
+  const runJob = createJobRunner({
+    listen: async (handler) => {
+      let set = listeners.get("job-update");
+      if (!set) {
+        set = new Set();
+        listeners.set("job-update", set);
+      }
+      set.add(handler as (data: unknown) => void);
+    },
+    cancel: () => {},
+  });
+
   return {
     kind: "wasm",
     ready,
-    callBinding: ((id: string, args: unknown, opts?: { outputName?: string }) =>
-      call("callBinding", [id, args, opts?.outputName])) as CallBinding,
+    callBinding: ((id: string, args: unknown, opts?: CallOptions) =>
+      runJob(opts, (job) => call("callBinding", [id, args, opts?.outputName, job]))) as CallBinding,
     async listObjects(): Promise<LoadedObject[]> {
       return (await call("listObjects", [])) as LoadedObject[];
     },

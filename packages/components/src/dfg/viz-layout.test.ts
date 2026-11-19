@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Dfg, OcDfg } from "../viz";
 import { wasmViz } from "../viz/wasm";
+import { BADGE_PADDING, BADGE_ROW_HEIGHT, typeBadgesWidth } from "../shared/type-badges";
 import { DFG_END_ID, DFG_START_ID } from "./util/dfg-model";
 import type { DfPerformance } from "./util/performance-types";
 import {
@@ -328,5 +329,28 @@ describe("geometry without rust4pm", () => {
     expect(laid.layout.edges).toHaveLength(kept.length);
     const ids = new Set(laid.nodes.map((n) => n.id));
     for (const e of laid.edges) expect(ids.has(e.source) && ids.has(e.target)).toBe(true);
+  });
+});
+
+describe("badges", () => {
+  test("go to rust4pm, which makes an activity taller and wide enough", async () => {
+    const { kept, shown, looks } = laidOut(dfg);
+    const badges = { examine: [{ object_type: "items", from: "orders" }, { object_type: "employees" }] };
+    const plain = await layoutDfg(
+      wasmViz,
+      shown,
+      dfgBuildOptions(shown, kept, looks, dfg.activities, view),
+      kept,
+    );
+    const options = dfgBuildOptions(shown, kept, looks, dfg.activities, { ...view, badges });
+    expect(options.badges).toEqual(badges);
+    const laid = await layoutDfg(wasmViz, shown, options, kept);
+    const size = (l: typeof laid, name: string) =>
+      l.layout.nodes[l.nodes.findIndex((n) => n.name === name)].size;
+    expect(size(laid, "examine").height).toBe(size(plain, "examine").height + BADGE_ROW_HEIGHT);
+    expect(size(laid, "examine").width).toBeGreaterThanOrEqual(
+      typeBadgesWidth(badges.examine) + 2 * BADGE_PADDING,
+    );
+    expect(size(laid, "pay")).toEqual(size(plain, "pay"));
   });
 });

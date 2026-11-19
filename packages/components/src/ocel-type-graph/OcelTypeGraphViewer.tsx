@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@r4pm/components/ui";
+import { OptionMenu, Toolbar } from "../kit";
 import {
   OcelTypeGraph,
   type OcelTypeGraphEdge,
@@ -72,7 +72,16 @@ export function OcelTypeGraphViewer({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%" }}>
-      <div style={{ padding: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <Toolbar
+        end={
+          large &&
+          isAuto && (
+            <span style={{ fontSize: 12, color: "var(--gray-10)" }}>
+              Showing the {autoScopeLimit} largest of {nodes.length} types
+            </span>
+          )
+        }
+      >
         <TypeScopeSelector
           items={items}
           value={scope}
@@ -81,20 +90,16 @@ export function OcelTypeGraphViewer({
           isAuto={isAuto}
           colorOf={colorOf}
         />
-        <Button
-          size="1"
-          variant={collapseQualifiers ? "solid" : "soft"}
-          onClick={() => setCollapseQualifiers((v) => !v)}
-          title="Merge parallel qualified edges between the same types into one arc"
-        >
-          Collapse qualifiers
-        </Button>
-        {large && isAuto && (
-          <span style={{ fontSize: 11, color: "var(--gray-10)" }}>
-            showing top {autoScopeLimit} of {nodes.length} — adjust scope
-          </span>
-        )}
-      </div>
+        <OptionMenu
+          label="Relations"
+          value={collapseQualifiers ? "merged" : "qualified"}
+          options={[
+            { value: "qualified", label: "By qualifier", description: "One arc per qualifier, labelled" },
+            { value: "merged", label: "Merged", description: "One arc per pair of types" },
+          ]}
+          onChange={(v) => setCollapseQualifiers(v === "merged")}
+        />
+      </Toolbar>
       <div style={{ flex: 1, minHeight: 0 }}>
         <OcelTypeGraph
           nodes={nodes}

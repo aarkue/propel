@@ -1,21 +1,26 @@
-import { Badge, SegmentedControl, Text } from "@r4pm/components/ui";
-import { useEffect, useMemo, useRef } from "react";
+import { VariantSelect } from "./shared/VariantSelect";
+import { Badge, Text } from "@r4pm/components/ui";
+import { useMemo } from "react";
 import { useViewSetting } from "./viewer/view-state";
-import { resolveMove } from "./shared/TraceAlignmentStrip";
+import { type MoveKind, MoveGlyphIcon, resolveMove } from "./shared/TraceAlignmentStrip";
+import { MOVE_TERMS, moveColor } from "./shared/move-terms";
 import { AlignmentStrip } from "./shared/AlignmentStrip";
-import { useVirtualRows } from "./shared/useVirtualRows";
-import { StatCards } from "./shared/StatCards";
 import { RankedBarList } from "./shared/RankedBarList";
 import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { colorToHex } from "./dfg/util/colors";
-import { PetriNetViewer, type PetriNet, type PetriNetOverlay } from "./petri-net";
-import type { AlignmentAggregate, LogAlignments, VariantAlignmentResult } from "./shared/alignment-types";
+import { Bar, fmtInt, Metric, MetricRow, type Option, scoreTone, Section, Segmented } from "./kit";
+import { PetriNetViewer, type PetriNet, type PetriNetOverlay, type SvgBox } from "./petri-net";
+import type {
+  AlignmentAggregate,
+  LogAlignments,
+  PrecisionSummary,
+  VariantAlignmentResult,
+} from "./shared/alignment-types";
+import { TransitionLabel } from "./petri/editor/helpers/transition-label";
 import type { ElementStyle } from "./viz";
 
 // deviation rate = model_fires / (sync_fires + model_fires):
 // 0 = always conforming, 1 = always a model-only insertion.
-
-const PICKER_ROW_H = 29;
 
 type Rgb = [number, number, number];
 
@@ -24,16 +29,9 @@ function hexToRgb(hex: string): Rgb {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-const STOP_LOW = hexToRgb(colorToHex("green"));
-const STOP_MID = hexToRgb(colorToHex("amber"));
-const STOP_HIGH = hexToRgb(colorToHex("red"));
-
-/** Piecewise-linear green->amber->red; `ratio` clamped to [0,1]. */
-function heatmapRgb(ratio: number): Rgb {
-  const t = Math.max(0, Math.min(1, ratio));
-  const [from, to, local] = t < 0.5 ? [STOP_LOW, STOP_MID, t / 0.5] : [STOP_MID, STOP_HIGH, (t - 0.5) / 0.5];
-  return [0, 1, 2].map((i) => Math.round(from[i] + (to[i] - from[i]) * local)) as Rgb;
-}
+// Deviations take the colors of their moves everywhere, never the green-amber-red of the scores.
+const SYNC_RGB = hexToRgb(moveColor("sync"));
+const MODEL_RGB = hexToRgb(moveColor("model"));
 
 const rgb = (c: Rgb) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 const rgba = (c: Rgb, a: number) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`;
@@ -85,26 +83,302 @@ function deviationRows(net: PetriNet, aggregated: AlignmentAggregate): Deviation
   return rows;
 }
 
-/** Overlay coloring every transition by its deviation rate; untouched transitions are dimmed. */
+/** Synchronous, skipped (model-only) and not-followed (log-only) moves of one activity. */
+interface Moves {
+  sync: number;
+  model: number;
+  log: number;
+}
+
+/** A thin stacked bar of `m`, ProM style. */
+function MovesBar({ m, style }: { m: Moves; style?: React.CSSProperties }) {
+  const total = m.sync + m.model + m.log;
+  if (total === 0) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        height: 5,
+        borderRadius: 3,
+        overflow: "hidden",
+        background: "var(--gray-a4)",
+        ...style,
+      }}
+    >
+      {(["sync", "model", "log"] as const).map((k) =>
+        m[k] > 0 ? (
+          <div key={k} style={{ width: `${(m[k] / total) * 100}%`, background: moveColor(k) }} />
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+/** `MovesBar` for the exported image, at the bottom of a transition's `box`. */
+function movesBarSvg(m: Moves, box: SvgBox, clipId: string): string {
+  const total = m.sync + m.model + m.log;
+  if (total === 0) return "";
+  const x = box.x + 6;
+  const width = box.width - 12;
+  const y = box.y + box.height - 10;
+  let at = x;
+  const parts = (["sync", "model", "log"] as const)
+    .filter((k) => m[k] > 0)
+    .map((k) => {
+      const w = (m[k] / total) * width;
+      const rect = `<rect x="${at.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="5" fill="${moveColor(k)}"/>`;
+      at += w;
+      return rect;
+    });
+  return `<clipPath id="${clipId}"><rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${width.toFixed(2)}" height="5" rx="2.5"/></clipPath><g clip-path="url(#${clipId})">${parts.join("")}</g>`;
+}
+
+const movesTitle = (label: string, m: Moves, sharedLog: number) =>
+  `${label}: ${fmtInt(m.sync)} fit, ${fmtInt(m.model)} missing events (model moves), ${
+    sharedLog > 0
+      ? `and ${fmtInt(sharedLog)} extra events of this activity, not shown on the bar: more than one transition has this label`
+      : `${fmtInt(m.log)} extra events (log moves)`
+  }`;
+
+/**
+ * Overlay putting each labeled transition's moves on it as a bar (ProM style): in sync, skipped by
+ * the log, and events of its activity the model could not follow. Extra events belong to an activity,
+ * not a transition, so they show only on the one transition with that label. A transition without deviations
+ * is outlined in the sync color, one with deviations in the color of its more frequent deviation,
+ * filled more strongly the larger their share. Transitions no trace reached are dimmed.
+ */
 function buildAggregateOverlay(net: PetriNet, aggregated: AlignmentAggregate): PetriNetOverlay {
   const transitionStyle: Record<string, ElementStyle> = {};
-  for (const { id } of net.transitions) {
+  const moves: Record<string, Moves> = {};
+  const sharedLog: Record<string, number> = {};
+  const transitionsWith = new Map<string, number>();
+  for (const { label } of net.transitions)
+    if (label) transitionsWith.set(label, (transitionsWith.get(label) ?? 0) + 1);
+  for (const { id, label } of net.transitions) {
     const stats = aggregated.transition_stats[id];
     const total = stats ? stats.sync_fires + stats.model_fires : 0;
     if (total === 0) {
       transitionStyle[id] = DIMMED;
       continue;
     }
-    if (isSilent(net, id)) continue;
-    const c = heatmapRgb(stats.model_fires / total);
-    transitionStyle[id] = { stroke: hex(c), stroke_width: 3, fill: hex(c, 0.18) };
+    if (isSilent(net, id) || !label) continue;
+    const logMoves = aggregated.log_move_counts[label] ?? 0;
+    const unique = transitionsWith.get(label) === 1;
+    const m = { sync: stats.sync_fires, model: stats.model_fires, log: unique ? logMoves : 0 };
+    moves[id] = m;
+    sharedLog[id] = unique ? 0 : logMoves;
+    const share = (m.model + m.log) / (m.sync + m.model + m.log);
+    const c = share === 0 ? SYNC_RGB : hexToRgb(moveColor(m.model >= m.log ? "model" : "log"));
+    transitionStyle[id] = { stroke: hex(c), stroke_width: 2, fill: hex(c, 0.06 + 0.3 * share) };
   }
   return {
     transition: (t) => {
       const elementStyle = transitionStyle[t.id];
-      return { elementStyle, style: elementStyle?.fill ? { fontWeight: 600 } : undefined };
+      const m = moves[t.id];
+      const label = t.label ?? "";
+      return {
+        elementStyle,
+        style: elementStyle?.fill ? { fontWeight: 600 } : undefined,
+        renderContent: m
+          ? () => (
+              <>
+                <TransitionLabel
+                  label={label}
+                  marginBottom={6}
+                  title={movesTitle(label, m, sharedLog[t.id])}
+                />
+                <MovesBar m={m} style={{ position: "absolute", left: 6, right: 6, bottom: 5 }} />
+              </>
+            )
+          : undefined,
+        exportDecoration: m
+          ? (box) => movesBarSvg(m, box, `moves-${t.id.replace(/[^\w-]/g, "_")}`)
+          : undefined,
+      };
     },
   };
+}
+
+/** Activities whose events the model could not follow at all: no transition carries their label. */
+function missingActivities(net: PetriNet, aggregated: AlignmentAggregate): [string, number][] {
+  const labels = new Set(net.transitions.map((t) => t.label).filter(Boolean));
+  return Object.entries(aggregated.log_move_counts)
+    .filter(([a, n]) => n > 0 && !labels.has(a))
+    .sort((a, b) => b[1] - a[1]);
+}
+
+/** The move colors, with the icons the alignment strips mark each move with. */
+function MovesLegend() {
+  const item = (kind: MoveKind) => (
+    <span
+      key={kind}
+      title={MOVE_TERMS[kind].explain("case")}
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: "help" }}
+    >
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 22,
+          height: 22,
+          borderRadius: 6,
+          color: moveColor(kind),
+          background: `var(--${MOVE_TERMS[kind].color}-a3)`,
+          border: `1.5px solid ${moveColor(kind)}`,
+        }}
+      >
+        <MoveGlyphIcon kind={kind} size={13} />
+      </span>
+      <Text size="2">{MOVE_TERMS[kind].name}</Text>
+      <Text size="2" color="gray">
+        ({MOVE_TERMS[kind].term})
+      </Text>
+    </span>
+  );
+  return (
+    <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+      {(["sync", "model", "log"] as const).map(item)}
+    </div>
+  );
+}
+
+const ESCAPE = hexToRgb(colorToHex("amber"));
+const END_LABEL = "(stop)";
+const activityName = (a: string | null | undefined) => a ?? END_LABEL;
+
+/** Overlay marking each transition by how much never-taken behavior it allows, in amber. */
+function buildPrecisionOverlay(net: PetriNet, precision: PrecisionSummary): PetriNetOverlay {
+  const weightOf = new Map(precision.by_activity.map((a) => [a.activity ?? null, a.weight]));
+  const max = Math.max(1, ...precision.by_activity.map((a) => a.weight));
+  return {
+    transition: (t) => {
+      const label = net.transitions.find((x) => x.id === t.id)?.label;
+      const w = label ? weightOf.get(label) : undefined;
+      if (!w) return { elementStyle: DIMMED };
+      const share = w / Math.max(1, precision.weighted_escaping);
+      const elementStyle: ElementStyle = {
+        stroke: hex(ESCAPE),
+        stroke_width: 1 + 3 * (w / max),
+        fill: hex(ESCAPE, 0.1 + 0.4 * (w / max)),
+        extra_label: `escapes ${pct(share)}`,
+      };
+      return { elementStyle, style: { fontWeight: 600 } };
+    },
+  };
+}
+
+const Step = ({ name, escaping }: { name: string; escaping?: boolean }) => (
+  <span
+    style={{
+      display: "inline-block",
+      maxWidth: 150,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      verticalAlign: "bottom",
+      padding: "1px 7px",
+      borderRadius: 999,
+      fontSize: 11.5,
+      lineHeight: "18px",
+      background: escaping ? "var(--amber-a4)" : "var(--gray-a3)",
+      color: escaping ? "var(--amber-12)" : "var(--gray-11)",
+      fontWeight: escaping ? 600 : 400,
+      border: escaping ? "1px solid var(--amber-a7)" : "1px solid transparent",
+    }}
+    title={name}
+  >
+    {name}
+  </span>
+);
+
+function PrecisionPanel({ precision }: { precision: PrecisionSummary }) {
+  const maxActivity = Math.max(1, ...precision.by_activity.map((a) => a.weight));
+  const edges = precision.top_edges.slice(0, 20);
+  const maxEdge = Math.max(1, ...edges.map((e) => e.weight));
+  const p = precision.precision;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <MetricRow>
+        <Metric
+          label="Precision"
+          value={pct(p)}
+          tone={scoreTone(p)}
+          hint={precision.search_limit_reached ? "approximate: a search limit was hit" : "escaping edges"}
+        />
+        <Metric label="States" value={fmtInt(precision.num_states)} hint="reached by the log" />
+      </MetricRow>
+      <Text size="1" color="gray">
+        Where the model allows a step that no trace takes in the same state. Marked amber on the net.
+      </Text>
+      {precision.by_activity.length === 0 ? (
+        <Text size="2" color="green">
+          The model allows nothing the log does not do.
+        </Text>
+      ) : (
+        <>
+          <Section title="Allowed but never taken" subtitle="Share of all escaping behavior">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {precision.by_activity.map((a) => {
+                const share = a.weight / Math.max(1, precision.weighted_escaping);
+                return (
+                  <Bar
+                    key={activityName(a.activity)}
+                    value={a.weight / maxActivity}
+                    color="var(--amber-9)"
+                    label={activityName(a.activity)}
+                    hint={pct(share)}
+                  />
+                );
+              })}
+            </div>
+          </Section>
+          <Section
+            title="Heaviest escaping edges"
+            subtitle="The state, by its last steps, and the step never taken there"
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {edges.map((e, i) => (
+                <div
+                  key={i}
+                  style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}
+                  title={`State after ${e.prefix_len} steps, reached by ${fmtInt(e.weight)} traces`}
+                >
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, rowGap: 4 }}>
+                    <Text size="1" color="gray">
+                      {e.prefix_len === 0 ? "At the start" : "After"}
+                    </Text>
+                    {e.prefix_len > e.prefix_tail.length && (
+                      <Text size="1" color="gray">
+                        ...
+                      </Text>
+                    )}
+                    {e.prefix_tail.map((s, k) => (
+                      <Step key={k} name={activityName(s)} />
+                    ))}
+                    <Text size="1" style={{ color: "var(--amber-11)" }}>
+                      →
+                    </Text>
+                    <Step name={activityName(e.escaping)} escaping />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Bar value={e.weight / maxEdge} height={3} color="var(--amber-8)" style={{ flex: 1 }} />
+                    <Text
+                      size="1"
+                      color="gray"
+                      style={{ fontVariantNumeric: "tabular-nums", minWidth: 64, textAlign: "right" }}
+                    >
+                      {fmtInt(e.weight)} traces
+                    </Text>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </>
+      )}
+    </div>
+  );
 }
 
 /** A transition that fired while replaying a variant's alignment. */
@@ -115,8 +389,8 @@ interface FiredTransition {
   label: string | null;
 }
 
-const SYNC_HEX = colorToHex("green");
-const MODEL_HEX = colorToHex("orange");
+const SYNC_HEX = moveColor("sync");
+const MODEL_HEX = moveColor("model");
 
 function firedTransitions(variant: VariantAlignmentResult, net: PetriNet): FiredTransition[] {
   if (!("Ok" in variant.result)) return [];
@@ -182,20 +456,7 @@ function buildVariantOverlay(net: PetriNet, fired: FiredTransition[]): PetriNetO
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      style={{
-        fontSize: 10,
-        fontWeight: 600,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        color: "var(--gray-9)",
-        margin: 0,
-      }}
-    >
-      {children}
-    </p>
-  );
+  return <span className="r4pm-eyebrow">{children}</span>;
 }
 
 function DeviationBarRow({
@@ -204,7 +465,7 @@ function DeviationBarRow({
   model,
   total,
 }: Pick<DeviationRow, "label" | "ratio" | "model" | "total">) {
-  const c = heatmapRgb(ratio);
+  const c = MODEL_RGB;
 
   const { colorOf } = useViewerConfig({});
   return (
@@ -280,6 +541,8 @@ function DeviationBarRow({
   );
 }
 
+const logMoveColor = () => moveColor("log");
+
 function AggregatedPanel({ data }: { data: LogAlignments }) {
   const rows = useMemo(() => deviationRows(data.net, data.aggregated), [data.net, data.aggregated]);
   const logMoves = useMemo(
@@ -291,21 +554,28 @@ function AggregatedPanel({ data }: { data: LogAlignments }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {data.fitness && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <StatCards
-            indicator="bar"
-            items={[
-              {
-                label: "Avg. fitness",
-                value: pct(data.fitness.average_fitness),
-                progress: data.fitness.average_fitness,
-              },
-              {
-                label: "Perfect traces",
-                value: pct(data.fitness.perfectly_fitting_frac),
-                progress: data.fitness.perfectly_fitting_frac,
-              },
-            ]}
-          />
+          <MetricRow>
+            <Metric
+              label="Trace fitness"
+              value={pct(data.fitness.average_fitness)}
+              progress={data.fitness.average_fitness}
+              tone={scoreTone(data.fitness.average_fitness)}
+            />
+            <Metric
+              label="Fitting traces"
+              value={pct(data.fitness.perfectly_fitting_frac)}
+              progress={data.fitness.perfectly_fitting_frac}
+              tone={scoreTone(data.fitness.perfectly_fitting_frac)}
+            />
+            {data.precision && (
+              <Metric
+                label="Precision"
+                value={pct(data.precision.precision)}
+                progress={data.precision.precision}
+                tone={scoreTone(data.precision.precision)}
+              />
+            )}
+          </MetricRow>
           <Text size="1" color="gray">
             {data.aggregated.total_traces.toLocaleString("en")} traces · cost{" "}
             {data.fitness.total_costs.toLocaleString("en")}
@@ -313,8 +583,10 @@ function AggregatedPanel({ data }: { data: LogAlignments }) {
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <SectionLabel>Transitions by deviation</SectionLabel>
+      <Section
+        title="Transitions by deviation"
+        subtitle="Share of firings without a matching event (missing events)"
+      >
         {rows.length === 0 ? (
           <Text size="1" color="gray">
             No transitions fired.
@@ -326,13 +598,15 @@ function AggregatedPanel({ data }: { data: LogAlignments }) {
             ))}
           </div>
         )}
-      </div>
+      </Section>
 
       {logMoves.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <SectionLabel>Log-only moves</SectionLabel>
-          <RankedBarList items={Object.fromEntries(logMoves)} scope="activity" />
-        </div>
+        <Section
+          title="Extra events (log moves)"
+          subtitle="Events the model does not allow at that point, by activity"
+        >
+          <RankedBarList items={Object.fromEntries(logMoves)} scope="activity" colorOf={logMoveColor} />
+        </Section>
       )}
     </div>
   );
@@ -358,92 +632,26 @@ function VariantPanel({ data, selectedIdx, onSelect, variantsByFreq }: VariantPa
     [selected, data.net],
   );
 
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const { virtualItems, totalSize, scrollToIndex } = useVirtualRows({
-    count: variantsByFreq.length,
-    rowHeight: PICKER_ROW_H,
-    scrollRef: pickerRef,
-  });
   const selectedPos = variantsByFreq.findIndex((v) => v.idx === selectedIdx);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Wanted side effect
-  useEffect(() => {
-    if (selectedPos >= 0) scrollToIndex(selectedPos);
-  }, [selectedPos]);
+  const options = useMemo(
+    () =>
+      variantsByFreq.map(({ variant }) => ({
+        activities: variant.activities,
+        cases: variant.frequency,
+        note: "Ok" in variant.result ? `cost ${variant.result.Ok.cost}` : "unaligned",
+      })),
+    [variantsByFreq],
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <SectionLabel>Variant · by frequency</SectionLabel>
-        <div
-          ref={pickerRef}
-          style={{
-            border: "1px solid var(--gray-4)",
-            borderRadius: 8,
-            overflow: "hidden",
-            maxHeight: 196,
-            overflowY: "auto",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <div style={{ position: "relative", height: totalSize, width: "100%" }}>
-            {virtualItems.map((vi) => {
-              const { variant, idx } = variantsByFreq[vi.index];
-              const isSelected = idx === selectedIdx;
-              const label = variant.activities.join(" → ") || "(empty trace)";
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => onSelect(idx)}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    transform: `translateY(${vi.start}px)`,
-                    height: PICKER_ROW_H,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "5px 10px",
-                    border: "none",
-                    borderBottom: "1px solid var(--gray-3)",
-                    background: isSelected ? "var(--accent-3)" : "transparent",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    minWidth: 0,
-                  }}
-                >
-                  <span
-                    className="tabular-nums"
-                    style={{
-                      fontSize: 11,
-                      color: isSelected ? "var(--accent-11)" : "var(--gray-9)",
-                      flexShrink: 0,
-                      minWidth: 28,
-                      textAlign: "right",
-                    }}
-                  >
-                    {variant.frequency}×
-                  </span>
-                  <span
-                    className="truncate"
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: 12,
-                      color: isSelected ? "var(--accent-12)" : "var(--gray-12)",
-                      fontWeight: isSelected ? 500 : 400,
-                    }}
-                  >
-                    {label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <VariantSelect
+          variants={options}
+          value={selectedPos >= 0 ? selectedPos : null}
+          onChange={(i) => onSelect(variantsByFreq[i].idx)}
+        />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -478,7 +686,7 @@ function VariantPanel({ data, selectedIdx, onSelect, variantsByFreq }: VariantPa
       {resolvedMoves.length > 0 && !errored && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <SectionLabel>Alignment</SectionLabel>
-          <AlignmentStrip moves={resolvedMoves} />
+          <AlignmentStrip moves={resolvedMoves} exportKey="alignment" />
         </div>
       )}
 
@@ -491,9 +699,14 @@ function VariantPanel({ data, selectedIdx, onSelect, variantsByFreq }: VariantPa
   );
 }
 
-type Mode = "aggregated" | "variant";
+type Mode = "aggregated" | "variant" | "precision";
+const MODES: Option<Mode>[] = [
+  { value: "aggregated", label: "Fitness" },
+  { value: "variant", label: "By variant" },
+  { value: "precision", label: "Precision" },
+];
 
-/** Petri net + analysis sidebar; aggregated mode colors transitions by deviation rate, variant mode replays one trace's alignment path. */
+/** Petri net + analysis sidebar: fitness colors transitions by deviation rate, by-variant replays one trace's alignment path, precision marks the behavior the log never takes. */
 export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
   const [mode, setMode] = useViewSetting<Mode>("mode", "aggregated");
 
@@ -518,12 +731,50 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
   );
   const variantOverlay = useMemo(() => buildVariantOverlay(data.net, fired), [fired, data.net]);
 
-  const overlay = mode === "aggregated" ? aggregateOverlay : variantOverlay;
+  const precisionOverlay = useMemo(
+    () => (data.precision ? buildPrecisionOverlay(data.net, data.precision) : undefined),
+    [data.net, data.precision],
+  );
+  const shownMode = mode === "precision" && !data.precision ? "aggregated" : mode;
+  const missing = useMemo(() => missingActivities(data.net, data.aggregated), [data.net, data.aggregated]);
+  const overlay =
+    shownMode === "precision"
+      ? precisionOverlay
+      : shownMode === "aggregated"
+        ? aggregateOverlay
+        : variantOverlay;
 
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", minHeight: 256 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <PetriNetViewer data={data.net} overlay={overlay} />
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <PetriNetViewer data={data.net} overlay={overlay} />
+        </div>
+        {shownMode === "aggregated" && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              padding: "8px 12px",
+              borderTop: "1px solid var(--gray-a4)",
+            }}
+          >
+            <MovesLegend />
+            {missing.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                <Text size="2" weight="medium" style={{ color: `var(--${MOVE_TERMS.log.color}-11)` }}>
+                  Not in the model:
+                </Text>
+                {missing.map(([a, n]) => (
+                  <Badge key={a} color={MOVE_TERMS.log.color} variant="soft" size="2">
+                    {a} · {fmtInt(n)}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div
@@ -543,19 +794,19 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
             flexShrink: 0,
           }}
         >
-          <SegmentedControl.Root
-            size="1"
-            value={mode}
-            onValueChange={(v) => setMode(v as Mode)}
-            style={{ width: "100%" }}
-          >
-            <SegmentedControl.Item value="aggregated">Aggregated</SegmentedControl.Item>
-            <SegmentedControl.Item value="variant">By variant</SegmentedControl.Item>
-          </SegmentedControl.Root>
+          <Segmented
+            value={shownMode}
+            options={data.precision ? MODES : MODES.filter((m) => m.value !== "precision")}
+            onChange={setMode}
+            fill
+            aria-label="Analysis"
+          />
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 12px 16px" }}>
-          {mode === "aggregated" ? (
+          {shownMode === "precision" && data.precision ? (
+            <PrecisionPanel precision={data.precision} />
+          ) : shownMode === "aggregated" ? (
             <AggregatedPanel data={data} />
           ) : (
             <VariantPanel

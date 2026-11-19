@@ -10,8 +10,11 @@ import {
   PiStack,
 } from "react-icons/pi";
 import { getDockviewApi } from "../shell/dockviewApi";
+import { useExplore } from "../stores/explore";
 import { extraPanels } from "virtual:propel-extensions";
 import { visPanels } from "../vis/registry";
+import { withPanelErrorBoundary } from "./PanelErrorBoundary";
+import { REPLACED, tabbedPanels, tabOf } from "./tabbed";
 import type { PanelCategory, PanelCategoryMeta, PanelDefinition } from "./types";
 
 export * from "./types";
@@ -38,14 +41,22 @@ const CORE_PANELS: PanelDefinition[] = [...visPanels].sort(
 /**
  * Core panels plus any injected via `virtual:propel-extensions`.
  */
-export const PANEL_REGISTRY: PanelDefinition[] = [...CORE_PANELS, ...extraPanels];
+const BASE_PANELS: PanelDefinition[] = [...CORE_PANELS, ...extraPanels];
+
+export const PANEL_REGISTRY: PanelDefinition[] = [
+  ...BASE_PANELS,
+  ...tabbedPanels((type) => BASE_PANELS.find((p) => p.type === type)),
+].sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 
 export function getPanelByType(type: string): PanelDefinition | undefined {
   return PANEL_REGISTRY.find((p) => p.type === type);
 }
 
-/** Panels offered in the gallery / command palette (excludes internal ones). */
-export const VISIBLE_PANELS = PANEL_REGISTRY.filter((p) => !p.hidden);
+/** Panels offered in the gallery / command palette: no internal ones, and a view that is a tab of
+ *  another panel only through that panel. */
+export const VISIBLE_PANELS = PANEL_REGISTRY.filter(
+  (p) => !p.hidden && !tabOf(p.type) && !REPLACED.has(p.type),
+);
 
 /**
  * Add a panel to the active dockview. Shared by every surface that adds panels
@@ -64,19 +75,27 @@ export function addPanelToDockview(
     console.warn(`addPanelToDockview("${type}"): dockview api not ready; panel not added`);
     return;
   }
-  const def = getPanelByType(type);
+  // A view that lives in a tabbed panel opens that panel on its tab.
+  const member = tabOf(type);
+  const component = member?.group ?? type;
+  const def = getPanelByType(component);
+  useExplore.getState().setOpen(false);
+  // A tab's own settings live under `tab.<id>`; only the dataset is the group's.
+  const { datasetId, ...own } = params ?? {};
   api.addPanel({
-    id: `${type}-${Date.now()}`,
-    title: title ?? def?.name ?? type,
-    component: type,
-    params,
+    id: `${component}-${Date.now()}`,
+    title: title ?? def?.name ?? component,
+    component,
+    params: member
+      ? { ...(datasetId !== undefined ? { datasetId } : {}), tab: member.tab, [`tab.${member.tab}`]: own }
+      : params,
   });
 }
 
 /** Dockview `components` map: every registry panel keyed by its type. */
 export function panelComponents(): Record<string, PanelDefinition["component"]> {
   const out: Record<string, PanelDefinition["component"]> = {};
-  for (const p of PANEL_REGISTRY) out[p.type] = p.component;
+  for (const p of PANEL_REGISTRY) out[p.type] = withPanelErrorBoundary(p.component);
   return out;
 }
 

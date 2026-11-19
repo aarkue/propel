@@ -2,7 +2,7 @@ import { Button, ContextMenu } from "@r4pm/components/ui";
 import { Handle, type Node, type NodeProps, Position, useConnection } from "@xyflow/react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import { PiCrosshair, PiEyeSlash } from "react-icons/pi";
+import { PiChartBar, PiCrosshair, PiEyeSlash } from "react-icons/pi";
 import { useEditContext } from "./edit/edit-context";
 import { type DeclareNode, parseNodeName } from "./model";
 import { stripFit } from "./involvement-strip";
@@ -65,6 +65,7 @@ export function ActivityNode({ id, data, width, height }: NodeProps<ActivityNode
     showTextLabels,
     onHideActivity,
     onFocusActivity,
+    onActivityStats,
   } = useVizContext();
   const edit = useEditContext();
   const kind = (data.kind as DeclareNode["kind"] | undefined) ?? "activity";
@@ -127,7 +128,8 @@ export function ActivityNode({ id, data, width, height }: NodeProps<ActivityNode
   };
 
   const connectable = !!edit;
-  const showHoverActions = !edit && isHovered && kind === "activity" && !!(onHideActivity || onFocusActivity);
+  const showHoverActions =
+    !edit && isHovered && kind === "activity" && !!(onHideActivity || onFocusActivity || onActivityStats);
   // Must let pointer events through during a drag: xyflow validates the drop via elementFromPoint, which only accepts a handle element.
   const connecting = useConnection((c) => c.inProgress);
 
@@ -142,7 +144,7 @@ export function ActivityNode({ id, data, width, height }: NodeProps<ActivityNode
             width: width || ACT_NODE_WIDTH,
             height: height || ACT_NODE_HEIGHT,
             backgroundColor: colorSurface,
-            borderColor: isFocused ? colorBase : `${colorBase}cc`,
+            borderColor: isFocused ? colorBase : `color-mix(in srgb, ${colorBase} 80%, transparent)`,
             borderStyle: isObject ? "dashed" : "solid",
             color: colorFg,
             opacity: isDimmed ? 0.4 : 1,
@@ -262,6 +264,17 @@ export function ActivityNode({ id, data, width, height }: NodeProps<ActivityNode
                     <PiEyeSlash /> Hide
                   </Button>
                 )}
+                {onActivityStats && (
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="gray"
+                    title="Objects per event and events per object"
+                    onClick={hoverAction(onActivityStats, data.label)}
+                  >
+                    <PiChartBar /> Stats
+                  </Button>
+                )}
                 {onFocusActivity && (
                   <Button
                     size="1"
@@ -305,6 +318,12 @@ export function ActivityNode({ id, data, width, height }: NodeProps<ActivityNode
             {eventCount.toLocaleString("en")} event{eventCount === 1 ? "" : "s"}
           </span>
         </ContextMenu.Label>
+        {!edit && !isObject && onActivityStats && (
+          <>
+            <ContextMenu.Separator />
+            <ContextMenu.Item onSelect={() => onActivityStats(data.label)}>View statistics</ContextMenu.Item>
+          </>
+        )}
         {edit && (
           <>
             <ContextMenu.Separator />

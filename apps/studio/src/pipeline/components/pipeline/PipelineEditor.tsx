@@ -12,6 +12,7 @@ import {
   useReactFlow,
   useOnSelectionChange,
   type OnConnect,
+  type OnConnectEnd,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./pipeline.css";
@@ -54,7 +55,35 @@ import { usePipelineExecution } from "./editor/usePipelineExecution";
 import { pipelineLayoutRequest, placeNodes } from "./editor/auto-layout";
 import { isCompatible } from "./utils";
 import { getNodeType, outputNameFor } from "./editor/helpers";
+import { inputNodeForArg } from "./editor/arg-input";
+import { migratePipeline } from "../../migrate-pipeline";
+import { quietImports } from "../../../shell/quiet-imports";
 import { useThemeMode } from "../../../shell/theme-context";
+
+/** Load a model file into a temporary registry item, read its JSON, and drop the item again. */
+async function readModelValue(backend: ClientBackend, load: (id: string) => Promise<void>): Promise<unknown> {
+  const id = `pipeline-model-${crypto.randomUUID()}`;
+  quietImports.add(id);
+  await load(id);
+  try {
+    return JSON.parse(new TextDecoder().decode(await backend.exportObject(id, "json")));
+  } finally {
+    await backend.unloadObject(id);
+  }
+}
+
+/** The schema of input `handle` of `node`: a function argument, or a struct field or tuple item. */
+function inputSchemaOf(node: AppNode, handle: string | null | undefined): ExtendedJSONSchema | undefined {
+  if (!handle) return undefined;
+  if (node.type === "function") return node.data.functionMeta.args.find(([name]) => name === handle)?.[1];
+  if (node.type === "struct") {
+    const props = node.data.schema.properties;
+    if (!props) return undefined;
+    // Tuple items have handle "item-N" and property key "N".
+    return (props[handle] ?? props[handle.replace(/^item-/, "")]) as ExtendedJSONSchema | undefined;
+  }
+  return undefined;
+}
 
 const nodeTypes = {
   function: FunctionNode,
@@ -99,19 +128,11 @@ export const PipelineEditor = forwardRef<PipelineHandle, PipelineEditorProps>(fu
         (await backend.listObjects()).map((o) => [o.id, o.kind] as [string, string]),
       listItemKinds: () => backend.listItemKinds(),
       unloadObject: (id) => backend.unloadObject(id),
-      downloadBinary: (binary, filename) => {
-        const blob = new Blob([binary]);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      },
-      getArtifact: (id) => backend.getArtifact(id),
-      loadArtifactBytes: (id, kind, data, format) => backend.loadArtifactBytes(id, kind, data, format),
-      loadArtifactPath: backend.loadArtifactPath
-        ? (id, kind, path) => backend.loadArtifactPath!(id, kind, path)
+      downloadBinary: (binary, filename) => backend.saveBytes(new Uint8Array(binary), filename),
+      readModel: (kind, data, format) =>
+        readModelValue(backend, (id) => backend.loadItem(id, kind, data, format)),
+      readModelPath: backend.loadItemPath
+        ? (kind, path) => readModelValue(backend, (id) => backend.loadItemPath!(id, kind, path))
         : undefined,
       pickFiles: backend.pickFiles ? (opts) => backend.pickFiles!(opts) : undefined,
     }),
@@ -139,8 +160,10 @@ export const PipelineEditor = forwardRef<PipelineHandle, PipelineEditorProps>(fu
 function PipelineEditorContent({ registerHandle }: { registerHandle: (h: PipelineHandle | null) => void }) {
   const { resolved } = useThemeMode();
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([] as Edge[]);
+  // The editor starts from the saved draft. Graphs sent while the panel was closed apply on top.
+  const [initialDraft] = useState(() => usePipelines.getState().draft);
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initialDraft?.nodes ?? []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialDraft?.edges ?? []);
   const { screenToFlowPosition, fitView } = useReactFlow();
 
   const [pipelineName, setPipelineName] = useState("");
@@ -193,6 +216,16 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
   } = usePipelineFiltering(backend, searchQuery, selectedNode, showAllNodes);
 
   const { isRunning, runPipeline } = usePipelineExecution(backend, nodes, edges, setNodes, pipelineId);
+
+  // Steps hold the binding metadata from when they were added, and v0.4.1 ones the old names.
+  useEffect(() => {
+    const metas = functionMetaQuery.data;
+    if (!metas) return;
+    const migrated = migratePipeline(nodes, edges, metas);
+    if (!migrated) return;
+    setNodes(migrated.nodes);
+    setEdges(migrated.edges);
+  }, [functionMetaQuery.data, nodes, edges, setNodes, setEdges]);
 
   // GC a function node's deterministic intermediate (the engine also evicts its cached conversions)
   // when the node leaves the graph, so deleted/cleared nodes don't leak hidden result objects.
@@ -252,17 +285,22 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
     [setNodes, setEdges, fitView],
   );
 
+  // Another project's draft replaces the graph. Not on mount, where it would drop the sends queued
+  // while the panel was closed (and React's dev double-mount would run it again after them).
+  // The draft is read via getState(), so autosaves do not re-run it.
+  const loadedSeq = useRef(pipelinesLoadSeq);
   useEffect(() => {
-    registerHandle({ addObjectNode, addArtifactNode, loadGraph });
-    return () => registerHandle(null);
-  }, [registerHandle, addObjectNode, addArtifactNode, loadGraph]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies(pipelinesLoadSeq): trigger dep for project switch; draft read via getState() to skip re-firing on autosaves
-  useEffect(() => {
+    if (loadedSeq.current === pipelinesLoadSeq) return;
+    loadedSeq.current = pipelinesLoadSeq;
     const draft = usePipelines.getState().draft;
     setNodes(draft?.nodes ?? []);
     setEdges(draft?.edges ?? []);
   }, [pipelinesLoadSeq, setNodes, setEdges]);
+
+  useEffect(() => {
+    registerHandle({ addObjectNode, addArtifactNode, loadGraph });
+    return () => registerHandle(null);
+  }, [registerHandle, addObjectNode, addArtifactNode, loadGraph]);
 
   // Selection/executionStatus churn changes node identity but not the slimmed draft; skip no-op saves.
   const lastSavedDraftRef = useRef<string | null>(null);
@@ -393,7 +431,7 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
           id: `${type}-${crypto.randomUUID()}`,
           type: "fileImport",
           position,
-          data: { kind: "PetriNet" },
+          data: { kind: "AcceptingPetriNet" },
         };
       }
 
@@ -405,6 +443,28 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
   );
 
   const onConnect: OnConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+
+  // A drag from an open input released on the canvas creates a node that feeds it, starting at
+  // the argument's default.
+  const onConnectEnd: OnConnectEnd = useCallback(
+    (event, state) => {
+      const { fromNode, fromHandle } = state;
+      if (state.isValid || !fromNode || fromHandle?.type !== "target" || !fromHandle.id) return;
+      if (!(event.target as Element | null)?.classList?.contains("react-flow__pane")) return;
+      const handle = fromHandle.id;
+      const schema = inputSchemaOf(fromNode as AppNode, handle);
+      if (!schema) return;
+      const point = "changedTouches" in event ? event.changedTouches[0] : event;
+      const at = screenToFlowPosition({ x: point.clientX, y: point.clientY });
+      const id = `input-${crypto.randomUUID()}`;
+      const node = inputNodeForArg(schema, handle, { x: at.x - 200, y: at.y - 24 }, id);
+      setNodes((nds) => [...nds, node]);
+      setEdges((eds) =>
+        addEdge({ source: id, sourceHandle: "output", target: fromNode.id, targetHandle: handle }, eds),
+      );
+    },
+    [screenToFlowPosition, setNodes, setEdges],
+  );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -439,28 +499,9 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
       // Determine source type (reuses getNodeType so it stays exhaustive, incl. array sources).
       const sourceType = getNodeType(sourceNode);
 
-      let targetType: ExtendedJSONSchema | undefined;
-      if (targetNode.type === "function") {
-        const funcMeta = targetNode.data.functionMeta;
-        const arg = funcMeta.args.find(([name]) => name === connection.targetHandle);
-        if (arg) targetType = arg[1];
-      } else if (targetNode.type === "struct") {
-        const schema = targetNode.data.schema;
-        if (schema.properties && connection.targetHandle) {
-          targetType = schema.properties[connection.targetHandle] as ExtendedJSONSchema;
-
-          // Fallback for tuple items (handle id is "item-N", property key is "N")
-          if (!targetType && connection.targetHandle.startsWith("item-")) {
-            const index = connection.targetHandle.replace("item-", "");
-            targetType = schema.properties[index] as ExtendedJSONSchema;
-          }
-        }
-      } else if (targetNode.type === "jsonView") {
-        return true;
-      } else if (targetNode.type === "array") {
-        // Array inputs accept any element type (element types are not checked).
-        return true;
-      }
+      // Array inputs accept any element type (element types are not checked).
+      if (targetNode.type === "jsonView" || targetNode.type === "array") return true;
+      const targetType = inputSchemaOf(targetNode, connection.targetHandle);
 
       if (!sourceType || !targetType) return true;
 
@@ -669,6 +710,7 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
           onNodesDelete={onNodesDelete}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onConnectEnd={onConnectEnd}
           nodeTypes={nodeTypes}
           isValidConnection={isValidConnection}
           onNodeContextMenu={onNodeContextMenu}

@@ -455,6 +455,7 @@ describe("violationBadges", () => {
     });
     const [forward, backward] = violationBadges(pair, line, { half: 20 });
     expect([forward.text, backward.text]).toEqual(["60.0%", "2.0%"]);
+    expect([forward.direction, backward.direction]).toEqual(["forward", "backward"]);
     expect(forward.color).toBe("#dc2626");
     expect(forward.x - forward.width / 2).toBeGreaterThan(120);
     expect(backward.x + backward.width / 2).toBeLessThan(80);

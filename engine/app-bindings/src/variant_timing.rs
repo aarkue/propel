@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use process_mining::analysis::durations::summarize;
 use process_mining::bindings::register_binding;
 use process_mining::core::event_data::case_centric::{Trace, XESEditableAttribute};
 use process_mining::EventLog;
@@ -10,7 +11,7 @@ use rustc_hash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::event_log::{get_event_activity, get_event_time_ms};
+use crate::xes_event::{event_activity, event_time_ms};
 
 /// Distribution of the elapsed time since case start at one step of a variant, in ms.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -157,7 +158,7 @@ impl Grouped {
 }
 
 fn elapsed_of(trace: &Trace) -> Option<Vec<i64>> {
-    let times: Option<Vec<i64>> = trace.events.iter().map(get_event_time_ms).collect();
+    let times: Option<Vec<i64>> = trace.events.iter().map(event_time_ms).collect();
     let times = times.filter(|t| !t.is_empty())?;
     let start = times[0];
     Some(times.into_iter().map(|t| t - start).collect())
@@ -179,7 +180,7 @@ fn group(log: &EventLog) -> Grouped {
             .events
             .iter()
             .map(|e| {
-                let name = get_event_activity(e).unwrap_or("UNKNOWN");
+                let name = event_activity(e).unwrap_or("UNKNOWN");
                 *ids.entry(name).or_insert_with(|| {
                     names.push(name);
                     (names.len() - 1) as u32
@@ -237,8 +238,8 @@ impl LogKey {
             (
                 f.events.len(),
                 l.events.len(),
-                f.events.first().and_then(get_event_time_ms),
-                l.events.last().and_then(get_event_time_ms),
+                f.events.first().and_then(event_time_ms),
+                l.events.last().and_then(event_time_ms),
             )
         });
         LogKey {
@@ -497,31 +498,18 @@ fn median(values: &[f64]) -> f64 {
     (lo + hi) / 2.0
 }
 
-/// Nearest-rank quantile of an ascending, non-empty slice.
-fn quantile_sorted(sorted: &[f64], q: f64) -> f64 {
-    let idx = ((q * sorted.len() as f64).ceil() as usize)
-        .saturating_sub(1)
-        .min(sorted.len() - 1);
-    sorted[idx]
-}
-
+/// `values` is non-empty: every variant has at least one case.
 fn step_time_stats(values: &mut [f64]) -> StepTimeStats {
-    values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-    let n = values.len();
-    let median_ms = if n.is_multiple_of(2) {
-        (values[n / 2 - 1] + values[n / 2]) / 2.0
-    } else {
-        values[n / 2]
-    };
+    let s = summarize(values).expect("non-empty step times");
     StepTimeStats {
-        min_ms: values[0],
-        p10_ms: quantile_sorted(values, 0.1),
-        p25_ms: quantile_sorted(values, 0.25),
-        median_ms,
-        p75_ms: quantile_sorted(values, 0.75),
-        p90_ms: quantile_sorted(values, 0.9),
-        max_ms: values[n - 1],
-        mean_ms: values.iter().sum::<f64>() / n as f64,
+        min_ms: s.min,
+        p10_ms: s.p10,
+        p25_ms: s.p25,
+        median_ms: s.median,
+        p75_ms: s.p75,
+        p90_ms: s.p90,
+        max_ms: s.max,
+        mean_ms: s.mean,
     }
 }
 

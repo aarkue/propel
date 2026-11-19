@@ -104,9 +104,9 @@ never pulls in Plotly or the editors.
 
 | Import | Contents |
 | --- | --- |
-| `@r4pm/components` | viewers (DFG, Petri net, OCEL summaries, alignments, ...), primitives, feedback states, `ViewerExportFrame`, the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`), and the layout helpers over a `VizTransport` (`layoutModel`, `modelLayoutRequest`, `rerouteModel`, `modelSvg`, `layoutGraph`, `rerouteGraph`, `layoutTree`) |
-| `@r4pm/components/ui` | the Radix Themes seam (`Theme`, `Button`, `Card`, ...). Import UI primitives from here, never `@radix-ui/themes` directly |
-| `@r4pm/components/charts` | Plotly-backed viewers: `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot` |
+| `@r4pm/components` | viewers (DFG, Petri net, OCEL summaries, alignments, ...), analysis views (overviews, health checks, workload, path schemas, animations, ...), the view kit, primitives, feedback states, `ViewerExportFrame`, the presentation contract (`ViewerProps`, `ViewerConfig`, `ViewerConfigProvider`, `useViewerConfig`, `colorForKey`, `colorForSeed`), and the layout helpers over a `VizTransport` (`layoutModel`, `modelLayoutRequest`, `rerouteModel`, `modelSvg`, `layoutGraph`, `rerouteGraph`, `layoutTree`) |
+| `@r4pm/components/ui` | the Radix Themes seam (`Theme`, `Button`, `Card`, ...) and our primitives on top (`CardSelector`, `CardPickerButton`, `SearchSelect`, ...). Import UI primitives from here, never `@radix-ui/themes` directly |
+| `@r4pm/components/charts` | chart viewers: Plotly-backed `DottedChart`, `CaseDurationChart`, `EventsPerTimeChart`, `ObjectAttributeChangesChart`, `ActivityChart`, `ThemedPlot`, and `PerformanceSpectrumView`, `PrefixTreeView`, `ModelSweepChart` |
 | `@r4pm/components/petri` | the React Flow Petri-net **editor** |
 | `@r4pm/components/process-tree` | the process-tree **editor** |
 | `@r4pm/components/extraction-blueprint` | the extraction blueprint **editor** |
@@ -126,7 +126,8 @@ pnpm --filter @r4pm/components showcase   # static build -> storybook-static/
 ```
 
 Start with **Getting Started > Sizing & Layout**, **Viewer Configuration**, **Coloring**,
-**Graph Layout** and **Image Export**.
+**Graph Layout** and **Image Export**. **Getting Started > Changelog** and `CHANGELOG.md` list the
+breaking changes and new features of each release.
 
 ### For coding agents
 
@@ -141,8 +142,9 @@ Starting a new integration, paste this into your agent:
 Add the @r4pm/components React library to this project.
 
 @r4pm/components is a set of process-mining viewers (Petri nets, object-centric Petri nets,
-directly-follows graphs, dotted charts, alignments, OCEL/event-log summaries, process trees, ...) and
-the primitives they're built from. npm: https://www.npmjs.com/package/@r4pm/components. Source +
+directly-follows graphs, dotted charts, alignments, process trees, ...), analysis views for event
+logs and OCELs (overviews, data-quality checks with fixes, workload calendars, performance spectra,
+path schemas, token animations, ...), and the kit they're built from. npm: https://www.npmjs.com/package/@r4pm/components. Source +
 Storybook stories (*.stories.tsx next to each component): https://github.com/aarkue/propel/tree/main/packages/components/src.
 
 1. Install it: `npm add @r4pm/components react react-dom` (react/react-dom are peer deps, >=18).
@@ -153,7 +155,7 @@ Storybook stories (*.stories.tsx next to each component): https://github.com/aar
    - Import `@r4pm/components/styles.css` once and wrap the app in `<Theme>` from
      `@r4pm/components/ui` (use `rules.css` instead of `styles.css` only if this project already
      runs its own Tailwind build -- llms.txt has the exact setup for that case).
-   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri nets, process tree, OCEL type graph) lay out and
+   - Graph viewers (DFG, OC-DFG, OC-DECLARE, Petri nets, process tree, OCEL type graph, animations) lay out and
      export through rust4pm's visualization: pass it via
      `<ViewerConfigProvider value={{ viz: wasmViz }}>`, importing `wasmViz` from
      `@r4pm/components/viz/wasm`. Without it, graphs render with their nodes in a plain row or

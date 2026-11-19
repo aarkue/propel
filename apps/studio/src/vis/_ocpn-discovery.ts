@@ -1,4 +1,4 @@
-import type { BackendContext, OcpnDiscoveryOptions, SlimLinkedOCELHandle } from "@r4pm/client";
+import type { BackendContext, OcpnDiscoveryOptions, SlimLinkedOCELHandle, CallOptions } from "@r4pm/client";
 import { OCEL_TYPE_STATS } from "./_oc-declare-discovery";
 import {
   DEFAULT_MINER,
@@ -10,7 +10,7 @@ import {
 
 // The object-centric Petri net discovery call. `_`-prefixed so the vis registry glob skips it.
 
-export const OCPN_DISCOVERY = "process_mining::discovery::object_centric::ocpn::discover_ocpn" as const;
+export const OCPN_DISCOVERY = "process_mining::discover_ocpn" as const;
 
 /** How many object types and activities the discovery starts with. Each type's net is mined from
  *  its own flattened log, which is expensive on a large OCEL, and unreadable with many activities. */
@@ -74,6 +74,7 @@ export async function discoverOcpn(
   backend: Pick<BackendContext, "callBinding">,
   ocel: string,
   discovery: OcpnDiscovery,
+  job?: CallOptions,
 ) {
   let types = discovery.object_types_to_use;
   let activities = discovery.activities_to_use;
@@ -90,5 +91,5 @@ export async function discoverOcpn(
     variable_arc_tolerance: discovery.variable_arc_tolerance,
     miner: await inductiveMiner(backend, discovery.miner),
   };
-  return backend.callBinding(OCPN_DISCOVERY, { locel: ocel as SlimLinkedOCELHandle, options });
+  return backend.callBinding(OCPN_DISCOVERY, { ocel: ocel as SlimLinkedOCELHandle, options }, job);
 }

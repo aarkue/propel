@@ -1,10 +1,13 @@
-import type {
-  ArtifactInfo,
-  BackendContext,
-  CallBinding,
-  FunctionMeta,
-  ItemKindInfo,
-  LoadedObject,
+import {
+  type ArtifactInfo,
+  type BackendContext,
+  type CallBinding,
+  type CallOptions,
+  createJobRunner,
+  type FunctionMeta,
+  type ItemKindInfo,
+  type JobUpdate,
+  type LoadedObject,
 } from "@r4pm/client";
 
 type InvokeFn = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
@@ -22,12 +25,28 @@ export function createTauriBackend(): BackendContext {
     return invokeP;
   };
 
-  const callBinding = (async (id: string, args: unknown, opts?: { outputName?: string }): Promise<unknown> =>
-    (await invoke())("execute_binding", {
-      functionId: id,
-      args,
-      outputName: opts?.outputName,
-    })) as CallBinding;
+  async function registerListener<T>(event: string, listener: (data: T) => void) {
+    // Import lazily.
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen<T>(event, (e) => listener(e.payload));
+  }
+
+  const cancelJob = async (job: string) => (await invoke())<void>("cancel_job", { job });
+
+  const runJob = createJobRunner({
+    listen: (handler) => registerListener<JobUpdate>("job-update", handler),
+    cancel: cancelJob,
+  });
+
+  const callBinding = ((id: string, args: unknown, opts?: CallOptions): Promise<unknown> =>
+    runJob(opts, async (job) =>
+      (await invoke())("execute_binding", {
+        functionId: id,
+        args,
+        outputName: opts?.outputName,
+        job,
+      }),
+    )) as CallBinding;
 
   return {
     kind: "tauri",
@@ -106,10 +125,7 @@ export function createTauriBackend(): BackendContext {
     async saveBytes(data, filename) {
       await (await invoke())("save_bytes", { data: Array.from(data), filename });
     },
-    async registerListener<T>(event: string, listener: (data: T) => void) {
-      // Import lazily.
-      const { listen } = await import("@tauri-apps/api/event");
-      return listen<T>(event, (e) => listener(e.payload));
-    },
+    registerListener,
+    cancelJob,
   };
 }

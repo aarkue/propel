@@ -14,8 +14,8 @@ describe("the OCPN discovery binding", () => {
   it("is discover_ocpn on an OCEL, returning the flat OCPN", () => {
     const meta = metas.find((f) => f.id === OCPN_DISCOVERY);
     expect(meta?.name).toBe("discover_ocpn");
-    expect(meta?.required_args).toEqual(["locel"]);
-    expect(meta?.args.map(([name]) => name)).toEqual(["locel", "options"]);
+    expect(meta?.required_args).toEqual(["ocel"]);
+    expect(meta?.args.map(([name]) => name)).toEqual(["ocel", "options"]);
     expect(meta?.args[0][1]["x-registry-ref"]).toBe("SlimLinkedOCEL");
     expect(BINDING_RETURN_TYPE[OCPN_DISCOVERY]).toBe("ObjectCentricPetriNetJson");
   });

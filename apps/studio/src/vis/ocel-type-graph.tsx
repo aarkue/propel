@@ -5,7 +5,7 @@ import { PiGraph } from "react-icons/pi";
 import { backend } from "../backends";
 import { defineVis } from "./define-vis";
 
-const TYPE_RELATIONS = "app_bindings::ocel::get_ocel_type_relations" as const;
+const TYPE_RELATIONS = "app_bindings::get_ocel_type_relations" as const;
 const MAX_QUALIFIERS_PER_PAIR = 8;
 
 // An event type and an object type may share a name, so the node ids carry the kind.
@@ -39,7 +39,7 @@ export const vis = defineVis({
   keywords: ["summary", "types", "graph", "type", "relationships"],
   order: 13,
   source: {
-    binding: "process_mining::bindings::ocel_type_stats",
+    binding: "process_mining::ocel_type_stats",
     needs: "SlimLinkedOCEL",
     args: (ctx) => ({ ocel: ctx.datasetId as SlimLinkedOCELHandle }),
   },
@@ -50,20 +50,26 @@ export const vis = defineVis({
       max_qualifiers_per_pair: MAX_QUALIFIERS_PER_PAIR,
     })) as OcelTypeRelations,
   }),
+  // The counts come from hash maps, in an order that changes between engine runs; sorted, the
+  // layout stays the same.
   transform: (data): { nodes: OcelTypeGraphNode[] } => ({
     nodes: [
-      ...Object.keys(data.event_type_counts).map((key) => ({
-        id: eventId(key),
-        count: data.event_type_counts[key],
-        kind: "event" as const,
-        label: key,
-      })),
-      ...Object.keys(data.object_type_counts).map((key) => ({
-        id: objectId(key),
-        count: data.object_type_counts[key],
-        kind: "object" as const,
-        label: key,
-      })),
+      ...Object.keys(data.event_type_counts)
+        .sort()
+        .map((key) => ({
+          id: eventId(key),
+          count: data.event_type_counts[key],
+          kind: "event" as const,
+          label: key,
+        })),
+      ...Object.keys(data.object_type_counts)
+        .sort()
+        .map((key) => ({
+          id: objectId(key),
+          count: data.object_type_counts[key],
+          kind: "object" as const,
+          label: key,
+        })),
     ],
   }),
   component: ({
@@ -79,7 +85,7 @@ export const vis = defineVis({
           ? [
               ...relationEdges(relations.e2o_type_relations, "e2o"),
               ...relationEdges(relations.o2o_type_relations, "o2o"),
-            ]
+            ].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
           : [],
       [relations],
     );

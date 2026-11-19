@@ -81,11 +81,11 @@ export type MappingEntry =
              * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
              * be compiled to a view.
              *
-             * It is also what coalesces a fan-out. Reading a join of orders and their items gives
-             * one row per item, so a `None` id makes one event per item; an id naming the order
-             * makes one event per order, still related to every item, because the repeated rows
-             * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
-             * while `objects` below is emitted for each of them.
+             * It is also what coalesces a fan-out: over a join of orders and their items, a `None`
+             * id makes one event per item, an id naming the order one event per order, still related
+             * to every item. The repeated rows count as
+             * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated) while
+             * `objects` below is emitted for each.
              */
             id?: ValueExpression | null;
             /**
@@ -104,9 +104,9 @@ export type MappingEntry =
                   /**
                    * Produces one text value from a row.
                    *
-                   * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-                   * qualifiers -- uses this, and every variant propagates absence: if any input has no
-                   * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+                   * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+                   * and qualifiers. Every variant propagates absence, so if any input has no
+                   * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
                    */
                   source:
                     | {
@@ -160,9 +160,9 @@ export type MappingEntry =
             /**
              * Produces one text value from a row.
              *
-             * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-             * qualifiers -- uses this, and every variant propagates absence: if any input has no
-             * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+             * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+             * and qualifiers. Every variant propagates absence, so if any input has no
+             * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
              */
             id:
               | {
@@ -196,9 +196,9 @@ export type MappingEntry =
             /**
              * Produces one text value from a row.
              *
-             * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-             * qualifiers -- uses this, and every variant propagates absence: if any input has no
-             * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+             * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+             * and qualifiers. Every variant propagates absence, so if any input has no
+             * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
              */
             object_type:
               | {
@@ -325,9 +325,9 @@ export type TimestampSource =
       /**
        * Produces one text value from a row.
        *
-       * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-       * qualifiers -- uses this, and every variant propagates absence: if any input has no
-       * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+       * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+       * and qualifiers. Every variant propagates absence, so if any input has no
+       * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
        */
       source:
         | {
@@ -411,9 +411,9 @@ export interface ObjectEndpoint {
   /**
    * Produces one text value from a row.
    *
-   * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-   * qualifiers -- uses this, and every variant propagates absence: if any input has no
-   * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+   * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+   * and qualifiers. Every variant propagates absence, so if any input has no
+   * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
    */
   id:
     | {
@@ -488,9 +488,9 @@ export interface TimestampPart {
   /**
    * Produces one text value from a row.
    *
-   * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-   * qualifiers -- uses this, and every variant propagates absence: if any input has no
-   * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+   * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+   * and qualifiers. Every variant propagates absence, so if any input has no
+   * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
    */
   source:
     | {
@@ -531,9 +531,9 @@ export interface EventEndpoint {
   /**
    * Produces one text value from a row.
    *
-   * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-   * qualifiers -- uses this, and every variant propagates absence: if any input has no
-   * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+   * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+   * and qualifiers. Every variant propagates absence, so if any input has no
+   * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
    */
   id:
     | {
@@ -620,11 +620,11 @@ export interface Mapping {
          * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
          * be compiled to a view.
          *
-         * It is also what coalesces a fan-out. Reading a join of orders and their items gives
-         * one row per item, so a `None` id makes one event per item; an id naming the order
-         * makes one event per order, still related to every item, because the repeated rows
-         * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
-         * while `objects` below is emitted for each of them.
+         * It is also what coalesces a fan-out: over a join of orders and their items, a `None`
+         * id makes one event per item, an id naming the order one event per order, still related
+         * to every item. The repeated rows count as
+         * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated) while
+         * `objects` below is emitted for each.
          */
         id?: ValueExpression | null;
         /**
@@ -643,9 +643,9 @@ export interface Mapping {
               /**
                * Produces one text value from a row.
                *
-               * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-               * qualifiers -- uses this, and every variant propagates absence: if any input has no
-               * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+               * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+               * and qualifiers. Every variant propagates absence, so if any input has no
+               * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
                */
               source:
                 | {
@@ -699,9 +699,9 @@ export interface Mapping {
         /**
          * Produces one text value from a row.
          *
-         * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-         * qualifiers -- uses this, and every variant propagates absence: if any input has no
-         * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+         * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+         * and qualifiers. Every variant propagates absence, so if any input has no
+         * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
          */
         id:
           | {
@@ -735,9 +735,9 @@ export interface Mapping {
         /**
          * Produces one text value from a row.
          *
-         * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-         * qualifiers -- uses this, and every variant propagates absence: if any input has no
-         * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+         * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+         * and qualifiers. Every variant propagates absence, so if any input has no
+         * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
          */
         object_type:
           | {
@@ -1057,18 +1057,6 @@ export interface CompileError {
         };
       }
     | {
-        UnportableRegex: {
-          /**
-           * Which construct made it unportable.
-           */
-          detail: string;
-          /**
-           * The pattern.
-           */
-          pattern: string;
-        };
-      }
-    | {
         InvalidRegex: {
           /**
            * The compiler's message.
@@ -1121,14 +1109,6 @@ export interface CompileError {
         };
       }
     | {
-        UnsupportedEmissionShape: {
-          /**
-           * The shape asked for.
-           */
-          shape: string;
-        };
-      }
-    | {
         ViewCycle: {
           /**
            * The relation's name.
@@ -1161,9 +1141,9 @@ export interface MappingRef {
    */
   label?: string | null;
   /**
-   * The JSON path of the authored entry this mapping came from -- see
-   * [`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at
-   * what the author wrote rather than a position in the flattened list.
+   * The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so
+   * a diagnostic points at what the author wrote rather than a position in the flattened
+   * list.
    */
   path: string;
 }
@@ -1224,7 +1204,8 @@ export type DropReason =
   | "MissingTimestamp"
   | "NullOrUnrenderableId"
   | "PredicateExcluded"
-  | "IdTypeCollision";
+  | "IdTypeCollision"
+  | "DuplicateObjectRejected";
 
 export type DuplicateObjectPolicy = "first-wins" | "error";
 
@@ -1486,17 +1467,10 @@ export type ExtractionError =
   | {
       MissingEndpointsAtFinalize: {
         /**
-         * How many relations the sink could not resolve. Equals the number of
-         * [`MissingEndpoint`](Self::MissingEndpoint) errors an eager sink reports for the same
-         * run for an `E2O`/`O2O` endpoint or a `Target::Event`'s inline reference resolved via
-         * [`resolve_object_endpoint`](super::mapping_exec::resolve_object_endpoint) --
-         * **not** universally: an inline reference on a `Target::Event` whose own event this run
-         * dropped is reported by an eager sink as [`DropReason::UnresolvedEndpoint`] on that
-         * mapping, with no [`MissingEndpoint`] error pushed at all (there is no endpoint left to
-         * resolve), while a deferring sink -- which cannot know at the call site that the event
-         * will not exist -- stages the reference regardless and counts it here at finalize. This
-         * count can therefore exceed the eager sink's `MissingEndpoint` tally by exactly that
-         * many references.
+         * How many relations the sink could not resolve. Usually equals an eager sink's
+         * [`MissingEndpoint`](Self::MissingEndpoint) count for the same run, but can exceed it:
+         * a deferring sink also stages the inline references of a `Target::Event` whose event
+         * this run dropped, which an eager sink never asks about.
          */
         count: number;
       };
@@ -1618,62 +1592,118 @@ export type ValidationError =
        */
       template: string;
       type: "invalid-template";
+    }
+  | {
+      /**
+       * The contested output column name.
+       */
+      column: string;
+      /**
+       * The `Join` node.
+       */
+      node: string;
+      type: "ambiguous-join-column";
+    }
+  | {
+      /**
+       * That column's declared type, verbatim from the catalog.
+       */
+      col_type: string;
+      /**
+       * The column compared against.
+       */
+      column: string;
+      /**
+       * The kind `col_type` names: `text`, `integer`, `float`, `boolean` or `timestamp`.
+       */
+      expected: string;
+      /**
+       * The literal, as authored.
+       */
+      literal: string;
+      /**
+       * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
+       */
+      location: string;
+      type: "uncoercible-literal";
+    }
+  | {
+      /**
+       * The left operand's declared kind: `text`, `integer`, `float`, `boolean` or `timestamp`.
+       */
+      left_kind: string;
+      /**
+       * The mapping, by label or authored path, or the `Filter` node, the comparison sits in.
+       */
+      location: string;
+      /**
+       * The right operand's declared kind.
+       */
+      right_kind: string;
+      type: "incomparable-compare";
     };
 
 export interface ExtractionReport {
   /**
-   * Non-fatal problems collected while running -- a policy configured to error
-   * (`on_duplicate_object: Error`, `on_missing_endpoint: Error`) or a sink failure on one
-   * relation. Extraction continues past these; see [`ExtractionError`] for what aborts it
-   * instead.
+   * Non-fatal problems collected while running: a policy configured to error
+   * (`on_duplicate_object: Error`, `on_missing_endpoint: Error`), or an attribute type two
+   * mappings disagreed on. Extraction continues past these. See [`ExtractionError`] for what
+   * aborts it instead.
+   *
+   * Capped at [`MAX_REPORTED_ERRORS`], with the remainder counted in
+   * [`errors_suppressed`](Self::errors_suppressed).
    */
   errors: ExtractionError[];
+  /**
+   * Non-fatal problems the run hit past [`MAX_REPORTED_ERRORS`], which
+   * [`errors`](Self::errors) therefore does not name. Zero for every run under the cap.
+   */
+  errors_suppressed: number;
   finalize: FinalizeReport;
   /**
-   * One entry per mapping executed, in **desugared blueprint order** -- the order the author
-   * wrote the mappings in, with each ordered group expanded in place. Deliberately not
-   * execution order: execution is multi-pass and grouped by node (see
-   * [`extract`](super::extract::extract)), so there is no single linear order to report, and
-   * a diagnostic is far more useful indexed by what the author wrote. Each entry's
-   * [`MappingRef::path`] names that authored entry outright.
+   * One entry per mapping executed, in desugared blueprint order: the order the author wrote
+   * the mappings in, with each ordered group expanded in place. Not execution order,
+   * which is multi-pass and grouped by node. Each entry's [`MappingRef::path`] names the
+   * authored entry.
    */
   per_mapping: MappingStats[];
   /**
-   * The running total of rows every `Join`/`Union` materialisation this run performed
-   * produced -- summed across materialisations, **not** a peak: a run that materialises two
-   * nodes of a thousand rows each reports two thousand, even though the two never had to be
-   * live at the same moment. It is an upper bound on peak buffered rows, not the peak itself.
-   * (A cached materialisation is counted once, when it is computed, not again per reader.)
+   * Nodes whose source could have executed the whole node but the compiler declined to build
+   * the query for, paired with the reason, and deduplicated per node.
    *
-   * Includes the `Source`/`Filter` rows that fed a `Join`/`Union`, since those materialise
-   * too the moment one needs them as an input; see invariant I1 on
-   * [`extract`](super::extract::extract). Zero when no mapping's node graph contains a `Join`
-   * or `Union`, since a pure `Source -> Filter` chain streams and never buffers a row past
-   * the one being processed -- which is what makes zero here a meaningful witness that the
-   * run streamed.
+   * Always safe, since the executor runs the node itself. Reported because falling back on a
+   * `Join` is the one execution path whose memory grows with the data, so this explains a
+   * non-zero [`rows_materialized`](Self::rows_materialized).
+   */
+  pushdown_declined: PushdownDeclined[];
+  /**
+   * Rows every `Join`/`Union` materialization this run performed produced, summed across
+   * materializations rather than peaked: an upper bound on peak buffered rows. A cached
+   * materialization is counted once, when computed.
+   *
+   * Zero when no mapping's node graph contains a `Join` or `Union`, since a pure
+   * `Source -> Filter` chain streams. Zero is therefore a witness that the run streamed.
    */
   rows_materialized: number;
   /**
    * Where the run's wall-clock time went.
    *
-   * `None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a
-   * set of open providers and so has no idea what it cost to obtain them. The runner that owns
-   * the connections fills this in; the `extraction-dbcon` bindings do. Kept out of `extract` for a
-   * second reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate
-   * builds for wasm.
+   * `None` from [`extract`](super::extract::extract) itself, which is handed open providers
+   * and cannot know what they cost to obtain. The runner that owns the connections fills this
+   * in, as the `extraction-dbcon` bindings do. Also kept out of `extract` because
+   * `std::time::Instant` panics on `wasm32-unknown-unknown`.
    */
   timing?: ExtractionTiming | null;
 }
 
 export interface FinalizeReport {
   /**
-   * Repeated entity ids removed at finalize -- a deferring sink's share of
-   * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated), which it could
-   * not detect while writing.
+   * Repeated entity ids removed at finalize: a deferring sink's share of
+   * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated).
    */
   duplicates_removed: number;
   /**
-   * Objects synthesised at finalize under `on_missing_endpoint: Create`, for deferred
+   * Objects synthesized at finalize under `on_missing_endpoint: Create`, for deferred
    * endpoints that turned out not to exist.
    */
   objects_created: number;
@@ -1683,56 +1713,26 @@ export interface FinalizeReport {
    */
   resolved_relations: number;
   /**
-   * Relations whose deferred endpoint did not resolve. These are what a sink answering
-   * immediately would have counted per mapping as
-   * [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint);
-   * `on_missing_endpoint` decided what happened to them (dropped, or their object created).
+   * Relations whose deferred endpoint did not resolve. An eager sink counts these per mapping
+   * as [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint).
    */
   unresolved_endpoints: number;
 }
 
 export interface MappingStats {
   /**
-   * Rows that tried to create an entity **the sink already had**. Not a loss: an object mapping
+   * Rows that tried to create an entity the sink already had. Not a loss: an object mapping
    * at event grain names the same object on every row by design. See
    * [`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what
    * turns a repeat into a loss instead.
    *
-   * # Exactly what is counted
+   * One increment per row whose entity-creating call found the entity already present, across
+   * mappings, since the sink is what answers.
    *
-   * One increment per row whose entity-creating call found the entity already present:
-   *
-   * * a [`Target::Object`](super::blueprint::Target::Object) row whose
-   *   [`resolve_object`](super::sink::ExtractionSink::resolve_object) answered
-   *   [`Exists`](super::sink::Resolution::Exists), or whose
-   *   [`add_object`](super::sink::ExtractionSink::add_object) was refused with
-   *   [`SinkError::DuplicateObject`](super::sink::SinkError::DuplicateObject) -- the same event
-   *   seen through an eager and a deferring sink respectively, which is why both report the same
-   *   number;
-   * * a [`Target::Event`](super::blueprint::Target::Event) row whose `add_event` was refused
-   *   with [`SinkError::DuplicateEvent`](super::sink::SinkError::DuplicateEvent).
-   *
-   * **Including a repeat across two mappings**, which is a change in meaning from "rows that
-   * named an entity *this mapping* had already emitted". A second mapping naming an id a first
-   * mapping created now counts one deduplication, where it used to count none. That distinction
-   * needed one id set per mapping holding every id it named -- the last per-run structure whose
-   * size tracked the data -- and it could never have been made to agree across sinks anyway: a
-   * sink that answers [`Deferred`](super::sink::Resolution::Deferred) to every ask cannot say
-   * whose object it already had.
-   *
-   * # And what is not
-   *
-   * **Resolving a relation endpoint is never counted**, so an `E2O`/`O2O` mapping reports zero
-   * however often its rows repeat an id. Finding an endpoint that already exists is the normal
-   * successful case, not a deduplication -- counting it made a healthy `E2O` mapping over `n`
-   * rows report `n` deduplications (and `2n` for `O2O`) while nothing had been deduplicated at
-   * all. Counting only the repeats among them is what the per-mapping id set used to buy, and it
-   * went with it: a case-centric blueprint whose single event mapping creates its case objects
-   * through an inline reference used to report `rows - distinct cases` here and now reports
-   * zero. The objects are unaffected; only this counter is. A blueprint that wants that number
-   * reported can name the cases with a [`Target::Object`](super::blueprint::Target::Object)
-   * mapping, which is what [`FlatEventTable`](super::case_centric::FlatEventTable) already adds
-   * as soon as there are case attributes.
+   * Resolving a relation endpoint is never counted, so an `E2O`/`O2O` mapping reports zero
+   * however often its rows repeat an id: finding an existing endpoint is the normal successful
+   * case. A blueprint that wants its inline references' repeats counted can name the objects
+   * with their own [`Target::Object`](super::blueprint::Target::Object) mapping.
    */
   deduplicated: number;
   /**
@@ -1743,36 +1743,15 @@ export interface MappingStats {
     [k: string]: number;
   };
   /**
-   * Entities or relations this mapping *handed to the sink*.
+   * Entities or relations this mapping handed to the sink, which is not the same as
+   * "survived the run" for a sink that defers resolution.
    *
-   * # Not "survived the run", for a sink that defers resolution
-   *
-   * For an eager sink ([`SlimOcelSink`](super::slim_sink::SlimOcelSink)) the two coincide:
-   * a relation whose endpoint does not exist is refused at the call site, so it is counted
-   * under [`DropReason::UnresolvedEndpoint`] and never here.
-   *
-   * A sink that answers [`Resolution::Deferred`](super::sink::Resolution::Deferred) --
-   * [`DuckDbSink`](super::duckdb_sink::DuckDbSink) -- has no id index to refuse with, so the
-   * relation is written, counted here, and only deleted at
-   * [`finalize`](super::sink::ExtractionSink::finalize). The same dangling `E2O` therefore
-   * reads as
-   *
-   * | | eager | deferring |
-   * |---|---|---|
-   * | `entities_emitted` | 0 | 1 |
-   * | `dropped[UnresolvedEndpoint]` | 1 | absent |
-   * | [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) | 0 | 1 |
-   *
-   * This is the same reporting shift [`DuckDbSink`]'s own docs describe for `dropped`, seen
-   * from the other side: the loss is reported in bulk at finalize because the mapping that
-   * named the endpoint is long gone by then. Both logs still have the same contents.
-   *
-   * To compare two sinks, or to count what a run actually produced, subtract
-   * `ExtractionReport::finalize.unresolved_endpoints` from the run's total rather than
-   * reading a single mapping's counter -- per-mapping attribution of a deferred loss does not
-   * exist, by construction.
-   *
-   * [`DuckDbSink`]: super::duckdb_sink::DuckDbSink
+   * An eager sink refuses a dangling relation at the call site, so it lands in
+   * [`DropReason::UnresolvedEndpoint`] and never here. A deferring sink writes it, counts it
+   * here, and deletes it at [`finalize`](super::sink::ExtractionSink::finalize), reporting it
+   * in [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) instead. To count
+   * what a run produced, subtract `ExtractionReport::finalize.unresolved_endpoints` from the
+   * total.
    */
   entities_emitted: number;
   mapping: MappingRef;
@@ -1780,6 +1759,262 @@ export interface MappingStats {
    * Rows the mapping's node produced, before `when` was applied.
    */
   rows_read: number;
+  /**
+   * Attribute values that would not convert to their attribute's declared type, stored as
+   * `Null`. Not a dropped row: the entity was written, with one of its attributes empty.
+   */
+  uncoercible_attributes?: number;
+}
+
+export interface PushdownDeclined {
+  /**
+   * The node id, as the blueprint names it.
+   */
+  node: string;
+  /**
+   * What the compiler objected to.
+   */
+  reason:
+    | {
+        SynthesizedId: {
+          /**
+           * The absent field.
+           */
+          field: string;
+        };
+      }
+    | {
+        DynamicTypeName: {
+          /**
+           * Why no domain was available.
+           */
+          detail: string;
+          /**
+           * The position whose type is dynamic.
+           */
+          field: string;
+        };
+      }
+    | {
+        TypeDomainTooLarge: {
+          /**
+           * The cap.
+           */
+          cap: number;
+          /**
+           * The column the domain came from.
+           */
+          column: string;
+          /**
+           * How many values it has.
+           */
+          size: number;
+        };
+      }
+    | {
+        ReservedTypeName: {
+          /**
+           * The offending type name.
+           */
+          name: string;
+        };
+      }
+    | {
+        UnknownNode: {
+          /**
+           * The node id.
+           */
+          node: string;
+        };
+      }
+    | {
+        UnresolvedNodeSchema: {
+          /**
+           * The node id.
+           */
+          node: string;
+        };
+      }
+    | {
+        NodeCycle: {
+          /**
+           * A node id taking part in the cycle.
+           */
+          node: string;
+        };
+      }
+    | {
+        EmptyProjection: {
+          /**
+           * The node id.
+           */
+          node: string;
+        };
+      }
+    | {
+        EmptyUnion: {
+          /**
+           * The node id.
+           */
+          node: string;
+        };
+      }
+    | {
+        UnknownColumn: {
+          /**
+           * The column name.
+           */
+          column: string;
+          /**
+           * Which position referenced it.
+           */
+          field: string;
+        };
+      }
+    | {
+        UndeclaredColumnKind: {
+          /**
+           * The catalog's own type string.
+           */
+          col_type: string;
+          /**
+           * The column name.
+           */
+          column: string;
+          /**
+           * Which position referenced it.
+           */
+          field: string;
+        };
+      }
+    | {
+        UnstableIdentityRendering: {
+          /**
+           * The catalog's own type string.
+           */
+          col_type: string;
+          /**
+           * The column name.
+           */
+          column: string;
+          /**
+           * Which position referenced it.
+           */
+          field: string;
+        };
+      }
+    | {
+        UnstableDisplayRendering: {
+          /**
+           * The catalog's own type string.
+           */
+          col_type: string;
+          /**
+           * The column name.
+           */
+          column: string;
+          /**
+           * Which position referenced it.
+           */
+          field: string;
+        };
+      }
+    | {
+        ResidualTimestamp: {
+          /**
+           * What about it is residual.
+           */
+          detail: string;
+        };
+      }
+    | {
+        UndecidableJoinKey: {
+          /**
+           * The catalog's own type string.
+           */
+          col_type: string;
+          /**
+           * The column name.
+           */
+          column: string;
+          /**
+           * The join node's id.
+           */
+          node: string;
+          /**
+           * Which side the column is on.
+           */
+          side: string;
+        };
+      }
+    | {
+        InvalidRegex: {
+          /**
+           * The compiler's message.
+           */
+          message: string;
+          /**
+           * The pattern.
+           */
+          pattern: string;
+        };
+      }
+    | {
+        InvalidTemplate: {
+          /**
+           * What is wrong with it.
+           */
+          reason: string;
+          /**
+           * The template text.
+           */
+          template: string;
+        };
+      }
+    | {
+        AttributeCoercion: {
+          /**
+           * The attribute name.
+           */
+          attribute: string;
+          /**
+           * The catalog's own type string.
+           */
+          col_type: string;
+          /**
+           * The source column.
+           */
+          column: string;
+          /**
+           * The declared OCEL attribute type.
+           */
+          declared: string;
+        };
+      }
+    | {
+        DynamicTypeAttributeConflict: {
+          /**
+           * The attribute name.
+           */
+          attribute: string;
+        };
+      }
+    | {
+        ViewCycle: {
+          /**
+           * The relation's name.
+           */
+          view: string;
+        };
+      }
+    | {
+        Invalid: {
+          /**
+           * The rendered validation error.
+           */
+          detail: string;
+        };
+      };
 }
 
 export interface ExtractionTiming {
@@ -2221,18 +2456,6 @@ export type RejectReason =
       };
     }
   | {
-      UnportableRegex: {
-        /**
-         * Which construct made it unportable.
-         */
-        detail: string;
-        /**
-         * The pattern.
-         */
-        pattern: string;
-      };
-    }
-  | {
       InvalidRegex: {
         /**
          * The compiler's message.
@@ -2282,14 +2505,6 @@ export type RejectReason =
          * The attribute name.
          */
         attribute: string;
-      };
-    }
-  | {
-      UnsupportedEmissionShape: {
-        /**
-         * The shape asked for.
-         */
-        shape: string;
       };
     }
   | {
@@ -2409,11 +2624,11 @@ export type Target =
        * Event id. `None` assigns a UUID, which is not reproducible across runs and cannot
        * be compiled to a view.
        *
-       * It is also what coalesces a fan-out. Reading a join of orders and their items gives
-       * one row per item, so a `None` id makes one event per item; an id naming the order
-       * makes one event per order, still related to every item, because the repeated rows
-       * are counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)
-       * while `objects` below is emitted for each of them.
+       * It is also what coalesces a fan-out: over a join of orders and their items, a `None`
+       * id makes one event per item, an id naming the order one event per order, still related
+       * to every item. The repeated rows count as
+       * [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated) while
+       * `objects` below is emitted for each.
        */
       id?: ValueExpression | null;
       /**
@@ -2432,9 +2647,9 @@ export type Target =
             /**
              * Produces one text value from a row.
              *
-             * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-             * qualifiers -- uses this, and every variant propagates absence: if any input has no
-             * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+             * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+             * and qualifiers. Every variant propagates absence, so if any input has no
+             * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
              */
             source:
               | {
@@ -2488,9 +2703,9 @@ export type Target =
       /**
        * Produces one text value from a row.
        *
-       * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-       * qualifiers -- uses this, and every variant propagates absence: if any input has no
-       * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+       * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+       * and qualifiers. Every variant propagates absence, so if any input has no
+       * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
        */
       id:
         | {
@@ -2524,9 +2739,9 @@ export type Target =
       /**
        * Produces one text value from a row.
        *
-       * Every position that becomes an identity -- entity ids, relation endpoints, type names,
-       * qualifiers -- uses this, and every variant propagates absence: if any input has no
-       * [`Value::canonical_string`], the whole expression is `None` and the caller drops the row.
+       * Used by every position that becomes an identity: entity ids, relation endpoints, type names
+       * and qualifiers. Every variant propagates absence, so if any input has no
+       * [`Value::canonical_string`] the whole expression is `None` and the caller drops the row.
        */
       object_type:
         | {

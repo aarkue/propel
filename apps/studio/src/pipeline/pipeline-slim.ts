@@ -8,6 +8,7 @@ export function slimNode(n: AppNode): AppNode {
   if (nodeValueRole[n.type as keyof typeof nodeValueRole] === "run-result") {
     delete data.value;
     delete data.returnType;
+    delete data.mediaType;
     delete data.hasRun;
   }
   const { selected: _s, dragging: _d, resizing: _r, measured: _m, ...rest } = n as Record<string, unknown>;

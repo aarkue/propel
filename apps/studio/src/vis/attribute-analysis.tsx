@@ -1,4 +1,3 @@
-import type { IDockviewPanelProps } from "dockview";
 import { lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PiArrowLeft, PiTable } from "react-icons/pi";
@@ -14,17 +13,15 @@ import type {
   EventLogHandle,
   NumericStats,
 } from "@r4pm/client";
-import { withSelector, datasetEmptyBox } from "./_shared";
-import { useDatasetSelection } from "../panels/active-datasets";
 import { useDatasetScopedState } from "../panels/panel-state";
 import { backend } from "../backends";
-import { definePanel } from "./define-vis";
+import { type DatasetPanelProps, defineDatasetPanel } from "./define-vis";
 
 // Lazy so `@r4pm/components/charts` -> Plotly stays out of the initial load graph.
 const Plot = lazy(() => import("@r4pm/components/charts").then((m) => ({ default: m.ThemedPlot })));
 
-const GET_ATTRIBUTE_NAMES = "app_bindings::event_log::get_attribute_names" as const;
-const GET_ATTRIBUTE_SUMMARY = "app_bindings::event_log::get_attribute_summary" as const;
+const GET_ATTRIBUTE_NAMES = "app_bindings::get_attribute_names" as const;
+const GET_ATTRIBUTE_SUMMARY = "app_bindings::get_attribute_summary" as const;
 
 function kindColor(kind: AttributeKind): "blue" | "orange" | "violet" | "gray" {
   switch (kind) {
@@ -334,29 +331,20 @@ export function AttributeAnalysisPanel({
   );
 }
 
-export function AttributeAnalysisDockPanel(props: IDockviewPanelProps) {
-  const { id: log, selector } = useDatasetSelection("EventLog", props);
-  const [selected, setSelected] = useDatasetScopedState<SelectedAttribute>(
-    props,
-    "selected",
-    log ?? "",
-    null,
-  );
-  if (!log) return withSelector(selector, datasetEmptyBox("EventLog"), "attribute-analysis");
-  return withSelector(
-    selector,
+function AttributeAnalysisDockPanel({ id, props }: DatasetPanelProps) {
+  const [selected, setSelected] = useDatasetScopedState<SelectedAttribute>(props, "selected", id, null);
+  return (
     <AttributeAnalysisPanel
-      key={log}
       backend={backend}
-      eventLog={log as EventLogHandle}
+      eventLog={id as EventLogHandle}
       selected={selected}
       onSelectedChange={setSelected}
-    />,
-    "attribute-analysis",
+    />
   );
 }
 
-export const vis = definePanel({
+export const vis = defineDatasetPanel({
+  needs: "EventLog",
   type: "attributeAnalysis",
   name: "Attribute Analysis",
   description: "Per-attribute distribution, types, and stats for the event log.",

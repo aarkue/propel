@@ -1,8 +1,10 @@
-import type {
-  BackendContext,
-  OCDeclareArc as ClientArc,
-  OCDeclareDiscoveryOptions,
-  SlimLinkedOCELHandle,
+import {
+  type BackendContext,
+  type CallOptions,
+  CancelledError,
+  type OCDeclareArc as ClientArc,
+  type OCDeclareDiscoveryOptions,
+  type SlimLinkedOCELHandle,
 } from "@r4pm/client";
 import type { DiscoveryOptions, OCDeclareArc } from "@r4pm/components";
 import type { PanelViewState } from "./define-vis";
@@ -10,14 +12,11 @@ import type { PanelViewState } from "./define-vis";
 // OC-DECLARE calls and settings of the OC-DECLARE panel and the output viewer. `_`-prefixed so the
 // vis registry glob skips it.
 
-export const OC_DECLARE_DISCOVER =
-  "process_mining::discovery::object_centric::oc_declare::discover_behavior_constraints" as const;
-export const OC_DECLARE_PROJECT =
-  "process_mining::discovery::object_centric::oc_declare::project_oc_arcs" as const;
-export const OC_DECLARE_CONFORMANCE =
-  "process_mining::conformance::object_centric::oc_declare::oc_declare_conformance" as const;
-export const OCEL_TYPE_STATS = "process_mining::bindings::ocel_type_stats" as const;
-export const OCEL_INVOLVEMENTS = "app_bindings::ocel::get_ocel_activity_object_involvements" as const;
+export const OC_DECLARE_DISCOVER = "process_mining::discover_oc_declare" as const;
+export const OC_DECLARE_PROJECT = "process_mining::project_oc_arcs" as const;
+export const OC_DECLARE_CONFORMANCE = "process_mining::oc_declare_conformance" as const;
+export const OCEL_TYPE_STATS = "process_mining::ocel_type_stats" as const;
+export const OCEL_INVOLVEMENTS = "app_bindings::get_ocel_activity_object_involvements" as const;
 
 export const OC_DECLARE_DEFAULTS: OCDeclareDiscoveryOptions = {
   noise_threshold: 0.2,
@@ -115,22 +114,36 @@ export function showLabel(activities: string[], hidden: string[]): string {
     : `${shown} of ${activities.length} activities`;
 }
 
-/** Each arc's fraction of violating events on `ocel`. */
+/** Constraints checked at once: enough to keep the engine busy, few enough that Cancel stops the rest. */
+const EVALUATE_AT_ONCE = 4;
+
+/** Each arc's fraction of violating events on `ocel`, reporting how many arcs are checked. */
 export async function violationFractions(
   backend: Pick<BackendContext, "callBinding">,
   ocel: string,
   arcs: OCDeclareArc[],
+  job?: Pick<CallOptions, "signal" | "onProgress">,
 ): Promise<number[]> {
   const handle = ocel as SlimLinkedOCELHandle;
-  const conformance = await Promise.all(
-    arcs.map((arc) =>
-      backend.callBinding(OC_DECLARE_CONFORMANCE, { ocel: handle, arc: arc as unknown as ClientArc }),
-    ),
-  );
-  return conformance.map((c) => 1 - c);
+  const fractions = new Array<number>(arcs.length);
+  const total = arcs.length;
+  let next = 0;
+  let done = 0;
+  job?.onProgress?.({ stage: "Evaluating constraints", done, total });
+  const worker = async () => {
+    while (next < arcs.length) {
+      if (job?.signal?.aborted) throw new CancelledError();
+      const i = next++;
+      const arc = arcs[i] as unknown as ClientArc;
+      fractions[i] = 1 - (await backend.callBinding(OC_DECLARE_CONFORMANCE, { ocel: handle, arc }));
+      job?.onProgress?.({ stage: "Evaluating constraints", done: ++done, total });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(EVALUATE_AT_ONCE, arcs.length) }, worker));
+  if (job?.signal?.aborted) throw new CancelledError();
+  return fractions;
 }
 
-/** The OCEL's event and object type counts and activity involvements, for the OC-DECLARE panel. */
 export async function ocDeclarePanelExtras(backend: Pick<BackendContext, "callBinding">, ocel: string) {
   const handle = ocel as SlimLinkedOCELHandle;
   const [stats, activityInvolvements] = await Promise.all([

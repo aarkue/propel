@@ -82,15 +82,32 @@ fn get_initial_files(state: State<'_, InitialFiles>) -> Vec<String> {
 #[tauri::command]
 async fn execute_binding(
     app: AppHandle,
-    state: State<'_, ExtendedAppState>,
     function_id: String,
     args: Value,
     output_name: Option<String>,
+    job: Option<String>,
 ) -> Result<Value, String> {
-    let backend = TauriBackend::new(&app, &state);
-    let bytes =
-        backend_shared::execute_binding(&backend, &function_id, &args, output_name.as_deref())?;
-    serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+    // Long bindings (alignments, discovery) run on a blocking thread so they do not stall the
+    // async runtime that serves the other commands.
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<ExtendedAppState>();
+        let backend = TauriBackend::new(&app, &state);
+        let bytes = backend_shared::execute_binding(
+            &backend,
+            &function_id,
+            &args,
+            output_name.as_deref(),
+            job.as_deref(),
+        )?;
+        serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn cancel_job(app: AppHandle, state: State<'_, ExtendedAppState>, job: String) {
+    backend_shared::cancel_job(&TauriBackend::new(&app, &state), &job);
 }
 
 #[tauri::command]
@@ -115,16 +132,21 @@ async fn get_all_item_kinds() -> Result<Value, String> {
 #[tauri::command]
 async fn load_item_bytes(
     app: AppHandle,
-    state: State<'_, ExtendedAppState>,
     id: String,
     item_kind: String,
     data: Vec<u8>,
     format: String,
 ) -> Result<(), String> {
-    let backend = TauriBackend::new(&app, &state);
     let kind = RegistryItemKind::from_str(&item_kind)
         .map_err(|_| format!("Unknown item kind: {item_kind}"))?;
-    backend_shared::load_item_bytes(&backend, id, &kind, &data, &format)
+    // A large import runs for a while; like bindings, off the async runtime.
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<ExtendedAppState>();
+        let backend = TauriBackend::new(&app, &state);
+        backend_shared::load_item_bytes(&backend, id, &kind, &data, &format)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Returns [`tauri::ipc::Response`] rather than `Vec<u8>`: Tauri serialises a command's return
@@ -246,15 +268,19 @@ async fn load_artifact_path(
 #[tauri::command]
 async fn load_item_path(
     app: AppHandle,
-    state: State<'_, ExtendedAppState>,
     id: String,
     item_kind: String,
     path: String,
 ) -> Result<(), String> {
-    let backend = TauriBackend::new(&app, &state);
     let kind = RegistryItemKind::from_str(&item_kind)
         .map_err(|_| format!("Unknown item kind: {item_kind}"))?;
-    backend_shared::load_item_path(&backend, id, &kind, &path)
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<ExtendedAppState>();
+        let backend = TauriBackend::new(&app, &state);
+        backend_shared::load_item_path(&backend, id, &kind, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -354,6 +380,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             execute_binding,
+            cancel_job,
             get_all_objects_with_type,
             list_functions,
             get_all_item_kinds,

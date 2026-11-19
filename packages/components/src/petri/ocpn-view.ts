@@ -9,10 +9,17 @@ import type { PetriElements } from "./editor/helpers/viz-layout";
 
 // The object-centric Petri net views' layout and on-screen look, drawn like rust4pm's `ocpn` export.
 
-/** Lay `ocpn` out with rust4pm, or in a row without a `viz` transport. */
-export function layoutOcpn(viz: VizTransport | undefined, ocpn: Ocpn): Promise<PetriElements> {
+/** Lay `ocpn` out with rust4pm, or in a row without a `viz` transport. `options` are rust4pm's
+ *  `OcpnBuildOptions`, e.g., `badges` that widen their transitions. */
+export function layoutOcpn(
+  viz: VizTransport | undefined,
+  ocpn: Ocpn,
+  options?: Record<string, unknown>,
+): Promise<PetriElements> {
   const elements = ocpnElements(ocpn);
-  return viz ? layoutOcpnElements(viz, ocpn, elements) : noopPetriLayout(elements.nodes, elements.edges);
+  return viz
+    ? layoutOcpnElements(viz, ocpn, elements, options)
+    : noopPetriLayout(elements.nodes, elements.edges);
 }
 
 /** Border and token color of a place without an object type yet. */

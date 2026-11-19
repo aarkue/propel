@@ -38,14 +38,14 @@ compiled `WebAssembly.Module`.
 
 A host that already runs rust4pm (a server, a desktop app, a worker) can run the bindings there and
 ship no wasm at all. A `VizTransport` has one method: call the binding
-`process_mining::visualization::bindings::<fn>` with the given JSON arguments and return its JSON
+`process_mining::<fn>` with the given JSON arguments and return its JSON
 result.
 
 ```ts
 import type { VizTransport } from "@r4pm/components";
 
 const viz: VizTransport = {
-  call: (fn, args) => callMyBackend(`process_mining::visualization::bindings::${fn}`, args),
+  call: (fn, args) => callMyBackend(`process_mining::${fn}`, args),
 };
 ```
 

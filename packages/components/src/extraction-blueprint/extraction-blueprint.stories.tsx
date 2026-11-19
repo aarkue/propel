@@ -193,6 +193,8 @@ function mockCallbacks(): BlueprintEditCallbacks {
           dropped: { PredicateExcluded: 5, UnresolvedEndpoint: 0 },
         })),
         errors: [],
+        errors_suppressed: 0,
+        pushdown_declined: [],
         rows_materialized: 256,
         finalize: {
           duplicates_removed: 0,

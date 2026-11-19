@@ -1,4 +1,4 @@
-import { Badge, ContextMenu, Heading, Text } from "@r4pm/components/ui";
+import { ContextMenu } from "@r4pm/components/ui";
 import {
   type DockviewApi,
   DockviewReact,
@@ -10,16 +10,17 @@ import {
   themeLight,
 } from "dockview";
 import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
-import { PiArrowDown, PiArrowLeft, PiArrowRight, PiArrowUp, PiPlus, PiSparkle, PiX } from "react-icons/pi";
+import { PiArrowDown, PiArrowLeft, PiArrowRight, PiArrowUp, PiPlus, PiX } from "react-icons/pi";
 import { getDockviewApi, setDockviewApi } from "./dockviewApi";
 import { useDatasets } from "../stores";
 import { ViewerExportFrame } from "@r4pm/components";
-import { addPanelToDockview, getPanelByType, panelComponents, VISIBLE_PANELS } from "../panels/registry";
+import { getPanelByType, panelComponents } from "../panels/registry";
 import { backend } from "../backends";
 import { getLiveLayout, markLiveLayoutDirty, scheduleSessionSave } from "../persistence/session";
-import { colorForKind, labelForKind } from "./object-colors";
 import { useThemeMode } from "./theme-context";
 import { WelcomeScreen } from "./WelcomeScreen";
+import { ExploreHome } from "./Explore";
+import { useExplore } from "../stores/explore";
 
 export function Dashboard() {
   const { resolved } = useThemeMode();
@@ -67,18 +68,27 @@ export function Dashboard() {
     }
   };
 
+  const explore = useExplore((s) => s.open);
+
   return (
-    <div className="w-full h-full relative">
-      <DockviewReact
-        defaultRenderer="always"
-        theme={resolved === "dark" ? themeDark : themeLight}
-        className="w-full h-full"
-        onReady={onReady}
-        components={getComponents()}
-        watermarkComponent={EmptyPanelsPlaceholder}
-        defaultTabComponent={CustomTab}
-        rightHeaderActionsComponent={AddTabButton}
-      />
+    <div className="w-full h-full flex flex-col">
+      <div className="flex-1 min-h-0 relative">
+        {explore && (
+          <div className="absolute inset-0 z-[60]">
+            <ExploreHome />
+          </div>
+        )}
+        <DockviewReact
+          defaultRenderer="always"
+          theme={resolved === "dark" ? themeDark : themeLight}
+          className="w-full h-full"
+          onReady={onReady}
+          components={dockComponents()}
+          watermarkComponent={EmptyPanelsPlaceholder}
+          defaultTabComponent={CustomTab}
+          rightHeaderActionsComponent={AddTabButton}
+        />
+      </div>
     </div>
   );
 }
@@ -217,12 +227,6 @@ function CustomTab({
 
 function EmptyPanelsPlaceholder() {
   const datasets = useDatasets((s) => s.datasets);
-  const loadedKinds = new Set(datasets.map((d) => d.kind));
-  // Suggest the first few panels compatible with each loaded kind.
-  const suggested = VISIBLE_PANELS.filter((p) => p.supports?.some((k) => loadedKinds.has(k)) ?? false).slice(
-    0,
-    8,
-  );
   const [forceWelcome, setForceWelcome] = useState(false);
 
   useEffect(() => {
@@ -235,67 +239,15 @@ function EmptyPanelsPlaceholder() {
     return <WelcomeScreen canReturn={forceWelcome} onReturn={() => setForceWelcome(false)} />;
   }
 
-  return (
-    <div className="inset-0 z-50 flex items-center justify-center bg-[var(--color-background)] overflow-hidden">
-      <div className="flex flex-col items-center text-center gap-4 px-8 py-8 max-w-3xl">
-        <div className="rounded-full bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-3">
-          <PiSparkle size={28} />
-        </div>
-        <div>
-          <Heading size="5" className="!mb-1">
-            Start exploring
-          </Heading>
-          <Text size="2" color="gray">
-            Pick a starter panel or browse the full gallery.
-          </Text>
-        </div>
-
-        {suggested.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full mt-2">
-            {suggested.map((panel) => {
-              const Icon = panel.icon;
-              return (
-                <button
-                  key={panel.type}
-                  type="button"
-                  onClick={() => addPanelToDockview(panel.type)}
-                  className="group flex flex-col items-start text-left gap-2 p-4 rounded-md border border-[var(--gray-a5)] hover:border-[var(--indigo-8)] hover:bg-[var(--indigo-a2)] transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 w-full">
-                    <div className="rounded bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-1.5 group-hover:bg-[var(--indigo-a5)] transition-colors">
-                      <Icon size={16} />
-                    </div>
-                    <Text size="2" weight="medium" className="truncate">
-                      {panel.name}
-                    </Text>
-                  </div>
-                  <Text size="1" color="gray" className="leading-snug line-clamp-2">
-                    {panel.description}
-                  </Text>
-                  <div className="flex gap-1 mt-auto">
-                    {panel.supports?.map((k) => (
-                      <Badge key={k} size="1" variant="soft" color={colorForKind(k)}>
-                        {labelForKind(k)}
-                      </Badge>
-                    ))}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("propel-open-gallery"))}
-          className="text-xs text-[var(--gray-11)] hover:text-[var(--indigo-11)] cursor-pointer underline-offset-2 hover:underline mt-2"
-        >
-          Browse all panels
-        </button>
-      </div>
-    </div>
-  );
+  return <ExploreHome />;
 }
+
+// Built once: fresh component identities on each render would remount every panel.
+let components: ReturnType<typeof getComponents> | undefined;
+const dockComponents = () => {
+  components ??= getComponents();
+  return components;
+};
 
 function getComponents(): Record<string, (props: IDockviewPanelProps) => ReactElement> {
   const comps = panelComponents();

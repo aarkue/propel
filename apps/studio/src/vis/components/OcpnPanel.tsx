@@ -1,5 +1,7 @@
 import { ObjectCentricPetriNetWorkbench, type Ocpn, type ViewerProps } from "@r4pm/components";
 import { objectLabel } from "../../stores";
+import { OcpnSaveButton } from "./OcpnActions";
+import { useReflowAnnotations } from "./reflow-annotations";
 import { saveOcTraceAsOcel } from "./save-oc-trace";
 
 /** Studio component for any shown object-centric Petri net: the pure workbench plus the backend-bound
@@ -7,10 +9,18 @@ import { saveOcTraceAsOcel } from "./save-oc-trace";
  *  `AppViewerConfig`). */
 export function OcpnPanel({ data, handle }: ViewerProps<Ocpn>) {
   const label = handle ? `Simulated from OCPN of ${objectLabel(handle)}` : undefined;
+  const { badges, picker } = useReflowAnnotations(handle);
   return (
     <ObjectCentricPetriNetWorkbench
       data={data}
       onSaveTraceAsLog={(trace) => saveOcTraceAsOcel(trace, label)}
+      badges={badges}
+      toolbar={(net) => (
+        <>
+          {picker}
+          <OcpnSaveButton net={net} name={handle ? `OCPN of ${objectLabel(handle)}` : "OCPN"} />
+        </>
+      )}
     />
   );
 }

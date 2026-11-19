@@ -21,10 +21,10 @@ export const vis = defineVis({
   order: 3,
   controls: { initial: { x: "Time", y: "Case", color: "Activity" } satisfies DottedChartAxisConfig },
   source: {
-    binding: "process_mining::analysis::case_centric::dotted_chart::get_dotted_chart",
+    binding: "process_mining::get_dotted_chart",
     needs: "EventLog",
     args: (ctx, c) => ({
-      xes: ctx.datasetId as EventLogHandle,
+      log: ctx.datasetId as EventLogHandle,
       options: { x_axis: c.x, y_axis: c.y, color_axis: c.color, timestamp_key: TIMESTAMP_KEY },
     }),
   },

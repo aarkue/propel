@@ -124,6 +124,22 @@ A series of (x, y) coordinates for one color group in a dotted chart.
 | `x` | `number[]` | X-axis values (interpretation depends on `DottedChartXAxis`). |
 | `y` | `number[]` | Y-axis indices into `DottedChartData::y_values`. |
 
+### EscapingActivity
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `activity?` | `string \| null` |  |
+| `weight` | `number` |  |
+
+### EscapingEdgeSummary
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `prefix_tail` | `string \| null[]` | The last steps of the path to the state, oldest first |
+| `prefix_len` | `number` | Length of the full path to the state |
+| `escaping?` | `string \| null` |  |
+| `weight` | `number` |  |
+
 ### FitnessResult
 
 Alignment Fitness Result
@@ -132,7 +148,7 @@ Alignment Fitness Result
 | --- | --- | --- |
 | `log_fitness` | `number` | Log fitness, as the total computed fitness (summing up the costs for all traces) |
 | `average_fitness` | `number` | Average trace fitness (across all traces) |
-| `perfectly_fitting_frac` | `number` | Fraction of traces that perfectly fit (i.e., have an alignment cost of `0`) |
+| `perfectly_fitting_frac` | `number` | Fraction of traces that perfectly fit (i.e., whose alignment has no log moves and no model moves of visible transitions) |
 | `total_costs` | `number` | The total cost, summed up from all traces |
 
 ### JsonArc
@@ -182,6 +198,7 @@ Everything the alignment visualizations need, computed in one call.
 | `variant_alignments` | `VariantAlignmentResult[]` | Per-variant alignment (activity sequence, frequency, the move sequence + cost). |
 | `fitness?` | `FitnessResult \| null` | Aggregate alignment fitness (`None` if fitness could not be computed). |
 | `aggregated` | `AlignmentAggregate` | Pre-aggregated per-transition / per-activity deviation counts (for a net heatmap). |
+| `precision?` | `PrecisionSummary \| null` | Escaping-edges precision from the same alignments (`None` if it could not be computed). |
 
 ### LogClassifierInfo
 
@@ -297,7 +314,21 @@ Place in a `PetriNet`
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `name?` | `string \| null` | External identifier (e.g., the PNML id), not used for identity |
+| `name?` | `string \| null` | External name (e.g., the PNML `\<name>`), not used for identity |
+
+### PrecisionSummary
+
+Escaping-edges precision with the escaping edges summarized for display.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `precision` | `number` | Weighted share of the behavior the model allows that the log takes |
+| `weighted_available` | `number` |  |
+| `weighted_escaping` | `number` |  |
+| `num_states` | `number` |  |
+| `search_limit_reached` | `boolean` | A search limit was hit, so `precision` may be off |
+| `by_activity` | `EscapingActivity[]` | Per escaping activity (`None` = stopping where traces never stop), its total weight, highest first |
+| `top_edges` | `EscapingEdgeSummary[]` | The heaviest escaping edges, highest weight first |
 
 ### ProcessTree
 
@@ -323,7 +354,7 @@ Transition in a `PetriNet`
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `label?` | `string \| null` | Activity label (`None` if this transition is silent) |
+| `label` | `string \| null` | Activity label (`None` if this transition is silent) |
 | `name?` | `string \| null` | External identifier (e.g., the PNML id), not used for identity |
 | `inputs` | `[number, number][]` | The places this transition takes tokens from, with the number of tokens |
 | `outputs` | `[number, number][]` | The places this transition puts tokens into, with the number of tokens |
@@ -361,5 +392,5 @@ Alignment result for a single trace variant
 | `OCELAttributeValue` | `number \| number \| boolean \| string \| string \| null` | OCEL Attribute Values |
 | `OperatorType` | `"Sequence" \| "ExclusiveChoice" \| "Concurrency" \| "Loop" \| "Interleaving" \| "InclusiveChoice"` | Operator type enum for `Operator` |
 | `Result_of_AlignmentResult_or_AlignmentError` | `{ Ok: AlignmentResult } \| { Err: AlignmentError }` |  |
-| `SearchError` | `"LimitReached" \| "MemoryLimitReached" \| "Unreachable" \| "MaxEdgeCostTooLarge"` | Reason `search` found no path |
+| `SearchError` | `"LimitReached" \| "MemoryLimitReached" \| "Unreachable" \| "MaxEdgeCostTooLarge" \| "Cancelled"` | Reason `search` found no path |
 | `SyncProdNetConstructionError` | `{ InvalidPlaceInMarking: number } \| { ArcWeightTooLarge: number } \| { MarkingTooLarge: [number, number] } \| { TraceTooLong: number }` | Error when constructing the sync product net |

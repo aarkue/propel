@@ -34,6 +34,8 @@ describe("reportRowCount", () => {
       reportRowCount({
         per_mapping: [stats({}), stats({})],
         errors: [],
+        errors_suppressed: 0,
+        pushdown_declined: [],
         rows_materialized: 0,
         finalize: {
           duplicates_removed: 0,

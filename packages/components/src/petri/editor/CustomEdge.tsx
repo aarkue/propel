@@ -46,11 +46,7 @@ export default function CustomEdge(props: EdgeProps) {
       badge={ov?.badge}
       onEdgeClick={ov?.onClick ?? baseData?.onClick}
       onEdgeContextMenu={ov?.onContextMenu ?? baseData?.onContextMenu}
-      midSlot={
-        <span style={{ position: "relative", width: "0.75rem", height: "0.75rem" }}>
-          <DeleteButton edgeID={props.id} />
-        </span>
-      }
+      midSlot={<DeleteButton edgeID={props.id} />}
     />
   );
 }

@@ -1,6 +1,7 @@
 import { type ReactNode, useMemo } from "react";
 import toast from "react-hot-toast";
-import { makeColorResolver, makeFormat, registerColorKey, stableColor, usePreferences } from "../stores";
+import { colorForSeed } from "@r4pm/components";
+import { makeColorResolver, makeFormat, registerColorKey, usePreferences } from "../stores";
 import { ViewerConfigProvider, type ViewerAction } from "@r4pm/components";
 import { vizTransport } from "../backends";
 
@@ -21,7 +22,8 @@ const APP_ACTIONS: ViewerAction[] = [
       const input = document.createElement("input");
       input.type = "color";
       input.value =
-        usePreferences.getState().colorOverrides[`${t.scope}:${t.key}`] ?? stableColor(`${t.scope}:${t.key}`);
+        usePreferences.getState().colorOverrides[`${t.scope}:${t.key}`] ??
+        colorForSeed(`${t.scope}:${t.key}`);
       input.addEventListener("input", () => usePreferences.getState().setColor(t.scope, t.key, input.value));
       input.click();
     },

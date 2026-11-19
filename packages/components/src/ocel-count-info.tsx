@@ -1,4 +1,5 @@
-import { Card, Text } from "@r4pm/components/ui";
+import { Text } from "@r4pm/components/ui";
+import { fmtInt, Metric, MetricRow, Section } from "./kit";
 import { type ReactNode, useMemo, useState } from "react";
 import { LuClock, LuHash, LuToggleRight, LuType } from "react-icons/lu";
 import type { StaticViewerProps } from "./viewer/viewer-config";
@@ -144,21 +145,27 @@ export function OCELCountInfo({
 
   // Root sizes inline so it fills its container; inner layout uses Tailwind from the bundled stylesheet.
   return (
-    <div style={{ width: "100%", height: "100%", minHeight: 200, overflow: "auto", padding: 8 }}>
-      <Card>
-        <Text as="div" size="4" weight="bold" mb="3">
-          OCEL Counts
-        </Text>
+    <div style={{ width: "100%", height: "100%", minHeight: 200, overflow: "auto", padding: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1240 }}>
+        <MetricRow>
+          <Metric
+            label="Events"
+            value={fmtInt(numEvents)}
+            hint={`${Object.keys(data.event_type_counts).length} event types`}
+          />
+          <Metric
+            label="Objects"
+            value={fmtInt(numObjects)}
+            hint={`${Object.keys(data.object_type_counts).length} object types`}
+          />
+          {numObjects > 0 && (
+            <Metric label="Events per object" value={(numEvents / numObjects).toFixed(2)} hint="on average" />
+          )}
+        </MetricRow>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 32, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <Text as="div" size="2" weight="bold" mb="1">
-              Events{" "}
-              <Text color="gray" weight="regular">
-                ({numEvents.toLocaleString("en")})
-              </Text>
-            </Text>
+          <Section title="Event types" style={{ flex: 1, minWidth: 260 }}>
             {/* cap list height so long type lists scroll instead of pushing content down */}
-            <div style={{ maxHeight: 320, overflowY: "auto" }}>
+            <div style={{ maxHeight: 360, overflowY: "auto" }}>
               <RankedBarList
                 items={data.event_type_counts}
                 scope="activity"
@@ -167,15 +174,9 @@ export function OCELCountInfo({
                 selectedKey={selected?.scope === "event" ? selected.type : undefined}
               />
             </div>
-          </div>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <Text as="div" size="2" weight="bold" mb="1">
-              Objects{" "}
-              <Text color="gray" weight="regular">
-                ({numObjects.toLocaleString("en")})
-              </Text>
-            </Text>
-            <div style={{ maxHeight: 320, overflowY: "auto" }}>
+          </Section>
+          <Section title="Object types" style={{ flex: 1, minWidth: 260 }}>
+            <div style={{ maxHeight: 360, overflowY: "auto" }}>
               <RankedBarList
                 items={data.object_type_counts}
                 scope="objectType"
@@ -184,7 +185,7 @@ export function OCELCountInfo({
                 selectedKey={selected?.scope === "object" ? selected.type : undefined}
               />
             </div>
-          </div>
+          </Section>
         </div>
         {selected && selectedAttrs && (
           <AttributeDetail
@@ -197,11 +198,11 @@ export function OCELCountInfo({
         )}
         {selected && activeAttr && renderAttributeDetail?.(selected.scope, selected.type, activeAttr)}
         {clickable && !selected && (
-          <Text as="div" size="1" color="gray" mt="3">
+          <Text as="div" size="1" color="gray">
             Click a type for its attributes
           </Text>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

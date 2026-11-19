@@ -1,4 +1,4 @@
-import type { OCDeclareArc as ClientArc, SlimLinkedOCELHandle } from "@r4pm/client";
+import { type OCDeclareArc as ClientArc, isCancelled, type SlimLinkedOCELHandle } from "@r4pm/client";
 import {
   arcsToModel,
   type DeclareFlowModel,
@@ -6,6 +6,8 @@ import {
   fromModelFile,
   isProjected,
   mergeArcs,
+  JobProgressCard,
+  JobProgressStrip,
   OC_DECLARE_HIDDEN_ACTIVITIES_KEY,
   type OCDeclareArc,
   OCDeclareViz,
@@ -16,7 +18,9 @@ import {
 import { Button, Flex, IconButton, SegmentedControl, Text, Tooltip } from "@r4pm/components/ui";
 import { useQuery } from "@tanstack/react-query";
 import type { IDockviewPanelProps } from "dockview";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { addPanelToDockview } from "../../panels/registry";
+import { violationPanelParams } from "../oc-declare-violations";
 import toast from "react-hot-toast";
 import { PiArrowsClockwise, PiLightning, PiListBullets, PiX } from "react-icons/pi";
 import { backend } from "../../backends";
@@ -47,11 +51,16 @@ import {
   viewStateForEdit,
   withEvaluation,
 } from "../_oc-declare-workbench";
+import { JOB_UNITS } from "../../shell/job-units";
 import { objectLabel } from "../../stores";
 import type { PanelViewState } from "../define-vis";
 import { OCDeclareBar } from "./OCDeclareBar";
+import { useJobProgress } from "./use-job";
 import { OCDeclareModelActions } from "./OCDeclareModelActions";
 import { ReplaceModelDialog } from "./ReplaceModelDialog";
+
+const ACTIVITY_STATS = "app_bindings::oc_declare_activity_statistics" as const;
+const EDGE_STATS = "app_bindings::oc_declare_edge_statistics" as const;
 
 const EMPTY_MODEL: DeclareFlowModel = { nodes: [], edges: [] };
 const EMPTY_VIEW_STATE: Record<string, unknown> = {};
@@ -102,6 +111,17 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
   const [pending, setPending] = useState<{ arcs: OCDeclareArc[]; run: DiscoveryRun } | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [evaluating, setEvaluating] = useState(false);
+  const evalJob = useJobProgress();
+  const evalAbort = useRef<AbortController | null>(null);
+  const discoverJob = useJobProgress();
+  const discoverAbort = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      evalAbort.current?.abort();
+      discoverAbort.current?.abort();
+    },
+    [],
+  );
   const { viz } = useViewerConfig({});
 
   const latest = useRef({ model, origin });
@@ -197,12 +217,17 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
 
   const discover = async () => {
     if (!current) return;
+    discoverAbort.current?.abort();
+    const ctrl = new AbortController();
+    discoverAbort.current = ctrl;
+    const hooks = discoverJob.start(ctrl.signal);
     setDiscovering(true);
     try {
-      const found = (await backend.callBinding(OC_DECLARE_DISCOVER, {
-        locel: current.ocel as SlimLinkedOCELHandle,
-        options: current.options,
-      })) as unknown as OCDeclareArc[];
+      const found = (await backend.callBinding(
+        OC_DECLARE_DISCOVER,
+        { ocel: current.ocel as SlimLinkedOCELHandle, options: current.options },
+        hooks.job,
+      )) as unknown as OCDeclareArc[];
       // Discovery can take a while, so decide on the model as it is now, not at the click.
       const now = latest.current;
       if (asksBeforeReplace(now.origin, now.model.nodes.length > 0))
@@ -212,28 +237,40 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
         replaceModel(arcsToModel(found), "discovered");
       }
     } catch (e) {
-      toast.error(`Discovery failed: ${String(e)}`);
+      if (!isCancelled(e)) toast.error(`Discovery failed: ${String(e)}`);
     } finally {
-      setDiscovering(false);
+      if (discoverAbort.current === ctrl) {
+        discoverAbort.current = null;
+        setDiscovering(false);
+        discoverJob.reset();
+      }
     }
   };
 
   const evaluate = async () => {
     if (!ocel) return;
+    evalAbort.current?.abort();
+    const ctrl = new AbortController();
+    evalAbort.current = ctrl;
+    const hooks = evalJob.start(ctrl.signal);
     setEvaluating(true);
     try {
       const base = shownBase;
       const shownArcs = toArcs(base);
-      const violations = await violationFractions(backend, ocel, shownArcs);
+      const violations = await violationFractions(backend, ocel, shownArcs, hooks.job);
       setEvaluation({
         key: contentKey(base),
         ocel,
         violations: Object.fromEntries(shownArcs.map((a, i) => [arcKey(a), violations[i]])),
       });
     } catch (e) {
-      toast.error(`Evaluation failed: ${String(e)}`);
+      if (!isCancelled(e)) toast.error(`Evaluation failed: ${String(e)}`);
     } finally {
-      setEvaluating(false);
+      if (evalAbort.current === ctrl) {
+        evalAbort.current = null;
+        setEvaluating(false);
+        evalJob.reset();
+      }
     }
   };
 
@@ -267,6 +304,25 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
     activityInvolvements: involvements,
     relatedTypes,
     activityPicker: false,
+    onActivityStatistics: ocel
+      ? (activity: string) =>
+          backend.callBinding(ACTIVITY_STATS, { ocel: ocel as SlimLinkedOCELHandle, activity })
+      : undefined,
+    onEdgeStatistics: ocel
+      ? (arc: OCDeclareArc) =>
+          backend.callBinding(EDGE_STATS, {
+            ocel: ocel as SlimLinkedOCELHandle,
+            arc: arc as unknown as ClientArc,
+          })
+      : undefined,
+    onExploreViolations: ocel
+      ? (arc: OCDeclareArc) =>
+          addPanelToDockview(
+            "ocDeclareViolations",
+            `Violations of ${arc.from} → ${arc.to}`,
+            violationPanelParams(ocel, arc),
+          )
+      : undefined,
   };
 
   const discoverLabel = discovering
@@ -302,7 +358,16 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
   const marked = (mode === "edit" ? editValue : shown).edges.some((e) => e.violation !== undefined);
 
   let body: React.ReactNode;
-  if (!hasModel && origin !== "edited") {
+  if (!hasModel && origin !== "edited" && discovering) {
+    body = (
+      <JobProgressCard
+        progress={discoverJob.progress}
+        onCancel={() => discoverAbort.current?.abort()}
+        label="Discovering constraints..."
+        units={JOB_UNITS}
+      />
+    );
+  } else if (!hasModel && origin !== "edited") {
     body = (
       <Flex
         direction="column"
@@ -410,6 +475,19 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
           />
         </Flex>
       </div>
+      {discovering && hasModel ? (
+        <JobProgressStrip
+          progress={discoverJob.progress}
+          onCancel={() => discoverAbort.current?.abort()}
+          units={JOB_UNITS}
+        />
+      ) : evaluating ? (
+        <JobProgressStrip
+          progress={evalJob.progress}
+          onCancel={() => evalAbort.current?.abort()}
+          units={JOB_UNITS}
+        />
+      ) : null}
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>{body}</div>
       <ReplaceModelDialog
         open={pending !== null}

@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig, type Plugin } from "vite";
+import { type Connect, defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -25,6 +26,29 @@ function propelExtensions(): Plugin {
   };
 }
 
+/**
+ * Serve `public/**.gz` as the gzip files they are. Vite's static server marks them
+ * `Content-Encoding: gzip`, so the browser unpacks them: the 3 MB RTFM sample arrives as 185 MB of
+ * XML, which the app then hands to the engine. The engine reads gzip itself.
+ */
+function gzipAsIs(): Plugin {
+  const publicDir = fileURLToPath(new URL("./public", import.meta.url));
+  const serve: Connect.NextHandleFunction = (req, res, next) => {
+    const path = decodeURIComponent((req.url ?? "").split("?")[0]);
+    if (!path.endsWith(".gz")) return next();
+    const file = join(publicDir, normalize(path));
+    if (!file.startsWith(publicDir) || !existsSync(file)) return next();
+    res.setHeader("Content-Type", "application/gzip");
+    res.setHeader("Content-Length", statSync(file).size);
+    createReadStream(file).pipe(res);
+  };
+  return {
+    name: "gzip-as-is",
+    configureServer: (server) => void server.middlewares.use(serve),
+    configurePreviewServer: (server) => void server.middlewares.use(serve),
+  };
+}
+
 export default defineConfig(({ mode }) => {
   // tauri/webserver use the native/HTTP backend; stub the wasm engine out of those bundles.
   const stubWasm = mode === "tauri" || mode === "webserver";
@@ -32,7 +56,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
     },
-    plugins: [propelExtensions(), react(), tailwindcss()],
+    plugins: [propelExtensions(), gzipAsIs(), react(), tailwindcss()],
     resolve: {
       alias: {
         "@propel-engine": fileURLToPath(new URL("../../engine/wasm/pkg", import.meta.url)),
@@ -47,9 +71,11 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: { exclude: ["@r4pm/components"] },
     server: {
       fs: { allow: ["../.."] },
-      // `--mode webserver`: proxy /api to the axum engine (PROPEL_PORT 3751).
+      // Off for `pnpm thumbnails`: a reload mid-run would lose the loaded samples.
+      hmr: process.env.PROPEL_NO_HMR ? false : undefined,
+      // `--mode webserver`: proxy /api to the axum engine (PROPEL_PORT, default 3751).
       proxy: {
-        "/api": { target: "http://localhost:3751", changeOrigin: true },
+        "/api": { target: `http://localhost:${process.env.PROPEL_PORT ?? 3751}`, changeOrigin: true },
       },
     },
     build: {

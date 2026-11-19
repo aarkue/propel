@@ -8,6 +8,8 @@ export function MinerPicker(props: {
   value: MinerChoice;
   onChange: (value: MinerChoice) => void;
   variants: readonly MinerVariant[];
+  withNoise?: boolean;
+  disabled?: boolean;
 }) {
   const { value } = props;
   const preset = useQuery({

@@ -7,13 +7,27 @@ use process_mining::{
 };
 
 pub mod alignments;
+pub mod animation;
+mod control;
+pub mod dfg_compare;
 pub mod event_log;
+pub mod execution_graph;
+pub mod log_overview;
+pub mod object_lifecycles;
+pub mod oc_declare_explorer;
 pub mod ocel;
+pub mod ocel_overview;
+pub mod ocpn_replay;
+pub mod performance_spectrum;
 pub mod petri_net_io;
+pub mod prefix_tree;
+pub mod repairs;
 pub mod slim_project;
 pub mod transforms;
 pub mod types;
 pub mod variant_timing;
+pub mod workload;
+mod xes_event;
 
 /// Health-check binding.
 #[register_binding]
@@ -32,14 +46,14 @@ pub fn alphappp_auto(log_proj: &EventLogActivityProjection) -> AcceptingPetriNet
 #[register_binding]
 pub fn discover_petri_net(event_log: &process_mining::EventLog) -> AcceptingPetriNet {
     let proj = EventLogActivityProjection::from(event_log);
-    let net = process_mining::discovery::case_centric::alphappp::full::discover_alphappp_net(
+
+    process_mining::discovery::case_centric::alphappp::full::discover_alphappp_net(
         &proj,
         AlphaPPPConfig {
             absolute_df_clean_thresh: 0,
             ..Default::default()
         },
-    );
-    net
+    )
 }
 
 #[cfg(test)]

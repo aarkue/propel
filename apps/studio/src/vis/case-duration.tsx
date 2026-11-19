@@ -18,7 +18,7 @@ export const vis = defineVis({
   keywords: ["lead time", "cycle time", "duration", "histogram"],
   order: 10,
   source: {
-    binding: "app_bindings::event_log::get_case_durations",
+    binding: "app_bindings::get_case_durations",
     needs: "EventLog",
     args: (ctx) => ({ event_log: ctx.datasetId as EventLogHandle }),
   },

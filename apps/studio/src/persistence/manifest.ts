@@ -1,4 +1,4 @@
-import type { Provenance } from "@r4pm/client";
+import { BINDING_RETURN_TYPE, type Provenance, type ProvenanceOp } from "@r4pm/client";
 
 /** How a root's bytes are re-sourced on restore. */
 export type Ref =
@@ -97,4 +97,59 @@ export function buildManifest(objs: ManifestObject[]): Manifest {
     provenance: d.provenance as Provenance,
   }));
   return { version: 1, roots: rootEntries, derived: topoOrderDerived(derivedEntries) };
+}
+
+/** Argument names v0.4.1 used where bindings now take another. */
+export const RENAMED_ARGS: Record<string, string> = {
+  xes: "log",
+  locel: "ocel",
+  align_res: "alignments",
+  config: "options",
+};
+
+/**
+ * A provenance op of v0.4.1 as the bindings now name it: ids lost their module path (e.g.,
+ * `app_bindings::transforms::apply_event_log_transforms` is `app_bindings::apply_event_log_transforms`)
+ * and some arguments were renamed. Ops of bindings that no longer exist stay as they are.
+ */
+export function migrateOp(op: ProvenanceOp): ProvenanceOp {
+  let parsed: unknown = op;
+  if (typeof op === "string") {
+    try {
+      parsed = JSON.parse(op);
+    } catch {
+      return op;
+    }
+  }
+  if (!parsed || typeof parsed !== "object") return op;
+  const { fn, args } = parsed as { fn?: unknown; args?: unknown };
+  if (typeof fn !== "string" || !args || typeof args !== "object") return op;
+  const known = (id: string) => id in BINDING_RETURN_TYPE;
+  if (known(fn)) return op;
+  const parts = fn.split("::");
+  const renamed = `${parts[0]}::${parts[parts.length - 1]}`;
+  if (!known(renamed)) return op;
+  return {
+    fn: renamed,
+    args: Object.fromEntries(Object.entries(args).map(([k, v]) => [RENAMED_ARGS[k] ?? k, v])),
+  };
+}
+
+/** Brings a manifest saved by an earlier release up to date:
+ *  - Petri nets were propel artifacts of kind `PetriNet`; they are now registry `AcceptingPetriNet`
+ *    datasets, and their saved PNML bytes load as such.
+ *  - Provenance ops use the binding ids and argument names of this release ({@link migrateOp}). */
+export function migrateManifest(m: Manifest): Manifest {
+  const migrate = <T extends { kind: string; storeKind: StoreKind }>(e: T): T =>
+    e.storeKind === "artifact" && e.kind === "PetriNet"
+      ? { ...e, kind: "AcceptingPetriNet", storeKind: "dataset" }
+      : e;
+  return {
+    ...m,
+    roots: m.roots.map(migrate),
+    derived: m.derived.map((d) => {
+      const e = migrate(d);
+      return e.provenance ? { ...e, provenance: { ...e.provenance, op: migrateOp(e.provenance.op) } } : e;
+    }),
+  };
 }

@@ -18,7 +18,7 @@ export const vis = defineVis({
   keywords: ["timeline", "throughput", "histogram", "arrival"],
   order: 10,
   source: {
-    binding: "process_mining::analysis::case_centric::event_timestamp_histogram::get_event_timestamps",
+    binding: "process_mining::event_timestamp_histogram",
     needs: "EventLog",
     args: (ctx) => ({
       log: ctx.datasetId as EventLogHandle,

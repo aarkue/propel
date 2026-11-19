@@ -4,12 +4,14 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-process_mining = { git = "https://github.com/aarkue/rust4pm.git", branch = "feat/inductive-miner", features = ["bindings", "extraction-blueprint"] }
+process_mining = { workspace = true, features = ["visualization", "bindings", "extraction-blueprint"] }
 serde = { version = "1.0.188", features = ["derive"] }
 schemars = { version = "1.1.0", features = ["chrono04", "uuid1"] }
 rand = { version = "0.9", features = ["small_rng"] }
 rustc-hash = "2"
+serde_json = "1"
 
 [features]
 default = ["bindings"]
 bindings = ["process_mining/bindings"]
+

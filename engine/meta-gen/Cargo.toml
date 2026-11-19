@@ -14,11 +14,11 @@ name = "file-assoc"
 path = "src/bin/file-assoc.rs"
 
 [dependencies]
-# Must stay the exact same source (path) as app-bindings'/backend-shared's own `process_mining`
-# dependency below: cargo only unifies (and shares one `inventory` registry across) crates that
-# resolve to the identical package source, which is what lets `list_functions_meta()` here see
-# every `#[register_binding]` function force-linked in via `app-bindings`/`backend-shared`.
-process_mining = { git = "https://github.com/aarkue/rust4pm.git", branch = "feat/inductive-miner", features = ["bindings", "extraction-blueprint", "extraction-dbcon", "ocel-bundle", "ocel-bundle-parquet"] }
+# Must stay the workspace dependency, like app-bindings'/backend-shared's own `process_mining`:
+# cargo only unifies (and shares one `inventory` registry across) crates that resolve to the
+# identical package source, which is what lets `list_functions_meta()` here see every
+# `#[register_binding]` function force-linked in via `app-bindings`/`backend-shared`.
+process_mining = { workspace = true, features = ["visualization", "bindings", "extraction-blueprint", "extraction-dbcon", "ocel-bundle", "ocel-bundle-parquet"] }
 app-bindings = { path = "../app-bindings" }
 # extraction-blueprint-dbcon on so codegen picks up the dbcon-gated bindings too (discover_catalog,
 # column_domain, run) -- this is the codegen tool, not a shipped runtime crate, so the git-pinned

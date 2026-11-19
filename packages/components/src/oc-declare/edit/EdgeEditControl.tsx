@@ -1,6 +1,12 @@
 import { Flex, IconButton, Popover, SegmentedControl, Separator, Text, TextField } from "@r4pm/components/ui";
 import { useEffect, useState } from "react";
-import { PiArrowsLeftRight, PiChartBarBold, PiPencilSimpleBold, PiTrashBold } from "react-icons/pi";
+import {
+  PiArrowsLeftRight,
+  PiChartBarBold,
+  PiMagnifyingGlassBold,
+  PiPencilSimpleBold,
+  PiTrashBold,
+} from "react-icons/pi";
 import type { OCDeclareArcLabel } from "../index";
 import type { ArcType } from "../types";
 import {
@@ -101,6 +107,23 @@ function EdgeEditForm({ edgeId, onClose }: { edgeId: string; onClose: () => void
               }}
             >
               <PiChartBarBold />
+            </IconButton>
+          )}
+          {edit.callbacks.onExploreViolations && (
+            <IconButton
+              size="1"
+              variant="ghost"
+              color="gray"
+              title="Explore violations"
+              onClick={() => {
+                const arc = toArcs({ nodes: edit.model.nodes, edges: [edge] })[0];
+                if (arc) {
+                  edit.callbacks.onExploreViolations?.(arc);
+                  onClose();
+                }
+              }}
+            >
+              <PiMagnifyingGlassBold />
             </IconButton>
           )}
           <IconButton

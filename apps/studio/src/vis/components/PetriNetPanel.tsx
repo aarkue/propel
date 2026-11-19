@@ -6,7 +6,7 @@ import { objectLabel, uniqueDatasetLabel, useDatasets } from "../../stores";
 import { type MinerChoice, minerChoice, PETRI_NET_VARIANTS } from "../_discovery";
 import { minerSummary } from "./MinerPickerView";
 
-const EVENT_LOG_FROM_ACTIVITIES = "app_bindings::event_log::event_log_from_activities" as const;
+const EVENT_LOG_FROM_ACTIVITIES = "app_bindings::event_log_from_activities" as const;
 
 /** Studio component for any shown Petri net: the pure workbench plus backend-bound actions. The
  *  workbench normalizes rust4pm's index-addressed net, so the cast here is the single studio

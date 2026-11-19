@@ -23,9 +23,7 @@ export const attachPipeline = (handle: PipelineHandle | null) => {
 function openOrFocusPipeline() {
   const api = getDockviewApi();
   if (!api) return;
-  const existing = api.panels.find(
-    (p) => p.id === "pipeline" || (p as { component?: string }).component === "pipeline",
-  );
+  const existing = api.panels.find((p) => p.id === "pipeline" || p.api.component === "pipeline");
   if (existing) existing.api.setActive();
   else api.addPanel({ id: "pipeline", title: "Pipeline", component: "pipeline" });
 }
@@ -62,12 +60,12 @@ export function sendGraphToPipeline(nodes: AppNode[], edges: Edge[]) {
 }
 
 /** Open a pipeline node's output as a standalone viewer panel in the dock. */
-export function openOutputAsPanel(returnTypeTitle: string | undefined, data: unknown) {
+export function openOutputAsPanel(returnTypeTitle: string | undefined, data: unknown, title?: string) {
   const api = getDockviewApi();
   if (!api) return;
   api.addPanel({
     id: `viewer-${Date.now()}`,
-    title: returnTypeTitle ?? "Output",
+    title: title ?? returnTypeTitle ?? "Output",
     component: "viewer",
     params: { returnTypeTitle, data },
   });

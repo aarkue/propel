@@ -1,7 +1,6 @@
 import {
   Button,
   Callout,
-  Card,
   Checkbox,
   DropdownMenu,
   IconButton,
@@ -12,6 +11,7 @@ import {
   TextField,
 } from "@r4pm/components/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { fmtInt, fmtPct, Metric, MetricRow } from "./kit";
 import {
   FaCheckCircle,
   FaChevronDown,
@@ -275,7 +275,7 @@ function SelectionStatsBar({
   const fmt = (n: number) => n.toLocaleString("en", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const hasSel = selCount > 0;
   return (
-    <div className="flex items-center flex-wrap gap-2 px-2 py-1.5 rounded bg-[var(--gray-a3)] border border-[var(--gray-a6)] text-[12px]">
+    <div className="flex items-center flex-wrap gap-2 px-3 py-2 rounded-lg bg-[var(--gray-a2)] border border-[var(--gray-a4)] text-[12px]">
       <Text size="1" color="gray">
         {search ? `${filteredCount} of ${totalVariants}` : `${totalVariants}`} variant
         {totalVariants === 1 ? "" : "s"}
@@ -401,7 +401,9 @@ export function LogVariants({
   const totalTraces = numTraces;
   const totalEvents = numEvents;
 
-  const maxActSize = activities ? Math.max(...activities.map((a) => a.length)) : 20;
+  const maxActSize = activities
+    ? activities.reduce((m, a) => Math.max(m, a.length), Number.NEGATIVE_INFINITY)
+    : 20;
 
   // Pre-compute per-variant aggregates once. `traces` is `[activityIndices, count]`,
   // already sorted by count descending (the generated type is the precise tuple
@@ -548,13 +550,38 @@ export function LogVariants({
 
   // Root sizes inline so it fills its container; inner layout uses Tailwind from the bundled stylesheet.
   return (
-    <div style={{ width: "100%", height: "100%", minHeight: 200, padding: 8 }}>
-      <Card className="relative w-full" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <div className="flex items-center gap-2 mb-2">
-          <Text as="div" size="4" weight="bold">
-            Trace Variants
-          </Text>
-        </div>
+    <div style={{ width: "100%", height: "100%", minHeight: 200, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, padding: 16, gap: 12 }}>
+        {data && totalTraces !== undefined && variantRows.length > 0 && (
+          <MetricRow>
+            <Metric
+              label="Variants"
+              value={fmtInt(variantRows.length)}
+              hint={`${fmtInt(totalTraces)} cases`}
+            />
+            <Metric
+              label="Most frequent"
+              value={fmtPct(variantRows[0].count / Math.max(1, totalTraces))}
+              hint={`of cases, ${variantRows[0].labels.length} steps`}
+            />
+            <Metric
+              label="Top 10 cover"
+              value={fmtPct(
+                variantRows
+                  .slice()
+                  .sort((a, b) => b.count - a.count)
+                  .slice(0, 10)
+                  .reduce((acc, r) => acc + r.count, 0) / Math.max(1, totalTraces),
+              )}
+              hint="of cases"
+            />
+            <Metric
+              label="Seen once"
+              value={fmtInt(variantRows.filter((r) => r.count === 1).length)}
+              hint="variants with a single case"
+            />
+          </MetricRow>
+        )}
 
         {!data && <Skeleton className="w-full min-h-[20rem]" loading />}
 
@@ -563,8 +590,8 @@ export function LogVariants({
             {/* Activity search + select-all controls */}
             <div className="flex items-center gap-2">
               <TextField.Root
-                size="1"
-                placeholder="Search by activity (space-separated tokens)..."
+                size="2"
+                placeholder="Find variants by activity, e.g., payment penalty"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.currentTarget.value);
@@ -583,20 +610,23 @@ export function LogVariants({
                   </TextField.Slot>
                 )}
               </TextField.Root>
-              <IconButton
+              <span className="r4pm-eyebrow" style={{ marginLeft: 8 }}>
+                Select
+              </span>
+              <Button
                 size="1"
-                variant="ghost"
+                variant="soft"
                 color="gray"
-                title="Select none (all variants)"
+                title="Clear the selection"
                 onClick={() => setSelectedIdx(new Set())}
               >
-                <PiCircle />
-              </IconButton>
-              <IconButton
+                <PiCircle /> None
+              </Button>
+              <Button
                 size="1"
-                variant="ghost"
+                variant="soft"
                 color="gray"
-                title="Invert (all variants)"
+                title="Select every variant that is not selected"
                 onClick={() =>
                   setSelectedIdx((prev) => {
                     const next = new Set<number>();
@@ -605,13 +635,13 @@ export function LogVariants({
                   })
                 }
               >
-                <PiCircleHalfFill />
-              </IconButton>
-              <IconButton
+                <PiCircleHalfFill /> Invert
+              </Button>
+              <Button
                 size="1"
-                variant="ghost"
+                variant="soft"
                 color="gray"
-                title={`Select all ${filteredRows.length} visible`}
+                title={`Select all ${filteredRows.length} shown variants`}
                 onClick={() =>
                   setSelectedIdx((prev) => {
                     const next = new Set(prev);
@@ -620,8 +650,8 @@ export function LogVariants({
                   })
                 }
               >
-                <PiCircleFill />
-              </IconButton>
+                <PiCircleFill /> All shown
+              </Button>
             </div>
 
             {/* Selection / coverage stats + filter actions */}
@@ -772,7 +802,7 @@ export function LogVariants({
             </div>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

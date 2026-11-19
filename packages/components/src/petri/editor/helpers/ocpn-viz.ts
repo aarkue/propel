@@ -107,8 +107,9 @@ export async function layoutOcpnElements(
   viz: VizTransport,
   ocpn: Ocpn,
   elements: PetriElements,
+  options?: Record<string, unknown>,
 ): Promise<PetriElements & { request: OcpnLayoutRequest }> {
-  const laid = await layoutModel(viz, "ocpn", ocpn);
+  const laid = await layoutModel(viz, "ocpn", ocpn, options);
   return { ...applyPetriLayout(ocpnGraphIds(ocpn, laid), laid.layout, elements), request: laid };
 }
 
@@ -154,14 +155,16 @@ export async function ocpnElementsSvg(
   ocpn: Ocpn,
   elements: PetriElements,
   typeColor?: (objectType: string) => string | undefined,
+  options?: Record<string, unknown>,
 ): Promise<string | null> {
   if (ocpn.places.length === 0 && ocpn.transitions.length === 0) return null;
-  const request = await modelLayoutRequest(viz, "ocpn", ocpn);
+  const request = await modelLayoutRequest(viz, "ocpn", ocpn, options);
   const ids = ocpnGraphIds(ocpn, request);
   // A re-route at the on-screen centres gives a complete layout of this graph to draw the screen's geometry over.
   const template = await rerouteModel(viz, request, petriPositions(ids, elements.nodes));
   const types = typeColor ? ocpnTypeOverrides(ocpn, request, typeColor) : {};
   return modelSvg(viz, "ocpn", ocpn, screenLayout(template, ids, elements), {
+    options,
     overrides: mergeOverrides(types, petriStyleOverrides(ids, elements)),
   });
 }

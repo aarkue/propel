@@ -24,3 +24,26 @@ export {
   type VariantTimingPage,
 } from "./variant-time-profile-data";
 export { type DottedChartCaseOrder, orderRows } from "./dotted-chart-rows";
+export {
+  bestThreshold,
+  ModelSweepChart,
+  type ModelSweepChartProps,
+  type SweepPoint,
+  type SweepQuality,
+  visibleTransitions,
+} from "./model-sweep";
+export {
+  DEFAULT_PREFIX_TREE_CONTROLS,
+  type PrefixNode,
+  type PrefixTree,
+  type PrefixTreeControls,
+  PrefixTreeView,
+  type PrefixTreeViewProps,
+} from "./prefix-tree";
+export {
+  type PerformanceSpectrum,
+  type PerformanceSpectrumControls,
+  PerformanceSpectrumView,
+  type PerformanceSpectrumViewProps,
+  type SpectrumSegment,
+} from "./performance-spectrum";

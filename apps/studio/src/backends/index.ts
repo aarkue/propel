@@ -32,8 +32,7 @@ setBackend(backend);
 /** rust4pm's visualization bindings on this backend (native, server or worker), passed to every
  *  viewer as `ViewerConfig.viz`. Same function names and arguments as the embedded `wasmViz`. */
 export const vizTransport: VizTransport = {
-  call: (fn, args) =>
-    backend.callBinding(`process_mining::visualization::bindings::${fn}` as VizBindingId, args as never),
+  call: (fn, args) => backend.callBinding(`process_mining::${fn}` as VizBindingId, args as never),
 };
 
-type VizBindingId = Extract<BindingId, `process_mining::visualization::bindings::${string}`>;
+type VizBindingId = Extract<BindingId, `process_mining::${string}`>;

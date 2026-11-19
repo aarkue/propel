@@ -195,7 +195,7 @@
       "type": "object"
     },
     "DropReason": {
-      "description": "Why one row a mapping read produced nothing.\n\nDeliberately does not include a repeated object id at event grain -- see\n[`MappingStats::deduplicated`].",
+      "description": "Why one row a mapping read produced nothing.\n\nDoes not include a repeated object id at event grain, see [`MappingStats::deduplicated`].",
       "oneOf": [
         {
           "const": "UnresolvedEndpoint",
@@ -209,7 +209,7 @@
         },
         {
           "const": "MissingTimestamp",
-          "description": "The row had no timestamp to parse: the column was `NULL`, or the expression produced\nnothing (or only blank text).\n\nFor a [`TimestampSource::Components`](super::expr::TimestampSource::Components) pair the\n*date* side decides, whatever the time side holds: a time of day with no date does not\nname an instant.",
+          "description": "The row had no timestamp to parse: the column was `NULL`, or the expression produced\nnothing (or only blank text).\n\nFor a [`TimestampSource::Components`](super::expr::TimestampSource::Components) pair the\ndate side decides, whatever the time side holds: a time of day with no date does not\nname an instant.",
           "type": "string"
         },
         {
@@ -224,7 +224,12 @@
         },
         {
           "const": "IdTypeCollision",
-          "description": "The row named an entity whose id is already taken by an entity of a *different* type.\nOnly reachable under [`IdRendering::Raw`](super::blueprint::IdRendering::Raw), where two\ntypes can render the same id; `TypePrefixed` makes it impossible. Deliberately **not**\n[`MappingStats::deduplicated`]: nothing was deduplicated, two distinct entities collided.",
+          "description": "The row named an entity whose id is already taken by an entity of a different type.\nOnly reachable under [`IdRendering::Raw`](super::blueprint::IdRendering::Raw), where two\ntypes can render the same id. `TypePrefixed` makes it impossible. Deliberately not\n[`MappingStats::deduplicated`]: nothing was deduplicated, two distinct entities collided.",
+          "type": "string"
+        },
+        {
+          "const": "DuplicateObjectRejected",
+          "description": "The row named an object the sink already had and\n[`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) is in\nforce, so none of the row's attributes were written onto it. The same repeat counts as\n[`MappingStats::deduplicated`] under `FirstWins`, where it is not a loss.",
           "type": "string"
         }
       ]
@@ -249,12 +254,12 @@
       "oneOf": [
         {
           "const": "PerType",
-          "description": "One `event_<T>` / `object_<T>` view per declared type, plus `event`, `object`,\n`event_object`, `object_object` and the two type maps -- the OCEL 2.0 layout external\ntooling reads.",
+          "description": "One `event_<T>` / `object_<T>` view per declared type, plus `event`, `object`,\n`event_object`, `object_object` and the two type maps: the OCEL 2.0 layout external tooling\nreads.",
           "type": "string"
         },
         {
           "const": "Consolidated",
-          "description": "The `events`/`objects`/`e2o`/`o2o`/`object_attribute_changes`/`event_attr_meta` layout\n`rust4pm`'s own reader (`DuckDbLinkedOCEL`) consumes. Unlike [`Self::PerType`], a type is\nstored as a column *value* rather than encoded into a view name, so\n[`RejectReason::DynamicTypeName`] never fires under this shape: no\n[`Catalog::column_domain`](super::catalog::Catalog::column_domain) lookup is needed, and\nwith none there is nothing that can go stale and no per-type-view cap to exceed.",
+          "description": "The `events`/`objects`/`e2o`/`o2o`/`object_attribute_changes`/`event_attr_meta` layout\n`rust4pm`'s own reader (`DuckDbLinkedOCEL`) consumes. A type is stored as a column value\nrather than encoded into a view name, so no\n[`Catalog::column_domain`] lookup is needed and\n[`RejectReason::DynamicTypeName`] never fires.",
           "type": "string"
         }
       ]
@@ -335,7 +340,7 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "The blueprint failed [`validate`](super::validate::validate); `extract` refuses to run\nit. Fatal.",
+          "description": "The blueprint failed [`validate`](super::validate::validate), so `extract` refuses to run\nit. Fatal.",
           "properties": {
             "Invalid": {
               "items": {
@@ -373,7 +378,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A predicate's or split's regular expression failed to compile. Fatal; `validate` checks\nthis, so it should not happen when `extract` is called on a validated blueprint.",
+          "description": "A predicate's or split's regular expression failed to compile. Fatal. `validate` checks\nthis, so it should not happen when `extract` is called on a validated blueprint.",
           "properties": {
             "InvalidRegex": {
               "properties": {
@@ -459,7 +464,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An [`ExtractionSink`](super::sink::ExtractionSink) call failed for a reason other than a\npolicy below. Non-fatal: recorded and extraction continues.",
+          "description": "An [`ExtractionSink`](super::sink::ExtractionSink) call failed for a reason other than a\npolicy below. Fatal: this is the storage layer failing, and carrying on would leave a\nhalf-written OCEL that reports success.",
           "properties": {
             "Sink": {
               "properties": {
@@ -486,7 +491,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Two mappings, or two rows, produced the same rendered id under two *different* types.\nOnly reachable under [`IdRendering::Raw`](super::blueprint::IdRendering::Raw). Non-fatal:\nthe row is dropped (see [`DropReason::IdTypeCollision`]) and the run continues. Merging\nthe two would silently fold two distinct entities into one, and writing this row's\nattributes onto the other type's object used to abort the entire extraction.",
+          "description": "Two mappings, or two rows, produced the same rendered id under two different types.\nOnly reachable under [`IdRendering::Raw`](super::blueprint::IdRendering::Raw). Non-fatal:\nthe row is dropped (see [`DropReason::IdTypeCollision`]) and the run continues, since\nmerging the two would fold two distinct entities into one.",
           "properties": {
             "IdTypeCollision": {
               "properties": {
@@ -518,7 +523,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Two mappings declared the same attribute of the same entity type under different value\ntypes. Non-fatal: the declaration is widened to a type that covers both (see\n[`OCELAttributeType::coalesce`](crate::core::event_data::object_centric::OCELAttributeType::coalesce))\nand every row is converted to that widened type, rather than the last declaration silently\nwinning while each mapping stored its own rows under the type *it* declared. Still worth\nreporting: which type an attribute ends up with is then decided by a coincidence of two\nmappings, not by either author's intent.\n\nDeliberately does not name a mapping: a conflict is a property of the pair, and pointing\nat whichever one happened to run second would be arbitrary. The type and attribute names\nlocate it precisely enough.",
+          "description": "Two mappings declared the same attribute of the same entity type under different value\ntypes. Non-fatal: the declaration is widened to a type covering both (see\n[`OCELAttributeType::coalesce`](crate::core::event_data::object_centric::OCELAttributeType::coalesce))\nand every row converted to it. Reported because the resulting type is then decided by a\ncoincidence of two mappings rather than by either author's intent. Names no mapping: the\nconflict is a property of the pair.",
           "properties": {
             "ConflictingAttributeType": {
               "properties": {
@@ -619,12 +624,12 @@
         },
         {
           "additionalProperties": false,
-          "description": "`on_missing_endpoint: Error` fired for a sink that answered\n[`Resolution::Deferred`](super::sink::Resolution::Deferred): the same policy violation as\n[`MissingEndpoint`](Self::MissingEndpoint), reported once for the whole run instead of\nonce per endpoint. Non-fatal.\n\nSuch a sink detects the violation at [`finalize`](super::sink::ExtractionSink::finalize),\nin bulk, where the mapping and the row that named the endpoint are long gone -- so this\ndeliberately names neither. It is emitted whenever\n[`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport::unresolved_endpoints)\nis nonzero under that policy; without it, `Error` silently degraded to `Drop` for every\ndeferring sink.",
+          "description": "`on_missing_endpoint: Error` fired for a sink that answered\n[`Resolution::Deferred`](super::sink::Resolution::Deferred): the same policy violation as\n[`MissingEndpoint`](Self::MissingEndpoint), reported once for the whole run instead of\nonce per endpoint. Non-fatal.\n\nSuch a sink detects the violation at [`finalize`](super::sink::ExtractionSink::finalize),\nwhere the mapping and row that named the endpoint are gone, so this names neither.",
           "properties": {
             "MissingEndpointsAtFinalize": {
               "properties": {
                 "count": {
-                  "description": "How many relations the sink could not resolve. Equals the number of\n[`MissingEndpoint`](Self::MissingEndpoint) errors an eager sink reports for the same\nrun for an `E2O`/`O2O` endpoint or a `Target::Event`'s inline reference resolved via\n[`resolve_object_endpoint`](super::mapping_exec::resolve_object_endpoint) --\n**not** universally: an inline reference on a `Target::Event` whose own event this run\ndropped is reported by an eager sink as [`DropReason::UnresolvedEndpoint`] on that\nmapping, with no [`MissingEndpoint`] error pushed at all (there is no endpoint left to\nresolve), while a deferring sink -- which cannot know at the call site that the event\nwill not exist -- stages the reference regardless and counts it here at finalize. This\ncount can therefore exceed the eager sink's `MissingEndpoint` tally by exactly that\nmany references.",
+                  "description": "How many relations the sink could not resolve. Usually equals an eager sink's\n[`MissingEndpoint`](Self::MissingEndpoint) count for the same run, but can exceed it:\na deferring sink also stages the inline references of a `Target::Event` whose event\nthis run dropped, which an eager sink never asks about.",
                   "format": "uint64",
                   "minimum": 0,
                   "type": "integer"
@@ -647,25 +652,38 @@
       "description": "What [`extract`](super::extract::extract) produced, beyond the OCEL itself.\n\nSerializable but not deserializable: [`ExtractionError`] carries `&'static str` fields (a\nborrow no deserializer can manufacture), so this only ever crosses a bindings boundary\noutbound, as a `#[register_binding]` return value.",
       "properties": {
         "errors": {
-          "description": "Non-fatal problems collected while running -- a policy configured to error\n(`on_duplicate_object: Error`, `on_missing_endpoint: Error`) or a sink failure on one\nrelation. Extraction continues past these; see [`ExtractionError`] for what aborts it\ninstead.",
+          "description": "Non-fatal problems collected while running: a policy configured to error\n(`on_duplicate_object: Error`, `on_missing_endpoint: Error`), or an attribute type two\nmappings disagreed on. Extraction continues past these. See [`ExtractionError`] for what\naborts it instead.\n\nCapped at [`MAX_REPORTED_ERRORS`], with the remainder counted in\n[`errors_suppressed`](Self::errors_suppressed).",
           "items": {
             "$ref": "#/$defs/ExtractionError"
           },
           "type": "array"
         },
+        "errors_suppressed": {
+          "description": "Non-fatal problems the run hit past [`MAX_REPORTED_ERRORS`], which\n[`errors`](Self::errors) therefore does not name. Zero for every run under the cap.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "finalize": {
           "$ref": "#/$defs/FinalizeReport",
-          "description": "What the sink did at [`ExtractionSink::finalize`](super::sink::ExtractionSink::finalize).\n\nAll zero for a sink that resolves relation endpoints eagerly, which reports everything\nthrough [`per_mapping`](Self::per_mapping) instead. A sink that defers -- a path-backed\none, which cannot afford an in-memory id index -- reports its share of the same\ninformation here, because it only learns it after the last row. See\n[`Resolution`](super::sink::Resolution)."
+          "description": "What the sink did at [`ExtractionSink::finalize`](super::sink::ExtractionSink::finalize).\n\nAll zero for a sink that resolves relation endpoints eagerly, which reports everything\nthrough [`per_mapping`](Self::per_mapping) instead. See\n[`Resolution`](super::sink::Resolution)."
         },
         "per_mapping": {
-          "description": "One entry per mapping executed, in **desugared blueprint order** -- the order the author\nwrote the mappings in, with each ordered group expanded in place. Deliberately not\nexecution order: execution is multi-pass and grouped by node (see\n[`extract`](super::extract::extract)), so there is no single linear order to report, and\na diagnostic is far more useful indexed by what the author wrote. Each entry's\n[`MappingRef::path`] names that authored entry outright.",
+          "description": "One entry per mapping executed, in desugared blueprint order: the order the author wrote\nthe mappings in, with each ordered group expanded in place. Not execution order,\nwhich is multi-pass and grouped by node. Each entry's [`MappingRef::path`] names the\nauthored entry.",
           "items": {
             "$ref": "#/$defs/MappingStats"
           },
           "type": "array"
         },
+        "pushdown_declined": {
+          "description": "Nodes whose source could have executed the whole node but the compiler declined to build\nthe query for, paired with the reason, and deduplicated per node.\n\nAlways safe, since the executor runs the node itself. Reported because falling back on a\n`Join` is the one execution path whose memory grows with the data, so this explains a\nnon-zero [`rows_materialized`](Self::rows_materialized).",
+          "items": {
+            "$ref": "#/$defs/PushdownDeclined"
+          },
+          "type": "array"
+        },
         "rows_materialized": {
-          "description": "The running total of rows every `Join`/`Union` materialisation this run performed\nproduced -- summed across materialisations, **not** a peak: a run that materialises two\nnodes of a thousand rows each reports two thousand, even though the two never had to be\nlive at the same moment. It is an upper bound on peak buffered rows, not the peak itself.\n(A cached materialisation is counted once, when it is computed, not again per reader.)\n\nIncludes the `Source`/`Filter` rows that fed a `Join`/`Union`, since those materialise\ntoo the moment one needs them as an input; see invariant I1 on\n[`extract`](super::extract::extract). Zero when no mapping's node graph contains a `Join`\nor `Union`, since a pure `Source -> Filter` chain streams and never buffers a row past\nthe one being processed -- which is what makes zero here a meaningful witness that the\nrun streamed.",
+          "description": "Rows every `Join`/`Union` materialization this run performed produced, summed across\nmaterializations rather than peaked: an upper bound on peak buffered rows. A cached\nmaterialization is counted once, when computed.\n\nZero when no mapping's node graph contains a `Join` or `Union`, since a pure\n`Source -> Filter` chain streams. Zero is therefore a witness that the run streamed.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -679,19 +697,21 @@
               "type": "null"
             }
           ],
-          "description": "Where the run's wall-clock time went.\n\n`None` from [`extract`](super::extract::extract) itself, which is handed a catalog and a\nset of open providers and so has no idea what it cost to obtain them. The runner that owns\nthe connections fills this in; the `extraction-dbcon` bindings do. Kept out of `extract` for a\nsecond reason too: `std::time::Instant` panics on `wasm32-unknown-unknown`, and this crate\nbuilds for wasm."
+          "description": "Where the run's wall-clock time went.\n\n`None` from [`extract`](super::extract::extract) itself, which is handed open providers\nand cannot know what they cost to obtain. The runner that owns the connections fills this\nin, as the `extraction-dbcon` bindings do. Also kept out of `extract` because\n`std::time::Instant` panics on `wasm32-unknown-unknown`."
         }
       },
       "required": [
         "per_mapping",
         "errors",
+        "errors_suppressed",
         "rows_materialized",
+        "pushdown_declined",
         "finalize"
       ],
       "type": "object"
     },
     "ExtractionTiming": {
-      "description": "How long a run spent, split by phase, in milliseconds.\n\nThe split is the point: discovering a source's schema is a fixed cost paid before a single row\nis read, and a caller that already holds a catalog can skip it entirely. Reporting one total\nwould hide which of the two a slow run actually spent its time in.",
+      "description": "How long a run spent, split by phase, in milliseconds. Schema discovery is a fixed cost a\ncaller holding a catalog can skip, so it is reported apart from the row reading.",
       "properties": {
         "discovery_ms": {
           "description": "Connecting to each source and reading its schema. Zero when the caller supplied a catalog.",
@@ -713,16 +733,16 @@
       "type": "object"
     },
     "FinalizeReport": {
-      "description": "What a sink did during [`ExtractionSink::finalize`], folded into\n[`ExtractionReport::finalize`](super::report::ExtractionReport::finalize).\n\nAll zero for a sink that resolves eagerly ([`SlimOcelSink`](super::slim_sink::SlimOcelSink)):\nit has nothing left to do at finalize, and everything it dropped or deduplicated is already\nin the per-mapping counters. Nonzero entries mean the run used a deferring sink, and are\nwhere that sink's share of the same information lives.",
+      "description": "What a sink did during [`ExtractionSink::finalize`], folded into\n[`ExtractionReport::finalize`](super::report::ExtractionReport::finalize).\n\nAll zero for a sink that resolves eagerly. Nonzero entries carry a deferring sink's share of\nthe per-mapping counters.",
       "properties": {
         "duplicates_removed": {
-          "description": "Repeated entity ids removed at finalize -- a deferring sink's share of\n[`MappingStats::deduplicated`](super::report::MappingStats::deduplicated), which it could\nnot detect while writing.",
+          "description": "Repeated entity ids removed at finalize: a deferring sink's share of\n[`MappingStats::deduplicated`](super::report::MappingStats::deduplicated).",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
         "objects_created": {
-          "description": "Objects synthesised at finalize under `on_missing_endpoint: Create`, for deferred\nendpoints that turned out not to exist.",
+          "description": "Objects synthesized at finalize under `on_missing_endpoint: Create`, for deferred\nendpoints that turned out not to exist.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -734,7 +754,7 @@
           "type": "integer"
         },
         "unresolved_endpoints": {
-          "description": "Relations whose deferred endpoint did not resolve. These are what a sink answering\nimmediately would have counted per mapping as\n[`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint);\n`on_missing_endpoint` decided what happened to them (dropped, or their object created).",
+          "description": "Relations whose deferred endpoint did not resolve. An eager sink counts these per mapping\nas [`DropReason::UnresolvedEndpoint`](super::report::DropReason::UnresolvedEndpoint).",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -822,7 +842,7 @@
           "type": "object"
         }
       ],
-      "description": "A literal in a comparison or membership test.\n\nUntagged in JSON, so `true`, `5`, `5.0` and `\"x\"` deserialize to the matching variant.\nOrder matters for `Boolean`, `Integer`, `Float` and `Text`, whose JSON shapes overlap only\nwith each other (a bare JSON boolean, number or string): boolean before integer before float\nbefore text.\n\n`Timestamp` is exempt from that ordering. It is deliberately not a bare string -- an\nuntagged variant added as `Timestamp(String)` would have the same JSON shape as `Text` and\nwould need placing *before* `Text` to ever be chosen, which would then make it swallow every\nordinary string that happens to parse as RFC 3339, silently reclassifying it. Wrapping it in\na single-field object instead (`{\"timestamp\": \"...\"}`) gives it a JSON shape distinct from\nevery other variant, so its position in this enum does not matter and no plain string is\never at risk of being mistaken for a timestamp.\n\nSee [`Predicate::prepare`] for how a `Text` literal compared against a column of another\ndeclared type is coerced -- that is the mechanism that makes a plain ISO-8601 string usable\nagainst a timestamp column without needing this variant at all; this variant exists for a\nblueprint author (or editor) that already knows it is authoring a timestamp."
+      "description": "A literal in a comparison or membership test.\n\nUntagged in JSON, so `true`, `5`, `5.0` and `\"x\"` deserialize to the matching variant.\nOrder matters for `Boolean`, `Integer`, `Float` and `Text`, whose JSON shapes overlap only\nwith each other (a bare JSON boolean, number or string): boolean before integer before float\nbefore text.\n\n`Timestamp` is exempt from that ordering: it is a single-field object (`{\"timestamp\": \"...\"}`)\nrather than a bare string, so its position does not matter and no ordinary string that happens\nto parse as RFC 3339 is silently reclassified. A plain string against a timestamp column works\nwithout it, through `Predicate::prepare`'s literal coercion."
     },
     "Mapping": {
       "description": "One mapping from a node's rows to entities.",
@@ -921,7 +941,7 @@
           ]
         },
         "path": {
-          "description": "The JSON path of the authored entry this mapping came from -- see\n[`desugar_with_paths`](super::desugar::desugar_with_paths) -- so a diagnostic points at\nwhat the author wrote rather than a position in the flattened list.",
+          "description": "The JSON path of the authored entry this mapping came from (see `desugar_with_paths`), so\na diagnostic points at what the author wrote rather than a position in the flattened\nlist.",
           "type": "string"
         }
       },
@@ -936,7 +956,7 @@
       "description": "Counts for one mapping's run.",
       "properties": {
         "deduplicated": {
-          "description": "Rows that tried to create an entity **the sink already had**. Not a loss: an object mapping\nat event grain names the same object on every row by design. See\n[`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what\nturns a repeat into a loss instead.\n\n# Exactly what is counted\n\nOne increment per row whose entity-creating call found the entity already present:\n\n* a [`Target::Object`](super::blueprint::Target::Object) row whose\n  [`resolve_object`](super::sink::ExtractionSink::resolve_object) answered\n  [`Exists`](super::sink::Resolution::Exists), or whose\n  [`add_object`](super::sink::ExtractionSink::add_object) was refused with\n  [`SinkError::DuplicateObject`](super::sink::SinkError::DuplicateObject) -- the same event\n  seen through an eager and a deferring sink respectively, which is why both report the same\n  number;\n* a [`Target::Event`](super::blueprint::Target::Event) row whose `add_event` was refused\n  with [`SinkError::DuplicateEvent`](super::sink::SinkError::DuplicateEvent).\n\n**Including a repeat across two mappings**, which is a change in meaning from \"rows that\nnamed an entity *this mapping* had already emitted\". A second mapping naming an id a first\nmapping created now counts one deduplication, where it used to count none. That distinction\nneeded one id set per mapping holding every id it named -- the last per-run structure whose\nsize tracked the data -- and it could never have been made to agree across sinks anyway: a\nsink that answers [`Deferred`](super::sink::Resolution::Deferred) to every ask cannot say\nwhose object it already had.\n\n# And what is not\n\n**Resolving a relation endpoint is never counted**, so an `E2O`/`O2O` mapping reports zero\nhowever often its rows repeat an id. Finding an endpoint that already exists is the normal\nsuccessful case, not a deduplication -- counting it made a healthy `E2O` mapping over `n`\nrows report `n` deduplications (and `2n` for `O2O`) while nothing had been deduplicated at\nall. Counting only the repeats among them is what the per-mapping id set used to buy, and it\nwent with it: a case-centric blueprint whose single event mapping creates its case objects\nthrough an inline reference used to report `rows - distinct cases` here and now reports\nzero. The objects are unaffected; only this counter is. A blueprint that wants that number\nreported can name the cases with a [`Target::Object`](super::blueprint::Target::Object)\nmapping, which is what [`FlatEventTable`](super::case_centric::FlatEventTable) already adds\nas soon as there are case attributes.",
+          "description": "Rows that tried to create an entity the sink already had. Not a loss: an object mapping\nat event grain names the same object on every row by design. See\n[`DuplicateObjectPolicy::Error`](super::blueprint::DuplicateObjectPolicy::Error) for what\nturns a repeat into a loss instead.\n\nOne increment per row whose entity-creating call found the entity already present, across\nmappings, since the sink is what answers.\n\nResolving a relation endpoint is never counted, so an `E2O`/`O2O` mapping reports zero\nhowever often its rows repeat an id: finding an existing endpoint is the normal successful\ncase. A blueprint that wants its inline references' repeats counted can name the objects\nwith their own [`Target::Object`](super::blueprint::Target::Object) mapping.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -951,7 +971,7 @@
           "type": "object"
         },
         "entities_emitted": {
-          "description": "Entities or relations this mapping *handed to the sink*.\n\n# Not \"survived the run\", for a sink that defers resolution\n\nFor an eager sink ([`SlimOcelSink`](super::slim_sink::SlimOcelSink)) the two coincide:\na relation whose endpoint does not exist is refused at the call site, so it is counted\nunder [`DropReason::UnresolvedEndpoint`] and never here.\n\nA sink that answers [`Resolution::Deferred`](super::sink::Resolution::Deferred) --\n[`DuckDbSink`](super::duckdb_sink::DuckDbSink) -- has no id index to refuse with, so the\nrelation is written, counted here, and only deleted at\n[`finalize`](super::sink::ExtractionSink::finalize). The same dangling `E2O` therefore\nreads as\n\n| | eager | deferring |\n|---|---|---|\n| `entities_emitted` | 0 | 1 |\n| `dropped[UnresolvedEndpoint]` | 1 | absent |\n| [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) | 0 | 1 |\n\nThis is the same reporting shift [`DuckDbSink`]'s own docs describe for `dropped`, seen\nfrom the other side: the loss is reported in bulk at finalize because the mapping that\nnamed the endpoint is long gone by then. Both logs still have the same contents.\n\nTo compare two sinks, or to count what a run actually produced, subtract\n`ExtractionReport::finalize.unresolved_endpoints` from the run's total rather than\nreading a single mapping's counter -- per-mapping attribution of a deferred loss does not\nexist, by construction.\n\n[`DuckDbSink`]: super::duckdb_sink::DuckDbSink",
+          "description": "Entities or relations this mapping handed to the sink, which is not the same as\n\"survived the run\" for a sink that defers resolution.\n\nAn eager sink refuses a dangling relation at the call site, so it lands in\n[`DropReason::UnresolvedEndpoint`] and never here. A deferring sink writes it, counts it\nhere, and deletes it at [`finalize`](super::sink::ExtractionSink::finalize), reporting it\nin [`FinalizeReport::unresolved_endpoints`](super::sink::FinalizeReport) instead. To count\nwhat a run produced, subtract `ExtractionReport::finalize.unresolved_endpoints` from the\ntotal.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -962,6 +982,13 @@
         },
         "rows_read": {
           "description": "Rows the mapping's node produced, before `when` was applied.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "uncoercible_attributes": {
+          "default": 0,
+          "description": "Attribute values that would not convert to their attribute's declared type, stored as\n`Null`. Not a dropped row: the entity was written, with one of its attributes empty.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -1112,7 +1139,7 @@
           "type": "object"
         },
         {
-          "description": "Concatenate the rows of several nodes, aligning columns by name.\n\nThis is `UNION ALL`, not `UNION`: duplicate rows are kept, because dropping them would\ndrop the entities they produce. The output columns are the union of the inputs' column\n*names*, and an input that lacks one of them contributes `Null` for it rather than being\nrejected -- so unioning two near-identical tables that differ by one column is legal.\nBoth rules are part of the model's semantics, not an implementation detail: a compiler\ntranslating this node must emit `UNION ALL` with the absent columns explicitly\nnull-filled.",
+          "description": "Concatenate the rows of several nodes, aligning columns by name.\n\n`UNION ALL`, not `UNION`: dropping duplicates would drop the entities they produce. Output\ncolumns are the union of the inputs' column names, and an input lacking one contributes\n`Null`. Both are model semantics a compiler must reproduce.",
           "properties": {
             "inputs": {
               "description": "Input node ids.",
@@ -1373,7 +1400,7 @@
           "type": "object"
         },
         {
-          "description": "The column's text -- see [`Value::display_string`] -- matches the regular expression.",
+          "description": "The column's text (see [`Value::display_string`]) matches the regular expression.",
           "properties": {
             "column": {
               "description": "Column name.",
@@ -1424,7 +1451,7 @@
       ]
     },
     "Probe": {
-      "description": "SQL that must return zero rows for the compiled relations to agree with the extractor.",
+      "description": "A data-dependent assumption the compiled relations make, as SQL that returns zero rows when\nthe assumption holds.",
       "properties": {
         "kind": {
           "$ref": "#/$defs/ProbeKind",
@@ -1453,11 +1480,11 @@
       "type": "object"
     },
     "ProbeKind": {
-      "description": "What a probe guards. A probe holds when its SQL returns zero rows.",
+      "description": "What a [`Probe`] guards.",
       "oneOf": [
         {
           "const": "AmbiguousObjectIdentity",
-          "description": "Two objects claim one id under different types. The extractor keeps the first and reports\nthe collision; the views keep both.",
+          "description": "Two objects claim one id under different types. The extractor keeps the first and reports\nthe collision, and the views keep both.",
           "type": "string"
         },
         {
@@ -1467,7 +1494,7 @@
         },
         {
           "const": "AmbiguousStaticObjectAttributes",
-          "description": "Two rows of one mapping give one object id different static attribute values. The\nextractor writes the mapping's *first* row for an id and ignores later repeats; SQL rows\nare unordered, so the views agree only when the repeats carry the same values.",
+          "description": "Two rows of one mapping give one object id different static attribute values. The\nextractor writes the mapping's first row for an id and ignores later repeats. SQL rows\nare unordered, so the views agree only when the repeats carry the same values.",
           "type": "string"
         },
         {
@@ -1548,12 +1575,12 @@
         },
         {
           "const": "QueryUnsupported",
-          "description": "This provider cannot execute SQL: it reports no [`RowProvider::query_dialect`], or the\nquery it was handed is one it cannot run. Never fatal on its own -- the caller falls back\nto executing the node row by row.",
+          "description": "This provider cannot execute SQL: it reports no [`RowProvider::query_dialect`], or the\nquery it was handed is one it cannot run. Not fatal: the caller falls back to executing\nthe node row by row.",
           "type": "string"
         },
         {
           "additionalProperties": false,
-          "description": "The underlying source failed while reading. Carries the backend's message rather than\nits original error type, so this type stays independent of any particular driver.",
+          "description": "The underlying source failed while reading.",
           "properties": {
             "Backend": {
               "properties": {
@@ -1580,8 +1607,26 @@
         }
       ]
     },
+    "PushdownDeclined": {
+      "description": "One node the compiler refused to push down to its source, and why.",
+      "properties": {
+        "node": {
+          "description": "The node id, as the blueprint names it.",
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/$defs/RejectReason",
+          "description": "What the compiler objected to."
+        }
+      },
+      "required": [
+        "node",
+        "reason"
+      ],
+      "type": "object"
+    },
     "RejectReason": {
-      "description": "Why a mapping could not be compiled to a view.\n\nEvery variant names something the emitter refused to guess at. The three reasons the\nredesign eliminated (`ConflictingPrefixFlag`, `DynamicTypeWithPrefixing`,\n`SynthesizedChangeTableEventId`) are gone: prefixing is one blueprint-level policy, and\n`ChangeTableEvents` no longer exists. [`RejectReason::DynamicTypeName`] narrowed from \"the\ntype is dynamic\" to \"the type is dynamic *and no column domain was supplied*\".\n\nSerializable but not deserializable: several variants carry `&'static str` fields (a borrow no\ndeserializer can manufacture), so this only ever crosses a bindings boundary outbound.",
+      "description": "Why a mapping could not be compiled to a view. Every variant names something the emitter\nrefused to guess at.\n\nSerializable but not deserializable: several variants carry `&'static str` fields, so this only\never crosses a bindings boundary outbound.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -1714,7 +1759,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A node's column shape could not be resolved -- typically an unknown source table.",
+          "description": "A node's column shape could not be resolved, typically because of an unknown source table.",
           "properties": {
             "UnresolvedNodeSchema": {
               "properties": {
@@ -1861,7 +1906,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A column with no [`Value::canonical_string`](super::value::Value::canonical_string) --\n`Float` or `Timestamp` -- is used at an identity position, where it makes the expression\n`None` for every row.",
+          "description": "A `Float` or `Timestamp` column, which has no\n[`Value::canonical_string`](super::value::Value::canonical_string), is used at an identity\nposition, where it makes the expression `None` for every row.",
           "properties": {
             "UnstableIdentityRendering": {
               "properties": {
@@ -1893,7 +1938,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A column whose [`Value::display_string`](super::value::Value::display_string) a SQL cast\ndoes not reproduce -- Rust writes `1` where `DuckDB` writes `1.0`, and keeps a\ntimestamp's original offset -- feeds a position that reads it as text.",
+          "description": "A column whose [`Value::display_string`](super::value::Value::display_string) a SQL cast\ndoes not reproduce feeds a position that reads it as text. Rust writes `1` where `DuckDB`\nwrites `1.0`, and keeps a timestamp's original offset.",
           "properties": {
             "UnstableDisplayRendering": {
               "properties": {
@@ -1984,33 +2029,6 @@
         },
         {
           "additionalProperties": false,
-          "description": "A regular expression is not provably identical between Rust's `regex` crate (the\nextractor) and RE2 (`DuckDB`).",
-          "properties": {
-            "UnportableRegex": {
-              "properties": {
-                "detail": {
-                  "description": "Which construct made it unportable.",
-                  "type": "string"
-                },
-                "pattern": {
-                  "description": "The pattern.",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "pattern",
-                "detail"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "UnportableRegex"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "description": "A regular expression does not compile at all.",
           "properties": {
             "InvalidRegex": {
@@ -2065,7 +2083,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "An attribute's declared type is not the source column's kind, and the coercion\n`attribute_value` applies is not one a typed SQL column can reproduce -- its fallback on\nfailure is the cell's own natural value, which has a different type.",
+          "description": "An attribute's declared type is not the source column's kind, and the coercion\n`attribute_value` applies is not one a typed SQL column can reproduce: its fallback on\nfailure is the cell's own natural value, which has a different type.",
           "properties": {
             "AttributeCoercion": {
               "properties": {
@@ -2102,7 +2120,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "A mapping whose type name comes from the data declares an attribute that another mapping\ndeclares under a different type. A statically-named type has its declarations reconciled\nbefore the first row; a data-named one declares lazily, one row at a time, so which type\nwins depends on row order.",
+          "description": "A mapping whose type name comes from the data declares an attribute that another mapping\ndeclares under a different type. A statically-named type has its declarations reconciled\nbefore the first row. A data-named one declares lazily, one row at a time, so which type\nwins depends on row order.",
           "properties": {
             "DynamicTypeAttributeConflict": {
               "properties": {
@@ -2124,29 +2142,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The requested [`EmissionShape`] is not implemented.",
-          "properties": {
-            "UnsupportedEmissionShape": {
-              "properties": {
-                "shape": {
-                  "description": "The shape asked for.",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "shape"
-              ],
-              "type": "object"
-            }
-          },
-          "required": [
-            "UnsupportedEmissionShape"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "A relation view's dependencies on other relation views form a cycle, so no order exists\nin which its `CREATE VIEW` (or CTE, or `CREATE TABLE ... AS`) could run. Not reachable\nfrom a [`validate`](super::validate)d blueprint -- see the note on\n[`CompiledOcel::relations`] -- so this only guards a blueprint fed to [`compile`]\nunvalidated.",
+          "description": "A relation view's dependencies on other relation views form a cycle, so no order exists\nin which its `CREATE VIEW` (or CTE, or `CREATE TABLE ... AS`) could run. Only reachable\nfrom a blueprint that skipped [`validate`](super::validate()).",
           "properties": {
             "ViewCycle": {
               "properties": {
@@ -2168,7 +2164,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "The blueprint does not [`validate`](super::validate::validate) against the catalog, so\nnothing was compiled at all. One per [`ValidationError`](super::validate::ValidationError),\nrendered through its `Display`: that type is not `Deserialize`, and neither is this enum,\nso carrying it structurally would buy nothing a caller could read back.",
+          "description": "The blueprint does not [`validate`](super::validate::validate) against the catalog, so\nnothing was compiled. One per\n[`ValidationError`](super::validate::ValidationError), rendered through its `Display`.",
           "properties": {
             "Invalid": {
               "properties": {
@@ -2239,7 +2235,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "[`ExtractionSink::add_object`] was called for `id`, but `id` is already present under a\n*different* object type -- only reachable under\n[`IdRendering::Raw`](super::blueprint::IdRendering::Raw). Distinguished from\n[`SinkError::DuplicateObject`] because the two must not be handled alike: a plain repeat\nmeans \"the id already exists, append to it\", while this means two distinct entities\ncollided on one id. A sink that cannot tell the two apart at\n[`resolve_object`](ExtractionSink::resolve_object) time -- because it defers, and\ntherefore never answers `Missing` for a type mismatch the way an eager sink's `resolve_object`\ndoes -- returns this from `add_object` instead, once the attempted insert makes the\nmismatch unambiguous.",
+          "description": "[`ExtractionSink::add_object`] was called for `id`, but `id` is already present under a\ndifferent object type, i.e. two distinct entities collided on one id rather than the plain\nrepeat [`SinkError::DuplicateObject`] reports. Only reachable under\n[`IdRendering::Raw`](super::blueprint::IdRendering::Raw). A deferring sink cannot make that\ndistinction at [`resolve_object`](ExtractionSink::resolve_object) time and reports it\nhere.",
           "properties": {
             "IdTypeCollision": {
               "properties": {
@@ -2288,12 +2284,12 @@
         },
         {
           "const": "InvalidRef",
-          "description": "A relation named a ref this sink instance did not itself hand out. Defensive: does not\nhappen through [`extract`](super::extract::extract), which only ever passes back a ref\nthis same sink returned.",
+          "description": "A relation named a ref this sink instance did not itself hand out. Cannot happen through\n[`extract`](super::extract::extract).",
           "type": "string"
         },
         {
           "additionalProperties": false,
-          "description": "The backend failed (I/O, driver error). Carries the backend's message rather than its\noriginal error type, so this type stays independent of any particular sink.",
+          "description": "The backend failed (I/O, driver error), as its message.",
           "properties": {
             "Backend": {
               "type": "string"
@@ -2328,7 +2324,7 @@
           "type": "object"
         },
         {
-          "description": "Extract values with a regular expression.\n\nWith capture groups, every group of every match yields a value; without, each whole\nmatch does.",
+          "description": "Extract values with a regular expression.\n\nWith capture groups, every group of every match yields a value. Without them, each whole\nmatch does.",
           "properties": {
             "pattern": {
               "description": "The pattern.",
@@ -2366,7 +2362,7 @@
       "type": "object"
     },
     "SqlDialect": {
-      "description": "Which SQL engine the emitted statements target.\n\nThe enum exists so the compiler never hard-codes one engine's spelling: every quote, cast and\nfunction name in the emitted SQL comes from a method here.\n\nThe two are **not** equally evidenced. `DuckDb` is what the differential suite runs against, so\nits output is checked row-for-row against the extractor. `Postgres` is derived from the same\nfragments and is not covered by that suite, so it is verified by construction and by unit tests\nover the emitted text, not by execution. Where an engine difference cannot be *proved* away --\nregular expressions, see [`portable_regex`](super::portable::portable_regex) -- `Postgres`\nrefuses to compile the construct rather than emitting SQL that might disagree.",
+      "description": "Which SQL engine the emitted statements target.\n\nThe two are not equally evidenced: `DuckDb` is checked row-for-row against the extractor by\nthe differential suite, while `Postgres` is only covered by unit tests over the emitted text.",
       "oneOf": [
         {
           "const": "DuckDb",
@@ -2375,7 +2371,7 @@
         },
         {
           "const": "Postgres",
-          "description": "`PostgreSQL` 12+. Emitted from the same fragments as `DuckDb`; see the type-level note.",
+          "description": "`PostgreSQL` 12+. Emitted from the same fragments as `DuckDb`, see the type-level note.",
           "type": "string"
         }
       ]
@@ -2458,7 +2454,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Event id. `None` assigns a UUID, which is not reproducible across runs and cannot\nbe compiled to a view.\n\nIt is also what coalesces a fan-out. Reading a join of orders and their items gives\none row per item, so a `None` id makes one event per item; an id naming the order\nmakes one event per order, still related to every item, because the repeated rows\nare counted as [`MappingStats::deduplicated`](super::report::MappingStats::deduplicated)\nwhile `objects` below is emitted for each of them."
+              "description": "Event id. `None` assigns a UUID, which is not reproducible across runs and cannot\nbe compiled to a view.\n\nIt is also what coalesces a fan-out: over a join of orders and their items, a `None`\nid makes one event per item, an id naming the order one event per order, still related\nto every item. The repeated rows count as\n[`MappingStats::deduplicated`](super::report::MappingStats::deduplicated) while\n`objects` below is emitted for each."
             },
             "objects": {
               "default": [],
@@ -3019,11 +3015,100 @@
             "reason"
           ],
           "type": "object"
+        },
+        {
+          "description": "A `Join` output column resolves to no single input column: the left input has a column\nliterally named `right_<name>` and the right input's `<name>` is renamed onto it.",
+          "properties": {
+            "column": {
+              "description": "The contested output column name.",
+              "type": "string"
+            },
+            "node": {
+              "description": "The `Join` node.",
+              "type": "string"
+            },
+            "type": {
+              "const": "ambiguous-join-column",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node",
+            "column"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A comparison literal cannot be read as the type its column declares, so the comparison\nmatches no row at all, however the data looks.\n\nRaised only where the column's declared type names a kind: an unrecognized `col_type` turns\ncoercion off on purpose, and then the literal is compared as authored.",
+          "properties": {
+            "col_type": {
+              "description": "That column's declared type, verbatim from the catalog.",
+              "type": "string"
+            },
+            "column": {
+              "description": "The column compared against.",
+              "type": "string"
+            },
+            "expected": {
+              "description": "The kind `col_type` names: `text`, `integer`, `float`, `boolean` or `timestamp`.",
+              "type": "string"
+            },
+            "literal": {
+              "description": "The literal, as authored.",
+              "type": "string"
+            },
+            "location": {
+              "description": "The mapping, by label or authored path, or the `Filter` node, the comparison sits in.",
+              "type": "string"
+            },
+            "type": {
+              "const": "uncoercible-literal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "location",
+            "column",
+            "col_type",
+            "literal",
+            "expected"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A comparison's two operands (both columns, or both literals) have different, statically\nknown kinds that [`Value::compare`](super::value::Value::compare) has no rule for (only\n`integer`/`float` compare across kinds), so it matches no row at all.",
+          "properties": {
+            "left_kind": {
+              "description": "The left operand's declared kind: `text`, `integer`, `float`, `boolean` or `timestamp`.",
+              "type": "string"
+            },
+            "location": {
+              "description": "The mapping, by label or authored path, or the `Filter` node, the comparison sits in.",
+              "type": "string"
+            },
+            "right_kind": {
+              "description": "The right operand's declared kind.",
+              "type": "string"
+            },
+            "type": {
+              "const": "incomparable-compare",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "location",
+            "left_kind",
+            "right_kind"
+          ],
+          "type": "object"
         }
       ]
     },
     "ValueExpression": {
-      "description": "Produces one text value from a row.\n\nEvery position that becomes an identity -- entity ids, relation endpoints, type names,\nqualifiers -- uses this, and every variant propagates absence: if any input has no\n[`Value::canonical_string`], the whole expression is `None` and the caller drops the row.",
+      "description": "Produces one text value from a row.\n\nUsed by every position that becomes an identity: entity ids, relation endpoints, type names\nand qualifiers. Every variant propagates absence, so if any input has no\n[`Value::canonical_string`] the whole expression is `None` and the caller drops the row.",
       "oneOf": [
         {
           "description": "The value in a column.",

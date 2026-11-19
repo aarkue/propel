@@ -19,11 +19,13 @@ import { exportFormatsFor } from "@r4pm/client";
 import { backend } from "../backends";
 import { exportDataset } from "./export-dataset";
 import { unloadDataset } from "../persistence/session";
-import { addPanelToDockview, VISIBLE_PANELS } from "../panels/registry";
+import { addPanelToDockview, getPanelByType, VISIBLE_PANELS } from "../panels/registry";
+import { TABBED } from "../panels/tabbed";
+import { aboutPanel } from "./analyses";
 import { useImport } from "./import-context";
 import { useThemeMode } from "./theme-context";
 
-type Section = "Panels" | "Data" | "View";
+type Section = "Recent" | "Panels" | "Data" | "View";
 type Command = {
   id: string;
   title: string;
@@ -36,22 +38,74 @@ type Command = {
 
 function scoreCommand(command: Command, query: string): number {
   if (!query) return 1;
-  const q = query.toLowerCase();
-  const hay = [command.title, command.subtitle, ...(command.keywords ?? [])]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  if (hay.startsWith(q)) return 100;
-  const idx = hay.indexOf(q);
-  if (idx === 0) return 90;
-  if (idx > 0) return 50 - Math.min(idx, 40);
+  const q = query.toLowerCase().trim();
+  const title = command.title.toLowerCase().replace(/^add panel: /, "");
+  const words = (text: string) => text.split(/[^a-z0-9+]+/);
+  const keywords = (command.keywords ?? []).map((k) => k.toLowerCase());
+  if (title.startsWith(q)) return 100;
+  if (words(title).some((w) => w.startsWith(q))) return 90;
+  if (keywords.some((k) => k === q || k.startsWith(q))) return 80;
+  if (title.includes(q)) return 70;
+  if (keywords.some((k) => k.includes(q))) return 50;
+  if ((command.subtitle ?? "").toLowerCase().includes(q)) return 30;
+  // Letters in order, in the title only: forgives typos without matching long descriptions.
   let hi = 0;
-  for (const ch of q) {
-    const found = hay.indexOf(ch, hi);
+  for (const ch of q.replace(/\s+/g, "")) {
+    const found = title.indexOf(ch, hi);
     if (found === -1) return 0;
     hi = found + 1;
   }
   return 10;
+}
+
+const RECENT_KEY = "propel-recent-commands";
+
+function recentCommands(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
+function rememberCommand(id: string): void {
+  try {
+    const next = [id, ...recentCommands().filter((x) => x !== id)].slice(0, 6);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    // Storage off: no recent list.
+  }
+}
+
+/** Words people search with that a panel's name does not contain. */
+const SYNONYMS: Record<string, string[]> = {
+  performanceSpectrum: ["bottleneck", "queue", "batching", "overtaking", "slow", "delay"],
+  caseDuration: ["lead time", "cycle time", "throughput time", "sla", "slow"],
+  workload: ["busy", "weekday", "hour", "resource load"],
+  "group:conformance": ["fitness", "deviation", "compliance", "check model", "token replay"],
+  alignmentNet: [
+    "fitness",
+    "deviation",
+    "skipped",
+    "missing step",
+    "missing event",
+    "extra event",
+    "log move",
+    "model move",
+  ],
+  logVariants: ["paths", "rework", "loops", "happy path", "process flows"],
+  logHealth: ["quality", "missing timestamps", "duplicates", "errors", "cleanup"],
+  traceBrowser: ["table", "raw data", "cases"],
+  dfg: ["process map", "flow", "graph"],
+  petriNet: ["process model", "inductive miner", "discover model"],
+  ocdfg: ["process map", "object-centric flow"],
+  pathSchemas: ["data model", "erd", "links", "how objects connect"],
+  ocelTypeGraph: ["data model", "erd", "links"],
+  objectBrowser: ["instances", "object table", "history"],
+};
+
+function synonymsFor(type: string): string[] {
+  return SYNONYMS[type] ?? [];
 }
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -109,16 +163,36 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         subtitle: panel.description,
         section: "Panels",
         icon: panel.icon,
-        keywords: panel.keywords,
+        keywords: [...aboutPanel(panel.type), ...(panel.keywords ?? []), ...synonymsFor(panel.type)],
         run: () => {
           addPanelToDockview(panel.type);
           onClose();
         },
       });
     }
+    // Each tab of a tabbed panel is findable by its own name.
+    for (const g of TABBED) {
+      const group = getPanelByType(g.type);
+      if (!group) continue;
+      for (const t of g.tabs) {
+        const member = getPanelByType(t.panel);
+        list.push({
+          id: `tab:${t.panel}`,
+          title: `Add panel: ${g.name} · ${t.label}`,
+          subtitle: member?.description,
+          section: "Panels",
+          icon: group.icon,
+          keywords: [member?.name ?? "", ...(member?.keywords ?? []), ...synonymsFor(t.panel)],
+          run: () => {
+            addPanelToDockview(t.panel);
+            onClose();
+          },
+        });
+      }
+    }
     list.push({
       id: "panel:gallery",
-      title: "Browse panel gallery...",
+      title: "Browse panel gallery…",
       subtitle: "Open the full catalog",
       section: "Panels",
       icon: PiMagnifyingGlass,
@@ -208,16 +282,29 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return list;
   }, [datasets, kinds.data, importableKinds, resolved, importKind, unload, onClose, toggleTheme]);
 
-  const ranked = useMemo(
-    () =>
-      commands
-        .map((cmd) => ({ cmd, score: scoreCommand(cmd, deferredQuery) }))
-        .filter((x) => x.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 40)
-        .map((x) => x.cmd),
-    [commands, deferredQuery],
-  );
+  const ranked = useMemo(() => {
+    const recent = recentCommands();
+    // Without a query, recently used commands come first, in their own section.
+    if (!deferredQuery) {
+      const byId = new Map(commands.map((c) => [c.id, c]));
+      const first = recent
+        .map((id) => byId.get(id))
+        .filter((c): c is Command => !!c)
+        .map((c) => ({ ...c, section: "Recent" as const }));
+      const rest = commands.filter((c) => !recent.includes(c.id));
+      return [...first, ...rest].slice(0, 40);
+    }
+    return commands
+      .map((cmd) => {
+        const at = recent.indexOf(cmd.id);
+        const score = scoreCommand(cmd, deferredQuery);
+        return { cmd, score: score > 0 && at >= 0 ? score + 20 - at : score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 40)
+      .map((x) => x.cmd);
+  }, [commands, deferredQuery]);
 
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(`[data-cmd-idx="${selectedIdx}"]`);
@@ -243,7 +330,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       setSelectedIdx((i) => Math.max(0, i - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      ranked[selectedIdx]?.run();
+      const cmd = ranked[selectedIdx];
+      if (cmd) {
+        rememberCommand(cmd.id);
+        cmd.run();
+      }
     }
   };
 
@@ -298,7 +389,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                     key={cmd.id}
                     idx={idx}
                     active={idx === selectedIdx}
-                    onSelect={() => cmd.run()}
+                    onSelect={() => {
+                      rememberCommand(cmd.id);
+                      cmd.run();
+                    }}
                     onHover={() => setSelectedIdx(idx)}
                     icon={<Icon size={16} />}
                     title={cmd.title}

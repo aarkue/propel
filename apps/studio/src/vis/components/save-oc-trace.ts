@@ -2,7 +2,7 @@ import type { OcSequenceStep } from "@r4pm/components";
 import { backend } from "../../backends";
 import { useDatasets, uniqueDatasetLabel } from "../../stores";
 
-const OCEL_FROM_TRACE = "app_bindings::ocel::ocel_from_oc_sim_trace" as const;
+const OCEL_FROM_TRACE = "app_bindings::ocel_from_oc_sim_trace" as const;
 
 /** Turn an object-centric simulation trace into a slim linked OCEL via the backend, then register
  *  the resulting handle as a dataset. Silent (unlabeled) steps are dropped. */

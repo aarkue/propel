@@ -3,6 +3,8 @@ import * as PetriNet from "./petri-net.stories";
 import * as OCPN from "./object-centric-petri-net.stories";
 import * as Freq from "./inputs/FrequencyPicker.stories";
 import * as DeviationAlignmentStrip from "./shared/DeviationAlignmentStrip.stories";
+import * as OcelOverview from "./overview/ocel-overview.stories";
+import * as Workload from "./overview/workload-calendar.stories";
 import pkg from "../package.json";
 
 <Meta title="Getting Started/Introduction" tags={["dev"]} />
@@ -12,7 +14,9 @@ import pkg from "../package.json";
 <p style={{ margin: "-8px 0 16px", opacity: 0.6, fontSize: 13 }}>v{pkg.version}</p>
 
 React components for process mining: Petri nets, object-centric Petri nets,
-directly-follows graphs, dotted charts, alignments, etc.
+directly-follows graphs, dotted charts, alignments, analysis views for event logs and OCELs
+(overviews, data-quality checks with fixes, workload calendars, performance spectra, token
+animations, ...), and the kit they are built from.
 
 ## Install
 
@@ -100,6 +104,14 @@ Radix or it strips Radix's control styling.
 
 <Canvas of={OCPN.Default} />
 
+### [OCEL overview](?path=/docs/viewers-ocel-overview--docs)
+
+<Canvas of={OcelOverview.OrderManagement} />
+
+### [Workload calendar](?path=/docs/viewers-workload-calendar--docs)
+
+<Canvas of={Workload.OrderManagement} />
+
 ### [Frequency selector](?path=/docs/inputs-primitives-frequency-picker--docs)
 
 <Canvas of={Freq.Default} />
@@ -113,6 +125,7 @@ Radix or it strips Radix's control styling.
 - [Image Export](?path=/docs/getting-started-image-export--docs): `ViewerExportFrame`, SVG against screenshot, your own sources.
 - [Data Types](?path=/docs/getting-started-data-types--docs): every binding return type a viewer takes as `data`, generated from the Rust types.
 - [For LLM Agents](?path=/docs/getting-started-for-llm-agents--docs): the single-file reference to hand a coding agent, and a copy-paste starting prompt.
+- [Changelog](?path=/docs/getting-started-changelog--docs): breaking changes and new features per release.
 
 Viewers cover Petri nets, object-centric Petri nets, directly-follows graphs, dotted charts,
 alignments, fitness, OC-DECLARE, activity / case-duration / events-per-time charts, OCEL counts, log

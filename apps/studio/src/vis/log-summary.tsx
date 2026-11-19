@@ -13,7 +13,7 @@ export const vis = defineVis({
   keywords: ["summary", "stats", "metrics", "overview"],
   order: 0,
   source: {
-    binding: "app_bindings::event_log::get_log_info",
+    binding: "app_bindings::get_log_info",
     needs: "EventLog",
     args: (ctx) => ({ event_log: ctx.datasetId as EventLogHandle }),
   },

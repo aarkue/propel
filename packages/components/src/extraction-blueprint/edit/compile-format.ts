@@ -102,10 +102,6 @@ export function describeRejectReason(reason: RejectReason): string {
     const { node, side, column, col_type } = reason.UndecidableJoinKey;
     return `join '${node}': the ${side} key '${column}' is declared '${col_type}', which maps to no value kind, so whether the extractor's kind-tagged keys can match is not decidable at compile time.`;
   }
-  if ("UnportableRegex" in reason) {
-    const { pattern, detail } = reason.UnportableRegex;
-    return `regex '${pattern}' is not provably identical between Rust regex and RE2: ${detail}`;
-  }
   if ("InvalidRegex" in reason) {
     const { pattern, message } = reason.InvalidRegex;
     return `invalid regular expression '${pattern}': ${message}`;
@@ -121,10 +117,6 @@ export function describeRejectReason(reason: RejectReason): string {
   if ("DynamicTypeAttributeConflict" in reason) {
     const { attribute } = reason.DynamicTypeAttributeConflict;
     return `attribute '${attribute}' is declared under conflicting types, and this mapping's type name comes from the data, so which declaration wins depends on row order.`;
-  }
-  if ("UnsupportedEmissionShape" in reason) {
-    const { shape } = reason.UnsupportedEmissionShape;
-    return `emission shape ${shape} is not implemented.`;
   }
   if ("ViewCycle" in reason) {
     const { view } = reason.ViewCycle;

@@ -1,6 +1,14 @@
 import { SegmentedControl } from "@r4pm/components/ui";
 import type { IDockviewPanelProps } from "dockview";
-import { createContext, type ReactNode, useContext, useLayoutEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { IconType } from "react-icons";
 import { PiCheckCircle, PiListChecks } from "react-icons/pi";
 import { ViewerExportFrame } from "@r4pm/components";
@@ -75,12 +83,23 @@ export function tabOf(type: string): { group: string; tab: string } | undefined 
  * The tab strip of the enclosing tabbed panel. A panel's header (`PanelFrame`) shows it before the
  * dataset picker and claims it, so the tabbed panel draws no strip of its own.
  */
-export const PanelTabsContext = createContext<{ strip: ReactNode; claim: () => void } | null>(null);
+export const PanelTabsContext = createContext<{
+  strip: ReactNode;
+  claim: () => void;
+  /** Shows the tab with panel `type`, opened with `params`; false when this panel has no such tab. */
+  open: (type: string, params: Record<string, unknown>) => boolean;
+} | null>(null);
 
 export function usePanelTabs(): ReactNode {
   const ctx = useContext(PanelTabsContext);
   useLayoutEffect(() => ctx?.claim(), [ctx]);
   return ctx?.strip ?? null;
+}
+
+/** Opens panel `type` in a tab of the enclosing tabbed panel; false when it has no such tab. */
+export function useOpenTab(): (type: string, params: Record<string, unknown>) => boolean {
+  const ctx = useContext(PanelTabsContext);
+  return ctx?.open ?? (() => false);
 }
 
 /**
@@ -143,7 +162,23 @@ export function tabbedPanels(panel: (type: string) => PanelDefinition | undefine
           ))}
         </SegmentedControl.Root>
       );
-      const ctx = useMemo(() => ({ strip, claim: () => setClaimedBy(current.id) }), [strip, current.id]);
+      const { api } = props;
+      const open = useCallback(
+        (type: string, params: Record<string, unknown>) => {
+          const t = spec.tabs.find((t) => t.panel === type);
+          if (!t) return false;
+          const { datasetId: _shared, ...own } = params;
+          const key = `tab.${t.id}`;
+          const stored = (api.getParameters()?.[key] as Record<string, unknown> | undefined) ?? {};
+          api.updateParameters({ tab: t.id, [key]: { ...stored, ...own } });
+          return true;
+        },
+        [api],
+      );
+      const ctx = useMemo(
+        () => ({ strip, claim: () => setClaimedBy(current.id), open }),
+        [strip, current.id, open],
+      );
       return (
         <PanelTabsContext.Provider value={ctx}>
           <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>

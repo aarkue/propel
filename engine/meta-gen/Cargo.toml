@@ -28,3 +28,5 @@ backend-shared = { path = "../backend-shared", features = ["ocel-sqlite", "extra
 # alphabetizing. meta-gen is excluded from workspace default-members so this feature does not
 # unify into the runtime crates (webserver/wasm) on a bare `cargo build`.
 serde_json = { version = "1", features = ["preserve_order"] }
+# Stable WiX component GUIDs in the generated open-with.wxs (file-assoc bin).
+uuid = { version = "1", features = ["v5"] }

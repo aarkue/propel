@@ -167,7 +167,7 @@ export function PipelineActionsPanel({
         <Dialog.Content maxWidth="400px">
           <Dialog.Title>Save Pipeline</Dialog.Title>
           <Dialog.Description size="2" mb="4">
-            Give your pipeline a memorable name.
+            Saves the pipeline under a name.
           </Dialog.Description>
 
           <Flex direction="column" gap="3">
@@ -256,7 +256,7 @@ export function PipelineActionsPanel({
         <AlertDialog.Content maxWidth="450px">
           <AlertDialog.Title>Clear Pipeline</AlertDialog.Title>
           <AlertDialog.Description size="2">
-            Are you sure you want to clear the entire pipeline? This action cannot be undone.
+            Removes all steps of the pipeline. This cannot be undone.
           </AlertDialog.Description>
 
           <Flex gap="3" mt="4" justify="end">

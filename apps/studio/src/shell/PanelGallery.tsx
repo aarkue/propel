@@ -230,7 +230,8 @@ function PanelCard({ panel, about, onAdd }: { panel: PanelDefinition; about: str
             src={thumb}
             alt=""
             loading="lazy"
-            className="h-full w-full object-cover object-left-top transition-transform duration-300 group-hover:scale-[1.03]"
+            // Absolute, so older WebKitGTK (AppImage) does not size the card from the image's natural height.
+            className="absolute inset-0 h-full w-full object-cover object-left-top transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_50%_40%,var(--indigo-a3),transparent_70%)] text-[var(--indigo-a9)]">

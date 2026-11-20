@@ -76,6 +76,16 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check generated file associations
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          pnpm gen:file-assoc
+          if [ -n "$(git status --porcelain -- engine/app)" ]; then
+            git status --short -- engine/app
+            echo "::error::File associations are out of date. Run pnpm gen:file-assoc and commit the result."
+            exit 1
+          fi
+
       - name: Import Apple Developer Certificate
         if: matrix.platform == 'macos-latest'
         env:
@@ -92,7 +102,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
       - name: Build the app
-        uses: tauri-apps/tauri-action@v0.5.22
+        uses: tauri-apps/tauri-action@v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -112,4 +122,8 @@ jobs:
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: true
           prerelease: false
+          # No version in the names, so releases/latest/download/<name> links stay valid.
+          releaseAssetNamePattern: '[name]_[arch][setup][ext]'
+          # Older app versions read only the generic windows-x86_64 entry; point it at the recommended setup.exe.
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}

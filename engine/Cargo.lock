@@ -1464,7 +1464,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1692,7 +1692,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2263,9 +2263,9 @@ dependencies = [
 
 [[package]]
 name = "graphlay"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46b97373f53dfbb42a82b9d2a42d32dfc2c4ae3d13f589a61b88e6338381fc77"
+checksum = "0ed2969ffc4a45b29168151bb5f8dc2f5af3644449cc2a568c582b64abf6824b"
 dependencies = [
  "libm",
  "schemars 1.2.1",
@@ -3142,8 +3142,7 @@ dependencies = [
 [[package]]
 name = "macros_process_mining"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb645a726ed18af7a3dfb9a76ab3959a785f58cd5b7e1d2bf259cacc5607a3e2"
+source = "git+https://github.com/aarkue/rust4pm?rev=9c1758483047c7aa426286ad764ade2f2bfcdeb1#9c1758483047c7aa426286ad764ade2f2bfcdeb1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3200,6 +3199,7 @@ dependencies = [
  "backend-shared",
  "process_mining",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -3273,7 +3273,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.18",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3341,7 +3341,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4076,8 +4076,7 @@ dependencies = [
 [[package]]
 name = "process_mining"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be919e400388d9cc922b35d157f5550b612379d1a230cdc5c0e5e76a1d9cc22b"
+source = "git+https://github.com/aarkue/rust4pm?rev=9c1758483047c7aa426286ad764ade2f2bfcdeb1#9c1758483047c7aa426286ad764ade2f2bfcdeb1"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -4110,7 +4109,7 @@ dependencies = [
 
 [[package]]
 name = "propel-tauri"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "app-bindings",
  "backend-shared",
@@ -4460,7 +4459,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4517,7 +4516,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4891,6 +4890,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4984,7 +4989,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5792,7 +5797,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6198,7 +6203,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.18",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6239,7 +6244,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6414,6 +6419,7 @@ dependencies = [
  "getrandom 0.4.3",
  "js-sys",
  "serde_core",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 
@@ -6762,7 +6768,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

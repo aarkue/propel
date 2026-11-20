@@ -1888,6 +1888,11 @@ compound_padding?: number
  * title. Default 0.
  */
 compound_header?: number
+/**
+ * Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep
+ * along the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.
+ */
+narrow_layer_gap?: number
 }
 /**
  * Routing style, bundling and port choices.
@@ -2126,6 +2131,12 @@ export interface CycleOptions {
  * Which edges of a cycle are drawn backwards.
  */
 strategy?: ("minimum_reversal" | "follow_flow")
+/**
+ * Reverse a backward edge together with its return path (up to three edges through nodes
+ * with one edge in and one out), so a loop's redo path lies between the loop's entry and exit
+ * with its arrows pointing back. Default `true`.
+ */
+whole_returns?: boolean
 }
 /**
  * The engine's internal iteration counts, budgets and thresholds. See [`Tuning`].
@@ -3891,6 +3902,12 @@ stroke?: Stroke1
  * Radius the interior joins are rounded with. 0 draws straight segments.
  */
 corner_radius?: number
+/**
+ * Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for
+ * the last few pixels at each end so markers point along the route. Where the curve would
+ * cut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.
+ */
+smooth?: boolean
 /**
  * Radius of the semicircle a horizontal run of this edge draws where it crosses another
  * edge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so

@@ -29,9 +29,13 @@ const EVALUATE = "app_bindings::evaluate_inductive_net" as const;
 /** The miners with a noise threshold to sweep. */
 const SWEEP_VARIANTS: readonly MinerVariant[] = ["IMf", "IMa", "IMfd"];
 const STEPS: Option<string>[] = [
-  { value: "0.2", label: "6 thresholds", description: "0, 0.2, ..., 1. A quick first look." },
+  { value: "0.2", label: "6 thresholds", description: "0, 0.2, ..., 1." },
   { value: "0.1", label: "11 thresholds", description: "0, 0.1, ..., 1." },
-  { value: "0.05", label: "21 thresholds", description: "0, 0.05, ..., 1. Finest, takes longest." },
+  {
+    value: "0.05",
+    label: "21 thresholds",
+    description: "0, 0.05, ..., 1. Takes about twice as long as 11 thresholds.",
+  },
 ];
 
 interface Settings {
@@ -277,7 +281,7 @@ function ModelSweep({ log, props }: { log: string; props: IDockviewPanelProps })
             ) : (
               <EmptyState
                 title="No model yet"
-                description="The net with the best F-score shows here once measured."
+                description="After the sweep, the net with the highest F-score is shown here."
               />
             )}
           </div>

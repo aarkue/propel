@@ -14831,7 +14831,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -14924,7 +14925,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -15108,6 +15110,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -15643,6 +15651,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -16981,7 +16994,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -17074,7 +17088,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -17258,6 +17273,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -17793,6 +17814,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -19108,7 +19134,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -19201,7 +19228,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -19400,6 +19428,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -19910,6 +19944,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -21151,7 +21190,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -21244,7 +21284,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -21428,6 +21469,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -21963,6 +22010,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -24371,6 +24423,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -25438,7 +25495,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -25531,7 +25589,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -25715,6 +25774,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -26250,6 +26315,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -27773,7 +27843,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -27866,7 +27937,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -28050,6 +28122,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -28585,6 +28663,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -44173,7 +44256,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -44266,7 +44350,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -44465,6 +44550,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -44975,6 +45066,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -50267,7 +50363,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -50360,7 +50457,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -50544,6 +50642,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -51079,6 +51183,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -52361,7 +52470,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -52454,7 +52564,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -52638,6 +52749,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -53173,6 +53290,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -54307,7 +54429,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -54400,7 +54523,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -54599,6 +54723,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -55109,6 +55239,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -56370,7 +56505,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -56463,7 +56599,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -56647,6 +56784,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -57182,6 +57325,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -59430,6 +59578,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -60622,7 +60775,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -60715,7 +60869,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -60899,6 +61054,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -61434,6 +61595,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -62922,7 +63088,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -63015,7 +63182,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -63199,6 +63367,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -63734,6 +63908,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -65071,7 +65250,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -65164,7 +65344,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -65348,6 +65529,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -65883,6 +66070,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -67004,7 +67196,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -67097,7 +67290,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -67281,6 +67475,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -67816,6 +68016,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -68911,7 +69116,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -69004,7 +69210,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -69203,6 +69410,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -69713,6 +69926,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -70828,7 +71046,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -70921,7 +71140,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -71105,6 +71325,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -71640,6 +71866,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -73832,6 +74063,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -74906,7 +75142,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -74999,7 +75236,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -75183,6 +75421,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -75718,6 +75962,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -77032,7 +77281,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -77125,7 +77375,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -77309,6 +77560,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -77844,6 +78101,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -78889,7 +79151,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -78982,7 +79245,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -79166,6 +79430,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -79701,6 +79971,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -81125,7 +81400,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -81218,7 +81494,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -81402,6 +81679,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -81937,6 +82220,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -83312,7 +83600,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -83405,7 +83694,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -83604,6 +83894,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -84114,6 +84410,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -85407,7 +85708,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -85500,7 +85802,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -85684,6 +85987,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -86219,6 +86528,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -88682,6 +88996,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -89775,7 +90094,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -89868,7 +90188,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -90052,6 +90373,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -90587,6 +90914,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -92191,7 +92523,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -92284,7 +92617,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -92468,6 +92802,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -93003,6 +93343,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -94411,7 +94756,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -94504,7 +94850,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -94688,6 +95035,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -95223,6 +95576,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -96611,7 +96969,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -96704,7 +97063,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -96888,6 +97248,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -97423,6 +97789,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -98724,7 +99095,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -98817,7 +99189,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -99016,6 +99389,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -99526,6 +99905,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -100766,7 +101150,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -100859,7 +101244,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -101043,6 +101429,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -101578,6 +101970,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -104020,6 +104417,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -105151,7 +105553,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -105244,7 +105647,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -105428,6 +105832,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -105963,6 +106373,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -107584,7 +107999,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -107677,7 +108093,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -107861,6 +108278,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -108396,6 +108819,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -109850,7 +110278,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -109943,7 +110372,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -110127,6 +110557,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -110662,6 +111098,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -111988,7 +112429,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -112081,7 +112523,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -112265,6 +112708,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -112800,6 +113249,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -113928,7 +114382,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -114021,7 +114476,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -114220,6 +114676,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -114730,6 +115192,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -116029,7 +116496,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -116122,7 +116590,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -116306,6 +116775,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -116841,6 +117316,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -119040,6 +119520,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -120292,7 +120777,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -120385,7 +120871,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -120569,6 +121056,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -121104,6 +121597,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -122603,7 +123101,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -122696,7 +123195,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -122880,6 +123380,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -123415,6 +123921,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -125279,7 +125790,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -125372,7 +125884,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -125556,6 +126069,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -126091,6 +126610,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -127406,7 +127930,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -127499,7 +128024,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -127683,6 +128209,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -128218,6 +128750,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -129464,7 +130001,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -129557,7 +130095,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -129756,6 +130295,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -130266,6 +130811,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -131496,7 +132046,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -131589,7 +132140,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -131773,6 +132325,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -132308,6 +132866,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -134647,6 +135210,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -135760,7 +136328,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -135853,7 +136422,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -136037,6 +136607,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -136572,6 +137148,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -138072,7 +138653,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -138165,7 +138747,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -138349,6 +138932,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -138884,6 +139473,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
@@ -143859,6 +144453,11 @@
               "format": "double",
               "default": 0.0
             },
+            "smooth": {
+              "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+              "type": "boolean",
+              "default": false
+            },
             "hop_radius": {
               "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
               "type": "number",
@@ -147884,7 +148483,8 @@
                 "isolated_gap": 46.0,
                 "isolated_max_columns": 24,
                 "compound_padding": 20.0,
-                "compound_header": 0.0
+                "compound_header": 0.0,
+                "narrow_layer_gap": 38.0
               }
             },
             "routing": {
@@ -147977,7 +148577,8 @@
               "description": "Which edges of a cyclic graph are drawn against the flow.",
               "$ref": "#/$defs/CycleOptions",
               "default": {
-                "strategy": "minimum_reversal"
+                "strategy": "minimum_reversal",
+                "whole_returns": true
               }
             },
             "seed_mode": {
@@ -148161,6 +148762,12 @@
               "type": "number",
               "format": "double",
               "default": 0.0
+            },
+            "narrow_layer_gap": {
+              "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+              "type": "number",
+              "format": "double",
+              "default": 38.0
             }
           },
           "additionalProperties": false
@@ -148696,6 +149303,11 @@
               "description": "Which edges of a cycle are drawn backwards.",
               "$ref": "#/$defs/CycleStrategy",
               "default": "minimum_reversal"
+            },
+            "whole_returns": {
+              "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -152046,6 +152658,11 @@
                   "format": "double",
                   "default": 0.0
                 },
+                "smooth": {
+                  "description": "Draw the polyline as one B-spline through its corners (d3's `curveBasis`), straight for\nthe last few pixels at each end so markers point along the route. Where the curve would\ncut a node the polyline clears, `corner_radius` applies instead. Ignores `hop_radius`.",
+                  "type": "boolean",
+                  "default": false
+                },
                 "hop_radius": {
                   "description": "Radius of the semicircle a horizontal run of this edge draws where it crosses another\nedge's vertical run. 0 draws crossings flat. Only crossings well inside both runs hop, so\na T junction or a crossing near a corner stays flat.",
                   "type": "number",
@@ -153526,7 +154143,8 @@
                     "isolated_gap": 46.0,
                     "isolated_max_columns": 24,
                     "compound_padding": 20.0,
-                    "compound_header": 0.0
+                    "compound_header": 0.0,
+                    "narrow_layer_gap": 38.0
                   }
                 },
                 "routing": {
@@ -153619,7 +154237,8 @@
                   "description": "Which edges of a cyclic graph are drawn against the flow.",
                   "$ref": "#/$defs/CycleOptions",
                   "default": {
-                    "strategy": "minimum_reversal"
+                    "strategy": "minimum_reversal",
+                    "whole_returns": true
                   }
                 },
                 "seed_mode": {
@@ -153818,6 +154437,12 @@
                   "type": "number",
                   "format": "double",
                   "default": 0.0
+                },
+                "narrow_layer_gap": {
+                  "description": "Gap on either side of a layer whose nodes are all at most half [`Spacing::layer_gap`] deep\nalong the flow, e.g., silent transitions. Default 38, capped at `layer_gap`.",
+                  "type": "number",
+                  "format": "double",
+                  "default": 38.0
                 }
               },
               "additionalProperties": false
@@ -154328,6 +154953,11 @@
                   "description": "Which edges of a cycle are drawn backwards.",
                   "$ref": "#/$defs/CycleStrategy",
                   "default": "minimum_reversal"
+                },
+                "whole_returns": {
+                  "description": "Reverse a backward edge together with its return path (up to three edges through nodes\nwith one edge in and one out), so a loop's redo path lies between the loop's entry and exit\nwith its arrows pointing back. Default `true`.",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false

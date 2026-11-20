@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { IDockviewPanelProps } from "dockview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addPanelToDockview } from "../../panels/registry";
+import { useOpenTab } from "../../panels/tabbed";
 import { violationPanelParams } from "../oc-declare-violations";
 import toast from "react-hot-toast";
 import { PiArrowsClockwise, PiLightning, PiListBullets, PiX } from "react-icons/pi";
@@ -109,7 +110,9 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
   const latestLoad = useRef(0);
   const [discovering, setDiscovering] = useState(false);
   const [pending, setPending] = useState<{ arcs: OCDeclareArc[]; run: DiscoveryRun } | null>(null);
-  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  // In the params, so the marks are still there after a look at the Violations tab.
+  const [evaluation, setEvaluation] = usePanelState<Evaluation | null>(props, "evaluation", null);
+  const openTab = useOpenTab();
   const [evaluating, setEvaluating] = useState(false);
   const evalJob = useJobProgress();
   const evalAbort = useRef<AbortController | null>(null);
@@ -316,12 +319,11 @@ export function OCDeclareWorkbench(props: IDockviewPanelProps) {
           })
       : undefined,
     onExploreViolations: ocel
-      ? (arc: OCDeclareArc) =>
-          addPanelToDockview(
-            "ocDeclareViolations",
-            `Violations of ${arc.from} → ${arc.to}`,
-            violationPanelParams(ocel, arc),
-          )
+      ? (arc: OCDeclareArc) => {
+          const params = violationPanelParams(ocel, arc);
+          if (!openTab("ocDeclareViolations", params))
+            addPanelToDockview("ocDeclareViolations", `Violations of ${arc.from} → ${arc.to}`, params);
+        }
       : undefined,
   };
 

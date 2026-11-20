@@ -8,7 +8,8 @@ default-members = ["backend-shared", "app-bindings", "webserver"]
 # One source for every crate: `inventory` registries only unify across identical package sources.
 # `default-features = false` so `viz-wasm` can stay minimal; the other crates list theirs.
 [workspace.dependencies]
-process_mining = { version = "0.7.1", default-features = false }
+# Unreleased: graphlay 0.4.0. Back to the crates.io version with the next release.
+process_mining = { git = "https://github.com/aarkue/rust4pm", rev = "9c1758483047c7aa426286ad764ade2f2bfcdeb1", default-features = false }
 
 [profile.release]
 opt-level = 3

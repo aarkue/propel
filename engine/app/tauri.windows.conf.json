@@ -1,0 +1,69 @@
+{
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": [
+          "xes"
+        ],
+        "name": "propel.xes",
+        "description": "XES event log",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "pnml"
+        ],
+        "name": "propel.pnml",
+        "description": "PNML Petri net",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "apnml"
+        ],
+        "name": "propel.apnml",
+        "description": "Accepting Petri net",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "ocdeclare"
+        ],
+        "name": "propel.ocdeclare",
+        "description": "OC-DECLARE model",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "reflow"
+        ],
+        "name": "propel.reflow",
+        "description": "Reflow mapping",
+        "role": "Editor"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "bundle/windows/nsis-hooks.nsh"
+      },
+      "wix": {
+        "fragmentPaths": [
+          "bundle/windows/open-with.wxs"
+        ],
+        "componentRefs": [
+          "PropelOpenWith_json",
+          "PropelOpenWith_xml",
+          "PropelOpenWith_csv",
+          "PropelOpenWith_tsv",
+          "PropelOpenWith_xlsx",
+          "PropelOpenWith_parquet",
+          "PropelOpenWith_db",
+          "PropelOpenWith_sqlite",
+          "PropelOpenWith_sqlite3",
+          "PropelOpenWith_gz",
+          "PropelOpenWith_zip"
+        ]
+      }
+    }
+  }
+}

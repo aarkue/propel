@@ -35,6 +35,14 @@ const GET_LOG_TRACES = "app_bindings::get_log_traces" as const;
 const GET_TRACE_EVENTS = "app_bindings::get_trace_events" as const;
 const GET_LOG_GLOBALS = "app_bindings::get_log_globals" as const;
 
+/** The attribute keys of `events`, in the order they first appear. */
+function attributeKeys(events: TraceDetail["events"]): string[] {
+  const keys = new Set<string>();
+  for (const ev of events)
+    for (const [k, v] of Object.entries(ev.attributes ?? {})) if (v != null) keys.add(k);
+  return [...keys];
+}
+
 function TraceEvents({
   detail,
   loading,
@@ -46,6 +54,7 @@ function TraceEvents({
   error?: unknown;
   activityColor: (act: string) => string;
 }) {
+  const keys = detail ? attributeKeys(detail.events) : [];
   return (
     <>
       {loading && <LoadingState label="loading events" topBar={false} />}
@@ -55,23 +64,31 @@ function TraceEvents({
           <Text size="2" weight="bold" className="mb-1 block">
             Case Attributes
           </Text>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
             {Object.entries(detail.case_attributes).map(([k, v]) => (
-              <Badge key={k} variant="outline" color="gray" size="1">
-                {k}: {v}
-              </Badge>
+              <span key={k} className="inline-flex items-baseline gap-1.5">
+                <span className="text-[var(--gray-a10)]">{k}</span>
+                <span className="font-medium tabular-nums text-[var(--gray-12)]">{v}</span>
+              </span>
             ))}
           </div>
         </div>
       )}
       {detail && detail.events.length > 0 && (
-        <Table.Root variant="surface" size="1">
+        <Table.Root variant="surface" size="1" className="max-w-full">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Activity</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Timestamp</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Attributes</Table.ColumnHeaderCell>
+              {keys.map((k) => (
+                <Table.ColumnHeaderCell
+                  key={k}
+                  className="whitespace-nowrap font-normal text-[var(--gray-a11)]"
+                >
+                  {k}
+                </Table.ColumnHeaderCell>
+              ))}
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -84,12 +101,19 @@ function TraceEvents({
                   </Badge>
                 </Table.Cell>
                 <Table.Cell className="text-sm">{formatTimestamp(ev.timestamp)}</Table.Cell>
-                <Table.Cell className="text-xs text-[var(--gray-a10)] max-w-[20rem] truncate">
-                  {Object.entries(ev.attributes ?? {})
-                    .filter(([, v]) => v != null)
-                    .map(([k, v]) => `${k}=${v}`)
-                    .join(", ") || "-"}
-                </Table.Cell>
+                {keys.map((k) => {
+                  const v = ev.attributes?.[k];
+                  // A value repeated from the previous event is dimmed, so changes stand out.
+                  const same = i > 0 && v != null && detail.events[i - 1].attributes?.[k] === v;
+                  return (
+                    <Table.Cell
+                      key={k}
+                      className={`whitespace-nowrap text-xs tabular-nums ${same ? "text-[var(--gray-a8)]" : "text-[var(--gray-12)]"}`}
+                    >
+                      {v ?? ""}
+                    </Table.Cell>
+                  );
+                })}
               </Table.Row>
             ))}
           </Table.Body>

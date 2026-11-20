@@ -1,0 +1,100 @@
+{
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": [
+          "xes"
+        ],
+        "name": "XES event log",
+        "mimeType": "application/x-xes+xml",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "pnml"
+        ],
+        "name": "PNML Petri net",
+        "mimeType": "application/x-pnml+xml",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "apnml"
+        ],
+        "name": "Accepting Petri net",
+        "mimeType": "application/x-apnml+xml",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "ocdeclare"
+        ],
+        "name": "OC-DECLARE model",
+        "mimeType": "application/x-ocdeclare+json",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "reflow"
+        ],
+        "name": "Reflow mapping",
+        "mimeType": "application/x-propel-reflow+json",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "xes.gz"
+        ],
+        "name": "Compressed XES event log",
+        "mimeType": "application/x-xes+gzip",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "ocel.csv"
+        ],
+        "name": "OCEL CSV event log",
+        "mimeType": "application/x-ocel-csv",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "ocel.csv.gz"
+        ],
+        "name": "Compressed OCEL CSV event log",
+        "mimeType": "application/x-ocel-csv+gzip",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "ocel.zip"
+        ],
+        "name": "OCEL bundle",
+        "mimeType": "application/x-ocel+zip",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "ocel-parquet.zip"
+        ],
+        "name": "OCEL Parquet bundle",
+        "mimeType": "application/x-ocel-parquet+zip",
+        "role": "Editor"
+      }
+    ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "bundle/linux/propel.desktop",
+        "files": {
+          "/usr/share/mime/packages/propel.xml": "bundle/linux/propel-mime.xml"
+        }
+      },
+      "rpm": {
+        "desktopTemplate": "bundle/linux/propel.desktop",
+        "files": {
+          "/usr/share/mime/packages/propel.xml": "bundle/linux/propel-mime.xml"
+        }
+      }
+    }
+  }
+}

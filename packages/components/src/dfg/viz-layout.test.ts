@@ -347,7 +347,8 @@ describe("badges", () => {
     const laid = await layoutDfg(wasmViz, shown, options, kept);
     const size = (l: typeof laid, name: string) =>
       l.layout.nodes[l.nodes.findIndex((n) => n.name === name)].size;
-    expect(size(laid, "examine").height).toBe(size(plain, "examine").height + BADGE_ROW_HEIGHT);
+    // rust4pm adds BADGE_NOTE_HEIGHT (14) for the count line under the name.
+    expect(size(laid, "examine").height).toBe(size(plain, "examine").height + BADGE_ROW_HEIGHT + 14);
     expect(size(laid, "examine").width).toBeGreaterThanOrEqual(
       typeBadgesWidth(badges.examine) + 2 * BADGE_PADDING,
     );

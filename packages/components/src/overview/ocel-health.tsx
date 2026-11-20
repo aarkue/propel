@@ -38,7 +38,7 @@ export interface OcelHealth {
 export type ChosenFixes = Record<string, string>;
 
 const SEVERITY: Record<HealthSeverity, { scale: string; icon: ReactNode; label: string }> = {
-  warning: { scale: "amber", icon: <PiWarning />, label: "Worth a look" },
+  warning: { scale: "amber", icon: <PiWarning />, label: "Warning" },
   info: { scale: "blue", icon: <PiInfo />, label: "Note" },
 };
 
@@ -298,7 +298,7 @@ export function OcelHealthView({
                 failed.length === 0
                   ? `${data.findings.length} checks found nothing`
                   : [
-                      warnings > 0 && `${warnings} worth a look`,
+                      warnings > 0 && `${warnings} warning${warnings === 1 ? "" : "s"}`,
                       failed.length > warnings &&
                         `${failed.length - warnings} note${failed.length - warnings === 1 ? "" : "s"}`,
                     ]

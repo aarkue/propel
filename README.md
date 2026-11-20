@@ -41,7 +41,7 @@ Everything runs locally, in your browser (via WebAssembly) or on the desktop (se
 - `[...].msi` for Windows
 - `[...].app.tar.gz` for macOS
 
-Note that Windows Defender sometimes produces a (false-positive) threat warning for Tauri-packaged installers (see also [tauri-apps/tauri#2486](https://github.com/tauri-apps/tauri/issues/2486)). If this happens, try a different installer variant (e.g., `.exe` instead of `.msi`).
+Note that Windows Defender sometimes produces a (false-positive) threat warning for Tauri-packaged installers (see also [tauri-apps/tauri#2486](https://github.com/tauri-apps/tauri/issues/2486)). If this happens, try the other installer variant (e.g., `.msi` instead of `-setup.exe`).
 
 ## Architecture
 

@@ -29,8 +29,12 @@ import {
 } from "./compile-format";
 
 const SHAPES: { value: EmissionShape; label: string; hint: string }[] = [
-  { value: "PerType", label: "Per type", hint: "one view per declared event/object type (OCEL 2.0 layout)" },
-  { value: "Consolidated", label: "Consolidated", hint: "one events/objects table, type as a column value" },
+  { value: "PerType", label: "Per type", hint: "One view per declared event or object type, as in OCEL 2.0" },
+  {
+    value: "Consolidated",
+    label: "Consolidated",
+    hint: "One table for events and one for objects, with the type as a column",
+  },
 ];
 
 /** The engines the compiler can emit for. Not the same as the engines a *source* can be read from:

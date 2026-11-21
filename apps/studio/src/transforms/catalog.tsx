@@ -48,7 +48,7 @@ export const TRANSFORM_META: {
   {
     type: "RelabelActivities",
     label: "Relabel Activities",
-    description: "Rename activities / event types",
+    description: "Rename activities or event types",
     icon: LuTag,
     ocelOnly: false,
   },
@@ -62,7 +62,7 @@ export const TRANSFORM_META: {
   {
     type: "FilterTraceContains",
     label: "Contains Filter",
-    description: "Require or forbid activities in traces / objects",
+    description: "Require or forbid activities in traces or objects",
     icon: LuSearch,
     ocelOnly: false,
   },
@@ -134,14 +134,14 @@ export const TRANSFORM_META: {
   {
     type: "FilterAttributes",
     label: "Condition Filter",
-    description: "Combine any predicates (event type, time, attributes, duration) with AND / OR / NOT",
+    description: "Combine conditions on event type, time, attributes or duration with AND, OR and NOT",
     icon: LuSlidersHorizontal,
     ocelOnly: false,
   },
   {
     type: "RemoveAttributes",
     label: "Remove Attributes",
-    description: "Remove attributes from events, cases/objects, or log metadata",
+    description: "Remove attributes from events, cases, objects or the log metadata",
     icon: LuTrash2,
     ocelOnly: false,
   },

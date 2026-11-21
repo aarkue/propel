@@ -560,6 +560,14 @@ export interface EventTypeSignatures {
 event_type: string
 events: number
 /**
+ * Events related to more than one object of some type
+ */
+events_with_several: number
+/**
+ * One entry per related object type, over all events, sorted by object type
+ */
+per_object_type: TypeObjects[]
+/**
  * Most frequent first
  */
 signatures: EventSignature[]
@@ -567,6 +575,20 @@ signatures: EventSignature[]
  * Events whose signature is not among `signatures`
  */
 other_events: number
+}
+/**
+ * How the events of one event type relate to one object type, over all its events.
+ */
+
+export interface TypeObjects {
+object_type: string
+/**
+ * Events related to at least one object of the type; `min`, `max` and `mean` are over these
+ */
+events: number
+min: number
+max: number
+mean: number
 }
 /**
  * Events of one event type that are related to exactly the same set of object types.
@@ -1067,6 +1089,19 @@ timestamp: string
  */
 other_objects: [string, string][]
 }
+/**
+ * An O2O relation of an object, in either direction.
+ */
+
+export interface RelatedObject {
+object_id: string
+object_type: string
+qualifier: string
+/**
+ * The other object relates to this one.
+ */
+incoming: boolean
+}
 
 export interface Lifeline {
 id: string
@@ -1094,7 +1129,7 @@ objects: number
  */
 objects_without_events: number
 /**
- * Objects alive at some point in each bin
+ * Mean number of objects alive during each bin
  */
 alive: number[]
 /**
@@ -7257,6 +7292,10 @@ a_label: string
 b_label: string
 a_cases: number
 b_cases: number
+/**
+ * The case start that separates the periods, when comparing periods
+ */
+split_ms?: (number | null)
 activities: ComparedActivity[]
 arcs: ComparedArc[]
 }
@@ -7476,9 +7515,13 @@ events: ExecutionEvent[]
  */
 edges: ExecutionEdge[]
 /**
- * More objects or events were reachable than the limits allow
+ * More objects were reachable than `max_objects` allows
  */
 truncated: boolean
+/**
+ * The events of all objects in the graph, also those beyond `max_events`
+ */
+total_events: number
 layout: Layout
 }
 
@@ -7577,10 +7620,10 @@ export interface ObjectDetail {
 object_id: string
 object_type: string
 events: ObjectEventRow[]
+related_objects: RelatedObject[]
 /**
- * (object_id, object_type) via O2O
+ * The latest value of each attribute.
  */
-related_objects: [string, string][]
 attributes: {
 [k: string]: string
 }

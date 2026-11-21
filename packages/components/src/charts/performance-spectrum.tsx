@@ -95,14 +95,18 @@ export function PerformanceSpectrumView({
       const top = i * (BAND_H + BAND_GAP);
       const bottom = top + BAND_H;
       ctx.globalAlpha = Math.max(0.07, Math.min(0.6, 300 / Math.max(1, s.lines.length)));
+      // One path per class, since a stroke per line is slow for many lines.
+      const paths = CLASSES.map(() => new Path2D());
       for (const [ta, tb] of s.lines) {
         if (tb < lo || ta > hi) continue;
-        ctx.strokeStyle = CLASSES[durationClass(tb - ta, s.quartiles)];
-        ctx.beginPath();
-        ctx.moveTo(xAt(ta), top);
-        ctx.lineTo(xAt(tb), bottom);
-        ctx.stroke();
+        const p = paths[durationClass(tb - ta, s.quartiles)];
+        p.moveTo(xAt(ta), top);
+        p.lineTo(xAt(tb), bottom);
       }
+      paths.forEach((p, c) => {
+        ctx.strokeStyle = CLASSES[c];
+        ctx.stroke(p);
+      });
     });
     ctx.globalAlpha = 1;
   }, [data.segments, plotW, plotH, lo, hi, span]);
@@ -111,12 +115,44 @@ export function PerformanceSpectrumView({
     (v) => v.activities.join("\u0000") === data.path.join("\u0000"),
   );
 
+  const toolbar = (
+    <Toolbar
+      end={
+        <Flex gap="3" wrap="wrap">
+          {CLASSES.map((c, i) => (
+            <LegendItem key={c} color={c} label={CLASS_LABELS[i]} shape="line" />
+          ))}
+        </Flex>
+      }
+    >
+      <VariantSelect
+        variants={data.top_variants}
+        totalCases={data.num_cases}
+        value={currentKey >= 0 ? currentKey : null}
+        onChange={(i) => onControlsChange?.({ ...controls, path: data.top_variants[i]?.activities ?? null })}
+        placeholder={`Custom path, ${data.path.length} steps`}
+        disabled={!onControlsChange}
+      />
+      {window_ && (
+        <Button size="1" variant="soft" onClick={() => setWindow(null)}>
+          <PiMagnifyingGlassMinus /> Reset zoom
+        </Button>
+      )}
+      <Text size="1" color="gray" ml="2">
+        Drag across the chart to zoom into a time window
+      </Text>
+    </Toolbar>
+  );
+
   if (data.segments.length === 0) {
     return (
-      <EmptyState
-        title="No segments"
-        description="The chosen path has no consecutive activities with times."
-      />
+      <Flex direction="column" style={{ height: "100%", minHeight: 0 }}>
+        {toolbar}
+        <EmptyState
+          title="No segments"
+          description="The chosen path has no consecutive activities with times. Pick another variant."
+        />
+      </Flex>
     );
   }
 
@@ -130,34 +166,7 @@ export function PerformanceSpectrumView({
 
   return (
     <Flex direction="column" style={{ height: "100%", minHeight: 0 }}>
-      <Toolbar
-        end={
-          <Flex gap="3" wrap="wrap">
-            {CLASSES.map((c, i) => (
-              <LegendItem key={c} color={c} label={CLASS_LABELS[i]} shape="line" />
-            ))}
-          </Flex>
-        }
-      >
-        <VariantSelect
-          variants={data.top_variants}
-          totalCases={data.num_cases}
-          value={currentKey >= 0 ? currentKey : null}
-          onChange={(i) =>
-            onControlsChange?.({ ...controls, path: data.top_variants[i]?.activities ?? null })
-          }
-          placeholder={`Custom path, ${data.path.length} steps`}
-          disabled={!onControlsChange}
-        />
-        {window_ && (
-          <Button size="1" variant="soft" onClick={() => setWindow(null)}>
-            <PiMagnifyingGlassMinus /> Reset zoom
-          </Button>
-        )}
-        <Text size="1" color="gray" ml="2">
-          Drag across the chart to zoom into a time window
-        </Text>
-      </Toolbar>
+      {toolbar}
 
       <div
         data-tooltip-host
@@ -191,7 +200,9 @@ export function PerformanceSpectrumView({
                 <Flex align="center" gap="2" style={{ color: "var(--gray-10)" }}>
                   <PiArrowDown />
                   <Text size="1" color="gray" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {fmtInt(s.count)} passages · median {duration(s.quartiles[1])}
+                    {fmtInt(s.count)} passages
+                    {s.lines.length < s.count && ` (${fmtInt(s.lines.length)} drawn)`} · median{" "}
+                    {duration(s.quartiles[1])}
                   </Text>
                 </Flex>
                 <Text size="2" weight="medium" truncate title={s.to}>

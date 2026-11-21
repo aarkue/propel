@@ -41,7 +41,11 @@ const SCALES: Option<Scale>[] = [
   { value: "shared", label: "Shared", description: "One scale for all types, to compare sizes" },
 ];
 const MEASURES: Option<Measure>[] = [
-  { value: "alive", label: "Alive", description: "Objects between their first and last event" },
+  {
+    value: "alive",
+    label: "Alive",
+    description: "Mean number of objects between their first and last event during the period",
+  },
   { value: "started", label: "Started", description: "Objects whose first event falls in the period" },
   { value: "ended", label: "Ended", description: "Objects whose last event falls in the period" },
 ];
@@ -54,6 +58,7 @@ const VALUE_W = 110;
 // Reduces, since spreading a long series into Math.max overflows the argument limit.
 const maxOf = (xs: number[]) => xs.reduce((m, v) => Math.max(m, v), Number.NEGATIVE_INFINITY);
 const argMax = (xs: number[]) => xs.indexOf(maxOf(xs));
+const fmtMean = (n: number) => n.toLocaleString("en", { maximumFractionDigits: n < 10 ? 1 : 0 });
 
 /** A smooth (Catmull-Rom) path through the points, kept above the baseline. */
 function smoothPath(xs: number[], ys: number[], base: number): string {
@@ -122,7 +127,7 @@ export function ObjectPopulationView({ data, colorOf, format }: ObjectPopulation
       title: `${date(data.bin_starts_ms[i])} to ${date(end)}`,
       rows: data.object_types.map((t) => ({
         label: t.object_type,
-        value: `${fmtInt(t.alive[i])} alive · +${fmtInt(t.started[i])} -${fmtInt(t.ended[i])}`,
+        value: `${fmtMean(t.alive[i])} alive · +${fmtInt(t.started[i])} -${fmtInt(t.ended[i])}`,
         color: color(t.object_type),
       })),
     });
@@ -157,14 +162,14 @@ export function ObjectPopulationView({ data, colorOf, format }: ObjectPopulation
           <MetricRow>
             <Metric label="Objects" value={fmtInt(totalObjects)} hint={`${data.object_types.length} types`} />
             <Metric
-              label="Most alive at once"
-              value={fmtInt(peak.n)}
+              label="Most alive"
+              value={fmtMean(peak.n)}
               hint={`${peak.t.object_type}, ${date(data.bin_starts_ms[peak.at])}`}
             />
             <Metric
-              label="Busiest period"
+              label="Period with most objects alive"
               value={date(data.bin_starts_ms[busiest])}
-              hint={`${fmtInt(allAlive[busiest])} objects alive`}
+              hint={`${fmtMean(allAlive[busiest])} objects alive on average`}
             />
             <Metric
               label="Without events"
@@ -176,7 +181,7 @@ export function ObjectPopulationView({ data, colorOf, format }: ObjectPopulation
 
           <Section
             title={`Objects ${measureLabel} over time`}
-            subtitle="An object lives from its first to its last event. Hover to compare the types at one point in time."
+            subtitle="Number of objects per type between their first and last event. Hover over the chart to compare the types at one time."
           >
             <div data-tooltip-host style={{ position: "relative" }}>
               {series.map(({ t, values }, row) => {
@@ -211,7 +216,8 @@ export function ObjectPopulationView({ data, colorOf, format }: ObjectPopulation
                         </Text>
                         <Text size="1" color="gray">
                           {fmtInt(t.objects)} objects
-                          {t.objects_without_events > 0 && ` · ${fmtInt(t.objects_without_events)} idle`}
+                          {t.objects_without_events > 0 &&
+                            ` · ${fmtInt(t.objects_without_events)} without events`}
                         </Text>
                       </Flex>
                     </Flex>
@@ -239,7 +245,7 @@ export function ObjectPopulationView({ data, colorOf, format }: ObjectPopulation
                     </svg>
                     <Flex direction="column" align="end">
                       <Text size="3" weight="bold" style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {fmtInt(hover != null ? values[hover] : maxOf(values))}
+                        {fmtMean(hover != null ? values[hover] : maxOf(values))}
                       </Text>
                       <Text size="1" color="gray">
                         {hover != null ? measureLabel : `peak ${measureLabel}`}

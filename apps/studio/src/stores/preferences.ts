@@ -162,9 +162,10 @@ export const EXPERT_IMPORT_KINDS: readonly string[] = [
   "EventLogActivityProjection",
 ];
 
-/** Per-kind import formats hidden unless `showExpertKinds` is on. `.json` is OCEL data (-> SlimLinkedOCEL), not the EventLog JSON serialization. */
+/** Per-kind import formats hidden unless `showExpertKinds` is on. `.json` is OCEL data (-> SlimLinkedOCEL), not the EventLog JSON serialization, and `.xes` is an event log, not an OCEL. */
 export const EXPERT_IMPORT_FORMATS: Record<string, readonly string[]> = {
   EventLog: ["json"],
+  SlimLinkedOCEL: ["xes", "xes.gz"],
 };
 
 export function makeColorResolver(overrides: Record<string, string>): ColorResolver {

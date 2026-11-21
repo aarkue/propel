@@ -21,7 +21,7 @@ function ActivityChartVis({ data, numEvents }: ViewerProps<Map_of_uint> & { numE
 export const vis = defineVis({
   type: "activityChart",
   name: "Activity Counts",
-  description: "Frequency of each activity (bar / pie, per-activity colors).",
+  description: "Frequency of each activity as a bar or pie chart.",
   category: "activities",
   icon: PiChartBar,
   supports: ["EventLog"],

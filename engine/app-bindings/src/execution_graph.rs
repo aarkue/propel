@@ -52,13 +52,16 @@ pub struct ExecutionGraph {
     pub events: Vec<ExecutionEvent>,
     /// `layout.edges[i]` is the route of `edges[i]`
     pub edges: Vec<ExecutionEdge>,
-    /// More objects or events were reachable than the limits allow
+    /// More objects were reachable than `max_objects` allows
     pub truncated: bool,
+    /// The events of all objects in the graph, also those beyond `max_events`
+    pub total_events: usize,
     pub layout: Layout,
 }
 
 /// The objects within `depth` hops of `object_id` (through shared events and O2O relations, at most
-/// `max_objects`, default 60), their events (at most `max_events`, default 200), and the
+/// `max_objects`, default 60), their events (at most `max_events`, default 200, those of the nearest
+/// objects first), and the
 /// directly-follows edges of each object's lifecycle among those events, laid out. Objects of
 /// `exclude_types` (e.g., long-lived master data such as products, which would connect everything)
 /// are left out.
@@ -107,22 +110,19 @@ pub fn get_execution_graph(
         }
     }
 
-    let mut events: Vec<EventIndex> = order
-        .iter()
-        .flat_map(|ob| ocel.get_e2o_rev_evs(*ob).copied())
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
-    events.sort_by_key(|ev| {
-        (
-            ocel.get_ev_time(ev).timestamp_millis(),
-            ocel.get_ev_id(ev).to_string(),
-        )
-    });
-    if events.len() > max_events {
-        truncated = true;
-        events.truncate(max_events);
+    // Each event at the distance of its nearest object, so a cut keeps the root's events.
+    let mut nearest: HashMap<EventIndex, usize> = HashMap::new();
+    for ob in &order {
+        for ev in ocel.get_e2o_rev_evs(*ob) {
+            nearest.entry(*ev).or_insert(distance[ob]);
+        }
     }
+    let total_events = nearest.len();
+    let time_key = |ev: &EventIndex| (ocel.get_ev_time(ev).timestamp_millis(), ocel.get_ev_id(ev));
+    let mut events: Vec<EventIndex> = nearest.keys().copied().collect();
+    events.sort_by_key(|ev| (nearest[ev], time_key(ev)));
+    events.truncate(max_events);
+    events.sort_by_key(time_key);
     let position: HashMap<EventIndex, usize> =
         events.iter().enumerate().map(|(i, e)| (*e, i)).collect();
     let in_execution: HashSet<ObjectIndex> = order.iter().copied().collect();
@@ -213,6 +213,7 @@ pub fn get_execution_graph(
         events,
         edges,
         truncated,
+        total_events,
         layout,
     })
 }

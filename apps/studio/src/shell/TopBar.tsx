@@ -80,7 +80,7 @@ export function TopBar({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex flex-col h-screen">
-      <header className="flex items-center h-11 px-3 gap-2 shrink-0 bg-[var(--color-panel-solid)] border-b border-[var(--gray-a5)] select-none">
+      <header className="flex items-center h-11 px-2 gap-1 sm:px-3 sm:gap-2 shrink-0 bg-[var(--color-panel-solid)] border-b border-[var(--gray-a5)] select-none">
         <div className="flex items-center gap-1.5 pr-1">
           <img src="/icon.png" className="size-5 min-h-5 min-w-5" alt="propel" />
           <span className="text-sm font-semibold text-[var(--gray-12)] hidden sm:inline">propel</span>
@@ -109,7 +109,9 @@ export function TopBar({ children }: { children: ReactNode }) {
             <span className="tabular-nums">{loadedCount}</span>
           </button>
         )}
-        <div className="flex items-center gap-1 pl-1 shrink-0">
+        <div
+          className={`flex items-center gap-1 sm:pl-1 shrink-0 ${loadedCount > 0 ? "" : "ml-auto md:ml-0"}`}
+        >
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}

@@ -72,12 +72,12 @@ export function ProjectSwitcher() {
         <DropdownMenu.Trigger>
           <button
             type="button"
-            title="Projects"
-            className="flex items-center gap-1 h-7 px-2 rounded text-xs text-(--gray-11) hover:bg-(--gray-a3) cursor-pointer max-w-40"
+            title={`Project: ${currentName}`}
+            className="flex items-center gap-1 h-7 px-1.5 sm:px-2 rounded text-xs text-(--gray-11) hover:bg-(--gray-a3) cursor-pointer max-w-40 shrink-0"
           >
             <PiFolder size={13} className="shrink-0" />
-            <span className="truncate">{currentName}</span>
-            <PiCaretDown size={11} className="shrink-0 opacity-70" />
+            <span className="truncate hidden sm:inline">{currentName}</span>
+            <PiCaretDown size={11} className="shrink-0 opacity-70 hidden sm:inline" />
           </button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="start">

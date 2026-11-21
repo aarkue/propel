@@ -132,19 +132,24 @@ function ObjectDetailView({
                 Related Objects ({detail.related_objects.length})
               </Text>
               <div className="flex flex-wrap gap-1">
-                {detail.related_objects.map(([objId, objType]) => (
+                {detail.related_objects.map((r) => (
                   <Badge
-                    key={objId}
-                    style={softBadgeStyle(objectTypeColor(objType))}
+                    key={`${r.incoming}:${r.qualifier}:${r.object_id}`}
+                    style={softBadgeStyle(objectTypeColor(r.object_type))}
                     size="1"
                     className="cursor-pointer hover:opacity-80"
-                    title={`${objType}: ${objId}`}
+                    title={
+                      r.incoming
+                        ? `${r.object_type} ${r.object_id} relates to this object as "${r.qualifier}"`
+                        : `This object relates to ${r.object_type} ${r.object_id} as "${r.qualifier}"`
+                    }
                     onClick={(e: React.MouseEvent) => {
                       e.stopPropagation();
-                      onNavigateToObject(objId);
+                      onNavigateToObject(r.object_id);
                     }}
                   >
-                    {objType}: {objId}
+                    {r.incoming ? "from" : "to"} {r.object_type} {r.object_id}
+                    {r.qualifier && ` (${r.qualifier})`}
                   </Badge>
                 ))}
               </div>

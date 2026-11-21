@@ -40,8 +40,8 @@ const ATTRIBUTE_TYPES: { value: OCELAttributeType; label: string }[] = [
 const TARGET_KINDS: { value: Target["type"]; label: string }[] = [
   { value: "event", label: "Event" },
   { value: "object", label: "Object" },
-  { value: "e2o", label: "Event -> Object relation" },
-  { value: "o2o", label: "Object -> Object relation" },
+  { value: "e2o", label: "Event-to-object relation" },
+  { value: "o2o", label: "Object-to-object relation" },
 ];
 
 function defaultValueExpr(): ValueExpression {
@@ -690,7 +690,7 @@ function TimestampSourceEditor({
       value={value.type}
       options={[
         { value: "value", label: "One value" },
-        { value: "components", label: "Date + time" },
+        { value: "components", label: "Date and time" },
       ]}
       onChange={(mode) =>
         onChange(

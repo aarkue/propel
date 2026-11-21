@@ -86,23 +86,19 @@ export function PanelGallery({ open, onClose }: { open: boolean; onClose: () => 
     >
       <Dialog.Content
         maxWidth="1120px"
+        aria-describedby={undefined}
         className="!p-0 !overflow-hidden"
         style={{ height: "min(800px, 88vh)" }}
       >
         <div className="flex h-full flex-col">
-          <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-b border-[var(--gray-a5)] px-5 py-4 sm:flex-row">
-            <div>
-              <Dialog.Title className="!mb-0">Add a panel</Dialog.Title>
-              <Dialog.Description size="2" color="gray" className="!mt-0.5">
-                Grouped by the analysis they serve
-              </Dialog.Description>
-            </div>
-            <div className="flex items-center gap-3">
+          <div className="flex shrink-0 flex-col items-stretch justify-between gap-3 border-b border-[var(--gray-a5)] px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+            <Dialog.Title className="!mb-0">Add a panel</Dialog.Title>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <SegmentedControl.Root size="2" value={kind} onValueChange={(v) => setPicked(v as Kind)}>
                 <SegmentedControl.Item value="EventLog">Case-centric</SegmentedControl.Item>
                 <SegmentedControl.Item value="SlimLinkedOCEL">Object-centric</SegmentedControl.Item>
               </SegmentedControl.Root>
-              <div className="sm:w-64">
+              <div className="w-full sm:w-64">
                 <TextField.Root
                   autoFocus
                   placeholder="Search panels..."
@@ -139,7 +135,7 @@ export function PanelGallery({ open, onClose }: { open: boolean; onClose: () => 
               })}
             </nav>
             <div ref={scroller} className="min-w-0 flex-1 overflow-y-auto">
-              <div className="flex flex-col gap-8 p-5">
+              <div className="flex flex-col gap-8 p-4 sm:p-5">
                 {sections.length === 0 && (
                   <div className="py-16 text-center text-sm text-[var(--gray-11)]">
                     No panels match "{query}".{" "}

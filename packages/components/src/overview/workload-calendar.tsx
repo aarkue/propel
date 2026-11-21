@@ -161,7 +161,7 @@ export function WorkloadCalendar({
           <MetricRow>
             <Metric label="Events" value={fmtInt(total)} />
             <Metric
-              label="Busiest day"
+              label="Day with most events"
               value={DAYS[busiestDay]}
               hint={`${share(dayTotals[busiestDay])} of events`}
             />

@@ -20,7 +20,7 @@ use crate::types::{
     NumericStats, TraceBrowserPage, TraceBrowserRow, TraceDetail, TraceEventRow, TraceSortField,
     TraceVariants, ATTR_VALUES_CAP,
 };
-use crate::xes_event::{event_activity, event_time_ms};
+use crate::xes_event::{event_activity, event_time_ms, NO_ACTIVITY};
 
 /// Build an event log from one or more simulated traces: one case per trace, one event per
 /// activity name, timestamps spaced 1 minute apart. Caller is expected to have already removed silent/tau transitions.
@@ -247,7 +247,7 @@ pub fn get_activity_counts(event_log: &EventLog) -> HashMap<String, usize> {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for trace in &event_log.traces {
         for event in &trace.events {
-            let activity = event_activity(event).unwrap_or("UNKNOWN");
+            let activity = event_activity(event).unwrap_or(NO_ACTIVITY);
             *counts.entry(activity.to_string()).or_default() += 1;
         }
     }
@@ -272,7 +272,7 @@ pub fn get_event_log_timestamps(event_log: &EventLog, num_bins: usize) -> EventT
         .flat_map(|t| t.events.iter())
         .filter_map(|e| {
             let ts = event_time_ms(e)?;
-            Some((ts, event_activity(e).unwrap_or("UNKNOWN").to_string()))
+            Some((ts, event_activity(e).unwrap_or(NO_ACTIVITY).to_string()))
         })
         .collect();
     EventTimeHistogram::from_events(evs, num_bins)
@@ -809,7 +809,7 @@ pub fn get_removable_attributes_xes(event_log: &EventLog) -> Vec<AttributeCatalo
     let mut evt_by_act: HashMap<(String, String), (usize, HashSet<String>)> = HashMap::new();
     for trace in &event_log.traces {
         for ev in &trace.events {
-            let act = event_activity(ev).unwrap_or("UNKNOWN").to_string();
+            let act = event_activity(ev).unwrap_or(NO_ACTIVITY).to_string();
             for a in ev.attributes.iter() {
                 if a.key == "concept:name" || a.key == "time:timestamp" {
                     continue;
@@ -961,7 +961,7 @@ pub fn get_trace_events(event_log: &EventLog, case_index: usize) -> TraceDetail 
         .events
         .iter()
         .map(|e| {
-            let activity = event_activity(e).unwrap_or("UNKNOWN").to_string();
+            let activity = event_activity(e).unwrap_or(NO_ACTIVITY).to_string();
             let timestamp = e
                 .attributes
                 .get_by_key("time:timestamp")

@@ -1,4 +1,4 @@
-import { Flex, Text } from "@r4pm/components/ui";
+import { Button, Flex, Switch, Text } from "@r4pm/components/ui";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import { inkOn } from "../dfg/util/colors";
 import {
@@ -19,9 +19,13 @@ export interface ReflowControls {
   theta: number;
   search: "heuristic" | "exact";
   expand: boolean;
+  /** An edited flow layer as (activity, object type) pairs. Absent for the search result. */
+  flow?: [string, string][] | null;
 }
 
 export const DEFAULT_REFLOW_CONTROLS: ReflowControls = { theta: 0.95, search: "heuristic", expand: false };
+
+const cellKey = (activity: string, objectType: string) => `${activity}\n${objectType}`;
 
 export interface ReflowViewProps extends ViewerProps<ReflowSummary> {
   /** Without them the toolbar shows no settings. */
@@ -29,6 +33,10 @@ export interface ReflowViewProps extends ViewerProps<ReflowSummary> {
   onControlsChange?: (next: ReflowControls) => void;
   /** Toolbar actions at the end, e.g., making the flow log. */
   toolbarEnd?: ReactNode;
+  /** The flowing cells of the search result, as `activity\nobjectType` keys. With
+   *  `onControlsChange`, cells can be moved in and out of the flow layer, and the cells that
+   *  differ from these are marked. */
+  searchFlow?: string[];
 }
 
 const THETAS: Option<string>[] = [
@@ -69,16 +77,50 @@ export function ReflowView({
   controls,
   onControlsChange,
   toolbarEnd,
+  searchFlow,
   colorOf,
   format,
 }: ReflowViewProps) {
   const cfg = useViewerConfig({ colorOf, format });
   const color = (t: string) => cfg.colorOf?.("objectType", t) ?? "var(--accent-9)";
-  const { activities, types } = useMemo(() => gridOrder(data), [data]);
+  // Ordered by the search result, so an edit does not move the rows.
+  const { activities, types } = useMemo(() => {
+    if (!searchFlow) return gridOrder(data);
+    const flowing = new Set(searchFlow);
+    return gridOrder({
+      ...data,
+      cells: data.cells.map((c) => ({
+        ...c,
+        state: flowing.has(cellKey(c.activity, c.objectType)) ? "flow" : "implied",
+      })),
+    });
+  }, [data, searchFlow]);
   const byKey = useMemo(() => new Map(data.cells.map((c) => [`${c.activity}\n${c.objectType}`, c])), [data]);
   const [selected, setSelected] = useState<string | null>(null);
   const sel = selected ? byKey.get(selected) : undefined;
   const s = data.stats;
+  const editable = !!(controls && onControlsChange && searchFlow);
+  const searchSet = useMemo(() => new Set(searchFlow), [searchFlow]);
+  const changed = useMemo(
+    () =>
+      new Set(
+        searchFlow
+          ? data.cells
+              .filter((c) => (c.state === "flow") !== searchSet.has(cellKey(c.activity, c.objectType)))
+              .map((c) => cellKey(c.activity, c.objectType))
+          : [],
+      ),
+    [data, searchFlow, searchSet],
+  );
+  const changedCount = changed.size;
+  const requested = useMemo(() => new Set(controls?.flow?.map(([a, t]) => cellKey(a, t))), [controls?.flow]);
+  const setFlow = (cell: ReflowCell, on: boolean) => {
+    if (!controls || !onControlsChange) return;
+    const flow = data.cells
+      .filter((c) => (c === cell ? on : c.state === "flow"))
+      .map((c): [string, string] => [c.activity, c.objectType]);
+    onControlsChange({ ...controls, flow });
+  };
   const saved = s.arcsRecorded > 0 ? 1 - s.arcsFlow / s.arcsRecorded : 0;
 
   return (
@@ -91,14 +133,14 @@ export function ReflowView({
                 label="Threshold"
                 value={String(controls.theta)}
                 options={THETAS}
-                onChange={(v) => onControlsChange?.({ ...controls, theta: Number(v) })}
+                onChange={(v) => onControlsChange?.({ ...controls, theta: Number(v), flow: null })}
                 disabled={!onControlsChange}
               />
               <OptionMenu
                 label="Search"
                 value={controls.search}
                 options={SEARCHES}
-                onChange={(search) => onControlsChange?.({ ...controls, search })}
+                onChange={(search) => onControlsChange?.({ ...controls, search, flow: null })}
                 disabled={!onControlsChange}
               />
               <ToolbarDivider />
@@ -106,9 +148,22 @@ export function ReflowView({
                 label="Add unrecorded"
                 value={controls.expand ? "on" : "off"}
                 options={EXPAND}
-                onChange={(v) => onControlsChange?.({ ...controls, expand: v === "on" })}
+                onChange={(v) => onControlsChange?.({ ...controls, expand: v === "on", flow: null })}
                 disabled={!onControlsChange}
               />
+              {controls.flow && onControlsChange && (
+                <>
+                  <ToolbarDivider />
+                  <Button
+                    size="1"
+                    variant="soft"
+                    color="gray"
+                    onClick={() => onControlsChange({ ...controls, flow: null })}
+                  >
+                    Back to search result
+                  </Button>
+                </>
+              )}
             </>
           )}
         </Toolbar>
@@ -143,9 +198,11 @@ export function ReflowView({
               label="Search"
               value={s.seed ? `${s.seed[0].toUpperCase()}${s.seed.slice(1)} seed` : "Edited"}
               hint={
-                s.limitReached
-                  ? "Work budget reached, so the result might not be the smallest"
-                  : `${fmtInt(s.work)} work units${s.repaired ? ` · ${s.repaired} cells repaired` : ""}`
+                !s.seed
+                  ? `${changedCount} ${changedCount === 1 ? "cell" : "cells"} changed${s.repaired ? `, ${s.repaired} added by repair` : ""}`
+                  : s.limitReached
+                    ? "Work budget reached, so the result might not be the smallest"
+                    : `${fmtInt(s.work)} work units${s.repaired ? ` · ${s.repaired} cells repaired` : ""}`
               }
               tone={s.limitReached ? "warn" : undefined}
             />
@@ -153,7 +210,11 @@ export function ReflowView({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
             <Section
               title="Cells"
-              subtitle="One per activity and object type. Click a cell to see why it is in its state."
+              subtitle={
+                editable
+                  ? "One per activity and object type. Select a cell to see why it is in its state, or to move it in or out of the flow layer."
+                  : "One per activity and object type. Select a cell to see why it is in its state."
+              }
               style={{ flex: "1 1 520px" }}
             >
               <div style={{ overflowX: "auto" }}>
@@ -164,16 +225,27 @@ export function ReflowView({
                   color={color}
                   selected={selected}
                   onSelect={setSelected}
+                  changed={changed}
                 />
               </div>
               <Legend />
             </Section>
             <Section title="Selected cell" style={{ flex: "0 1 320px", minWidth: 260 }}>
               {sel ? (
-                <Inspector cell={sel} color={color(sel.objectType)} />
+                <Inspector
+                  cell={sel}
+                  color={color(sel.objectType)}
+                  changed={changed.has(cellKey(sel.activity, sel.objectType))}
+                  repaired={
+                    !!controls?.flow &&
+                    sel.state === "flow" &&
+                    !requested.has(cellKey(sel.activity, sel.objectType))
+                  }
+                  onFlowChange={editable ? (on) => setFlow(sel, on) : undefined}
+                />
               ) : (
                 <Text size="2" color="gray">
-                  Select a cell. Only flowing cells add arcs to models of the flow log; the others can be
+                  Select a cell. Only flowing cells add arcs to models of the flow log. The others can be
                   drawn on top of them as annotations.
                 </Text>
               )}
@@ -192,6 +264,7 @@ function CellGrid({
   color,
   selected,
   onSelect,
+  changed,
 }: {
   activities: string[];
   types: string[];
@@ -199,6 +272,7 @@ function CellGrid({
   color: (t: string) => string;
   selected: string | null;
   onSelect: (key: string | null) => void;
+  changed: Set<string>;
 }) {
   return (
     <table style={{ borderCollapse: "separate", borderSpacing: 3, fontVariantNumeric: "tabular-nums" }}>
@@ -243,6 +317,7 @@ function CellGrid({
                       cell={c}
                       color={color(t)}
                       on={selected === key}
+                      changed={changed.has(key)}
                       onClick={() => onSelect(selected === key ? null : key)}
                     />
                   ) : (
@@ -264,11 +339,13 @@ function CellButton({
   cell,
   color,
   on,
+  changed,
   onClick,
 }: {
   cell: ReflowCell;
   color: string;
   on: boolean;
+  changed: boolean;
   onClick: () => void;
 }) {
   const look =
@@ -297,7 +374,7 @@ function CellButton({
       onClick={onClick}
       aria-pressed={on}
       aria-label={`${cell.activity}, ${cell.objectType}: ${cell.state}`}
-      title={`${cell.activity} × ${cell.objectType}: ${cell.state}, ${fmtInt(cell.participations)} participations`}
+      title={`${cell.activity} × ${cell.objectType}: ${cell.state}, ${fmtInt(cell.participations)} participations${changed ? ", changed from the search result" : ""}`}
       style={{
         all: "unset",
         boxSizing: "border-box",
@@ -317,6 +394,20 @@ function CellButton({
       }}
     >
       {label}
+      {changed && (
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: 3,
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            background: "var(--amber-9)",
+            boxShadow: "0 0 0 1.5px var(--color-panel-solid)",
+          }}
+        />
+      )}
       {!cell.recorded && (
         <span
           title="Added by Reflow, not recorded in the log"
@@ -347,6 +438,19 @@ function Legend() {
             "implied: follows from a flowing type",
           ],
           [swatch({ border: `1.5px dashed ${c}` }), "involved: present, not determined"],
+          [
+            <span
+              key="changed"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                background: "var(--amber-9)",
+                display: "inline-block",
+              }}
+            />,
+            "changed from the search result",
+          ],
         ] as const
       ).map(([sw, text]) => (
         <Text
@@ -363,7 +467,20 @@ function Legend() {
   );
 }
 
-function Inspector({ cell, color }: { cell: ReflowCell; color: string }) {
+function Inspector({
+  cell,
+  color,
+  changed,
+  repaired,
+  onFlowChange,
+}: {
+  cell: ReflowCell;
+  color: string;
+  changed: boolean;
+  /** In the flow layer only because repair added it. */
+  repaired: boolean;
+  onFlowChange?: (on: boolean) => void;
+}) {
   const via = viaText(cell);
   const share = cell.determinedBy?.reconstruction.share;
   const row = (k: string, v: ReactNode) => (
@@ -401,6 +518,24 @@ function Inspector({ cell, color }: { cell: ReflowCell; color: string }) {
       {via && row("Through", via)}
       {share != null && row("Holds for", `${(share * 100).toFixed(share < 1 ? 1 : 0)}% of events`)}
       {!cell.recorded && row("Recorded", "no, added by Reflow")}
+      {changed && row("Search result", cell.state === "flow" ? "not in the flow layer" : "in the flow layer")}
+      {onFlowChange && (
+        <Flex direction="column" gap="1" mt="1" pt="2" style={{ borderTop: "1px solid var(--gray-a4)" }}>
+          <Text
+            as="label"
+            size="2"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+          >
+            In the flow layer
+            <Switch size="1" checked={cell.state === "flow"} onCheckedChange={onFlowChange} />
+          </Text>
+          {repaired && (
+            <Text size="1" color="gray">
+              Repair added this cell, as an ordering of the log needs it to flow or be determined.
+            </Text>
+          )}
+        </Flex>
+      )}
     </Flex>
   );
 }

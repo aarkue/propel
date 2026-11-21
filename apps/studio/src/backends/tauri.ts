@@ -119,6 +119,9 @@ export function createTauriBackend(): BackendContext {
     async loadItemPath(id, kind, path) {
       await (await invoke())("load_item_path", { id, itemKind: kind, path });
     },
+    async readFileHead(path, maxBytes) {
+      return (await invoke())<{ text: string; complete: boolean }>("read_file_head", { path, maxBytes });
+    },
     async getInitialFiles() {
       return (await invoke())<string[]>("get_initial_files");
     },

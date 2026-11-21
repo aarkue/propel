@@ -32,7 +32,7 @@ function relationEdges(relations: OcelTypePairRelation[], kind: "e2o" | "o2o"): 
 export const vis = defineVis({
   type: "ocelTypeGraph",
   name: "OCEL Type Graph",
-  description: "Graphical representation of OCEL type relationships.",
+  description: "Object and event types of an OCEL and their relations.",
   category: "ocel",
   icon: PiGraph,
   supports: ["SlimLinkedOCEL"],

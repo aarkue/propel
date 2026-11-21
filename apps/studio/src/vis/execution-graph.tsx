@@ -18,7 +18,7 @@ interface Data {
   graph: ExecutionGraph;
   objectTypeOptions: Option<string>[];
   objectOptions: Option<string>[];
-  excluded: string[];
+  longLived: string[];
 }
 
 export const vis = defineResolvedVis({
@@ -41,15 +41,17 @@ export const vis = defineResolvedVis({
       // Long-lived types are left out of executions, unless every type is long-lived.
       const { short, long } = byLifetime(lifecycles.object_types);
       const longLived = short.length ? long.map((t) => t.object_type) : [];
-      // The type with the richest lifecycle leads by default.
+      // The type with the richest lifecycle is the default.
       const leading = [...short].sort(
         (a, b) => b.activities.length - a.activities.length || a.objects - b.objects,
       )[0];
       const objectType =
         c.objectType && counts[c.objectType]
           ? c.objectType
-          : (leading?.object_type ?? Object.keys(counts)[0]);
-      const excluded = longLived.filter((t) => t !== objectType);
+          : (leading?.object_type ??
+            Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0]);
+      const others = longLived.filter((t) => t !== objectType);
+      const excluded = others.filter((t) => !c.included?.includes(t));
       const list = await ctx.backend.callBinding(CANDIDATES, { ocel, object_type: objectType, limit: 100 });
       const objectId = c.objectId && list.some(([id]) => id === c.objectId) ? c.objectId : list[0]?.[0];
       if (!objectId) throw new Error(`No ${objectType} objects.`);
@@ -65,7 +67,7 @@ export const vis = defineResolvedVis({
           .sort((a, b) => b[1] - a[1])
           .map(([t, n]) => ({ value: t, label: t, description: `${n.toLocaleString("en")} objects` })),
         objectOptions: list.map(([id, n]) => ({ value: id, label: id, description: `${n} events` })),
-        excluded,
+        longLived: others,
       };
     },
   },
@@ -83,7 +85,7 @@ export const vis = defineResolvedVis({
       data={data.graph}
       objectTypeOptions={data.objectTypeOptions}
       objectOptions={data.objectOptions}
-      excluded={data.excluded}
+      longLived={data.longLived}
       controls={controls}
       onControlsChange={onControlsChange}
       {...config}

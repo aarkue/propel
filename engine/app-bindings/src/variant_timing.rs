@@ -11,7 +11,7 @@ use rustc_hash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::xes_event::{event_activity, event_time_ms};
+use crate::xes_event::{event_activity, event_time_ms, NO_ACTIVITY};
 
 /// Distribution of the elapsed time since case start at one step of a variant, in ms.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -160,7 +160,8 @@ impl Grouped {
 fn elapsed_of(trace: &Trace) -> Option<Vec<i64>> {
     let times: Option<Vec<i64>> = trace.events.iter().map(event_time_ms).collect();
     let times = times.filter(|t| !t.is_empty())?;
-    let start = times[0];
+    // The earliest event, also when the events are not sorted by time.
+    let start = *times.iter().min()?;
     Some(times.into_iter().map(|t| t - start).collect())
 }
 
@@ -180,14 +181,14 @@ fn group(log: &EventLog) -> Grouped {
             .events
             .iter()
             .map(|e| {
-                let name = event_activity(e).unwrap_or("UNKNOWN");
+                let name = event_activity(e).unwrap_or(NO_ACTIVITY);
                 *ids.entry(name).or_insert_with(|| {
                     names.push(name);
                     (names.len() - 1) as u32
                 })
             })
             .collect();
-        let total = *elapsed.last().unwrap_or(&0) as f64;
+        let total = *elapsed.iter().max().unwrap_or(&0) as f64;
         let idx = *by_seq.entry(seq).or_insert_with_key(|seq| {
             acc.push((seq.clone(), Vec::new(), Vec::new()));
             acc.len() - 1
@@ -695,6 +696,16 @@ mod tests {
             log.traces.push(trace);
         }
         log
+    }
+
+    #[test]
+    fn elapsed_starts_at_the_earliest_event() {
+        let l = log(&[("c", &[("a", Some(10)), ("b", Some(5)), ("c", Some(20))])]);
+        let minute = 60_000;
+        assert_eq!(
+            elapsed_of(&l.traces[0]),
+            Some(vec![5 * minute, 0, 15 * minute])
+        );
     }
 
     const MIN: f64 = 60_000.0;

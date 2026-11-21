@@ -231,7 +231,7 @@ export function LogOverviewBoard({ data, onOpen, ...config }: LogOverviewBoardPr
 
         <Section
           title="Throughput"
-          subtitle="Cases started and finished per period. Recent periods hold cases that may still be running, so their durations read short."
+          subtitle="Cases started and finished per period, by their first and last event. Cases that started shortly before the end of the log are cut off, so the median duration of the last periods is too low."
           actions={
             <Flex gap="3" align="center">
               <LegendItem shape="square" color="var(--accent-9)" label="started" />

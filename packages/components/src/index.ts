@@ -160,6 +160,7 @@ export {
   type DiscoveredPathSchema,
   type PathSchemaControls,
   type PathSchemaResult,
+  PathSchemaSelectors,
   PathSchemasView,
   type PathSchemasViewProps,
   type PathSchemaType,

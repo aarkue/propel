@@ -97,14 +97,18 @@ export function LifecycleMapView({ data, colorOf, format }: LifecycleMapViewProp
             {
               value: "own",
               label: "Per type",
-              description: "Each type on its own scale, to read its rhythm",
+              description: "Each type on its own time scale",
             },
             {
               value: "sqrt",
               label: "Stretch the start",
               description: "Square-root scale per type, so activities early in the life spread out",
             },
-            { value: "shared", label: "Shared", description: "One scale, to compare how long types live" },
+            {
+              value: "shared",
+              label: "Shared",
+              description: "One time scale, to compare lifetimes across types",
+            },
           ]}
         />
       </Toolbar>
@@ -167,7 +171,7 @@ export function LifecycleMapView({ data, colorOf, format }: LifecycleMapViewProp
                       </Text>
                     </Flex>
                     <Text size="1" color="gray">
-                      {fmtInt(t.objects)} objects · lives {duration(t.median_lifetime_ms)}
+                      {fmtInt(t.objects)} objects · median lifetime {duration(t.median_lifetime_ms)}
                     </Text>
                   </Flex>
                   <svg
@@ -281,7 +285,7 @@ export function LifecycleMapView({ data, colorOf, format }: LifecycleMapViewProp
           </div>
           <Text size="1" color="gray">
             Dot: median time to the activity's first event. Size: share of objects that reach it. Band: middle
-            half of those times. Colored line: median lifetime.
+            half of those times. Colored line: median lifetime, from an object's first to its last event.
           </Text>
         </Flex>
       </div>

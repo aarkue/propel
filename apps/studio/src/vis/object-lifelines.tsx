@@ -14,6 +14,7 @@ const LIFELINES = "app_bindings::get_object_lifelines" as const;
 
 interface Data {
   lifelines: Lifelines;
+  objectType: string | null;
   objectTypes: string[];
 }
 
@@ -33,16 +34,16 @@ export const vis = defineResolvedVis({
     needs: "SlimLinkedOCEL",
     resolve: async (ctx, c): Promise<Data> => {
       const ocel = ctx.datasetId as SlimLinkedOCELHandle;
-      const [stats, lifelines] = await Promise.all([
-        ocelTypeStats(ocel),
-        ctx.backend.callBinding(LIFELINES, {
-          ocel,
-          object_types: c.objectType ? [c.objectType] : null,
-          max_objects: 300,
-          window: c.window ?? DEFAULT_OBJECT_LIFELINES_CONTROLS.window,
-        }),
-      ]);
-      return { lifelines, objectTypes: Object.keys(stats.object_type_counts).sort() };
+      const stats = await ocelTypeStats(ocel);
+      // A type saved for another OCEL falls back to all types.
+      const objectType = c.objectType && c.objectType in stats.object_type_counts ? c.objectType : null;
+      const lifelines = await ctx.backend.callBinding(LIFELINES, {
+        ocel,
+        object_types: objectType ? [objectType] : null,
+        max_objects: 300,
+        window: c.window ?? DEFAULT_OBJECT_LIFELINES_CONTROLS.window,
+      });
+      return { lifelines, objectType, objectTypes: Object.keys(stats.object_type_counts).sort() };
     },
   },
   viewer: false,
@@ -58,7 +59,7 @@ export const vis = defineResolvedVis({
     <ObjectLifelinesView
       data={data.lifelines}
       objectTypes={data.objectTypes}
-      controls={controls}
+      controls={{ ...controls, objectType: data.objectType }}
       onControlsChange={onControlsChange}
       {...config}
     />

@@ -117,6 +117,7 @@ function discover(source: string, target: string | null, maxLength: number): Pat
             coverage,
             selectivity: sourcesWithPaths / support,
             reach: Math.min(1, support / countOf(at)),
+            exclusivity: Math.min(1, countOf(at) / support),
             sources_with_paths: sourcesWithPaths,
             total_sources: total,
           },

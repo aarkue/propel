@@ -40,8 +40,8 @@ const VARIANT_SORT_LABEL: Record<VariantSort, string> = {
   Frequency: "Most frequent",
   SlowestFirst: "Slowest",
   FastestFirst: "Fastest",
-  LongestFirst: "Longest",
-  ShortestFirst: "Shortest",
+  LongestFirst: "Most steps",
+  ShortestFirst: "Fewest steps",
 };
 
 export function VariantPicker({
@@ -132,7 +132,7 @@ function CaseSparkline({ steps, curve }: { steps: StepTimeStats[]; curve: number
       width={W}
       height={H}
       role="img"
-      aria-label="Case timing vs. variant median"
+      aria-label="Case timing against the variant median"
       style={{ flexShrink: 0 }}
     >
       <polygon points={band} fill="rgba(62, 99, 221, 0.22)" />

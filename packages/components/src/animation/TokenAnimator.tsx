@@ -33,7 +33,7 @@ export interface AnimatedNode {
 
 type Marks = "glow" | "counts" | "off";
 const MARKS: Option<Marks>[] = [
-  { value: "glow", label: "Glow", description: "Activities glow while tokens arrive" },
+  { value: "glow", label: "Glow", description: "Activities are highlighted when tokens arrive" },
   { value: "counts", label: "Glow and counts", description: "Also how often each fired in the recent past" },
   { value: "off", label: "Off", description: "Only the tokens" },
 ];

@@ -9,7 +9,7 @@ use process_mining::EventLog;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::xes_event::{event_activity, event_time_ms};
+use crate::xes_event::{event_activity, event_time_ms, NO_ACTIVITY};
 
 /// Enough to pick from in a searchable list, small enough to send each time.
 const TOP_VARIANTS: usize = 200;
@@ -46,15 +46,15 @@ pub struct PerformanceSpectrum {
     pub num_cases: usize,
 }
 
-/// The performance spectrum along `path` (default: the most frequent variant). Each segment holds
-/// at most `max_lines` (default 20,000) lines.
+/// The performance spectrum along `path` (default: the most frequent variant with at least two
+/// steps). Each segment holds at most `max_lines` (default 200,000) lines.
 #[register_binding]
 pub fn get_performance_spectrum(
     event_log: &EventLog,
     #[bind(default)] path: Option<Vec<String>>,
     #[bind(default)] max_lines: Option<usize>,
 ) -> PerformanceSpectrum {
-    let max_lines = max_lines.unwrap_or(20_000).max(1);
+    let max_lines = max_lines.unwrap_or(200_000).max(1);
     let mut projection = EventLogActivityProjection::from(event_log);
     projection.traces.sort_by_key(|t| std::cmp::Reverse(t.1));
     let top_variants: Vec<SpectrumVariant> = projection
@@ -69,9 +69,15 @@ pub fn get_performance_spectrum(
             cases: *n as usize,
         })
         .collect();
+    // A path saved for another log falls back to the default.
     let path = path
-        .filter(|p| p.len() >= 2)
-        .or_else(|| top_variants.first().map(|v| v.activities.clone()))
+        .filter(|p| p.len() >= 2 && p.iter().all(|a| projection.activities.contains(a)))
+        .or_else(|| {
+            top_variants
+                .iter()
+                .find(|v| v.activities.len() >= 2)
+                .map(|v| v.activities.clone())
+        })
         .unwrap_or_default();
 
     // Distinct segments in path order; a loop in the path does not repeat a segment.
@@ -92,7 +98,7 @@ pub fn get_performance_spectrum(
         let evs: Vec<(&str, Option<i64>)> = trace
             .events
             .iter()
-            .map(|e| (event_activity(e).unwrap_or("UNKNOWN"), event_time_ms(e)))
+            .map(|e| (event_activity(e).unwrap_or(NO_ACTIVITY), event_time_ms(e)))
             .collect();
         for w in evs.windows(2) {
             if let (Some(&i), (_, Some(ta)), (_, Some(tb))) =
@@ -184,6 +190,24 @@ mod tests {
         assert_eq!(
             (sampled.segments[0].count, sampled.segments[0].lines.len()),
             (1, 1)
+        );
+        let other_log = get_performance_spectrum(&log, Some(vec!["x".into(), "y".into()]), None);
+        assert_eq!(other_log.path, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn skips_a_top_variant_with_one_step() {
+        let ev = |a: &str| {
+            format!(
+                r#"<event><string key="concept:name" value="{a}"/><date key="time:timestamp" value="2024-01-01T00:00:00Z"/></event>"#
+            )
+        };
+        let one = format!("<trace>{}</trace>", ev("a"));
+        let xes = format!("<log>{one}{one}<trace>{}{}</trace></log>", ev("a"), ev("b"));
+        let log = EventLog::import_from_bytes(xes.as_bytes(), "xes").unwrap();
+        assert_eq!(
+            get_performance_spectrum(&log, None, None).path,
+            vec!["a", "b"]
         );
     }
 }

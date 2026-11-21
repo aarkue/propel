@@ -34,9 +34,23 @@ export interface EventSignature {
   events: number;
 }
 
+/** How the events of one event type relate to one object type, over all its events. */
+export interface TypeObjects {
+  object_type: string;
+  /** Events related to at least one object of the type; min, max and mean are over these. */
+  events: number;
+  min: number;
+  max: number;
+  mean: number;
+}
+
 export interface EventTypeSignatures {
   event_type: string;
   events: number;
+  /** Events related to more than one object of some type. */
+  events_with_several: number;
+  /** One entry per related object type, over all events. */
+  per_object_type: TypeObjects[];
   signatures: EventSignature[];
   other_events: number;
 }
@@ -56,30 +70,14 @@ interface Cell {
 }
 
 function cellsOf(et: EventTypeSignatures): Map<string, Cell> {
-  const acc = new Map<string, { events: number; min: number; max: number; sum: number }>();
-  for (const s of et.signatures) {
-    for (const o of s.objects) {
-      const c = acc.get(o.object_type) ?? { events: 0, min: Number.POSITIVE_INFINITY, max: 0, sum: 0 };
-      c.events += s.events;
-      c.min = Math.min(c.min, o.min);
-      c.max = Math.max(c.max, o.max);
-      c.sum += o.mean * s.events;
-      acc.set(o.object_type, c);
-    }
-  }
-  return new Map(
-    [...acc].map(([t, c]) => [
-      t,
-      { events: c.events, min: c.min, max: c.max, mean: c.sum / Math.max(1, c.events) },
-    ]),
-  );
+  return new Map(et.per_object_type.map((c) => [c.object_type, c]));
 }
 
 const range = (min: number, max: number) => (min === max ? String(min) : `${min}-${max}`);
 
 type Sort = "events" | "name";
 const SORTS: Option<Sort>[] = [
-  { value: "events", label: "Most events", description: "Busiest event types first" },
+  { value: "events", label: "Most events", description: "Event types with the most events first" },
   { value: "name", label: "Name", description: "Alphabetical" },
 ];
 
@@ -88,8 +86,8 @@ export type EventSignaturesViewProps = ViewerProps<EventSignatures>;
 /**
  * Which object types the events of each type carry, as a matrix of event types by object types. A
  * cell gives how many objects of the column's type one event relates to; darker cells relate more,
- * and a count above 1 (bold) means the events batch objects, which a log flattened on that type
- * repeats. Below, the exact mixes of the selected event type.
+ * and a count above 1 (bold) means an event relates to several objects of that type, which a log
+ * flattened on that type repeats. Below, the exact mixes of the selected event type.
  */
 export function EventSignaturesView({ data, colorOf }: EventSignaturesViewProps) {
   const cfg = useViewerConfig({ colorOf });
@@ -111,8 +109,8 @@ export function EventSignaturesView({ data, colorOf }: EventSignaturesViewProps)
 
   const color = (t: string) => cfg.colorOf?.("objectType", t) ?? "var(--gray-9)";
   const totalEvents = rows.reduce((s, r) => s + r.et.events, 0);
-  const batchingTypes = rows.filter((r) => [...r.cells.values()].some((c) => c.max > 1));
-  const batchingEvents = batchingTypes.reduce((s, r) => s + r.et.events, 0);
+  const severalTypes = rows.filter((r) => r.et.events_with_several > 0);
+  const severalEvents = severalTypes.reduce((s, r) => s + r.et.events_with_several, 0);
   const mixed = rows.filter((r) => r.et.signatures.length + (r.et.other_events > 0 ? 1 : 0) > 1).length;
   const selected = rows.find((r) => r.et.event_type === picked) ?? rows[0];
   const maxEvents = Math.max(1, ...rows.map((r) => r.et.events));
@@ -142,17 +140,16 @@ export function EventSignaturesView({ data, colorOf }: EventSignaturesViewProps)
             <Metric label="Event types" value={fmtInt(rows.length)} hint={`${fmtInt(totalEvents)} events`} />
             <Metric label="Object types" value={fmtInt(columns.length)} />
             <Metric
-              label="Batching"
-              value={fmtPct(batchingEvents / Math.max(1, totalEvents))}
-              hint={`of events, in ${batchingTypes.length} event types`}
-              tone={batchingTypes.length > 0 ? "warn" : undefined}
+              label="Several objects of one type"
+              value={fmtPct(severalEvents / Math.max(1, totalEvents))}
+              hint={`of events, in ${severalTypes.length} event types`}
             />
             <Metric label="Mixed types" value={fmtInt(mixed)} hint="event types with several mixes" />
           </MetricRow>
 
           <Section
             title="Objects per event"
-            subtitle="How many objects of each type one event relates to. Bold counts above 1 batch objects. Click a row for its mixes."
+            subtitle="How many objects of each type one event relates to. Counts above 1 are bold. Click a row for its mixes."
           >
             <div data-tooltip-host style={{ position: "relative", overflowX: "auto" }}>
               <div

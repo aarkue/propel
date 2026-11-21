@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::log_overview::long_case_indices;
 use crate::slim_project::{build_slim, Overlay};
-use crate::xes_event::{event_activity, event_time, event_time_ms};
+use crate::xes_event::{event_activity, event_lifecycle, event_time, event_time_ms};
 
 /// Which events a repair removes, or whose cases it removes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -43,7 +43,8 @@ pub enum Repair {
     /// position of events without a time (event logs only).
     SortCasesByTime,
     /// Remove repeated events of a case, keeping the first: with `exact`, only events whose
-    /// attributes are all equal; otherwise events with the same activity and time (event logs only).
+    /// attributes are all equal; otherwise events with the same activity, lifecycle transition and
+    /// time (event logs only).
     RemoveDuplicateEvents { exact: bool },
     /// Remove cases without events (event logs only).
     RemoveEmptyCases,
@@ -183,7 +184,12 @@ fn dedup(trace: &mut Trace, exact: bool) {
         let key = if exact {
             format!("{:?}", e.attributes)
         } else {
-            format!("{:?}\u{0}{:?}", event_activity(e), event_time_ms(e))
+            format!(
+                "{:?}\u{0}{:?}\u{0}{:?}",
+                event_activity(e),
+                event_lifecycle(e),
+                event_time_ms(e)
+            )
         };
         seen.insert(key)
     });

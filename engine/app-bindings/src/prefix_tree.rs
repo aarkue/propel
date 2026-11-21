@@ -9,7 +9,7 @@ use process_mining::EventLog;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::xes_event::{event_activity, event_time_ms};
+use crate::xes_event::{event_activity, event_time_ms, NO_ACTIVITY};
 
 /// One prefix: the path from the root to this node.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -69,7 +69,7 @@ pub fn get_prefix_tree(
         let mut at = 0;
         nodes[0].cases += 1;
         for (i, event) in trace.events.iter().take(max_depth).enumerate() {
-            let activity = event_activity(event).unwrap_or("UNKNOWN");
+            let activity = event_activity(event).unwrap_or(NO_ACTIVITY);
             at = match nodes[at].children.get(activity) {
                 Some(&c) => c,
                 None => {

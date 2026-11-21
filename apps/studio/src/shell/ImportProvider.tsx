@@ -19,6 +19,7 @@ import {
   type ImportCandidate,
   importFileAs,
 } from "../data-import";
+import { candidateByContent, kindName, SNIFF_BYTES } from "../file-kind";
 import { connectionStringForPath, isExtractionSource, isExtractionSourceFile } from "../extraction-sources";
 import { IO_KINDS, ioKindByName } from "../io-kinds";
 import { isModelKind, openModel } from "../models";
@@ -194,7 +195,12 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         runImport(file, cands[0].kind, cands[0].ext);
         return;
       }
-      setPicker({ name: file.name, candidates: cands, source: { kind: "file", file } });
+      const ask = () => setPicker({ name: file.name, candidates: cands, source: { kind: "file", file } });
+      if (asSource) return ask();
+      void candidateByContent(cands, async () => ({
+        text: await file.slice(0, SNIFF_BYTES).text(),
+        complete: file.size <= SNIFF_BYTES,
+      })).then((c) => (c ? runImport(file, c.kind, c.ext) : ask()));
     },
     [importableKinds, runImport, openFileAsSource],
   );
@@ -244,7 +250,12 @@ export function ImportProvider({ children }: { children: ReactNode }) {
         openPathAsSource(path);
         return;
       }
-      setPicker({ name, candidates: cands, source: { kind: "path", path } });
+      const ask = () => setPicker({ name, candidates: cands, source: { kind: "path", path } });
+      const readHead = backend.readFileHead;
+      if (asSource || !readHead) return ask();
+      void candidateByContent(cands, () => readHead(path, SNIFF_BYTES)).then((c) =>
+        c ? importPath(c.kind, path) : ask(),
+      );
     },
     [importableKinds, importPath, openPathAsSource],
   );
@@ -254,7 +265,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       // Desktop: native OS dialog + native path read (no bytes through JS).
       if (backend.pickFiles) {
         const exts = kind.import_formats.map((f) => f.extension);
-        const paths = await backend.pickFiles({ filters: [{ name: kind.kind, extensions: exts }] });
+        const paths = await backend.pickFiles({ filters: [{ name: kindName(kind.kind), extensions: exts }] });
         if (!paths?.length) return;
         for (const path of paths) await importPath(kind.kind, path);
         return;
@@ -269,6 +280,20 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     [importPath],
   );
 
+  const openFile = useCallback(async () => {
+    const exts = [...new Set(importableKinds.flatMap((k) => k.import_formats.map((f) => f.extension)))];
+    if (backend.pickFiles) {
+      const paths = await backend.pickFiles({ filters: [{ name: "Logs and models", extensions: exts }] });
+      for (const path of paths ?? []) handleDroppedPath(path);
+      return;
+    }
+    pendingKind.current = null;
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.accept = exts.map((e) => `.${e}`).join(",");
+    input.click();
+  }, [importableKinds, handleDroppedPath]);
+
   const onFileChosen = (file: File | undefined) => {
     if (!file) return;
     const kind = pendingKind.current;
@@ -277,7 +302,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     const fmt = formatsForKind(kind, file.name)[0];
     if (!fmt) {
       const exts = kind.import_formats.map((f) => `.${f.extension}`).join(", ");
-      toast.error(`"${file.name}" is not a ${kind.kind} file (expected ${exts}).`);
+      toast.error(`"${file.name}" is not a ${kindName(kind.kind)} file (expected ${exts}).`);
       return;
     }
     runImport(file, kind.kind, fmt.ext);
@@ -414,7 +439,7 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   }, [kindsQuery.isSuccess, handleDroppedPath]);
 
   return (
-    <ImportContext.Provider value={{ importableKinds, importKind }}>
+    <ImportContext.Provider value={{ importableKinds, importKind, openFile }}>
       {children}
       <input
         ref={fileInputRef}

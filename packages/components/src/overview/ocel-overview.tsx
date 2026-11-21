@@ -73,9 +73,7 @@ export function OcelOverviewBoard({ data, onOpen, ...config }: OcelOverviewBoard
     ? population.bin_starts_ms[population.bin_starts_ms.length - 1] + population.bin_width_ms
     : start;
   const typeColor = (t: string) => cfg.colorOf?.("objectType", t) ?? "var(--accent-9)";
-  const batching = signatures.event_types.filter((e) =>
-    e.signatures.some((s) => s.objects.some((o) => o.max > 1)),
-  ).length;
+  const several = signatures.event_types.filter((e) => e.events_with_several > 0).length;
 
   return (
     <div style={{ height: "100%", overflow: "auto", padding: 20 }}>
@@ -101,8 +99,8 @@ export function OcelOverviewBoard({ data, onOpen, ...config }: OcelOverviewBoard
             hint={`${health.findings.length} checks`}
           />
           <Metric
-            label="Batching activities"
-            value={fmtInt(batching)}
+            label="Several objects of one type"
+            value={fmtInt(several)}
             hint="event types relating several objects of one type"
           />
         </MetricRow>
@@ -148,11 +146,11 @@ export function OcelOverviewBoard({ data, onOpen, ...config }: OcelOverviewBoard
                   <Sparkline values={t.alive} color={typeColor(t.object_type)} />
                   <Flex justify="between">
                     <Text size="1" color="gray">
-                      peak {fmtInt(Math.max(...t.alive))} alive
+                      up to {fmtInt(Math.round(Math.max(0, ...t.alive)))} alive on average
                     </Text>
                     {lc && (
                       <Text size="1" color="gray">
-                        lives {duration(lc.median_lifetime_ms)}
+                        median lifetime {duration(lc.median_lifetime_ms)}
                       </Text>
                     )}
                   </Flex>
@@ -164,7 +162,7 @@ export function OcelOverviewBoard({ data, onOpen, ...config }: OcelOverviewBoard
 
         <Section
           title="Event types"
-          subtitle="How many events and which objects they carry, most frequent mix"
+          subtitle="Events per combination of related object types, most frequent first"
           actions={
             <OpenLink onOpen={onOpen} target="eventSignatures">
               Signatures

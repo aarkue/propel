@@ -39,10 +39,25 @@ pub struct EventSignature {
     pub events: usize,
 }
 
+/// How the events of one event type relate to one object type, over all its events.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct TypeObjects {
+    pub object_type: String,
+    /// Events related to at least one object of the type; `min`, `max` and `mean` are over these
+    pub events: usize,
+    pub min: usize,
+    pub max: usize,
+    pub mean: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EventTypeSignatures {
     pub event_type: String,
     pub events: usize,
+    /// Events related to more than one object of some type
+    pub events_with_several: usize,
+    /// One entry per related object type, over all events, sorted by object type
+    pub per_object_type: Vec<TypeObjects>,
     /// Most frequent first
     pub signatures: Vec<EventSignature>,
     /// Events whose signature is not among `signatures`
@@ -78,10 +93,21 @@ struct SignatureStats<'a> {
 
 fn signatures_of_type(ocel: &SlimLinkedOCEL, event_type: &str) -> EventTypeSignatures {
     let mut by_types: HashMap<Vec<&str>, SignatureStats> = HashMap::new();
+    let mut all = SignatureStats::default();
+    let mut per_type_events: BTreeMap<&str, usize> = BTreeMap::new();
     let mut events = 0;
+    let mut events_with_several = 0;
     for ev in ocel.get_evs_of_type(event_type) {
         events += 1;
         let per_type = objects_per_type(ocel, ev);
+        if per_type.values().any(|&n| n > 1) {
+            events_with_several += 1;
+        }
+        for (&t, &n) in &per_type {
+            *per_type_events.entry(t).or_default() += 1;
+            let c = all.counts.entry(t).or_insert((usize::MAX, 0, 0));
+            *c = (c.0.min(n), c.1.max(n), c.2 + n);
+        }
         let stats = by_types
             .entry(per_type.keys().copied().collect())
             .or_default();
@@ -121,9 +147,22 @@ fn signatures_of_type(ocel: &SlimLinkedOCEL, event_type: &str) -> EventTypeSigna
         .map(|s| s.events)
         .sum();
     signatures.truncate(MAX_SIGNATURES);
+    let per_object_type = all
+        .counts
+        .into_iter()
+        .map(|(t, (min, max, sum))| TypeObjects {
+            object_type: t.to_string(),
+            events: per_type_events[t],
+            min,
+            max,
+            mean: sum as f64 / per_type_events[t] as f64,
+        })
+        .collect();
     EventTypeSignatures {
         event_type: event_type.to_string(),
         events,
+        events_with_several,
+        per_object_type,
         signatures,
         other_events,
     }
@@ -145,8 +184,7 @@ pub fn get_event_signatures(ocel: &SlimLinkedOCEL) -> EventSignatures {
     });
     let mut object_types: Vec<String> = event_types
         .iter()
-        .flat_map(|e| e.signatures.iter())
-        .flat_map(|s| s.objects.iter().map(|o| o.object_type.clone()))
+        .flat_map(|e| e.per_object_type.iter().map(|o| o.object_type.clone()))
         .collect::<HashSet<_>>()
         .into_iter()
         .collect();
@@ -157,8 +195,8 @@ pub fn get_event_signatures(ocel: &SlimLinkedOCEL) -> EventSignatures {
     }
 }
 
-/// Per object type, how many objects are alive in each time bin. An object is alive from its
-/// first to its last event.
+/// Per object type, how many objects are alive in each time bin, on average over the bin. An
+/// object is alive from its first to its last event.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ObjectPopulation {
     /// Start of each bin in epoch milliseconds; bins are `bin_width_ms` wide
@@ -175,8 +213,8 @@ pub struct ObjectTypePopulation {
     pub objects: usize,
     /// Objects of the type without any event, which have no lifetime
     pub objects_without_events: usize,
-    /// Objects alive at some point in each bin
-    pub alive: Vec<usize>,
+    /// Mean number of objects alive during each bin
+    pub alive: Vec<f64>,
     /// Objects whose first event falls in each bin
     pub started: Vec<usize>,
     /// Objects whose last event falls in each bin
@@ -198,7 +236,17 @@ pub fn get_object_population(
         return ObjectPopulation {
             bin_starts_ms: Vec::new(),
             bin_width_ms: 1,
-            object_types: Vec::new(),
+            object_types: ocel
+                .get_ob_types()
+                .map(|ot| ObjectTypePopulation {
+                    object_type: ot.to_string(),
+                    objects: 0,
+                    objects_without_events: ocel.get_obs_of_type(ot).count(),
+                    alive: Vec::new(),
+                    started: Vec::new(),
+                    ended: Vec::new(),
+                })
+                .collect(),
         };
     }
     let width = ((max - min) / num_bins as i64 + 1).max(1);
@@ -207,7 +255,7 @@ pub fn get_object_population(
     let mut object_types: Vec<ObjectTypePopulation> = ocel
         .get_ob_types()
         .map(|ot| {
-            let mut delta = vec![0i64; num_bins + 1];
+            let mut delta = vec![0f64; num_bins + 1];
             let mut started = vec![0; num_bins];
             let mut ended = vec![0; num_bins];
             let (mut objects, mut without) = (0, 0);
@@ -224,16 +272,28 @@ pub fn get_object_population(
                 };
                 objects += 1;
                 let (a, b) = (bin_of(first), bin_of(last));
-                delta[a] += 1;
-                delta[b + 1] -= 1;
+                // Each bin gets the share of its width the object is alive in.
+                let w = width as f64;
+                let start_of = |i: usize| min + i as i64 * width;
+                if a == b {
+                    delta[a] += (last - first) as f64 / w;
+                    delta[a + 1] -= (last - first) as f64 / w;
+                } else {
+                    let head = (start_of(a + 1) - first) as f64 / w;
+                    let tail = (last - start_of(b)) as f64 / w;
+                    delta[a] += head;
+                    delta[a + 1] += 1.0 - head;
+                    delta[b] += tail - 1.0;
+                    delta[b + 1] -= tail;
+                }
                 started[a] += 1;
                 ended[b] += 1;
             }
             let alive = delta[..num_bins]
                 .iter()
-                .scan(0i64, |acc, d| {
+                .scan(0f64, |acc, d| {
                     *acc += d;
-                    Some(*acc as usize)
+                    Some(acc.max(0.0))
                 })
                 .collect();
             ObjectTypePopulation {
@@ -689,8 +749,62 @@ mod tests {
             .iter()
             .find(|t| t.object_type == "order")
             .unwrap();
-        assert!(order.alive.iter().all(|&n| n <= 1));
+        assert!(order.alive.iter().all(|&n| n <= 1.0));
         assert_eq!(order.started.iter().sum::<usize>(), 1);
+    }
+
+    #[test]
+    fn object_browser_counts_each_event_once() {
+        use crate::ocel::{get_object_detail, get_ocel_objects_page};
+        use crate::types::ObjectSortField;
+        let o = ocel();
+        let page = get_ocel_objects_page(
+            &o,
+            0,
+            10,
+            ObjectSortField::ObjectId,
+            true,
+            "i1".into(),
+            None,
+        );
+        assert_eq!(
+            page.rows[0].num_events, 2,
+            "e2 relates to i1 with two qualifiers"
+        );
+        let d = get_object_detail(&o, "i1".into());
+        let ids: Vec<&str> = d.events.iter().map(|e| e.event_id.as_str()).collect();
+        assert_eq!(ids, vec!["e1", "e2"]);
+        let o1 = get_object_detail(&o, "o1".into());
+        assert!(
+            o1.related_objects.iter().any(|r| r.incoming)
+                && o1.related_objects.iter().any(|r| !r.incoming)
+        );
+    }
+
+    #[test]
+    fn population_is_the_mean_over_each_bin() {
+        let json = r#"{
+  "eventTypes": [{"name": "a", "attributes": []}],
+  "objectTypes": [{"name": "item", "attributes": []}],
+  "events": [
+    {"id": "e1", "type": "a", "time": "2024-01-01T00:00:00Z", "relationships": [{"objectId": "i1", "qualifier": ""}]},
+    {"id": "e2", "type": "a", "time": "2024-01-01T01:00:00Z", "relationships": [{"objectId": "i1", "qualifier": ""}]},
+    {"id": "e3", "type": "a", "time": "2024-01-01T02:00:00Z", "relationships": [{"objectId": "i2", "qualifier": ""}]},
+    {"id": "e4", "type": "a", "time": "2024-01-01T03:00:00Z", "relationships": [{"objectId": "i2", "qualifier": ""}]}
+  ],
+  "objects": [{"id": "i1", "type": "item"}, {"id": "i2", "type": "item"}]
+}"#;
+        let ocel =
+            SlimLinkedOCEL::from_ocel(OCEL::import_from_bytes(json.as_bytes(), "json").unwrap());
+        let p = get_object_population(&ocel, Some(1));
+        let alive = p.object_types[0].alive[0];
+        assert!(
+            (alive - 2.0 / 3.0).abs() < 0.01,
+            "never two at once, got {alive}"
+        );
+        let p = get_object_population(&ocel, Some(3));
+        let alive = &p.object_types[0].alive;
+        assert!(alive.iter().all(|&n| n <= 1.0 + 1e-9), "{alive:?}");
     }
 
     #[test]

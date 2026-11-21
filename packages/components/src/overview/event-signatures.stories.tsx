@@ -4,6 +4,7 @@ import {
   type EventSignature,
   type EventSignatures,
   EventSignaturesView,
+  type EventTypeSignatures,
   type SignatureObjects,
 } from "@r4pm/components";
 
@@ -20,6 +21,38 @@ const o = (object_type: string, n: number | [number, number, number]): Signature
     ? { object_type, min: n, max: n, mean: n }
     : { object_type, min: n[0], max: n[1], mean: n[2] };
 const sig = (events: number, ...objects: SignatureObjects[]): EventSignature => ({ events, objects });
+
+/** The per-type totals the engine computes over all events, here from the listed signatures. */
+const withTotals = (
+  et: Omit<EventTypeSignatures, "per_object_type" | "events_with_several">,
+): EventTypeSignatures => {
+  const acc = new Map<string, { events: number; min: number; max: number; sum: number }>();
+  for (const s of et.signatures)
+    for (const o of s.objects) {
+      const c = acc.get(o.object_type) ?? { events: 0, min: Number.POSITIVE_INFINITY, max: 0, sum: 0 };
+      acc.set(o.object_type, {
+        events: c.events + s.events,
+        min: Math.min(c.min, o.min),
+        max: Math.max(c.max, o.max),
+        sum: c.sum + o.mean * s.events,
+      });
+    }
+  return {
+    ...et,
+    events_with_several: et.signatures
+      .filter((s) => s.objects.some((o) => o.max > 1))
+      .reduce((n, s) => n + s.events, 0),
+    per_object_type: [...acc]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([object_type, c]) => ({
+        object_type,
+        events: c.events,
+        min: c.min,
+        max: c.max,
+        mean: c.sum / c.events,
+      })),
+  };
+};
 
 // An order-management OCEL: orders batch items and products, packages batch items.
 const orderManagement: EventSignatures = {
@@ -87,7 +120,7 @@ const orderManagement: EventSignatures = {
       signatures: [sig(162, o("employees", 1), o("items", 1)), sig(6, o("employees", 1), o("items", 2))],
       other_events: 0,
     },
-  ],
+  ].map(withTotals),
 };
 
 /** Which objects each event type of an order-management OCEL carries. Click a row for its mixes. */
@@ -120,7 +153,7 @@ export const ManyMixes: StoryObj = {
             other_events: 23,
           },
           ...orderManagement.event_types.slice(7),
-        ],
+        ].map(withTotals),
       }}
     />
   ),

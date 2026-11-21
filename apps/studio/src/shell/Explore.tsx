@@ -75,20 +75,21 @@ export function ExploreHome() {
               <Heading size="5">Explore</Heading>
             </div>
             <Text size="2" color="gray">
-              Panels grouped by analysis. Each opens for the selected log.
+              Click a panel to open it for the selected log.
             </Text>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
             <Button
               size="2"
               variant="soft"
               color="gray"
+              className="shrink-0"
               onClick={() => window.dispatchEvent(new CustomEvent("propel-open-gallery"))}
             >
               <PiMagnifyingGlass /> Search panels
             </Button>
             {current && (
-              <div style={{ width: 260 }}>
+              <div className="min-w-0 flex-1 sm:w-[260px] sm:flex-none">
                 <DatasetSelector datasets={logs} value={current.id} onChange={setChosen} searchable />
               </div>
             )}

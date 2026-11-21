@@ -2,6 +2,7 @@ import { Button, Dialog, Flex, Text } from "@r4pm/components/ui";
 import type { ReactNode } from "react";
 import { PiDatabase, PiFileArrowUp } from "react-icons/pi";
 import type { ImportCandidate } from "../data-import";
+import { kindName } from "../file-kind";
 
 /** Shown when a dropped file can be loaded as more than one registry kind, or when it can be
  *  either loaded as a dataset or opened as the data an extraction reads. */
@@ -32,14 +33,14 @@ export function KindPickerDialog({
         <Dialog.Description size="2" color="gray">
           {onPickSource
             ? "This file can be a finished log, or the data you build one from."
-            : "More than one kind can load this file. Choose how to interpret it."}
+            : "Choose how to open this file."}
         </Dialog.Description>
 
         <div className={onPickSource ? "mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2" : "mt-3"}>
           <PickerColumn
             icon={<PiFileArrowUp size={20} />}
             title="As a dataset"
-            detail="Load it as a finished log and start exploring."
+            detail="Load it as a log."
             accent="indigo"
             bare={!onPickSource}
           >
@@ -50,7 +51,7 @@ export function KindPickerDialog({
                 data-testid={`pick-kind-${c.kind}`}
                 onClick={() => onPick(c)}
               >
-                {c.kind}
+                {kindName(c.kind)}
                 <Text size="1" color="gray" ml="1">
                   (.{c.ext})
                 </Text>
@@ -62,7 +63,7 @@ export function KindPickerDialog({
             <PickerColumn
               icon={<PiDatabase size={20} />}
               title="As a data source"
-              detail="Build an OCEL log from its tables with a blueprint."
+              detail="Build an OCEL from its tables with a blueprint."
               accent="jade"
             >
               <Button variant="soft" color="jade" data-testid="pick-source" onClick={onPickSource}>

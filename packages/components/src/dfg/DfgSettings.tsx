@@ -27,7 +27,7 @@ const FREQ_METRICS: Option<DfgMetric>[] = [
 const PERF_METRICS: Option<DfgMetric>[] = [
   { value: "mean", label: "Avg", description: "Mean time between the two activities" },
   { value: "median", label: "Med", description: "Median time between the two activities" },
-  { value: "p90", label: "P90", description: "Time that 90% of passages stay within" },
+  { value: "p90", label: "P90", description: "90th percentile of the time between the two activities" },
   { value: "min", label: "Min", description: "Shortest passage" },
   { value: "max", label: "Max", description: "Longest passage" },
 ];

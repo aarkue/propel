@@ -20,3 +20,12 @@ body,
   transform: translateZ(0) scale(1, 1);
   -webkit-transform: translateZ(0) scale(1, 1);
 }
+
+/* iOS zooms into an input with text under 16px on focus, and the page stays zoomed. */
+@media (pointer: coarse) and (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

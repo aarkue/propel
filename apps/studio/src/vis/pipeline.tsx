@@ -21,7 +21,7 @@ function PipelinePanel() {
 export const vis = definePanel({
   type: "pipeline",
   name: "Pipeline",
-  description: "Wire registry functions into a node flow.",
+  description: "Chain functions into a pipeline that can run again.",
   category: "transforms",
   icon: PiPuzzlePiece,
   keywords: ["pipeline", "nodes", "compose", "flow"],

@@ -231,21 +231,18 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
 
                 {section === "import" && (
                   <Flex direction="column" gap="4">
-                    <SectionBlock
-                      title="Expert import types"
-                      hint="Off by default. Imports use the curated SlimLinkedOCEL / EventLog."
-                    >
+                    <SectionBlock title="Expert import types">
                       <Flex align="center" justify="between" gap="3" style={SETTING_ROW_STYLE}>
                         <Text size="2" color="gray" style={{ flex: 1 }}>
-                          Show advanced representations (raw OCEL, IndexLinkedOCEL, activity projection) when
-                          importing files.
+                          Also offer the internal formats (raw OCEL, IndexLinkedOCEL, activity projection)
+                          when opening files.
                         </Text>
                         <Switch checked={showExpertKinds} onCheckedChange={setShowExpertKinds} />
                       </Flex>
                     </SectionBlock>
                     <SectionBlock
                       title="Browser storage (wasm)"
-                      hint="Datasets larger than this are not cached for automatic restore; you relink their file on reload. 0 = cache everything."
+                      hint="Datasets above this size are not stored in the browser. After a reload, open their file again. With 0, all datasets are stored."
                     >
                       <Flex align="center" justify="between" gap="3" style={SETTING_ROW_STYLE}>
                         <Text size="2" color="gray" style={{ flex: 1 }}>

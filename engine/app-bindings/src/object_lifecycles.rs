@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use process_mining::analysis::durations::{quantile_sorted, summarize};
+use process_mining::analysis::durations::summarize;
 use process_mining::bindings::register_binding;
 use process_mining::core::event_data::object_centric::linked_ocel::slim_linked_ocel::EventIndex;
 use process_mining::core::event_data::object_centric::linked_ocel::{
@@ -75,16 +75,17 @@ fn lifecycle_of(ocel: &SlimLinkedOCEL, object_type: &str) -> TypeLifecycle {
     }
     let mut activities: Vec<LifecycleActivity> = offsets
         .into_iter()
-        .map(|(act, mut v)| {
-            v.sort_by(|a, b| a.total_cmp(b));
-            LifecycleActivity {
+        .filter_map(|(act, mut v)| {
+            // The same median as the lifetime's, for even counts the mean of the middle two.
+            let s = summarize(&mut v)?;
+            Some(LifecycleActivity {
                 activity: act.to_string(),
                 reach: v.len() as f64 / objects.max(1) as f64,
-                median_ms: quantile_sorted(&v, 0.5),
-                p25_ms: quantile_sorted(&v, 0.25),
-                p75_ms: quantile_sorted(&v, 0.75),
+                median_ms: s.median,
+                p25_ms: s.p25,
+                p75_ms: s.p75,
                 mean_count: counts[act] as f64 / v.len() as f64,
-            }
+            })
         })
         .collect();
     activities.sort_by(|a, b| {

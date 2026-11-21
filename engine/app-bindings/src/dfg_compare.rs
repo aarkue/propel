@@ -9,7 +9,7 @@ use process_mining::EventLog;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::xes_event::{event_activity, event_time_ms};
+use crate::xes_event::{event_activity, event_time_ms, NO_ACTIVITY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
@@ -42,6 +42,8 @@ pub struct DfgComparison {
     pub b_label: String,
     pub a_cases: u64,
     pub b_cases: u64,
+    /// The case start that separates the periods, when comparing periods
+    pub split_ms: Option<i64>,
     pub activities: Vec<ComparedActivity>,
     pub arcs: Vec<ComparedArc>,
 }
@@ -58,7 +60,7 @@ impl Side {
         let acts: Vec<&str> = trace
             .events
             .iter()
-            .map(|e| event_activity(e).unwrap_or("UNKNOWN"))
+            .map(|e| event_activity(e).unwrap_or(NO_ACTIVITY))
             .collect();
         self.cases += 1;
         let (Some(first), Some(last)) = (acts.first(), acts.last()) else {
@@ -81,7 +83,13 @@ impl Side {
     }
 }
 
-fn compare(a: Side, b: Side, a_label: String, b_label: String) -> DfgComparison {
+fn compare(
+    a: Side,
+    b: Side,
+    a_label: String,
+    b_label: String,
+    split_ms: Option<i64>,
+) -> DfgComparison {
     let mut activities: HashMap<String, (u64, u64)> = HashMap::new();
     for (k, n) in a.activities {
         activities.entry(k).or_default().0 = n;
@@ -117,6 +125,7 @@ fn compare(a: Side, b: Side, a_label: String, b_label: String) -> DfgComparison 
         b_label,
         a_cases: a.cases,
         b_cases: b.cases,
+        split_ms,
         activities,
         arcs,
     }
@@ -128,7 +137,7 @@ pub fn compare_dfgs(log_a: &EventLog, log_b: &EventLog) -> DfgComparison {
     let (mut a, mut b) = (Side::default(), Side::default());
     log_a.traces.iter().for_each(|t| a.add(t));
     log_b.traces.iter().for_each(|t| b.add(t));
-    compare(a, b, "A".into(), "B".into())
+    compare(a, b, "A".into(), "B".into(), None)
 }
 
 /// The directly-follows counts of the cases of one log that start before `split_ms` (A) and
@@ -163,16 +172,12 @@ pub fn compare_dfg_periods(
             None => {}
         }
     }
-    let day = |ms: i64| {
-        process_mining::core::chrono::DateTime::from_timestamp_millis(ms)
-            .map(|d| d.format("%Y-%m-%d").to_string())
-            .unwrap_or_default()
-    };
     compare(
         a,
         b,
-        format!("before {}", day(split)),
-        format!("from {}", day(split)),
+        "before the split".into(),
+        "from the split".into(),
+        Some(split),
     )
 }
 
@@ -224,6 +229,13 @@ mod tests {
         ]);
         let c = compare_dfg_periods(&l, None);
         assert_eq!((c.a_cases, c.b_cases), (1, 2));
-        assert_eq!(c.b_label, "from 2024-01-10");
+        assert_eq!(
+            c.split_ms,
+            Some(
+                process_mining::core::chrono::DateTime::parse_from_rfc3339("2024-01-10T00:00:00Z")
+                    .unwrap()
+                    .timestamp_millis()
+            )
+        );
     }
 }

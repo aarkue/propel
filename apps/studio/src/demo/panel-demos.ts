@@ -124,6 +124,7 @@ export const DEMOS: Record<string, Demo> = {
     }),
   },
   modelSweep: { press: ["Run sweep"] },
+  pathSchemas: { press: ["Execute"] },
   "group:ocDeclare": { press: ["Discover"] },
   processAnimation: { press: ["Play"], wait: 5000 },
   ocelAnimation: { press: ["Play"], wait: 5000 },

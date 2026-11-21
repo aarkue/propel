@@ -454,8 +454,8 @@ export function Section({ title, subtitle, actions, children, style }: SectionPr
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0, ...style }}>
       {(title || actions) && (
-        <Flex align="end" gap="3">
-          <Flex direction="column" gap="1" style={{ minWidth: 0 }}>
+        <Flex align="end" gap="3" wrap="wrap">
+          <Flex direction="column" gap="1" style={{ minWidth: 0, flex: "1 1 16rem" }}>
             {title && <span className="r4pm-eyebrow">{title}</span>}
             {subtitle && (
               <Text size="1" color="gray">

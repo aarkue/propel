@@ -39,7 +39,7 @@ export default meta;
 
 export const FullViewer: StoryObj = {
   name: "Full viewer (auto scope + scope picker)",
-  render: () => <OcelTypeGraphViewer nodes={nodes} edges={edges} autoScopeLimit={4} />,
+  render: () => <OcelTypeGraphViewer nodes={nodes} edges={edges} autoObjectTypes={2} />,
 };
 
 export const Default: StoryObj = {

@@ -12,7 +12,7 @@ function ConformanceView({ data }: ViewerProps<LogAlignments>) {
 export const vis = defineResolvedVis({
   type: "conformance",
   name: "Conformance",
-  description: "Alignment fitness of the log vs. a saved Petri net.",
+  description: "Alignment fitness of the log against a saved Petri net.",
   category: "conformance",
   icon: PiCheckCircle,
   supports: ["EventLog"],

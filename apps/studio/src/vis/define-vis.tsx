@@ -386,7 +386,7 @@ function makeDataPanelComponent(
             {spec.name} not computed yet
           </Text>
           <Text size="2" color="gray" style={{ maxWidth: 320 }}>
-            This analysis is expensive, so it runs on demand. Configure inputs above, then run.
+            This can take a while, so it starts only when you click Execute.
           </Text>
           <Button size="2" disabled={!live || running} onClick={() => setRan(live)}>
             {running ? "Running..." : "Execute"}

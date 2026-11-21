@@ -150,7 +150,28 @@ export function PrefixTreeView({ data, colorOf, format, controls, onControlsChan
   );
 
   if (data.nodes.length <= 1) {
-    return <EmptyState icon={<PiTreeView />} title="No traces" description="This log has no events." />;
+    if (!data.nodes[0]?.cases || !onControlsChange)
+      return <EmptyState icon={<PiTreeView />} title="No traces" description="This log has no events." />;
+    return (
+      <Flex direction="column" style={{ height: "100%", minHeight: 0 }}>
+        <Toolbar
+          end={
+            <ShareSlider
+              value={controls?.minShare ?? DEFAULT_PREFIX_TREE_CONTROLS.minShare}
+              minCases={data.min_cases}
+              onChange={(minShare) =>
+                onControlsChange({ ...(controls ?? DEFAULT_PREFIX_TREE_CONTROLS), minShare })
+              }
+            />
+          }
+        />
+        <EmptyState
+          icon={<PiTreeView />}
+          title="No prefix shown"
+          description={`No first activity is shared by ${fmtInt(data.min_cases)} cases. Lower the share.`}
+        />
+      </Flex>
+    );
   }
 
   const nodes = data.nodes;
@@ -301,6 +322,9 @@ export function PrefixTreeView({ data, colorOf, format, controls, onControlsChan
                         value: fmtPct(n.cases / Math.max(1, parent?.cases ?? n.cases)),
                       },
                       ...(n.ending > 0 ? [{ label: "End here", value: fmtInt(n.ending) }] : []),
+                      ...(n.depth >= data.max_depth && n.cases > n.ending
+                        ? [{ label: "Not shown", value: `events after the first ${data.max_depth}` }]
+                        : []),
                       ...(n.median_elapsed_ms
                         ? [{ label: "Median since start", value: duration(n.median_elapsed_ms) }]
                         : []),

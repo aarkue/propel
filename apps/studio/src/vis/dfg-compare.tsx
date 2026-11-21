@@ -1,6 +1,7 @@
 import type { EventLogHandle } from "@r4pm/client";
 import {
   DatasetSelector,
+  type DfgComparison,
   DfgDiffViewer,
   EmptyState,
   ErrorState,
@@ -71,6 +72,17 @@ function DfgComparePanel(props: IDockviewPanelProps) {
         : backend.callBinding(COMPARE_LOGS, { log_a: a as EventLogHandle, log_b: b as EventLogHandle }),
   });
 
+  const nameOf = (id: string | null) => logs.find((l) => l.id === id)?.label ?? "";
+  const withLabels = (d: DfgComparison): DfgComparison => {
+    if (d.split_ms == null) return { ...d, a_label: nameOf(a), b_label: nameOf(b) };
+    const at = new Date(d.split_ms);
+    const midnight = at.getHours() === 0 && at.getMinutes() === 0;
+    const when = midnight
+      ? at.toLocaleDateString()
+      : at.toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+    return { ...d, a_label: `before ${when}`, b_label: `from ${when}` };
+  };
+
   const selector = (letter: string, value: string | null, onChange: (id: string) => void) => (
     <Flex align="center" gap="2">
       <span className="r4pm-eyebrow">{letter}</span>
@@ -135,9 +147,18 @@ function DfgComparePanel(props: IDockviewPanelProps) {
           <ErrorState error={query.error} onRetry={() => query.refetch()} />
         ) : !query.data ? (
           <LoadingState label="comparing" />
+        ) : query.data.a_cases === 0 || query.data.b_cases === 0 ? (
+          <EmptyState
+            title={`No cases in ${query.data.a_cases === 0 ? "A" : "B"}`}
+            description={
+              s.mode === "periods"
+                ? "No case starts on this side of the split. Pick a date inside the log."
+                : "This log has no cases."
+            }
+          />
         ) : (
           <DfgDiffViewer
-            data={query.data}
+            data={withLabels(query.data)}
             note={
               s.mode === "periods"
                 ? "Cases that start late in B may still be running when the log ends, so their later arcs and end arcs look rarer there."
@@ -153,8 +174,7 @@ function DfgComparePanel(props: IDockviewPanelProps) {
 export const vis = definePanel({
   type: "dfgCompare",
   name: "DFG Comparison",
-  description:
-    "Two logs or two periods on one DFG, with arcs colored by the change in how often cases take them.",
+  description: "Two logs or two periods on one DFG, with arcs colored by the change in occurrences per case.",
   category: "activities",
   tags: ["variants"],
   icon: PiGitDiff,

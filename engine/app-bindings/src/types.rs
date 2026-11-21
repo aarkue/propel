@@ -290,9 +290,19 @@ pub struct ObjectDetail {
     pub object_id: String,
     pub object_type: String,
     pub events: Vec<ObjectEventRow>,
-    /// (object_id, object_type) via O2O
-    pub related_objects: Vec<(String, String)>,
+    pub related_objects: Vec<RelatedObject>,
+    /// The latest value of each attribute.
     pub attributes: HashMap<String, String>,
+}
+
+/// An O2O relation of an object, in either direction.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RelatedObject {
+    pub object_id: String,
+    pub object_type: String,
+    pub qualifier: String,
+    /// The other object relates to this one.
+    pub incoming: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

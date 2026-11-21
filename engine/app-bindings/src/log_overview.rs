@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ocel_overview::{finding, HealthFinding, HealthFix, Severity, Tally};
 use crate::repairs::{EventDefect, Repair};
-use crate::xes_event::{event_activity, event_time};
+use crate::xes_event::{event_activity, event_lifecycle, event_time, NO_ACTIVITY};
 
 const TOP_VARIANTS: usize = 8;
 const THROUGHPUT_BINS: usize = 40;
@@ -153,7 +153,7 @@ pub fn get_log_health(event_log: &EventLog) -> LogHealth {
             empty.add(id);
             continue;
         }
-        let mut seen: HashSet<(&str, i64)> = HashSet::new();
+        let mut seen: HashSet<(&str, Option<&str>, i64)> = HashSet::new();
         let mut last: Option<i64> = None;
         let mut has_tie = false;
         for event in &trace.events {
@@ -184,7 +184,7 @@ pub fn get_log_health(event_log: &EventLog) -> LogHealth {
             }
             has_tie |= last == Some(ms);
             last = Some(ms);
-            if !seen.insert((activity.unwrap_or(""), ms)) {
+            if !seen.insert((activity.unwrap_or(""), event_lifecycle(event), ms)) {
                 duplicates.add(id);
             }
         }
@@ -281,7 +281,7 @@ pub fn get_log_health(event_log: &EventLog) -> LogHealth {
             "duplicate_events",
             "Duplicate events",
             "Incorrect event",
-            "Events with the same activity and time as an earlier event of the same case. Often a double export, sometimes a real batch.",
+            "Events with the same activity, lifecycle transition and time as an earlier event of the same case. Often a double export, sometimes a real batch.",
             Severity::Warning,
             duplicates,
             vec![
@@ -295,7 +295,7 @@ pub fn get_log_health(event_log: &EventLog) -> LogHealth {
                 HealthFix::new(
                     "remove_all",
                     "Remove all repeats",
-                    "Removes every event with the activity and time of an earlier event of its case, even if other attributes differ.",
+                    "Removes every event with the activity, lifecycle transition and time of an earlier event of its case, even if other attributes differ.",
                     false,
                     vec![Repair::RemoveDuplicateEvents { exact: false }],
                 ),
@@ -429,7 +429,7 @@ pub fn get_log_overview(event_log: &EventLog) -> LogOverview {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for e in event_log.traces.iter().flat_map(|t| t.events.iter()) {
         *counts
-            .entry(event_activity(e).unwrap_or("UNKNOWN").to_string())
+            .entry(event_activity(e).unwrap_or(NO_ACTIVITY).to_string())
             .or_default() += 1;
     }
     let mut activities: Vec<(String, usize)> = counts.into_iter().collect();

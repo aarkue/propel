@@ -96,7 +96,7 @@ export function WelcomeScreen({
           </div>
         )}
         {resume && (
-          <div className="mb-6 flex items-center gap-3 rounded-lg border border-[var(--indigo-8)] bg-[var(--indigo-a2)] p-4">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-[var(--indigo-8)] bg-[var(--indigo-a2)] p-3 sm:p-4">
             <div className="rounded-full bg-[var(--indigo-a3)] text-[var(--indigo-11)] p-2 shrink-0">
               <PiArrowClockwise size={20} />
             </div>
@@ -109,7 +109,7 @@ export function WelcomeScreen({
                 {resume.datasets > 0 && `, ${resume.datasets} dataset${resume.datasets === 1 ? "" : "s"}`}
               </Text>
             </div>
-            <Flex gap="2" align="center" className="shrink-0">
+            <Flex gap="2" align="center" justify="end" className="w-full sm:w-auto sm:shrink-0">
               <Button variant="ghost" color="gray" disabled={resuming} onClick={handleStartFresh}>
                 Start fresh
               </Button>
@@ -131,8 +131,8 @@ export function WelcomeScreen({
           </Heading>
           <Text as="p" size="3" color="gray">
             {nativeSources
-              ? "Bring a finished log, or build one from your own database or tabular files."
-              : "Bring a finished log, or build one from a database or tabular file."}
+              ? "Open a log, or build one from a database or table files."
+              : "Open a log, or build one from a database or table file."}
           </Text>
         </div>
 
@@ -146,7 +146,7 @@ export function WelcomeScreen({
               Open a log
             </Heading>
             <Text size="2" color="gray" className="max-w-sm">
-              OCEL, XES and more. Drop anywhere in the window, or pick a kind:
+              OCEL, XES and more. Drop a file anywhere in the window, or open one:
             </Text>
             <div className="flex flex-wrap justify-center gap-2 mt-5">
               <ImportButton />

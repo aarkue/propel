@@ -283,6 +283,33 @@ async fn load_item_path(
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize)]
+struct FileHead {
+    text: String,
+    /// Whether `text` is the whole file.
+    complete: bool,
+}
+
+/// The start of a file, so formats that share an extension can be told apart by their content.
+#[tauri::command]
+async fn read_file_head(path: String, max_bytes: u64) -> Result<FileHead, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Read;
+        let mut buf = Vec::new();
+        File::open(&path)
+            .and_then(|f| f.take(max_bytes + 1).read_to_end(&mut buf))
+            .map_err(|e| e.to_string())?;
+        let complete = buf.len() as u64 <= max_bytes;
+        buf.truncate(max_bytes as usize);
+        Ok(FileHead {
+            text: String::from_utf8_lossy(&buf).into_owned(),
+            complete,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn save_bytes(app: AppHandle, data: Vec<u8>, filename: String) -> Result<(), String> {
     let dir = app.path().download_dir().map_err(|e| e.to_string())?;
@@ -397,6 +424,7 @@ pub fn run() {
             load_artifact_path,
             load_item_path,
             save_bytes,
+            read_file_head,
             get_initial_files,
         ])
         .build(tauri::generate_context!())

@@ -1,6 +1,6 @@
-import { Flex, Text } from "@r4pm/components/ui";
+import { DropdownMenu, Flex, Text } from "@r4pm/components/ui";
 import { useId, useMemo, useState } from "react";
-import { PiGraph } from "react-icons/pi";
+import { PiCaretDown, PiGraph } from "react-icons/pi";
 import { EmptyState } from "../feedback/EmptyState";
 import {
   fmtInt,
@@ -42,17 +42,22 @@ export interface ExecutionGraph {
   objects: ExecutionObject[];
   events: ExecutionEvent[];
   edges: ExecutionEdge[];
+  /** More objects were reachable than the object limit allows. */
   truncated: boolean;
+  /** The events of all objects in the graph, also those beyond the event limit. */
+  total_events: number;
   layout: Layout;
 }
 
 export interface ExecutionGraphControls {
-  /** The leading object's type; null for the host's choice. */
+  /** The start object's type; null for the host's choice. */
   objectType?: string | null;
-  /** The leading object; null for the host's choice. */
+  /** The start object; null for the host's choice. */
   objectId?: string | null;
-  /** How many relation hops from the leading object the graph reaches. */
+  /** How many relation hops from the start object the graph reaches. */
   depth: number;
+  /** Long-lived types to include anyway. */
+  included?: string[];
 }
 
 export const DEFAULT_EXECUTION_GRAPH_CONTROLS: ExecutionGraphControls = {
@@ -62,12 +67,12 @@ export const DEFAULT_EXECUTION_GRAPH_CONTROLS: ExecutionGraphControls = {
 };
 
 export interface ExecutionGraphViewProps extends ViewerProps<ExecutionGraph> {
-  /** The leading types to pick from, e.g., with their object counts as descriptions. */
+  /** The start object types to pick from, e.g., with their object counts as descriptions. */
   objectTypeOptions: Option<string>[];
-  /** The objects of the leading type to pick from. */
+  /** The objects of the start object type to pick from. */
   objectOptions: Option<string>[];
-  /** Object types left out, e.g., long-lived master data. */
-  excluded?: string[];
+  /** Long-lived types (e.g., master data), left out unless in `controls.included`. */
+  longLived?: string[];
   controls?: ExecutionGraphControls;
   onControlsChange?: (next: ExecutionGraphControls) => void;
 }
@@ -76,7 +81,7 @@ const PAD = 24;
 const LANE = 3;
 
 /**
- * One process execution: the events around a leading object as a partial order. An arrow joins an
+ * One process execution: the events around a start object as a partial order. An arrow joins an
  * object's consecutive events and takes its object type's color, so parallel object lifecycles and
  * the events where they meet are visible at once.
  */
@@ -84,7 +89,7 @@ export function ExecutionGraphView({
   data,
   objectTypeOptions,
   objectOptions,
-  excluded = [],
+  longLived = [],
   controls = DEFAULT_EXECUTION_GRAPH_CONTROLS,
   onControlsChange,
   ...config
@@ -125,14 +130,14 @@ export function ExecutionGraphView({
         }
       >
         <OptionMenu
-          label="Leading type"
+          label="Type"
           value={controls.objectType ?? data.root.object_type}
           options={objectTypeOptions}
           onChange={(objectType) => set({ objectType, objectId: null })}
           disabled={!onControlsChange}
         />
         <OptionMenu
-          label="Object"
+          label="Start object"
           value={data.root.id}
           options={objectOptions}
           onChange={(objectId) => set({ objectId })}
@@ -140,20 +145,55 @@ export function ExecutionGraphView({
         />
         <ToolbarDivider />
         <OptionMenu
-          label="Reach"
+          label="Hops"
           value={String(controls.depth)}
           options={[
-            { value: "1", label: "Direct", description: "Objects sharing an event with it" },
+            {
+              value: "1",
+              label: "1",
+              description: "Objects that share an event with it or have an object-to-object relation to it",
+            },
             {
               value: "2",
-              label: "Two hops",
-              description: "Also their related objects, e.g., an order's items' packages",
+              label: "2",
+              description: "Also the objects related to those, e.g., an order's items' packages",
             },
-            { value: "3", label: "Three hops", description: "Wider, can grow large" },
+            { value: "3", label: "3", description: "Three steps of relations, can include many objects" },
           ]}
           onChange={(d) => set({ depth: Number(d) })}
           disabled={!onControlsChange}
         />
+        {longLived.length > 0 && (
+          <>
+            <ToolbarDivider />
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger disabled={!onControlsChange}>
+                <button type="button" className="r4pm-option-trigger">
+                  <span style={{ color: "var(--gray-10)" }}>Left out</span>
+                  <span style={{ color: "var(--gray-12)", fontWeight: 500 }}>
+                    {longLived.filter((t) => !controls.included?.includes(t)).join(", ") || "none"}
+                  </span>
+                  <PiCaretDown style={{ color: "var(--gray-9)" }} />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content size="2">
+                <DropdownMenu.Label>Long-lived types, related to many objects</DropdownMenu.Label>
+                {longLived.map((t) => (
+                  <DropdownMenu.CheckboxItem
+                    key={t}
+                    checked={!controls.included?.includes(t)}
+                    onCheckedChange={(leftOut) => {
+                      const rest = (controls.included ?? []).filter((x) => x !== t);
+                      set({ included: leftOut ? rest : [...rest, t] });
+                    }}
+                  >
+                    Leave out {t}
+                  </DropdownMenu.CheckboxItem>
+                ))}
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          </>
+        )}
       </Toolbar>
       {data.events.length === 0 ? (
         <EmptyState icon={<PiGraph />} title="No events" description="This object has no events." />
@@ -166,7 +206,15 @@ export function ExecutionGraphView({
                 value={fmtInt(data.objects.length)}
                 hint={data.truncated ? "limit reached" : `${types.length} types`}
               />
-              <Metric label="Events" value={fmtInt(data.events.length)} />
+              <Metric
+                label="Events"
+                value={fmtInt(data.events.length)}
+                hint={
+                  data.total_events > data.events.length
+                    ? `of ${fmtInt(data.total_events)}, those of the nearest objects`
+                    : undefined
+                }
+              />
               <Metric label="Duration" value={duration(span)} hint={`from ${date(data.events[0].time_ms)}`} />
               <Metric
                 label="Synchronizations"
@@ -282,8 +330,8 @@ export function ExecutionGraphView({
               {tooltip}
             </div>
             <Text size="1" color="gray">
-              Leading object {data.root.object_type} {data.root.id}: its events have a dark border. Hover a
-              type in the legend to follow its objects.
+              Start object {data.root.object_type} {data.root.id}: its events have a dark border. Hover a type
+              in the legend to follow its objects.
             </Text>
           </Flex>
         </div>

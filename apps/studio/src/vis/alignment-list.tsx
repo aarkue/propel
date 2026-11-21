@@ -12,7 +12,7 @@ import { defineResolvedVis } from "./define-vis";
 export const vis = defineResolvedVis({
   type: "alignmentList",
   name: "Alignments (list)",
-  description: "Per-variant alignment moves + cost vs a chosen model.",
+  description: "Alignment moves and costs per variant, against a chosen model.",
   category: "conformance",
   icon: PiListBullets,
   supports: ["EventLog"],

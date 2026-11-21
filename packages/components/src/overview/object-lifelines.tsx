@@ -144,8 +144,8 @@ export function ObjectLifelinesView({
       }
     });
     ctx.globalAlpha = 1;
-    if (hover != null) {
-      const ev = data.events[hover];
+    const ev = hover != null ? data.events[hover] : undefined;
+    if (hover != null && ev) {
       const hx = xAt(ev.time_ms);
       ctx.strokeStyle = ink;
       ctx.setLineDash([3, 3]);
@@ -206,7 +206,7 @@ export function ObjectLifelinesView({
     hide();
   };
   const typeOptions: Option<string>[] = [
-    { value: ALL, label: "All types", description: "A share of every type's objects" },
+    { value: ALL, label: "All types", description: "Objects of any type that start at about the same time" },
     ...objectTypes.map((t) => ({ value: t, label: t })),
   ];
 

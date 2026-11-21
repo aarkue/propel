@@ -4,11 +4,23 @@ use process_mining::core::chrono::{DateTime, FixedOffset};
 use process_mining::core::event_data::case_centric::{AttributeValue, Event, XESEditableAttribute};
 use process_mining::core::event_data::timestamp_utils::parse_timestamp;
 
+/// The name of an event without an activity, as in rust4pm's activity projection.
+pub(crate) const NO_ACTIVITY: &str = "No Activity";
+
 /// The activity (`concept:name`).
 pub(crate) fn event_activity(event: &Event) -> Option<&str> {
     event
         .attributes
         .get_by_key("concept:name")
+        .and_then(|a| a.value.try_as_string())
+        .map(|s| s.as_str())
+}
+
+/// The lifecycle transition (`lifecycle:transition`), e.g., `start` or `complete`.
+pub(crate) fn event_lifecycle(event: &Event) -> Option<&str> {
+    event
+        .attributes
+        .get_by_key("lifecycle:transition")
         .and_then(|a| a.value.try_as_string())
         .map(|s| s.as_str())
 }

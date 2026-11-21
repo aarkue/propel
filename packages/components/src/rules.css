@@ -243,3 +243,48 @@
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Path schema table. On a phone, the path column stays at the left and scrolls its own path,
+   scaled down, while the numbers scroll beside it. */
+.r4pm-path-table {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(5, 84px) 96px;
+  gap: 2px 8px;
+  align-items: stretch;
+}
+.r4pm-path-cell {
+  min-width: 0;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+}
+.r4pm-path-num {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.r4pm-path-table > .r4pm-eyebrow:not(.r4pm-path-cell) {
+  text-align: right;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .r4pm-path-table {
+    overflow-x: auto;
+    grid-template-columns: minmax(140px, 42vw) repeat(5, max-content) max-content;
+  }
+  .r4pm-path-cell {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-panel-solid);
+  }
+  .r4pm-path-table div.r4pm-path-cell {
+    zoom: 0.7;
+  }
+}

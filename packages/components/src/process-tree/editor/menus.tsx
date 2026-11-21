@@ -133,7 +133,7 @@ export function AddChildSlot({ id }: { id: string }) {
               <span className="pt-menu-symbol">τ</span> Silent step
             </>
           ),
-          title: "A step that leaves no trace in the log",
+          title: "A step without an event in the log",
           onPick: () => apply((t) => addChild(t, id, newLeaf())),
         },
         { key: "h-op", heading: "Add operator" },

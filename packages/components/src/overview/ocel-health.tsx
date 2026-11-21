@@ -311,7 +311,7 @@ export function OcelHealthView({
           {failed.length > 0 && (
             <Section
               title="Findings"
-              subtitle={`The examples name affected ${subject === "OCEL" ? "events, objects or types" : "cases or attributes"}.`}
+              subtitle={`Each finding lists examples of affected ${subject === "OCEL" ? "events, objects or types" : "cases or attributes"}.`}
             >
               <Flex direction="column" gap="3">
                 {fixable && onRepair && (

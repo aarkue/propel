@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { OptionMenu, Toolbar } from "../kit";
+import { useViewSetting } from "../viewer/view-state";
 import {
   OcelTypeGraph,
   type OcelTypeGraphEdge,
@@ -9,8 +10,8 @@ import {
 import { TypeScopeSelector } from "./TypeScopeSelector";
 
 export interface OcelTypeGraphViewerProps extends Omit<OcelTypeGraphProps, "visibleNodeIds"> {
-  /** Above this many types, initial scope auto-limits to the top-N by count. Default 25. */
-  autoScopeLimit?: number;
+  /** Initially shown object types, the ones with the most objects. Default 3. */
+  autoObjectTypes?: number;
 }
 
 /** Merge parallel qualified edges between the same (source, target) pair, dropping the qualifier label. */
@@ -23,48 +24,47 @@ function collapseByPair(edges: OcelTypeGraphEdge[]): OcelTypeGraphEdge[] {
   return [...byPair.values()];
 }
 
-/** Initial scope: all types when small, else the top-N by count so a large graph doesn't explode. */
-function computeAuto(nodes: OcelTypeGraphNode[], limit: number): Set<string> {
-  if (nodes.length <= limit) return new Set(nodes.map((n) => n.id));
-  return new Set(
-    [...nodes]
+/** The `limit` object types with the most objects and the event types related to them. */
+function computeAuto(nodes: OcelTypeGraphNode[], edges: OcelTypeGraphEdge[], limit: number): Set<string> {
+  const objects = nodes.filter((n) => n.kind === "object");
+  if (objects.length <= limit || edges.length === 0) return new Set(nodes.map((n) => n.id));
+  const shown = new Set(
+    [...objects]
       .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
       .slice(0, limit)
       .map((n) => n.id),
   );
+  const events = new Set(nodes.filter((n) => n.kind === "event").map((n) => n.id));
+  for (const e of edges) if (events.has(e.source) && shown.has(e.target)) shown.add(e.source);
+  return shown;
 }
 
-/** Batteries-included OCEL type-graph viewer: `OcelTypeGraph` + `TypeScopeSelector` with internal scope state and reset. */
+/** Batteries-included OCEL type-graph viewer: `OcelTypeGraph` + `TypeScopeSelector` with persisted scope and reset. */
 export function OcelTypeGraphViewer({
   nodes,
   edges,
-  autoScopeLimit = 25,
+  autoObjectTypes = 3,
   colorOf,
   ...graphProps
 }: OcelTypeGraphViewerProps) {
-  const sig = useMemo(
-    () =>
-      nodes
-        .map((n) => n.id)
-        .sort()
-        .join(","),
-    [nodes],
-  );
-  // biome-ignore lint/correctness/useExhaustiveDependencies: recompute only when the node SET changes.
-  const auto = useMemo(() => computeAuto(nodes, autoScopeLimit), [sig, autoScopeLimit]);
-  const [scope, setScope] = useState<Set<string>>(auto);
-  // Reset scope to auto when the underlying node set changes (e.g. a new OCEL loads).
-  useEffect(() => setScope(auto), [auto]);
+  const auto = useMemo(() => computeAuto(nodes, edges, autoObjectTypes), [nodes, edges, autoObjectTypes]);
+  const [picked, setPicked] = useViewSetting<string[] | null>("types", null);
+  // A selection saved for another OCEL matches no node here.
+  const valid =
+    picked && (picked.length === 0 || picked.some((id) => nodes.some((n) => n.id === id))) ? picked : null;
+  const scope = useMemo(() => (valid ? new Set(valid) : auto), [valid, auto]);
 
   const items = useMemo(
     () => nodes.map((n) => ({ id: n.id, label: n.label, kind: n.kind, count: n.count })),
     [nodes],
   );
 
-  const isAuto = scope.size === auto.size && [...scope].every((id) => auto.has(id));
-  const large = nodes.length > autoScopeLimit;
+  const isAuto = valid === null;
+  const objectCount = nodes.filter((n) => n.kind === "object").length;
+  const limited = isAuto && objectCount > autoObjectTypes;
 
-  const [collapseQualifiers, setCollapseQualifiers] = useState(false);
+  const [relations, setRelations] = useViewSetting<"qualified" | "merged">("relations", "qualified");
+  const collapseQualifiers = relations === "merged";
   const displayEdges = useMemo(
     () => (collapseQualifiers ? collapseByPair(edges) : edges),
     [collapseQualifiers, edges],
@@ -74,10 +74,9 @@ export function OcelTypeGraphViewer({
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%" }}>
       <Toolbar
         end={
-          large &&
-          isAuto && (
+          limited && (
             <span style={{ fontSize: 12, color: "var(--gray-10)" }}>
-              Showing the {autoScopeLimit} largest of {nodes.length} types
+              The {autoObjectTypes} of {objectCount} object types with the most objects, and their event types
             </span>
           )
         }
@@ -85,19 +84,19 @@ export function OcelTypeGraphViewer({
         <TypeScopeSelector
           items={items}
           value={scope}
-          onChange={setScope}
-          onResetAuto={() => setScope(auto)}
+          onChange={(next) => setPicked([...next])}
+          onResetAuto={() => setPicked(null)}
           isAuto={isAuto}
           colorOf={colorOf}
         />
         <OptionMenu
           label="Relations"
-          value={collapseQualifiers ? "merged" : "qualified"}
+          value={relations}
           options={[
             { value: "qualified", label: "By qualifier", description: "One arc per qualifier, labelled" },
             { value: "merged", label: "Merged", description: "One arc per pair of types" },
           ]}
-          onChange={(v) => setCollapseQualifiers(v === "merged")}
+          onChange={setRelations}
         />
       </Toolbar>
       <div style={{ flex: 1, minHeight: 0 }}>

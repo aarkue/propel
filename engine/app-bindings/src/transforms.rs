@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::slim_project::Overlay;
 use crate::types::AttributeScope;
-use crate::xes_event::{event_activity, event_time_ms};
+use crate::xes_event::{event_activity, event_time_ms, NO_ACTIVITY};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum KeepOrRemove {
@@ -514,7 +514,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
         Transform::FilterActivities { activities, mode } => {
             log.traces.iter_mut().for_each(|t| {
                 t.events.retain(|e| {
-                    let act = event_activity(e).unwrap_or("UNKNOWN");
+                    let act = event_activity(e).unwrap_or(NO_ACTIVITY);
                     let in_set = activities.contains(act);
                     match mode {
                         KeepOrRemove::Keep => in_set,
@@ -526,7 +526,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
         Transform::RelabelActivities { rules } => {
             log.traces.iter_mut().for_each(|t| {
                 t.events.iter_mut().for_each(|e| {
-                    let act = event_activity(e).unwrap_or("UNKNOWN").to_string();
+                    let act = event_activity(e).unwrap_or(NO_ACTIVITY).to_string();
                     let new_label = {
                         let get_attr = xes_get_attr(e);
                         let get_attr_f64 = xes_get_attr_f64(e);
@@ -618,7 +618,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                 let seq: Vec<String> = t
                     .events
                     .iter()
-                    .map(|e| event_activity(e).unwrap_or("UNKNOWN").to_string())
+                    .map(|e| event_activity(e).unwrap_or(NO_ACTIVITY).to_string())
                     .collect();
                 let matches = variant_set.contains(&seq);
                 match mode {
@@ -785,7 +785,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                 for trace in &mut log.traces {
                     trace.events.retain(|e| {
                         if let Some(required) = activity.as_ref() {
-                            let act = event_activity(e).unwrap_or("UNKNOWN");
+                            let act = event_activity(e).unwrap_or(NO_ACTIVITY);
                             if act != required.as_str() {
                                 return true; // not in scope, keep
                             }
@@ -868,7 +868,7 @@ fn apply_single_transform_xes(log: &mut EventLog, transform: &Transform) {
                     for trace in log.traces.iter_mut() {
                         for ev in trace.events.iter_mut() {
                             if let Some(required) = activity.as_ref() {
-                                let act = event_activity(ev).unwrap_or("UNKNOWN");
+                                let act = event_activity(ev).unwrap_or(NO_ACTIVITY);
                                 if act != required.as_str() {
                                     continue;
                                 }
@@ -1537,7 +1537,7 @@ fn xes_event_facts(e: &Event) -> EntityFacts {
         }
     }
     EntityFacts {
-        type_name: event_activity(e).unwrap_or("UNKNOWN").to_string(),
+        type_name: event_activity(e).unwrap_or(NO_ACTIVITY).to_string(),
         times_ms: event_time_ms(e).into_iter().collect(),
         string_attrs,
         f64_attrs,

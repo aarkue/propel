@@ -124,7 +124,7 @@ export const vis = defineDatasetPanel({
   needs: "SlimLinkedOCEL",
   type: "flattenOcel",
   name: "Flatten OCEL",
-  description: "Flatten an OCEL onto an object type -> a new event log.",
+  description: "Flatten an OCEL onto one object type into a new event log.",
   category: "ocel",
   tags: ["transforms"],
   icon: PiShuffle,

@@ -9,7 +9,7 @@ const OCEL_DF_PERFORMANCE = "app_bindings::get_ocel_df_performance" as const;
 export const vis = defineVis({
   type: "ocdfg",
   name: "OC-DFG",
-  description: "Object-centric directly-follows graph (+ performance).",
+  description: "Object-centric directly-follows graph with frequencies and durations.",
   category: "ocel",
   tags: ["activities"],
   icon: PiFlowArrow,

@@ -22,6 +22,8 @@ export interface DfgComparison {
   b_label: string;
   a_cases: number;
   b_cases: number;
+  /** The case start that separates the periods, when comparing periods. */
+  split_ms?: number | null;
   activities: { activity: string; a: number; b: number }[];
   arcs: ComparedArc[];
 }
@@ -53,7 +55,7 @@ function unionDfg(c: DfgComparison): Dfg {
   } as Dfg;
 }
 
-/** Relative change of an arc's share of cases from A to B, as a label. */
+/** Relative change of an arc's occurrences per case from A to B, as a label. */
 function changeLabel(fa: number, fb: number): string {
   if (fa === 0) return "new";
   if (fb === 0) return "gone";
@@ -63,8 +65,8 @@ function changeLabel(fa: number, fb: number): string {
 }
 
 /**
- * The DFG of two logs (or periods) on one layout. Each arc is compared as the share of cases that
- * take it, so logs of different size compare fairly: orange arcs are more frequent in B, blue arcs
+ * The DFG of two logs (or periods) on one layout. Each arc is compared by its occurrences per case,
+ * so logs of different size compare fairly: orange arcs are more frequent in B, blue arcs
  * less, and the line width grows with the size of the change.
  */
 export function DfgDiffViewer(props: DfgDiffViewerProps) {
@@ -129,7 +131,7 @@ export function DfgDiffViewer(props: DfgDiffViewerProps) {
       <LegendItem color={MORE} label="More often in B" shape="line" />
       <LegendItem color={LESS} label="Less often in B" shape="line" />
       <Text size="1" color="gray" style={{ lineHeight: 1.35 }}>
-        Labels: change in the share of cases taking the arc. Width: size of the change.
+        Labels: change in occurrences per case. Width: size of the change.
       </Text>
     </Flex>
   );

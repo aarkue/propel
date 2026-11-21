@@ -28,7 +28,7 @@ function AboutPanel() {
 export const vis = definePanel({
   type: "about",
   name: "About propel",
-  description: "What this tool is + key shortcuts.",
+  description: "About Propel, with keyboard shortcuts.",
   category: "overview",
   icon: PiInfo,
   keywords: ["help", "about", "info"],

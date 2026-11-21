@@ -3,9 +3,7 @@ import { useMemo } from "react";
 import { PiFlowArrow } from "react-icons/pi";
 import { EmptyState } from "../feedback/EmptyState";
 import {
-  Bar,
   fmtInt,
-  fmtPct,
   formatDuration,
   Metric,
   MetricRow,
@@ -28,6 +26,9 @@ export type PathSchemaType = { Event: string } | { Object: string };
 
 export interface DiscoveredPathSchema {
   schema: string;
+  /** The ends of the path, with their kind. */
+  source?: PathSchemaType;
+  target?: PathSchemaType;
   length: number;
   is_dead: boolean;
   stats: {
@@ -36,6 +37,7 @@ export interface DiscoveredPathSchema {
       coverage: number;
       selectivity: number;
       reach: number;
+      exclusivity: number;
       sources_with_paths: number;
       total_sources: number;
     };
@@ -66,7 +68,55 @@ export const pathSchemaTypeKey = (r: PathSchemaType) => ("Event" in r ? `e:${r.E
 export const pathSchemaTypeRef = (key: string): PathSchemaType =>
   key.startsWith("e:") ? { Event: key.slice(2) } : { Object: key.slice(2) };
 
+/** The source, target and length pickers, also usable outside the view (e.g., in a panel header). */
+export function PathSchemaSelectors({
+  typeOptions,
+  controls,
+  onControlsChange,
+}: {
+  typeOptions: Option<string>[];
+  controls: PathSchemaControls;
+  onControlsChange?: (next: PathSchemaControls) => void;
+}) {
+  const set = (patch: Partial<PathSchemaControls>) => onControlsChange?.({ ...controls, ...patch });
+  return (
+    <>
+      <OptionMenu
+        label="From"
+        value={controls.source ?? typeOptions[0]?.value}
+        options={typeOptions}
+        onChange={(source) => set({ source })}
+        disabled={!onControlsChange}
+      />
+      <OptionMenu
+        label="To"
+        value={controls.target ?? "__any__"}
+        options={[
+          { value: "__any__", label: "Any type", description: "Every type the paths reach" },
+          ...typeOptions,
+        ]}
+        onChange={(t) => set({ target: t === "__any__" ? null : t })}
+        disabled={!onControlsChange}
+      />
+      <ToolbarDivider />
+      <OptionMenu
+        label="Up to"
+        value={String(controls.maxLength)}
+        options={[2, 3, 4, 5].map((n) => ({
+          value: String(n),
+          label: `${n} steps`,
+          description: n > 4 ? "Many paths, slower" : undefined,
+        }))}
+        onChange={(n) => set({ maxLength: Number(n) })}
+        disabled={!onControlsChange}
+      />
+    </>
+  );
+}
+
 export interface PathSchemasViewProps extends ViewerProps<PathSchemaResult> {
+  /** Show the source, target and length pickers in the toolbar. Default true. */
+  selectors?: boolean;
   /** The types a path can start or end at, keyed by {@link pathSchemaTypeKey}. */
   typeOptions: Option<string>[];
   /** The event types, to tell them apart from object types in a path. */
@@ -75,16 +125,28 @@ export interface PathSchemasViewProps extends ViewerProps<PathSchemaResult> {
   onControlsChange?: (next: PathSchemaControls) => void;
 }
 
+const COLUMNS = ["Path", "Support", "Coverage", "Selectivity", "Reach", "Exclusivity", "Median time"];
+/** A cell tint for a value in 0..1. */
+const heat = (v: number) =>
+  `color-mix(in srgb, var(--accent-9) ${Math.round(Math.max(0, Math.min(1, v)) * 35)}%, transparent)`;
+
 /** `orders -[<places]-> customers` into chips: `<` marks a relation followed backwards. */
 function parse(
-  schema: string,
+  { schema, source, target }: DiscoveredPathSchema,
   eventTypes: Set<string>,
 ): { nodes: OcelSchemaPathNode[]; connectors: OcelSchemaPathConnector[] } {
   const parts = schema.split(/ -\[(.*?)\]-> /);
   const nodes: OcelSchemaPathNode[] = [];
   const connectors: OcelSchemaPathConnector[] = [];
+  const last = parts.length - 1;
+  // Inner steps have only a name, so an event type and an object type of the same name look alike.
+  const kindOf = (name: string, i: number): "event" | "object" => {
+    const end = i === 0 ? source : i === last ? target : undefined;
+    if (end) return "Event" in end ? "event" : "object";
+    return eventTypes.has(name) ? "event" : "object";
+  };
   parts.forEach((p, i) => {
-    if (i % 2 === 0) nodes.push({ name: p, kind: eventTypes.has(p) ? "event" : "object" });
+    if (i % 2 === 0) nodes.push({ name: p, kind: kindOf(p, i) });
     else connectors.push({ qualifier: p.replace(/^</, "") || undefined, reverse: p.startsWith("<") });
   });
   return { nodes, connectors };
@@ -100,6 +162,7 @@ export function PathSchemasView({
   eventTypes,
   controls = DEFAULT_PATH_SCHEMA_CONTROLS,
   onControlsChange,
+  selectors = true,
   ...config
 }: PathSchemasViewProps) {
   const cfg = useViewerConfig(config);
@@ -119,8 +182,8 @@ export function PathSchemasView({
         .slice(0, 60),
     [data.schemas],
   );
-  const set = (patch: Partial<PathSchemaControls>) => onControlsChange?.({ ...controls, ...patch });
   const withTime = rows.filter((r) => r.stats.throughput);
+  const maxSupport = rows.reduce((m, r) => Math.max(m, r.stats.metrics.support), 1);
 
   return (
     <Flex direction="column" style={{ height: "100%", minHeight: 0 }}>
@@ -133,35 +196,13 @@ export function PathSchemasView({
           )
         }
       >
-        <OptionMenu
-          label="From"
-          value={controls.source ?? typeOptions[0]?.value}
-          options={typeOptions}
-          onChange={(source) => set({ source })}
-          disabled={!onControlsChange}
-        />
-        <OptionMenu
-          label="To"
-          value={controls.target ?? "__any__"}
-          options={[
-            { value: "__any__", label: "Any type", description: "Every type the paths reach" },
-            ...typeOptions,
-          ]}
-          onChange={(t) => set({ target: t === "__any__" ? null : t })}
-          disabled={!onControlsChange}
-        />
-        <ToolbarDivider />
-        <OptionMenu
-          label="Up to"
-          value={String(controls.maxLength)}
-          options={[2, 3, 4, 5].map((n) => ({
-            value: String(n),
-            label: `${n} steps`,
-            description: n > 4 ? "Many paths, slower" : undefined,
-          }))}
-          onChange={(n) => set({ maxLength: Number(n) })}
-          disabled={!onControlsChange}
-        />
+        {selectors && (
+          <PathSchemaSelectors
+            typeOptions={typeOptions}
+            controls={controls}
+            onControlsChange={onControlsChange}
+          />
+        )}
       </Toolbar>
       {rows.length === 0 ? (
         <EmptyState
@@ -176,17 +217,22 @@ export function PathSchemasView({
               <Metric label={`${data.source_type} instances`} value={fmtInt(data.total_sources)} />
               <Metric
                 label="Paths found"
-                value={fmtInt(data.schemas.length)}
+                value={fmtInt(data.schemas.filter((s) => s.stats.metrics.sources_with_paths > 0).length)}
                 hint={`${fmtInt(rows.length)} shown`}
               />
               <Metric
                 label="Full coverage"
-                value={fmtInt(rows.filter((r) => r.stats.metrics.coverage >= 0.999).length)}
+                value={fmtInt(
+                  rows.filter(
+                    (r) =>
+                      data.total_sources > 0 && r.stats.metrics.sources_with_paths === data.total_sources,
+                  ).length,
+                )}
                 hint="paths every source takes"
               />
               {withTime.length > 0 && (
                 <Metric
-                  label="Fastest median"
+                  label="Shortest median time"
                   value={duration(
                     Math.min(...withTime.map((r) => Math.abs(r.stats.throughput!.median))) * 1000,
                   )}
@@ -196,26 +242,22 @@ export function PathSchemasView({
             </MetricRow>
             <Section
               title="Paths"
-              subtitle="Coverage: share of sources with the path. Selectivity: high when a source reaches few targets."
+              subtitle="Support: connected source and target pairs. Coverage: share of sources with the path. Selectivity: high when a source reaches few targets. Reach: share of targets reached. Exclusivity: high when a target is reached from few sources."
             >
-              <div
-                data-tooltip-host
-                style={{
-                  position: "relative",
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr) 150px 110px 110px",
-                  gap: "4px 16px",
-                  alignItems: "center",
-                }}
-              >
-                {["Path", "Coverage", "Selectivity", "Median time"].map((h) => (
-                  <span key={h} className="r4pm-eyebrow">
+              <div data-tooltip-host className="r4pm-path-table">
+                {COLUMNS.map((h, i) => (
+                  <span key={h} className={i === 0 ? "r4pm-eyebrow r4pm-path-cell" : "r4pm-eyebrow"}>
                     {h}
                   </span>
                 ))}
                 {rows.map((r) => {
-                  const { nodes, connectors } = parse(r.schema, events);
+                  const { nodes, connectors } = parse(r, events);
                   const m = r.stats.metrics;
+                  const share = (v: number) => (
+                    <span className="r4pm-path-num" style={{ background: heat(v) }}>
+                      {v.toFixed(2)}
+                    </span>
+                  );
                   return (
                     <div
                       key={r.schema}
@@ -228,8 +270,6 @@ export function PathSchemasView({
                               label: "Sources with the path",
                               value: `${fmtInt(m.sources_with_paths)} of ${fmtInt(m.total_sources)}`,
                             },
-                            { label: "Connected pairs", value: fmtInt(m.support) },
-                            { label: "Targets reached", value: fmtPct(m.reach) },
                             ...(r.stats.throughput
                               ? [
                                   {
@@ -243,56 +283,22 @@ export function PathSchemasView({
                       }
                       onMouseLeave={hide}
                     >
-                      <div
-                        style={{
-                          padding: "6px 0",
-                          borderTop: "1px solid var(--gray-a3)",
-                          minWidth: 0,
-                          overflow: "hidden",
-                        }}
-                      >
+                      <div className="r4pm-path-cell">
                         <OcelSchemaPath nodes={nodes} connectors={connectors} colorOf={cfg.colorOf} />
                       </div>
-                      <Flex
-                        align="center"
-                        gap="2"
-                        style={{ borderTop: "1px solid var(--gray-a3)", alignSelf: "stretch" }}
+                      <span
+                        className="r4pm-path-num"
+                        style={{ background: heat(Math.log1p(m.support) / Math.log1p(maxSupport)) }}
                       >
-                        <Bar value={m.coverage} style={{ flex: 1 }} />
-                        <Text
-                          size="1"
-                          style={{ fontVariantNumeric: "tabular-nums", width: 44, textAlign: "right" }}
-                        >
-                          {fmtPct(m.coverage, 0)}
-                        </Text>
-                      </Flex>
-                      <Text
-                        size="1"
-                        style={{
-                          fontVariantNumeric: "tabular-nums",
-                          borderTop: "1px solid var(--gray-a3)",
-                          alignSelf: "stretch",
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
-                        {m.selectivity >= 0.995
-                          ? "1 : 1"
-                          : `1 : ${Math.round(1 / Math.max(1e-9, m.selectivity))}`}
-                      </Text>
-                      <Text
-                        size="1"
-                        color="gray"
-                        style={{
-                          fontVariantNumeric: "tabular-nums",
-                          borderTop: "1px solid var(--gray-a3)",
-                          alignSelf: "stretch",
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
+                        {fmtInt(m.support)}
+                      </span>
+                      {share(m.coverage)}
+                      {share(m.selectivity)}
+                      {share(m.reach)}
+                      {share(m.exclusivity)}
+                      <span className="r4pm-path-num" style={{ color: "var(--gray-11)" }}>
                         {r.stats.throughput ? duration(Math.abs(r.stats.throughput.median) * 1000) : "-"}
-                      </Text>
+                      </span>
                     </div>
                   );
                 })}

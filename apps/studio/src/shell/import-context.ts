@@ -7,11 +7,14 @@ export interface ImportApi {
   importableKinds: ItemKindInfo[];
   /** Open a file dialog scoped to this kind's formats and load the chosen file as it. */
   importKind: (kind: ItemKindInfo) => void;
+  /** Open a file dialog for every importable format, and detect the type from the file. */
+  openFile: () => void;
 }
 
 export const ImportContext = createContext<ImportApi>({
   importableKinds: [],
   importKind: () => {},
+  openFile: () => {},
 });
 
 export const useImport = (): ImportApi => useContext(ImportContext);

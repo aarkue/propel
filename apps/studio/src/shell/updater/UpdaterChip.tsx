@@ -14,7 +14,8 @@ export function UpdaterChip() {
         type="button"
         onClick={() => setOpen(true)}
         title={hasUpdate ? `Update ${updater.available?.version} available` : `propel v${updater.version}`}
-        className="relative flex items-center h-6 px-1.5 rounded text-[11px] font-medium text-[var(--gray-11)] hover:bg-[var(--gray-a3)] cursor-pointer"
+        // On a phone the version shows only when there is an update, so the top bar fits.
+        className={`relative ${hasUpdate ? "flex" : "hidden sm:flex"} items-center h-6 px-1.5 rounded text-[11px] font-medium text-[var(--gray-11)] hover:bg-[var(--gray-a3)] cursor-pointer`}
       >
         v{updater.version}
         {hasUpdate && (

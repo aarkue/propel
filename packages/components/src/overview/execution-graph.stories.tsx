@@ -191,6 +191,7 @@ function execution(
       .map((e) => ({ ...e, object_types: e.object_types.sort() }))
       .sort((a, b) => a.from - b.from || a.to - b.to),
     truncated,
+    total_events: events.length,
   };
 }
 
@@ -259,7 +260,7 @@ function ExecutionGraphDemo({
       objectOptions={candidates
         .slice(0, 40)
         .map(([id, n]) => ({ value: id, label: id, description: `${n} events` }))}
-      excluded={LONG_LIVED.filter((t) => t !== type)}
+      longLived={LONG_LIVED.filter((t) => t !== type)}
       controls={controls}
       onControlsChange={setControls}
     />
@@ -301,6 +302,7 @@ export const NoEvents: StoryObj = {
       events: [],
       edges: [],
       truncated: false,
+      total_events: 0,
       layout: {
         bounds: { min: { x: 0, y: 0 }, max: { x: 0, y: 0 } },
         nodes: [],

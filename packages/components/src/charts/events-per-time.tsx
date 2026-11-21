@@ -79,7 +79,7 @@ export function EventsPerTimeChart(props: ViewerProps<AggregatedEventTimestamps>
           <Metric label="Events" value={fmtInt(totals.reduce((a, b) => a + b, 0))} />
           {peak >= 0 && (
             <Metric
-              label="Busiest period"
+              label="Period with most events"
               value={new Date(sortedTimestamps[peak]).toLocaleDateString()}
               hint={`${fmtInt(totals[peak])} events`}
             />

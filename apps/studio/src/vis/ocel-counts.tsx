@@ -6,7 +6,7 @@ import { defineVis } from "./define-vis";
 export const vis = defineVis({
   type: "ocelCounts",
   name: "OCEL Type Counts",
-  description: "Per-type object + event counts of the OCEL.",
+  description: "Number of objects and events per type.",
   category: "ocel",
   icon: PiTable,
   supports: ["SlimLinkedOCEL"],

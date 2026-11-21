@@ -21,7 +21,7 @@ use crate::types::{
     AttributeCatalogEntry, AttributeKind, AttributeScope, AttributeValues, DfArcDuration,
     EventTimeHistogram, NumericStats, OCELInfo, OCELObjectAttributeChanges, ObjectBrowserPage,
     ObjectBrowserRow, ObjectDetail, ObjectEventRow, ObjectInvolvementCounts, ObjectSortField,
-    OcelAttributeInfo, OcelAttributeLevel, OcelAttributeSummary, OcelDfPerformance,
+    OcelAttributeInfo, OcelAttributeLevel, OcelAttributeSummary, OcelDfPerformance, RelatedObject,
     ATTR_VALUES_CAP,
 };
 
@@ -508,12 +508,12 @@ pub fn get_ocel_objects_page(
             let ob_id = ocel.get_ob_id(&ob).to_string();
             let ob_type = ocel.get_ob_type_of(&ob).to_string();
 
-            let related_evs: Vec<_> = ocel.get_e2o_rev(&ob).collect();
+            let related_evs: Vec<_> = ocel.get_e2o_rev_evs(&ob).collect();
             let num_events = related_evs.len();
 
             let mut first_ts: Option<i64> = None;
             let mut last_ts: Option<i64> = None;
-            for (_qualifier, ev) in &related_evs {
+            for ev in &related_evs {
                 let ts = ocel.get_ev_time(*ev).timestamp_millis();
                 first_ts = Some(first_ts.map_or(ts, |f: i64| f.min(ts)));
                 last_ts = Some(last_ts.map_or(ts, |l: i64| l.max(ts)));
@@ -583,16 +583,21 @@ pub fn get_object_detail(ocel: &SlimLinkedOCEL, object_id: String) -> ObjectDeta
     };
     let ob_type = ocel.get_ob_type_of(&ob).to_string();
 
-    let mut event_rows: Vec<ObjectEventRow> = ocel
-        .get_e2o_rev(&ob)
-        .map(|(_qual, ev)| {
-            let ev_id = ocel.get_ev_id(ev).to_string();
-            let ev_type = ocel.get_ev_type_of(ev).to_string();
-            let timestamp = ocel.get_ev_time(ev).to_rfc3339();
-
+    let mut events: Vec<_> = ocel.get_e2o_rev_evs(&ob).collect();
+    // By instant, since the RFC 3339 strings carry each event's own offset.
+    events.sort_by_key(|ev| {
+        (
+            ocel.get_ev_time(*ev).timestamp_millis(),
+            ocel.get_ev_id(*ev),
+        )
+    });
+    let event_rows: Vec<ObjectEventRow> = events
+        .into_iter()
+        .map(|ev| {
+            let mut seen = HashSet::new();
             let other_objects: Vec<(String, String)> = ocel
                 .get_e2o(ev)
-                .filter(|(_q, other_ob)| ocel.get_ob_id(*other_ob) != object_id.as_str())
+                .filter(|(_q, other_ob)| **other_ob != ob && seen.insert(**other_ob))
                 .map(|(_q, other_ob)| {
                     (
                         ocel.get_ob_id(other_ob).to_string(),
@@ -600,33 +605,32 @@ pub fn get_object_detail(ocel: &SlimLinkedOCEL, object_id: String) -> ObjectDeta
                     )
                 })
                 .collect();
-
             ObjectEventRow {
-                event_id: ev_id,
-                event_type: ev_type,
-                timestamp,
+                event_id: ocel.get_ev_id(ev).to_string(),
+                event_type: ocel.get_ev_type_of(ev).to_string(),
+                timestamp: ocel.get_ev_time(ev).to_rfc3339(),
                 other_objects,
             }
         })
         .collect();
 
-    event_rows.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-
-    let related_objects: Vec<(String, String)> = ocel
+    let related = |(qualifier, other_ob): (&str, _), incoming| RelatedObject {
+        object_id: ocel.get_ob_id(other_ob).to_string(),
+        object_type: ocel.get_ob_type_of(other_ob).to_string(),
+        qualifier: qualifier.to_string(),
+        incoming,
+    };
+    let related_objects: Vec<RelatedObject> = ocel
         .get_o2o(&ob)
-        .map(|(_qual, other_ob)| {
-            (
-                ocel.get_ob_id(other_ob).to_string(),
-                ocel.get_ob_type_of(other_ob).to_string(),
-            )
-        })
+        .map(|r| related(r, false))
+        .chain(ocel.get_o2o_rev(&ob).map(|r| related(r, true)))
         .collect();
 
     let attributes: HashMap<String, String> = ocel
         .get_ob_attrs(&ob)
         .filter_map(|attr_name| {
-            let vals: Vec<_> = ocel.get_ob_attr_vals(&ob, attr_name).collect();
-            vals.last()
+            ocel.get_ob_attr_vals(&ob, attr_name)
+                .max_by_key(|(time, _)| **time)
                 .map(|(_time, val)| (attr_name.to_string(), val.to_string()))
         })
         .collect();

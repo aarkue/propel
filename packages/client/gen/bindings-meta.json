@@ -2875,7 +2875,7 @@
     ],
     "module": "app_bindings::dfg_compare",
     "source_path": "app-bindings/src/dfg_compare.rs",
-    "source_line": 136,
+    "source_line": 145,
     "args": [
       [
         "event_log",
@@ -2923,6 +2923,14 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0
+        },
+        "split_ms": {
+          "description": "The case start that separates the periods, when comparing periods",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
         },
         "activities": {
           "type": "array",
@@ -3020,7 +3028,7 @@
     ],
     "module": "app_bindings::dfg_compare",
     "source_path": "app-bindings/src/dfg_compare.rs",
-    "source_line": 126,
+    "source_line": 135,
     "args": [
       [
         "log_a",
@@ -3065,6 +3073,14 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0
+        },
+        "split_ms": {
+          "description": "The case start that separates the periods, when comparing periods",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
         },
         "activities": {
           "type": "array",
@@ -5067,7 +5083,7 @@
     ],
     "module": "app_bindings::ocel_overview",
     "source_path": "app-bindings/src/ocel_overview.rs",
-    "source_line": 134,
+    "source_line": 173,
     "args": [
       [
         "ocel",
@@ -5118,6 +5134,19 @@
               "format": "uint",
               "minimum": 0
             },
+            "events_with_several": {
+              "description": "Events related to more than one object of some type",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "per_object_type": {
+              "description": "One entry per related object type, over all events, sorted by object type",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TypeObjects"
+              }
+            },
             "signatures": {
               "description": "Most frequent first",
               "type": "array",
@@ -5135,8 +5164,46 @@
           "required": [
             "event_type",
             "events",
+            "events_with_several",
+            "per_object_type",
             "signatures",
             "other_events"
+          ]
+        },
+        "TypeObjects": {
+          "description": "How the events of one event type relate to one object type, over all its events.",
+          "type": "object",
+          "properties": {
+            "object_type": {
+              "type": "string"
+            },
+            "events": {
+              "description": "Events related to at least one object of the type; `min`, `max` and `mean` are over these",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "min": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "mean": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "object_type",
+            "events",
+            "min",
+            "max",
+            "mean"
           ]
         },
         "EventSignature": {
@@ -5198,14 +5265,15 @@
     "name": "get_execution_graph",
     "docs": [
       "The objects within `depth` hops of `object_id` (through shared events and O2O relations, at most",
-      "`max_objects`, default 60), their events (at most `max_events`, default 200), and the",
+      "`max_objects`, default 60), their events (at most `max_events`, default 200, those of the nearest",
+      "objects first), and the",
       "directly-follows edges of each object's lifecycle among those events, laid out. Objects of",
       "`exclude_types` (e.g., long-lived master data such as products, which would connect everything)",
       "are left out."
     ],
     "module": "app_bindings::execution_graph",
     "source_path": "app-bindings/src/execution_graph.rs",
-    "source_line": 65,
+    "source_line": 68,
     "args": [
       [
         "ocel",
@@ -5315,8 +5383,14 @@
           }
         },
         "truncated": {
-          "description": "More objects or events were reachable than the limits allow",
+          "description": "More objects were reachable than `max_objects` allows",
           "type": "boolean"
+        },
+        "total_events": {
+          "description": "The events of all objects in the graph, also those beyond `max_events`",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
         },
         "layout": {
           "$ref": "#/$defs/Layout"
@@ -5328,6 +5402,7 @@
         "events",
         "edges",
         "truncated",
+        "total_events",
         "layout"
       ],
       "$defs": {
@@ -5812,7 +5887,7 @@
     ],
     "module": "app_bindings::object_lifecycles",
     "source_path": "app-bindings/src/object_lifecycles.rs",
-    "source_line": 106,
+    "source_line": 107,
     "args": [
       [
         "ocel",
@@ -6238,7 +6313,7 @@
               ]
             },
             {
-              "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity and time (event logs only).",
+              "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity, lifecycle transition and\ntime (event logs only).",
               "type": "object",
               "properties": {
                 "exact": {
@@ -6802,7 +6877,7 @@
               ]
             },
             {
-              "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity and time (event logs only).",
+              "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity, lifecycle transition and\ntime (event logs only).",
               "type": "object",
               "properties": {
                 "exact": {
@@ -7372,23 +7447,13 @@
           }
         },
         "related_objects": {
-          "description": "(object_id, object_type) via O2O",
           "type": "array",
           "items": {
-            "type": "array",
-            "prefixItems": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "minItems": 2,
-            "maxItems": 2
+            "$ref": "#/$defs/RelatedObject"
           }
         },
         "attributes": {
+          "description": "The latest value of each attribute.",
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -7438,6 +7503,31 @@
             "event_type",
             "timestamp",
             "other_objects"
+          ]
+        },
+        "RelatedObject": {
+          "description": "An O2O relation of an object, in either direction.",
+          "type": "object",
+          "properties": {
+            "object_id": {
+              "type": "string"
+            },
+            "object_type": {
+              "type": "string"
+            },
+            "qualifier": {
+              "type": "string"
+            },
+            "incoming": {
+              "description": "The other object relates to this one.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "object_id",
+            "object_type",
+            "qualifier",
+            "incoming"
           ]
         }
       }
@@ -7565,7 +7655,7 @@
     ],
     "module": "app_bindings::object_lifecycles",
     "source_path": "app-bindings/src/object_lifecycles.rs",
-    "source_line": 157,
+    "source_line": 158,
     "args": [
       [
         "ocel",
@@ -7710,7 +7800,7 @@
     ],
     "module": "app_bindings::ocel_overview",
     "source_path": "app-bindings/src/ocel_overview.rs",
-    "source_line": 187,
+    "source_line": 225,
     "args": [
       [
         "ocel",
@@ -7742,7 +7832,7 @@
     "return_type": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "title": "ObjectPopulation",
-      "description": "Per object type, how many objects are alive in each time bin. An object is alive from its\nfirst to its last event.",
+      "description": "Per object type, how many objects are alive in each time bin, on average over the bin. An\nobject is alive from its first to its last event.",
       "type": "object",
       "properties": {
         "bin_starts_ms": {
@@ -7790,12 +7880,11 @@
               "minimum": 0
             },
             "alive": {
-              "description": "Objects alive at some point in each bin",
+              "description": "Mean number of objects alive during each bin",
               "type": "array",
               "items": {
-                "type": "integer",
-                "format": "uint",
-                "minimum": 0
+                "type": "number",
+                "format": "double"
               }
             },
             "started": {
@@ -7837,7 +7926,7 @@
     ],
     "module": "app_bindings::execution_graph",
     "source_path": "app-bindings/src/execution_graph.rs",
-    "source_line": 221,
+    "source_line": 222,
     "args": [
       [
         "ocel",
@@ -7904,7 +7993,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 931,
+    "source_line": 935,
     "args": [
       [
         "ocel",
@@ -7961,7 +8050,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 644,
+    "source_line": 648,
     "args": [
       [
         "ocel",
@@ -8071,7 +8160,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 716,
+    "source_line": 720,
     "args": [
       [
         "ocel",
@@ -8293,7 +8382,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 831,
+    "source_line": 835,
     "args": [
       [
         "ocel",
@@ -8399,7 +8488,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 1057,
+    "source_line": 1061,
     "args": [
       [
         "ocel",
@@ -8563,7 +8652,7 @@
     ],
     "module": "app_bindings::ocel_overview",
     "source_path": "app-bindings/src/ocel_overview.rs",
-    "source_line": 410,
+    "source_line": 470,
     "args": [
       [
         "ocel",
@@ -8758,7 +8847,7 @@
               ]
             },
             {
-              "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity and time (event logs only).",
+              "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity, lifecycle transition and\ntime (event logs only).",
               "type": "object",
               "properties": {
                 "exact": {
@@ -9224,7 +9313,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 1019,
+    "source_line": 1023,
     "args": [
       [
         "ocel",
@@ -10112,8 +10201,8 @@
     "id": "app_bindings::get_performance_spectrum",
     "name": "get_performance_spectrum",
     "docs": [
-      "The performance spectrum along `path` (default: the most frequent variant). Each segment holds",
-      "at most `max_lines` (default 20,000) lines."
+      "The performance spectrum along `path` (default: the most frequent variant with at least two",
+      "steps). Each segment holds at most `max_lines` (default 200,000) lines."
     ],
     "module": "app_bindings::performance_spectrum",
     "source_path": "app-bindings/src/performance_spectrum.rs",
@@ -10438,7 +10527,7 @@
     ],
     "module": "app_bindings::ocel",
     "source_path": "app-bindings/src/ocel.rs",
-    "source_line": 877,
+    "source_line": 881,
     "args": [
       [
         "ocel",
@@ -10766,7 +10855,7 @@
     ],
     "module": "app_bindings::variant_timing",
     "source_path": "app-bindings/src/variant_timing.rs",
-    "source_line": 597,
+    "source_line": 598,
     "args": [
       [
         "event_log",
@@ -11023,7 +11112,7 @@
     ],
     "module": "app_bindings::variant_timing",
     "source_path": "app-bindings/src/variant_timing.rs",
-    "source_line": 518,
+    "source_line": 519,
     "args": [
       [
         "event_log",
@@ -12589,7 +12678,7 @@
     ],
     "module": "app_bindings::repairs",
     "source_path": "app-bindings/src/repairs.rs",
-    "source_line": 315,
+    "source_line": 321,
     "args": [
       [
         "event_log",
@@ -12661,7 +12750,7 @@
                   ]
                 },
                 {
-                  "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity and time (event logs only).",
+                  "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity, lifecycle transition and\ntime (event logs only).",
                   "type": "object",
                   "properties": {
                     "exact": {
@@ -12841,7 +12930,7 @@
     ],
     "module": "app_bindings::repairs",
     "source_path": "app-bindings/src/repairs.rs",
-    "source_line": 325,
+    "source_line": 331,
     "args": [
       [
         "ocel",
@@ -12913,7 +13002,7 @@
                   ]
                 },
                 {
-                  "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity and time (event logs only).",
+                  "description": "Remove repeated events of a case, keeping the first: with `exact`, only events whose\nattributes are all equal; otherwise events with the same activity, lifecycle transition and\ntime (event logs only).",
                   "type": "object",
                   "properties": {
                     "exact": {

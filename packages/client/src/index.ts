@@ -117,6 +117,8 @@ export interface BackendContext {
   loadArtifactPath?(id: string, kind: string, path: string): Promise<void>;
   /** Desktop-only (tauri): native read of a registry item from a path. Absent on wasm/http. */
   loadItemPath?(id: string, kind: string, path: string): Promise<void>;
+  /** Desktop-only (tauri): the first `maxBytes` of a file, and whether that is all of it. */
+  readFileHead?(path: string, maxBytes: number): Promise<{ text: string; complete: boolean }>;
   /** Desktop-only (tauri): native file picker; returns selected paths or null if cancelled. */
   pickFiles?(opts: {
     filters?: { name: string; extensions: string[] }[];

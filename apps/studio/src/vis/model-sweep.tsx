@@ -216,13 +216,12 @@ function ModelSweep({ log, props }: { log: string; props: IDockviewPanelProps })
           }
         />
       ) : (
-        <Flex style={{ flex: 1, minHeight: 0 }}>
+        <Flex direction={{ initial: "column", sm: "row" }} style={{ flex: 1, minHeight: 0 }}>
           <div
+            className="max-h-[45%] border-b border-[var(--gray-a4)] sm:max-h-none sm:w-[min(48%,680px)] sm:border-b-0 sm:border-r"
             style={{
-              width: "min(48%, 680px)",
               padding: 16,
               overflow: "auto",
-              borderRight: "1px solid var(--gray-a4)",
               display: "flex",
               flexDirection: "column",
               gap: 20,
@@ -236,7 +235,7 @@ function ModelSweep({ log, props }: { log: string; props: IDockviewPanelProps })
                   </Text>
                   {selected === best && (
                     <Badge color="violet" radius="full">
-                      Best F-score
+                      Highest F-score
                     </Badge>
                   )}
                 </Flex>
@@ -261,7 +260,8 @@ function ModelSweep({ log, props }: { log: string; props: IDockviewPanelProps })
                 </MetricRow>
                 {selectedModel.unaligned_variants > 0 && (
                   <Text size="1" color="amber">
-                    {selectedModel.unaligned_variants} variants could not be aligned and are left out.
+                    {selectedModel.unaligned_variants} variants could not be aligned, so fitness and F-score
+                    are not available. Precision is over the aligned variants.
                   </Text>
                 )}
               </Flex>

@@ -113,7 +113,7 @@ export function ModelSweepChart({
     }
     const q = p.quality;
     show(e, {
-      title: `Noise ${p.threshold.toFixed(2)}${p.threshold === best ? " · best F-score" : ""}`,
+      title: `Noise ${p.threshold.toFixed(2)}${p.threshold === best ? " · highest F-score" : ""}`,
       rows: [
         ...SERIES.map((s) => {
           const v = value(q, s.key);
@@ -242,9 +242,9 @@ export function ModelSweepChart({
           })}
           {best != null && (
             <g transform={`translate(${x(best)} 10)`}>
-              <rect x={-17} y={-9} width={34} height={16} rx={8} fill="var(--violet-10)" />
+              <rect x={-30} y={-9} width={60} height={16} rx={8} fill="var(--violet-10)" />
               <text y={3} textAnchor="middle" fontSize="9.5" fontWeight={600} fill="white">
-                best
+                highest F
               </text>
             </g>
           )}

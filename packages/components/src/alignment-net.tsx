@@ -335,7 +335,7 @@ function PrecisionPanel({ precision }: { precision: PrecisionSummary }) {
           </Section>
           <Section
             title="Heaviest escaping edges"
-            subtitle="The state, by its last steps, and the step never taken there"
+            subtitle="The state, given by its last steps, and the allowed step that no trace contains"
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {edges.map((e, i) => (
@@ -745,8 +745,8 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
         : variantOverlay;
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", minHeight: 256 }}>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+    <div className="flex flex-col sm:flex-row" style={{ width: "100%", height: "100%", minHeight: 256 }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <div style={{ flex: 1, minHeight: 0 }}>
           <PetriNetViewer data={data.net} overlay={overlay} />
         </div>
@@ -778,14 +778,8 @@ export function AlignmentNetViewer({ data }: ViewerProps<LogAlignments>) {
       </div>
 
       <div
-        className="w-1/3"
-        style={{
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          borderLeft: "1px solid var(--gray-4)",
-          overflow: "hidden",
-        }}
+        className="min-h-0 flex-1 border-t border-[var(--gray-4)] sm:w-1/3 sm:flex-none sm:shrink-0 sm:border-t-0 sm:border-l"
+        style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
         <div
           style={{

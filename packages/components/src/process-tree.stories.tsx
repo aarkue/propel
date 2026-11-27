@@ -89,3 +89,8 @@ export const EveryOperator: StoryObj = {
   name: "Every operator",
   render: () => <ProcessTreeViewer data={everyOperator} />,
 };
+
+export const CanvasSettings: StoryObj = {
+  name: "Custom canvas settings",
+  render: () => <ProcessTreeViewer data={everyOperator} flowProps={{ minZoom: 0.4, panOnScroll: true }} />,
+};

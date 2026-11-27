@@ -227,9 +227,13 @@ export function VariantTimeProfileChart({ loadVariants, loadProfile }: VariantTi
     if (!profile || profile.steps.length === 0) return null;
     const variant = profile;
     const x = variant.steps.map((_, i) => i);
-    // The scale depends on the variant alone, so toggling bands or picking a case never rescales it.
-    // A case above the 10-90% band is clipped to the top edge and marked there.
-    const topMs = Math.max(1, ...variant.steps.map((s) => Math.max(s.p90_ms, s.mean_ms))) * 1.08;
+    // Toggling bands never rescales. A case above the 10-90% band extends the scale to fit it.
+    const topMs =
+      Math.max(
+        1,
+        ...variant.steps.map((s) => Math.max(s.p90_ms, s.mean_ms)),
+        ...(overlay?.elapsed_ms ?? []),
+      ) * 1.08;
     const unit = pickTimeUnit(topMs);
     const y = (ms: number) => ms / unit.ms;
     const pick = (k: keyof StepTimeStats) => variant.steps.map((s) => y(s[k]));
@@ -296,15 +300,10 @@ export function VariantTimeProfileChart({ loadVariants, loadProfile }: VariantTi
               type: "scatter" as const,
               mode: "lines+markers" as const,
               x,
-              y: overlay.elapsed_ms.map((ms) => y(Math.min(ms, topMs))),
+              y: overlay.elapsed_ms.map(y),
               name: `Case ${overlay.case_id}`,
               line: { color: COLOR_CASE, width: 2 },
-              marker: {
-                color: COLOR_CASE,
-                size: overlay.elapsed_ms.map((ms) => (ms > topMs ? 12 : 8)),
-                symbol: overlay.elapsed_ms.map((ms) => (ms > topMs ? "triangle-up" : "circle")),
-              },
-              cliponaxis: false,
+              marker: { color: COLOR_CASE, size: 8 },
               text: overlay.elapsed_ms.map((ms) => fmt(ms)),
               hovertemplate: `case ${overlay.case_id}: %{text}<extra></extra>`,
             },

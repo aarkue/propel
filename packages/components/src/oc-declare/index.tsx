@@ -1,5 +1,5 @@
 import { Text } from "@r4pm/components/ui";
-import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
+import { type FlowProps, useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useViewSetting } from "../viewer/view-state";
 import { shadeHex } from "../dfg/util/colors";
@@ -86,10 +86,18 @@ export function OCDeclareViewer(
     /** Default true. False leaves the activity picker out of the side panel, for a host that
      *  offers its own (it writes the same `hiddenActivities` view setting). */
     activityPicker?: boolean;
+    /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+    flowProps?: FlowProps;
   },
 ) {
-  const { activityInvolvements, eventTypeCounts, objectTypeCounts, activityPicker, onProjectActivities } =
-    props;
+  const {
+    activityInvolvements,
+    eventTypeCounts,
+    objectTypeCounts,
+    activityPicker,
+    onProjectActivities,
+    flowProps,
+  } = props;
   const data = useMemo(() => arcList(props.data), [props.data]);
   const cfg = useViewerConfig(props);
   const activityColor = (name: string, mode: "normal" | "foreground" | "light" | "surface" = "normal") =>
@@ -184,6 +192,7 @@ export function OCDeclareViewer(
           objectTypeCounts={objectTypeCounts}
           activityPicker={activityPicker}
           viz={cfg.viz}
+          flowProps={flowProps}
         />
       )}
     </div>

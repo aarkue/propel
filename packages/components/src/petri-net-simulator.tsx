@@ -333,7 +333,7 @@ export function PetriNetSimulator(props: PetriNetSimulatorProps) {
           showExportControls={false}
           nodes={display.nodes}
           edges={display.edges}
-          editorProps={{ nodesDraggable: false, zoomOnDoubleClick: false }}
+          flowProps={{ nodesDraggable: false, zoomOnDoubleClick: false }}
         />
       </div>
       <div

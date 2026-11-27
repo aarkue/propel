@@ -243,7 +243,7 @@ export function ObjectCentricPetriNetSimulator(props: ObjectCentricPetriNetSimul
           edges={display.edges}
           placeOverlay={placeOverlay}
           arcOverlay={arcOverlay}
-          editorProps={{ nodesDraggable: false, zoomOnDoubleClick: false }}
+          flowProps={{ nodesDraggable: false, zoomOnDoubleClick: false }}
         />
       </div>
       <div

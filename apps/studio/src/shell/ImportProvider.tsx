@@ -311,10 +311,21 @@ export function ImportProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let clearTimer: ReturnType<typeof setTimeout> | null = null;
     const onDesktop = !!(backend.loadItemPath || backend.loadArtifactPath);
-    // Dockview/in-app drags carry text/plain or application/x-r4pm-* (or nothing); desktop WebKit
-    // strips all types on a native file drop, so empty types count as a file only on desktop.
+    // A drag that started in the page (a dockview tab, a list row) is never a file. Its types alone
+    // do not tell: WebView2 can deliver dockview's empty text/plain payload as no types at all.
+    let inAppDrag = false;
+    const onDragStart = () => {
+      inAppDrag = true;
+    };
+    // `dragend` fires at the drag's source, so it never reaches the window when that node is
+    // removed mid-drag; drop and the next pointerdown reset too, or file drops would stay ignored.
+    const onDragEnd = () => {
+      inAppDrag = false;
+    };
+    // Dockview tab drags carry text/plain, ours application/x-r4pm-*; desktop WebKit strips all
+    // types on a native file drop, so empty types count as a file only on desktop.
     const looksLikeFile = (dt: DataTransfer | null) => {
-      if (!dt) return false;
+      if (!dt || inAppDrag) return false;
       const types = Array.from(dt.types);
       if (types.some((t) => t.startsWith("application/x-r4pm"))) return false;
       return (
@@ -367,8 +378,10 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     const onDrop = (e: Event) => {
       const de = e as DragEvent;
       const dt = de.dataTransfer;
+      const file = looksLikeFile(dt);
+      inAppDrag = false;
       if (relinkOpen() || overBlueprintDropTarget(de)) return;
-      if (!looksLikeFile(dt)) return;
+      if (!file) return;
       e.preventDefault();
       setDragging(false);
 
@@ -392,11 +405,17 @@ export function ImportProvider({ children }: { children: ReactNode }) {
       }
     };
     const opts: AddEventListenerOptions = { capture: true };
+    window.addEventListener("dragstart", onDragStart, opts);
+    window.addEventListener("dragend", onDragEnd, opts);
+    window.addEventListener("pointerdown", onDragEnd, opts);
     window.addEventListener("dragenter", onEnter, opts);
     window.addEventListener("dragover", onOver, opts);
     window.addEventListener("dragleave", onLeave, opts);
     window.addEventListener("drop", onDrop, opts);
     return () => {
+      window.removeEventListener("dragstart", onDragStart, opts);
+      window.removeEventListener("dragend", onDragEnd, opts);
+      window.removeEventListener("pointerdown", onDragEnd, opts);
       window.removeEventListener("dragenter", onEnter, opts);
       window.removeEventListener("dragover", onOver, opts);
       window.removeEventListener("dragleave", onLeave, opts);

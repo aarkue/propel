@@ -27,6 +27,8 @@ export function Floating({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // Once per point: the measured size can shift with the position (seen on Windows), so measuring
+  // again after its own update could flip sides forever near an edge.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -38,7 +40,7 @@ export function Floating({
     left = Math.max(MARGIN, left);
     top = Math.max(MARGIN, top);
     setPos((p) => (p && p.left === left && p.top === top ? p : { left, top }));
-  });
+  }, [x, y, offset]);
   // The theme root carries the colors and fonts; inside it nothing transforms or clips.
   const root = document.querySelector(".radix-themes") ?? document.body;
   return createPortal(
@@ -51,6 +53,8 @@ export function Floating({
         top: pos?.top ?? y + offset,
         visibility: pos ? undefined : "hidden",
         zIndex: 1000,
+        // Its size must not depend on the room left at its position, which the flip changes.
+        width: "max-content",
         ...style,
       }}
     >

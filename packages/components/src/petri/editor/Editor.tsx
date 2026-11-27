@@ -29,6 +29,7 @@ import { uid } from "../../shared/id";
 import { useIsDarkMode } from "../../viewer/dark-mode";
 import type { PetriNet } from "../../petri-net";
 import type { ElementStyle, Ocpn, Size, VizTransport } from "../../viz";
+import { asFlowProps, type FlowProps } from "../../viewer/viewer-config";
 import PlaceNode from "./PlaceNode";
 import TransitionNode from "./TransitionNode";
 const nodeTypes = {
@@ -347,6 +348,7 @@ function InnerEditor() {
         onBeforeDelete={props.readOnly ? async () => false : undefined}
         proOptions={{ hideAttribution: true }}
         {...props.editorProps}
+        {...asFlowProps<PetriNetNode, Edge<ArcData>>(props.flowProps)}
       >
         <Controls showInteractive={false} position="bottom-right" />
         <Panel position="top-left" style={{ display: "flex", flexDirection: "row", gap: 6 }}>
@@ -405,7 +407,10 @@ export type EditorProps = {
   readOnly?: boolean;
   initialNodes?: PetriNetNode[];
   initialEdges?: Edge<ArcData>[];
+  /** @deprecated Use `flowProps`. */
   editorProps?: ReactFlowProps<PetriNetNode, Edge<ArcData>>;
+  /** Settings of the React Flow canvas that replace the editor's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
   /** Show the built-in PNG/SVG export buttons (with `viz` only). Off when a host (e.g., a viewer
    *  frame) owns export. */
   showExportControls?: boolean;

@@ -60,7 +60,7 @@ import { ConnectionsDialog } from "./edit/ConnectionsDialog";
 import { EmptyState } from "./edit/EmptyState";
 import { groupValidationErrors } from "./edit/ValidationBadges";
 import { useIsDarkMode } from "../viewer/dark-mode";
-import { useViewerConfig } from "../viewer/viewer-config";
+import { asFlowProps, type FlowProps, useViewerConfig } from "../viewer/viewer-config";
 import type { VizTransport } from "../viz";
 import type { ExtractionCatalog, MappingEntry, NodeOp, TablePreview, ValidationError } from "./types";
 
@@ -222,6 +222,8 @@ export interface BlueprintGraphProps {
   /** Lays the graph out. Defaults to `ViewerConfig.viz`. Without one, auto-layout places nodes in
    *  columns by their distance from the sources. */
   viz?: VizTransport;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
   className?: string;
 }
 
@@ -234,6 +236,7 @@ function BlueprintGraphInner({
   catalog: catalogProp,
   callbacks = {},
   viz: vizProp,
+  flowProps,
 }: BlueprintGraphProps) {
   const { viz } = useViewerConfig({ viz: vizProp });
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
@@ -842,6 +845,7 @@ function BlueprintGraphInner({
       minZoom={0.1}
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
+      {...asFlowProps<FlowNode, Edge>(flowProps)}
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
       {isEdit && (

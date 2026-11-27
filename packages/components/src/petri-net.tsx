@@ -24,7 +24,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
+import { type FlowProps, useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "./viewer/export";
 import { normalizePetriNet } from "./petri/net-json";
 import type { ElementStyle } from "./viz";
@@ -271,13 +271,15 @@ export interface PetriNetViewerProps extends ViewerProps<PetriNet> {
   onChange?: (net: PetriNet) => void;
   /** Export-registry key; override to avoid a collision when multiple viewers share one export frame. */
   exportKey?: string;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
 }
 
 const NO_ELEMENTS: PetriElements = { nodes: [], edges: [] };
 
 /** A Petri net laid out and exported with rust4pm's visualization (`ViewerConfig.viz`). */
 export function PetriNetViewer(props: PetriNetViewerProps) {
-  const { data, overlay, editable, onChange, exportKey } = props;
+  const { data, overlay, editable, onChange, exportKey, flowProps } = props;
   const { viz } = useViewerConfig(props);
   const [base, setBase] = useState<PetriElements>(NO_ELEMENTS);
   const [seedKey, setSeedKey] = useState(0);
@@ -408,6 +410,7 @@ export function PetriNetViewer(props: PetriNetViewerProps) {
             initialEdges={display.edges}
             overlayNodeData={nodePatches}
             overlayEdgeData={edgePatches}
+            flowProps={flowProps}
           />
         ) : (
           <Editor
@@ -419,6 +422,7 @@ export function PetriNetViewer(props: PetriNetViewerProps) {
             showExportControls={false}
             nodes={display.nodes}
             edges={display.edges}
+            flowProps={flowProps}
           />
         )}
       </div>

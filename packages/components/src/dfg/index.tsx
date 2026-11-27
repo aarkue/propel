@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useMemo } from "react";
 import { FrequencyPicker } from "../inputs/FrequencyPicker";
 import { useViewSetting } from "../viewer/view-state";
-import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
+import { type FlowProps, useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
 import type { Dfg, OcDfg } from "../viz/types";
 import { type ActivityBadge, DfgGraph } from "./DfgGraph";
 import { shadeHex } from "./util/colors";
@@ -16,10 +16,12 @@ export type { DfArcDuration, DfPerformance, OcelDfPerformance } from "./util/per
 /** Extra props for the case-centric DFG viewer. `performance` enables the frequency/performance toggle and duration heatmap; omit to show frequency only. */
 export interface DFGViewerProps extends ViewerProps<Dfg> {
   performance?: DfPerformance;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
 }
 
 export function DFGViewer(props: DFGViewerProps) {
-  const { data, performance } = props;
+  const { data, performance, flowProps } = props;
   const cfg = useViewerConfig(props);
   const [metric, setMetric] = useViewSetting<DfgMetric>("metric", "count");
 
@@ -45,6 +47,7 @@ export function DFGViewer(props: DFGViewerProps) {
       onElementContextMenu={cfg.onElementContextMenu}
       viz={cfg.viz}
       routing={cfg.routing}
+      flowProps={flowProps}
     />
   );
 }
@@ -58,6 +61,8 @@ export interface OCDFGViewerProps extends ViewerProps<OcDfg> {
   badges?: Record<string, ActivityBadge[]>;
   /** Extra UI floating in the top-left corner, e.g., an annotation picker. */
   topLeftExtra?: ReactNode;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
 }
 
 /** The summed count of an object type's arcs. */
@@ -72,7 +77,7 @@ function arcTotal(dfg: Dfg | undefined): number {
 }
 
 export function OCDFGViewer(props: OCDFGViewerProps) {
-  const { data, performance, objectCounts, badges, topLeftExtra } = props;
+  const { data, performance, objectCounts, badges, topLeftExtra, flowProps } = props;
   const cfg = useViewerConfig(props);
   const [metric, setMetric] = useViewSetting<DfgMetric>("metric", "count");
   const actHex = useCallback((act: string) => cfg.colorOf?.("activity", act) ?? "#888888", [cfg.colorOf]);
@@ -150,6 +155,7 @@ export function OCDFGViewer(props: OCDFGViewerProps) {
       onElementContextMenu={cfg.onElementContextMenu}
       viz={cfg.viz}
       routing={cfg.routing}
+      flowProps={flowProps}
     />
   );
 }

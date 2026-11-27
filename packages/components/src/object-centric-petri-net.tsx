@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEdges, useNodes, useReactFlow, type Edge } from "@xyflow/react";
-import { useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
+import { type FlowProps, useViewerConfig, type ViewerProps } from "./viewer/viewer-config";
 import { useRegisterExport, type VectorExportSource } from "./viewer/export";
 import {
   Editor,
@@ -131,6 +131,7 @@ function OcpnView({
   typeColor,
   exportKey,
   badges,
+  flowProps,
 }: {
   data: Ocpn;
   viz?: VizTransport;
@@ -138,6 +139,7 @@ function OcpnView({
   typeColor: (objectType: string) => string | undefined;
   exportKey?: string;
   badges?: Record<string, OcpnBadge[]>;
+  flowProps?: FlowProps;
 }) {
   const [base, setBase] = useState<PetriElements>(NO_ELEMENTS);
   const [seedKey, setSeedKey] = useState(0);
@@ -238,6 +240,7 @@ function OcpnView({
           edges={base.edges}
           placeOverlay={placeOverlay}
           arcOverlay={arcOverlay}
+          flowProps={flowProps}
         />
       </div>
       <LegendBox types={types} otColor={otColor} />
@@ -452,6 +455,7 @@ function OcpnEditor({
   typeColor,
   onChange,
   exportKey,
+  flowProps,
 }: {
   data: Ocpn;
   viz?: VizTransport;
@@ -459,6 +463,7 @@ function OcpnEditor({
   typeColor: (objectType: string) => string | undefined;
   onChange?: (ocpn: Ocpn) => void;
   exportKey?: string;
+  flowProps?: FlowProps;
 }) {
   const [seed, setSeed] = useState<PetriElements | null>(null);
   const [objectTypes, setObjectTypes] = useState<string[]>(() =>
@@ -572,6 +577,7 @@ function OcpnEditor({
           arcOverlay={arcOverlay}
           renderAddPlace={renderAddPlace}
           onChange={handleChange}
+          flowProps={flowProps}
         >
           <OcpnAutoInfer />
         </Editor>
@@ -595,10 +601,12 @@ export interface ObjectCentricPetriNetViewerProps extends ViewerProps<Ocpn> {
   /** Object types drawn in the transition of an activity, e.g., a Reflow mapping's non-flow types
    *  (read-only view only). */
   badges?: Record<string, OcpnBadge[]>;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
 }
 
 export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerProps) {
-  const { data, editable, onChange, exportKey, badges } = props;
+  const { data, editable, onChange, exportKey, badges, flowProps } = props;
   const { colorOf, viz } = useViewerConfig(props);
   const otColor = useOtColor(colorOf);
   const typeColor = useCallback((objectType: string) => colorOf?.("objectType", objectType), [colorOf]);
@@ -612,6 +620,7 @@ export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerPr
         typeColor={typeColor}
         onChange={onChange}
         exportKey={exportKey}
+        flowProps={flowProps}
       />
     );
   return (
@@ -622,6 +631,7 @@ export function ObjectCentricPetriNetViewer(props: ObjectCentricPetriNetViewerPr
       typeColor={typeColor}
       exportKey={exportKey}
       badges={badges}
+      flowProps={flowProps}
     />
   );
 }

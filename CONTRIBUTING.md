@@ -1,107 +1,116 @@
 # Contributing to Propel
 
-Thanks for contributing!
-This guide covers the dev setup, the monorepo layout, and conventions.
-Moreover, it covers step-by-step "add a viewer / Rust binding /
-transport / panel" recipes.
+This guide covers the development setup, where new code goes, the project conventions, and step-by-step recipes for the most common extensions.
+
+- [Prerequisites](#prerequisites)
+- [Dev workflow](#dev-workflow)
+- [Where things go](#where-things-go)
+- [Conventions (the non-obvious ones)](#conventions-the-non-obvious-ones)
+- [Verifying a change](#verifying-a-change)
+- [Commits and releases](#commits-and-releases)
+- [Extending Propel](#extending-propel)
+  - [Add a new visualization](#add-a-new-visualization)
+  - [Add a new Rust binding (analysis function)](#add-a-new-rust-binding-analysis-function)
+  - [Add a new transport](#add-a-new-transport)
+  - [Add a new panel kind](#add-a-new-panel-kind)
+  - [Consume `@r4pm/*` in an external React app](#consume-r4pm-in-an-external-react-app)
+- [License](#license)
 
 ## Prerequisites
 
-- Node 18+ and [pnpm](https://pnpm.io)
-- Rust (the engine pins `nightly-2025-06-01` via `engine/wasm/rust-toolchain.toml`)
-- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/)
-
-## Layout
-
-```
-packages/   the @r4pm/* libraries. Only `components` is published; `client` is internal (the engine
-            contract: generated bindings + BackendContext, consumed by apps/studio).
-            components = viewers/inputs/feedback + the presentation contract + export frame; subpaths
-            /ui, /petri, /charts, /styles.css, /rules.css)
-apps/studio the application (composes the packages + selects a transport: wasm/http/tauri); also hosts
-            the studio-internal viewer registry, panels, pipeline, transforms, and stores
-examples/   runnable external-consumer example
-engine/     Rust (Cargo workspace): backend-shared, app-bindings, meta-gen, viz-wasm (embedded in
-            @r4pm/components), and the three target wrappers: wasm, webserver (axum), app (tauri)
-```
+- Node (current LTS) and [pnpm](https://pnpm.io)
+- Rust via [rustup](https://rustup.rs). The desktop app, the webserver, and `meta-gen` build on stable.
+  The WASM engine pins `nightly-2025-06-01` in `engine/wasm/rust-toolchain.toml`, which rustup installs on the first build.
+- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/) for the browser target and the visualization wasm of `@r4pm/components`
+- For the desktop app, the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) of your platform (e.g., WebKitGTK on Linux)
 
 ## Dev workflow
 
 ```bash
-pnpm install
-pnpm codegen                                                  # regenerate typed bindings
+pnpm install         # also builds the visualization wasm of @r4pm/components (needs Rust + wasm-pack)
 
-pnpm wasm:dev        # browser, in-process wasm engine
-pnpm web:server      # + pnpm web:ui (2nd terminal): axum engine + vite (http transport)
-pnpm app:dev         # tauri desktop window
+pnpm app:dev         # desktop app (Tauri): native engine, starts Vite itself
+pnpm wasm:build      # browser: build the WASM engine once and after Rust changes ...
+pnpm wasm:dev        # ... then start Vite with the in-process WASM engine
+pnpm web:server      # browser with the engine as an HTTP server (axum) ...
+pnpm web:ui          # ... and Vite in a second terminal
+
+pnpm codegen         # after changing a Rust binding: regenerate typed bindings + file associations
+pnpm --filter @r4pm/components dev   # Storybook of the components on port 6006
 
 pnpm typecheck       # tsc across the workspace
+pnpm test            # Vitest
+pnpm check           # Biome lint + format check
 pnpm build           # turbo build (packages -> dist, studio -> dist)
 ```
 
-The three targets share one engine and one UI; see the Architecture section of the [README](README.md#architecture)
-for how the `Backend` trait and the `BackendContext` interface make that work.
+For faster WASM builds during development, run `wasm-pack build --target web --dev` in `engine/wasm` instead of `pnpm wasm:build`.
+The three targets share one engine and one UI.
+See the [Architecture section of the README](README.md#architecture) for how the `Backend` trait and the `BackendContext` interface connect them, and the [repository layout](README.md#repository-layout) for an overview of all folders.
+
+## Where things go
+
+| I want to add ... | Where | Then |
+| --- | --- | --- |
+| An analysis function (discovery, statistics, conformance, ...) | A `#[register_binding]` function in `engine/app-bindings/src/` | `pnpm codegen`. It is then a pipeline node and a typed `callBinding` call. See [Add a new Rust binding](#add-a-new-rust-binding-analysis-function). |
+| A new algorithm that is useful outside of Propel | [Rust4PM](https://github.com/aarkue/Rust4PM), with a binding there | Bump the `rev` of the `process_mining` dependency in `engine/Cargo.toml`, then `pnpm codegen`. |
+| A panel that shows the result of a binding | The React component in `packages/components/src/` (e.g., `charts/` for charts), exported from the folder's `index.ts`, with a `*.stories.tsx` next to it. The panel is a `defineVis(...)` in `apps/studio/src/vis/<id>.tsx`. | List it under an analysis in `apps/studio/src/shell/analyses.tsx`, or it appears under "More" in the panel picker. Run `pnpm --filter @r4pm/components docs:types`. See [Add a new visualization](#add-a-new-visualization). |
+| A panel whose data needs several bindings | `defineResolvedVis(...)` in `apps/studio/src/vis/<id>.tsx` | Same as above. |
+| A panel without a data source (an editor, a tool) | `definePanel(...)` in `apps/studio/src/vis/<id>.tsx` | See [Add a new panel kind](#add-a-new-panel-kind). |
+| A viewer for a pipeline output, without a panel | `defineViewer(...)` in `apps/studio/src/viewers/<id>.ts` | Collected automatically. This is the exception. |
+| A reusable building block for views (toolbar, tooltip, legend, number format) | `packages/components/src/kit/` | Use it from the views instead of a local copy. |
+| A UI primitive (button, dialog, menu) | `packages/components/src/ui/` (the only place that imports `@radix-ui/themes`) | |
+| A log filter or transform | A `Transform` variant in `engine/app-bindings/src/transforms.rs`. The palette entry goes into `TRANSFORM_META` in `apps/studio/src/transforms/catalog.tsx`, the editor into `transforms/TransformEditors.tsx` (and `transforms/editors/`). | `pnpm codegen` for the new `Transform` type. |
+| A dataset kind (a new kind of log) | A registry type in the engine (Rust4PM or `engine/backend-shared`) with its import and export formats | `pnpm codegen` (also updates the desktop file associations in `engine/app/tauri.conf.json`). |
+| A model or file kind that is not a log (e.g., OC-DECLARE, Reflow mappings) | The engine side in `engine/backend-shared/src/artifact.rs`, and an entry in `IO_KINDS` in `apps/studio/src/io-kinds.ts` | |
+| A bundled example dataset | The file in `apps/studio/public/examples/`, an entry in `SAMPLE_DATASETS` in `apps/studio/src/samples.ts` | |
+| A command in the command palette | `apps/studio/src/shell/CommandPalette.tsx` | |
+| A platform operation (files, dialogs, OS integration) | A method of `BackendContext` in `packages/client/src/index.ts`, implemented in each transport in `apps/studio/src/backends/`. On desktop, it is usually a `#[tauri::command]` in `engine/app/src/lib.rs` (also add it to the `invoke_handler`). | Optional methods (`method?:`) are fine for operations that only some targets have. |
+| A new target (transport) | `apps/studio/src/backends/<name>.ts` and, if it needs its own engine wrapper, `engine/<target>/` | See [Add a new transport](#add-a-new-transport). |
 
 ## Conventions (the non-obvious ones)
 
-- **Codegen runs `meta-gen`.** `pnpm codegen` runs `cargo run -p meta-gen` then `gen.mjs`. **New bindings go in `app-bindings`.**
+- **New bindings go in `app-bindings`.** `pnpm codegen` runs `cargo run -p meta-gen`, which dumps the registry, and then `gen.mjs`, which generates the TypeScript types.
 - **Storybook type docs are snapshotted.** The prop/data-type definitions shown in the docs, and the
-  component/export-key tables in `packages/components/llms.txt`, come from generated files; `dev`
-  does not rebuild them. Run `pnpm --filter @r4pm/components docs:types` after changing a documented
+  component/export-key tables in `packages/components/llms.txt`, come from generated files, which `dev`
+  does not rebuild. Run `pnpm --filter @r4pm/components docs:types` after changing a documented
   viewer prop or data-type shape, adding a component, or changing an export key.
 - **`verbatimModuleSyntax: true`**: use `import type` for type-only imports.
 - **Tailwind v4 is the standard** for UI, shipped to consumers via `@r4pm/components/styles.css`
   (Tailwind + Radix + the package's own rules). A host that runs its own Tailwind build imports
-  `@r4pm/components/rules.css` instead (same thing minus Tailwind) and `@source`s this package's
-  source so the utility classes are generated. Storybook and `examples/external-consumer` take the
-  first route, `apps/studio` the second. Never `ui/styles.css` alone: that is Radix only, and the
-  `.bp-*` / `.r4pm-*` / editor rules go missing with no error anywhere. A viewer's **root** sizes
-  inline (`width/height: 100%`); inner layout may use Tailwind.
+  `@r4pm/components/rules.css` instead (the same minus Tailwind) and `@source`s this package's
+  source, so that the utility classes are generated. Storybook and `examples/external-consumer` take the
+  first route, `apps/studio` the second. Never import `ui/styles.css` alone: It contains only Radix, and the
+  `.bp-*` / `.r4pm-*` / editor rules go missing without any error. A viewer's **root** sizes
+  inline (`width/height: 100%`), and inner layout may use Tailwind.
 - **Reusable packages depend only on `@r4pm/client`'s `BackendContext` interface**, never on a
   specific transport (wasm/tauri/fetch). Transport code lives in `apps/*`.
-- **UI primitives come from `@r4pm/components/ui`, never `@radix-ui/themes` directly** (biome
-  enforces this; the only override is `packages/components/src/ui/**`).
-  Consumers re-theme via Radix's CSS-variable tokens; structural sizing stays inline.
-- **Data stays in Rust/WASM.** TS holds handles + metadata + small/plot-bound results.
+- **UI primitives come from `@r4pm/components/ui`, never from `@radix-ui/themes` directly** (Biome
+  enforces this, with `packages/components/src/ui/**` as the only exception).
+  Consumers re-theme via Radix's CSS-variable tokens, and structural sizing stays inline.
+- **Data stays in Rust/WASM.** TypeScript holds handles, metadata, and small results that a view plots.
 
 ## Verifying a change
 
 - `pnpm typecheck` (or `pnpm --filter <pkg> exec tsc --noEmit`) must be clean.
-- `pnpm test` (Vitest) must pass. Add unit tests for pure logic (registry resolution, codegen shape,
-  pipeline graph execution); colocate them as `*.test.ts` next to the code.
-- For UI, run the studio (or the relevant Storybook story: `pnpm --filter @r4pm/components dev`) and
-  confirm it renders against the real wasm; don't claim it works without seeing it render.
-- New viewers should ship a Storybook `*.stories.tsx` (CSF3) with sample data.
+- `pnpm test` (Vitest) must pass. Add unit tests for pure logic (e.g., registry resolution, codegen shape,
+  pipeline graph execution), next to the code as `*.test.ts`.
+- `pnpm check` (Biome) must be clean for the changed files.
+- For UI changes, run the studio (or the Storybook story: `pnpm --filter @r4pm/components dev`) and
+  check that it renders with the real engine.
+- New viewers ship a Storybook `*.stories.tsx` (CSF3) with sample data.
 
-## Commits & releases
+## Commits and releases
 
-- Conventional, imperative commit subjects. Don't add `Co-Authored-By`/"Generated with" trailers.
-- Releases are tag-driven: `pnpm components:version <x.y.z> --tag` then push the `components-v*` tag to
-  publish `@r4pm/components`; `pnpm app:version <x.y.z> --tag` then push the `v*` tag to release the desktop app.
-
-## License
-
-By contributing you agree your contributions are dual-licensed under MIT OR Apache-2.0.
-
+- Imperative commit subjects.
+- Releases are driven by tags, and both version scripts edit the version files and print the git commands.
+  With `--tag`, they also commit, tag, and push:
+  - `pnpm components:version <x.y.z> [--tag]` publishes `@r4pm/components` through the `components-v*` tag.
+  - `pnpm app:version <x.y.z> [--tag]` releases the desktop app through the `v*` tag. `engine/app/tauri.conf.json` holds the app version, and `engine/app/Cargo.toml` mirrors it.
 
 ## Extending Propel
 
-How to add the things you'll most often add. Every example matches the real code in this repo.
-
-- [Contributing to Propel](#contributing-to-propel)
-  - [Prerequisites](#prerequisites)
-  - [Layout](#layout)
-  - [Dev workflow](#dev-workflow)
-  - [Conventions (the non-obvious ones)](#conventions-the-non-obvious-ones)
-  - [Verifying a change](#verifying-a-change)
-  - [Commits \& releases](#commits--releases)
-  - [License](#license)
-  - [Extending Propel](#extending-propel)
-    - [Add a new visualization](#add-a-new-visualization)
-    - [Add a new Rust binding (analysis function)](#add-a-new-rust-binding-analysis-function)
-    - [Add a new transport](#add-a-new-transport)
-    - [Add a new panel kind](#add-a-new-panel-kind)
-    - [Consume `@r4pm/*` in an external React app](#consume-r4pm-in-an-external-react-app)
+Recipes for the extensions from the [table above](#where-things-go) that take more than one step. The examples match the code in this repository.
 
 ---
 
@@ -141,9 +150,11 @@ export const vis = defineVis({
 });
 ```
 
-Drop the file; that's it. The `vis/registry.ts` auto-collects every `vis/*.tsx` exporting
+No registration is needed beyond the file: `vis/registry.ts` collects every `vis/*.tsx` exporting
 `const vis` via `import.meta.glob` and fans it into the panel registry (gallery / palette) and the
 viewer registry (pipeline output nodes). `order` controls gallery sort.
+The panel picker groups panels by analysis. To list the panel there, add `{ type, about }` to an analysis in
+[`shell/analyses.tsx`](apps/studio/src/shell/analyses.tsx). Panels that no analysis lists appear under "More".
 
 Live examples: [`vis/log-summary.tsx`](apps/studio/src/vis/log-summary.tsx),
 [`vis/dfg.tsx`](apps/studio/src/vis/dfg.tsx), [`vis/petri-net.tsx`](apps/studio/src/vis/petri-net.tsx).
@@ -163,7 +174,7 @@ and never imports `@r4pm/client`. The `defineVis(...)` in the app binds it to th
 
 **Escape-hatch viewers**: for pipeline-only renderers that have no panel (json fallback, fitness
 view, oc-petri-net), a standalone `defineViewer(...)` adapter in `apps/studio/src/viewers/<id>.ts`
-is auto-collected into the viewer registry the same way. These are the exception, not the norm.
+is collected into the viewer registry the same way. These are the exception.
 
 **`ViewerProps<T>`:** `{ data: T; handle?: string }` plus the shared `ViewerConfig` fields
 (`colorOf`, `format`, `actions`, `onSelect`). See the Storybook "Concepts > Viewer Configuration"
@@ -173,8 +184,7 @@ page.
 
 ### Add a new Rust binding (analysis function)
 
-Functions are exposed by annotating a plain Rust function. The registry, metadata, Python
-wrappers, and pipeline node all follow from it.
+Functions are exposed by annotating a plain Rust function. The registry entry, the metadata, and the pipeline node all follow from it.
 
 1. Add the function to the open `app-bindings` crate.
 
@@ -212,7 +222,7 @@ wrappers, and pipeline node all follow from it.
 4. (Only to run the browser target) rebuild the WASM engine:
 
    ```bash
-   cd engine/wasm && wasm-pack build --target web && cd ../..
+   pnpm wasm:build
    ```
 
 `backend.callBinding("app_bindings::my_thing", { log, threshold })` is now fully typed end-to-end.
@@ -317,7 +327,7 @@ those give you Radix and nothing else, and the missing rules fail silently.
 You also need a React Query provider (`@tanstack/react-query`) and a `<Theme>` wrapper around the
 Radix-backed UI from `@r4pm/components/ui`.
 
-A complete, runnable example lives in [`examples/external-consumer/`](../examples/external-consumer/)
+A complete, runnable example lives in [`examples/external-consumer/`](examples/external-consumer/)
 - a standalone Vite + React app that imports `@r4pm/components`, resolves a viewer by return-type via
 its own local registry, and renders it with its own data (no `@r4pm` engine required). Run it with
 `pnpm --filter @r4pm/example-external-consumer dev`.
@@ -325,3 +335,7 @@ its own local registry, and renders it with its own data (no `@r4pm` engine requ
 > Note: packages publish a compiled `dist` (tsup) with type declarations via `publishConfig`; in the
 > workspace they resolve to `src` for HMR. The Tailwind `@source` directives above are still needed
 > because the components ship/use utility classes.
+
+## License
+
+By contributing, you agree that your contributions are dual-licensed under MIT OR Apache-2.0.

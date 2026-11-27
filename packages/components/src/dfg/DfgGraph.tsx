@@ -16,7 +16,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useIsDarkMode } from "../viewer/dark-mode";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { useViewSetting } from "../viewer/view-state";
-import { colorForKey, type ViewerAction, type ViewerTarget } from "../viewer/viewer-config";
+import {
+  colorForKey,
+  asFlowProps,
+  type FlowProps,
+  type ViewerAction,
+  type ViewerTarget,
+} from "../viewer/viewer-config";
 import type { Point, VizTransport } from "../viz";
 import { DFG_EDGE_TYPES, type DfgEdgeType } from "./DfgEdge";
 import DfgSettings from "./DfgSettings";
@@ -193,6 +199,8 @@ export interface DfgGraphProps {
   routing?: DfgRouting;
   /** Label, width and color of each arc, replacing the metric (whose picker is then hidden). */
   arcLook?: (arc: DfgArc) => ArcLook;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
 }
 
 /** A laid-out model and what it was laid out from. `routes` are the edges' current routes. `fresh`
@@ -261,6 +269,7 @@ function DfgGraphInner({
   viz,
   routing,
   arcLook,
+  flowProps,
 }: DfgGraphProps) {
   const { fitView, getNodes } = useReactFlow<DfgFlowNode, DfgEdgeType>();
   const [direction, setDirection] = useViewSetting<"TB" | "LR">("direction", "TB");
@@ -439,6 +448,8 @@ function DfgGraphInner({
             nodesConnectable={false}
             className="node-dfg"
             proOptions={{ hideAttribution: true }}
+            minZoom={0.05}
+            {...asFlowProps<DfgFlowNode, DfgEdgeType>(flowProps)}
           >
             {topLeftExtra && <Panel position="top-left">{topLeftExtra}</Panel>}
             <Panel position="top-right">

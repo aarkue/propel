@@ -1,5 +1,22 @@
 import { type ComponentType, createContext, type ReactNode, useCallback, useContext, useMemo } from "react";
+import type { Edge, Node, ReactFlowProps } from "@xyflow/react";
 import type { VizTransport } from "../viz";
+
+/**
+ * Props for the React Flow canvas of a graph view (`flowProps`), e.g., `minZoom`, `maxZoom`,
+ * `panOnScroll` or `zoomOnDoubleClick`. They are applied after the view's own settings and replace
+ * them. The view keeps its nodes, edges and their types.
+ */
+export type FlowProps<N extends Node = Node, E extends Edge = Edge> = Omit<
+  ReactFlowProps<N, E>,
+  "nodes" | "edges" | "defaultNodes" | "defaultEdges" | "nodeTypes" | "edgeTypes"
+>;
+
+/** `flowProps` typed for a canvas of `N` nodes and `E` edges. A host writes its callbacks against
+ *  plain `Node`s and `Edge`s, which every canvas's nodes and edges are. */
+export function asFlowProps<N extends Node, E extends Edge>(p: FlowProps | undefined): FlowProps<N, E> {
+  return (p ?? {}) as unknown as FlowProps<N, E>;
+}
 
 /** A domain element a host can act on. `scope` is the kind ("activity", "objectType", ...). */
 export interface ViewerTarget {

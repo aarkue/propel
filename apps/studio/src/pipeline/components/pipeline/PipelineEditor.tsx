@@ -723,6 +723,7 @@ function PipelineEditorContent({ registerHandle }: { registerHandle: (h: Pipelin
             animated: true,
           }}
           fitView
+          minZoom={0.05}
         >
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
           <Controls />

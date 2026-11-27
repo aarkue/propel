@@ -10,7 +10,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterExport, type VectorExportSource } from "../../viewer/export";
-import { useViewerConfig } from "../../viewer/viewer-config";
+import { asFlowProps, type FlowProps, useViewerConfig } from "../../viewer/viewer-config";
 import { modelSvg, type VizTransport } from "../../viz";
 import type { ProcessTree, Size } from "../../viz/types";
 import {
@@ -87,6 +87,8 @@ export type TreeEditorProps = {
   viz?: VizTransport;
   /** Override to avoid a collision when several trees share one export frame. */
   exportKey?: string;
+  /** Settings of the React Flow canvas that replace the editor's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
   children?: React.ReactNode;
   className?: string;
 };
@@ -345,6 +347,9 @@ function InnerEditor(props: TreeEditorProps & { readOnly: boolean }) {
           // Headroom for the selected node's toolbar, which renders above the node in screen space
           // and would otherwise be clipped for the root.
           fitViewOptions={{ padding: 0.2 }}
+          // React Flow's default (0.5) keeps a large tree from fitting or being zoomed out.
+          minZoom={0.05}
+          {...asFlowProps<TreeFlowNode, Edge>(props.flowProps)}
         >
           <Controls showInteractive={false} />
           {props.children}

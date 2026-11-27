@@ -83,7 +83,7 @@ const defaultActivityColor = defaultColor("activity");
 const defaultObjectTypeColor = defaultColor("objectType");
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
 import { useIsDarkMode } from "../viewer/dark-mode";
-import { useViewerConfig } from "../viewer/viewer-config";
+import { asFlowProps, type FlowProps, useViewerConfig } from "../viewer/viewer-config";
 
 export interface OCDeclareVizProps {
   /** Constraint model to render; read-only hosts build it via `arcsToModel`, edit mode passes the controlled model. */
@@ -165,6 +165,8 @@ export interface OCDeclareVizProps {
    *  the ambient `ViewerConfig.viz`. Without one, the activities stack in a column and only the
    *  snapshot export is offered. */
   viz?: VizTransport;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
 }
 
 /** Imperative handle for the viz: exposes current laid-out nodes/edges for export. */
@@ -271,6 +273,7 @@ function keptRoute(live: FlowEdge | undefined, saved: DeclareEdge | undefined): 
 
 const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(function OCDeclareVizInner(
   {
+    flowProps,
     combineEfEp = true,
     activityColor = defaultActivityColor,
     objectTypeColor = defaultObjectTypeColor,
@@ -1240,6 +1243,7 @@ const OCDeclareVizInner = forwardRef<OCDeclareVizHandle, OCDeclareVizProps>(func
             onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
             onNodeMouseLeave={() => setHoveredNodeId(null)}
             proOptions={{ hideAttribution: true }}
+            {...asFlowProps<FlowNode, Edge<ConstraintEdgeData, "constraint">>(flowProps)}
           >
             <Panel position="top-left" className="pointer-events-none!">
               <div className="flex flex-col items-start gap-2 pointer-events-none">

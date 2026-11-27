@@ -17,7 +17,7 @@ import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, use
 import { PiArrowsOut } from "react-icons/pi";
 import { useIsDarkMode } from "../viewer/dark-mode";
 import { useRegisterExport, type VectorExportSource } from "../viewer/export";
-import { type ColorResolver, colorForKey, useViewerConfig } from "../viewer/viewer-config";
+import { type ColorResolver, colorForKey, type FlowProps, useViewerConfig } from "../viewer/viewer-config";
 import { modelSvg, type VizTransport } from "../viz";
 import type { Point } from "../viz/types";
 import {
@@ -72,6 +72,8 @@ export interface OcelTypeGraphProps {
   /** rust4pm's visualization, for the layout and the image export. Defaults to `ViewerConfig.viz`.
    *  Without one the event types sit in a row above the object types and there is no vector export. */
   viz?: VizTransport;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
   className?: string;
 }
 
@@ -240,6 +242,7 @@ function OcelTypeGraphInner({
   colorOf,
   viz,
   visibleNodeIds,
+  flowProps,
 }: OcelTypeGraphProps) {
   const { fitView } = useReactFlow();
   const cfg = useViewerConfig({ colorOf, viz });
@@ -420,6 +423,7 @@ function OcelTypeGraphInner({
         selectionOnDrag={false}
         elementsSelectable={false}
         proOptions={{ hideAttribution: true }}
+        {...flowProps}
       />
     </div>
   );

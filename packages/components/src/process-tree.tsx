@@ -6,7 +6,7 @@ export type { ProcessTree, ProcessTreeNode, ProcessTreeOperatorType } from "./vi
 
 export interface ProcessTreeViewerProps
   extends ViewerProps<ProcessTree>,
-    Pick<TreeEditorProps, "editable" | "onChange" | "nodeOverlay" | "exportKey"> {}
+    Pick<TreeEditorProps, "editable" | "onChange" | "nodeOverlay" | "exportKey" | "flowProps"> {}
 
 /** Renders a rust4pm process tree, optionally editable, laid out and exported by rust4pm through
  *  `viz` (or `ViewerConfig.viz`). */
@@ -17,6 +17,7 @@ export function ProcessTreeViewer({
   nodeOverlay,
   exportKey,
   viz,
+  flowProps,
 }: ProcessTreeViewerProps) {
   return (
     <Editor
@@ -26,6 +27,7 @@ export function ProcessTreeViewer({
       nodeOverlay={nodeOverlay}
       exportKey={exportKey}
       viz={viz}
+      flowProps={flowProps}
     />
   );
 }

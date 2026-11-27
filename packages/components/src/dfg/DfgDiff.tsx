@@ -2,7 +2,7 @@ import { Flex, Text } from "@r4pm/components/ui";
 import { type ReactNode, useCallback, useMemo } from "react";
 import { fmtInt, LegendItem, Metric, MetricRow } from "../kit";
 import { useViewSetting } from "../viewer/view-state";
-import { useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
+import { type FlowProps, useViewerConfig, type ViewerProps } from "../viewer/viewer-config";
 import type { Dfg } from "../viz/types";
 import { DfgGraph } from "./DfgGraph";
 import { colorToHex, shadeHex } from "./util/colors";
@@ -31,6 +31,8 @@ export interface DfgComparison {
 export interface DfgDiffViewerProps extends ViewerProps<DfgComparison> {
   /** A caveat shown under the summary. */
   note?: ReactNode;
+  /** Settings of the React Flow canvas that replace the view's own (see {@link FlowProps}). */
+  flowProps?: FlowProps;
 }
 
 const MORE = colorToHex("orange");
@@ -70,7 +72,7 @@ function changeLabel(fa: number, fb: number): string {
  * less, and the line width grows with the size of the change.
  */
 export function DfgDiffViewer(props: DfgDiffViewerProps) {
-  const { data, note } = props;
+  const { data, note, flowProps } = props;
   const cfg = useViewerConfig(props);
   const [metric, setMetric] = useViewSetting<DfgMetric>("metric", "count");
   const dfg = useMemo(() => unionDfg(data), [data]);
@@ -151,6 +153,7 @@ export function DfgDiffViewer(props: DfgDiffViewerProps) {
       viz={cfg.viz}
       routing={cfg.routing}
       arcLook={arcLook}
+      flowProps={flowProps}
     />
   );
 

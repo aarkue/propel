@@ -8,6 +8,7 @@ import { ioKindByName } from "../io-kinds";
 import { openArtifact } from "../panels/open-artifact";
 import { sendArtifactToPipeline } from "../panels/pipeline-bridge";
 import { ChipAction, ChipStrip, EntityChip, ExportLineageChipAction } from "./chips";
+import { exportFileName } from "./export-name";
 
 /**
  * Horizontal strip of loaded-artifact chips (engine-stored, non-registry values, e.g. Petri nets).
@@ -55,7 +56,7 @@ function ArtifactChip({
     close();
     try {
       const bytes = await backend.exportArtifact(id, ext);
-      await backend.saveBytes(bytes, `${id}.${ext}`, mime);
+      await backend.saveBytes(bytes, exportFileName(label, ext), mime);
     } catch (e) {
       toast.error(`Export failed: ${String(e)}`);
     }

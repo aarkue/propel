@@ -3,11 +3,13 @@ import toast from "react-hot-toast";
 import { PiFileArrowDown, PiFolder } from "react-icons/pi";
 import { create } from "zustand";
 import { backend } from "../backends";
+import { objectLabel } from "../stores/naming";
+import { completeExtension, dialogExtension, exportFileName } from "./export-name";
 
 type Container = "file" | "folder";
 
 interface Pending {
-  id: string;
+  label: string;
   ext: string;
   resolve: (c: Container | null) => void;
 }
@@ -17,8 +19,8 @@ const useContainerChoice = create<{ pending: Pending | null; set: (p: Pending | 
   set: (pending) => set({ pending }),
 }));
 
-function askContainer(id: string, ext: string): Promise<Container | null> {
-  return new Promise((resolve) => useContainerChoice.getState().set({ id, ext, resolve }));
+function askContainer(label: string, ext: string): Promise<Container | null> {
+  return new Promise((resolve) => useContainerChoice.getState().set({ label, ext, resolve }));
 }
 
 /**
@@ -31,26 +33,28 @@ function askContainer(id: string, ext: string): Promise<Container | null> {
  */
 export async function exportDataset(id: string, ext: string, mime: string): Promise<void> {
   const exportToPath = backend.exportObjectToPath?.bind(backend);
+  const label = objectLabel(id);
+  const fileName = exportFileName(label, ext);
   try {
     if (!exportToPath) {
       const bytes = await backend.exportObject(id, ext);
-      await backend.saveBytes(bytes, `${id}.${ext}`, mime);
+      await backend.saveBytes(bytes, fileName, mime);
       return;
     }
     // A zip format is equally valid as an archive or as the same layout unpacked into a folder.
-    const container = ext.endsWith("zip") ? await askContainer(id, ext) : "file";
+    const container = ext.endsWith("zip") ? await askContainer(label, ext) : "file";
     if (container === null) return;
     const { open, save } = await import("@tauri-apps/plugin-dialog");
     const path =
       container === "folder"
-        ? await open({ directory: true, title: `Export ${id} into a folder` })
+        ? await open({ directory: true, title: `Export ${label} into a folder` })
         : await save({
-            title: `Export ${id}`,
-            defaultPath: `${id}.${ext}`,
-            filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+            title: `Export ${label}`,
+            defaultPath: fileName,
+            filters: [{ name: ext.toUpperCase(), extensions: [dialogExtension(ext)] }],
           });
     if (typeof path !== "string") return;
-    await exportToPath(id, ext, path);
+    await exportToPath(id, ext, container === "folder" ? path : completeExtension(path, ext));
   } catch (e) {
     toast.error(`Export failed: ${String(e)}`);
   }
@@ -73,7 +77,7 @@ export function ExportContainerDialog() {
       }}
     >
       <Dialog.Content maxWidth="420px" data-testid="export-container-picker">
-        <Dialog.Title>Export {pending?.id}</Dialog.Title>
+        <Dialog.Title>Export {pending?.label}</Dialog.Title>
         <Dialog.Description size="2" color="gray">
           .{pending?.ext} holds the same files either way: zipped into one archive, or laid out in a folder.
         </Dialog.Description>
